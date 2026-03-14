@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>开奖结算</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  
+  <!-- 提示页：目前默认隐藏，仅保留备份入口 -->
+  <div id="page-login" class="hidden flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-800 rounded-3xl shadow-2xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">📊</div>
+        <h1 class="text-2xl font-bold">开奖结算</h1>
+        <p class="text-gray-400 mt-2">请先在收银台完成登录，再使用本页面</p>
+      </div>
+      
+      <button onclick="window.location.href='merchant.html'" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
+        去收银台登录
+      </button>
+    </div>
+  </div>
+
+  <!-- 结算主页（默认展示） -->
+  <div id="page-result" class="min-h-screen pb-20">
+    <header class="bg-gray-800 p-3 sticky top-0 z-10">
+      <div class="max-w-2xl mx-auto flex items-center gap-2">
+        <button type="button" id="btn-result-lang" onclick="toggleResultLang()" class="flex-shrink-0 w-12 h-10 flex items-center justify-center text-2xl rounded-lg hover:bg-gray-700" title="Español/中文">🇵🇦</button>
+        <div class="flex-1 min-w-0">
+          <h1 class="font-bold text-lg" data-i18n="result_title">📊 开奖结算</h1>
+          <p class="text-xs text-gray-400" id="shop-info">
+            <span data-i18n="shop_label">店号</span>: <span id="shop-number">-----</span>
+            <span id="shop-name" class="ml-1 hidden">加载中...</span>
+          </p>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <a href="merchant.html" class="text-gray-400 text-sm" data-i18n="back">返回</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto p-3 space-y-3">
+      <!-- 开奖结果 -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <h2 class="font-bold mb-3" data-i18n="draw_result_title">🎰 开奖结果</h2>
+        
+        <div id="draw-waiting" class="text-center py-6">
+          <div class="text-4xl mb-2">⏳</div>
+          <p class="text-gray-400" data-i18n="waiting_draw">等待开奖...</p>
+          <div class="mt-4 bg-orange-900/50 rounded-xl p-3">
+            <p class="text-xs text-orange-300" data-i18n="next_draw">下一期开奖</p>
+            <p class="text-xl font-bold font-mono" id="countdown-timer">--:--:--</p>
+          </div>
+        </div>
+        
+        <div id="draw-result" class="hidden">
+          <div class="grid grid-cols-3 gap-2">
+            <div class="bg-yellow-900/50 rounded-xl p-4 text-center">
+              <p class="text-xs text-yellow-300 mb-1" data-i18n="prize_1">🥇 1奖</p>
+              <p class="text-3xl font-mono font-bold text-yellow-400" id="result-1st">----</p>
+            </div>
+            <div class="bg-gray-700 rounded-xl p-4 text-center">
+              <p class="text-xs text-gray-400 mb-1" data-i18n="prize_2">🥈 2奖</p>
+              <p class="text-3xl font-mono font-bold" id="result-2nd">----</p>
+            </div>
+            <div class="bg-gray-700 rounded-xl p-4 text-center">
+              <p class="text-xs text-gray-400 mb-1" data-i18n="prize_3">🥉 3奖</p>
+              <p class="text-3xl font-mono font-bold" id="result-3rd">----</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 今日销售 & 赔付 & 利润 总览 -->
+      <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p class="text-sm text-gray-400" data-i18n="today_sales_paid">今日销售额 (已付款)</p>
+            <p class="text-3xl sm:text-4xl font-bold text-green-400" id="today-sales">$0.00</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+            <div class="bg-gray-700 rounded-lg p-2 text-center">
+              <p class="text-gray-400" data-i18n="chance_sales">Chance 销售额</p>
+              <p class="text-lg font-bold text-blue-400" id="chance-sales">$0</p>
+            </div>
+            <div class="bg-gray-700 rounded-lg p-2 text-center">
+              <p class="text-gray-400" data-i18n="billete_sales">Billete 销售额</p>
+              <p class="text-lg font-bold text-yellow-400" id="billete-sales">$0</p>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-center">
+          <div class="bg-red-900/50 rounded-xl p-3">
+            <p class="text-sm text-red-300" data-i18n="total_payout">总赔付</p>
+            <p class="text-2xl sm:text-3xl font-bold text-red-400" id="total-payout">$0</p>
+          </div>
+          <div id="profit-section" class="bg-gray-700 rounded-xl p-3">
+            <p class="text-sm text-gray-300" data-i18n="today_profit">今日利润</p>
+            <p class="text-2xl sm:text-3xl font-bold" id="profit-amount">$0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chance 销售明细（00-99 所有号码） -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <h3 class="font-bold mb-3" data-i18n="chance_sales_detail">🎯 Chance 销售（00-99）</h3>
+        <div id="chance-full-grid" class="grid grid-cols-5 sm:grid-cols-10 gap-1 text-[11px] font-mono">
+          <!-- 动态填充 00-99 -->
+        </div>
+      </div>
+
+      <!-- Billete 销售明细（仅显示卖出的号码） -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <h3 class="font-bold mb-3" data-i18n="billete_sales_detail">🎫 Billete 销售号码</h3>
+        <div id="billete-full-list" class="space-y-1 max-h-48 overflow-y-auto text-sm font-mono">
+          <!-- 动态填充已售号码 -->
+        </div>
+      </div>
+
+      <!-- Billete中奖 -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <h3 class="font-bold mb-2" data-i18n="billete_winners">🎫 Billete中奖</h3>
+        <div id="no-billete-winners" class="text-center py-4 text-gray-400" data-i18n="no_winners">
+          暂无中奖
+        </div>
+        <div id="billete-winners" class="hidden space-y-1 max-h-40 overflow-y-auto">
+        </div>
+      </div>
+
+      <!-- Chance中奖 -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <h3 class="font-bold mb-2" data-i18n="chance_winners">🎯 Chance中奖</h3>
+        <div id="no-chance-winners" class="text-center py-4 text-gray-400" data-i18n="no_winners">
+          暂无中奖
+        </div>
+        <div id="chance-winners" class="hidden space-y-1 max-h-40 overflow-y-auto">
+        </div>
+      </div>
+
+      <!-- 最近 7 期开奖结果与结算概览 -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-bold text-sm" data-i18n="recent_7">📅 最近 7 期结算记录</h3>
+          <span class="text-[11px] text-gray-400" data-i18n="paid_only">仅统计已付款订单</span>
+        </div>
+        <div id="history-list" class="divide-y divide-gray-700 text-xs">
+          <div class="py-3 text-center text-gray-500">加载中...</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    const DEBUG = false; // 上线设为 false，调试时可改为 true
+    const RESULT_LANG_KEY = 'lottery_merchant_lang';
+    const RESULT_T = {
+      zh: {
+        result_title: '📊 开奖结算',
+        shop_label: '店号',
+        back: '返回',
+        draw_result_title: '🎰 开奖结果',
+        waiting_draw: '等待开奖...',
+        next_draw: '下一期开奖',
+        prize_1: '🥇 1奖',
+        prize_2: '🥈 2奖',
+        prize_3: '🥉 3奖',
+        today_sales_paid: '今日销售额 (已付款)',
+        chance_sales: 'Chance 销售额',
+        billete_sales: 'Billete 销售额',
+        total_payout: '总赔付',
+        today_profit: '今日利润',
+        chance_sales_detail: '🎯 Chance 销售（00-99）',
+        billete_sales_detail: '🎫 Billete 销售号码',
+        billete_winners: '🎫 Billete中奖',
+        chance_winners: '🎯 Chance中奖',
+        no_winners: '暂无中奖',
+        recent_7: '📅 最近 7 期结算记录',
+        paid_only: '仅统计已付款订单'
+      },
+      es: {
+        result_title: '📊 Resultado y liquidación',
+        shop_label: 'Tienda',
+        back: 'Volver',
+        draw_result_title: '🎰 Resultado del sorteo',
+        waiting_draw: 'Esperando sorteo...',
+        next_draw: 'Próximo sorteo',
+        prize_1: '🥇 1º premio',
+        prize_2: '🥈 2º premio',
+        prize_3: '🥉 3º premio',
+        today_sales_paid: 'Ventas de hoy (pagados)',
+        chance_sales: 'Ventas Chance',
+        billete_sales: 'Ventas Billete',
+        total_payout: 'Total premios',
+        today_profit: 'Beneficio hoy',
+        chance_sales_detail: '🎯 Ventas Chance (00-99)',
+        billete_sales_detail: '🎫 Números Billete',
+        billete_winners: '🎫 Premios Billete',
+        chance_winners: '🎯 Premios Chance',
+        no_winners: 'Sin premios',
+        recent_7: '📅 Últimos 7 sorteos',
+        paid_only: 'Solo pedidos pagados'
+      }
+    };
+    function getResultLang() { return localStorage.getItem(RESULT_LANG_KEY) || 'zh'; }
+    function toggleResultLang() {
+      const next = getResultLang() === 'zh' ? 'es' : 'zh';
+      localStorage.setItem(RESULT_LANG_KEY, next);
+      applyResultLang();
+    }
+    function applyResultLang() {
+      const lang = getResultLang();
+      document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        const key = el.getAttribute('data-i18n');
+        if (RESULT_T[lang] && RESULT_T[lang][key]) el.textContent = RESULT_T[lang][key];
+      });
+    }
+
+    let currentShop = null;
+    let authToken = null;
+    let allOrders = [];
+    let drawResult = null;
+    let countdownInterval = null;
+    let customDrawTime = null; // 后台手动设置的开奖时间（如果有）
+    let recentHistory = [];
+
+    // 页面初始化：优先使用 URL 参数中的 token 和店铺信息，然后再看本地 token
+    (function initResultPage() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (DEBUG) console.log("URL params:", window.location.search);
+      const urlToken = urlParams.get('t');
+      const urlShopId = urlParams.get('sid');
+      const urlShopNumber = urlParams.get('sn');
+      const urlShopName = urlParams.get('sname');
+
+      if (urlToken) {
+        // 如果 URL 中带了 token，则优先使用并写回本地
+        localStorage.setItem('lottery_token', urlToken);
+      }
+
+      const savedToken = localStorage.getItem('lottery_token');
+      if (!savedToken) {
+        document.getElementById('page-login').classList.remove('hidden');
+        document.getElementById('page-result').classList.add('hidden');
+        return;
+      }
+
+      authToken = savedToken;
+      applyResultLang();
+
+      if (DEBUG) console.log("urlShopId:", urlShopId);
+      if (urlShopId) {
+        const decodedShopName = urlShopName ? decodeURIComponent(urlShopName) : '';
+        currentShop = {
+          shop_id: Number(urlShopId),
+          shop_number: urlShopNumber || '',
+          shop_name: decodedShopName
+        };
+        document.getElementById('shop-number').textContent = currentShop.shop_number || '';
+        document.getElementById('shop-name').textContent = currentShop.shop_name || '';
+        document.getElementById('page-login').classList.add('hidden');
+        document.getElementById('page-result').classList.remove('hidden');
+        applyResultLang();
+        loadData();
+        startCountdown();
+
+        // 异步调用 API 获取完整店铺详情，更新可能缺失或过期的字段
+        fetch(`${API_BASE}/api/merchant/shops`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        }).then(r => r.json()).then(data => {
+          if (data.shops && data.shops.length > 0) {
+            const match = data.shops.find(s => s.shop_id === Number(urlShopId));
+            if (match) {
+              currentShop = match;
+              document.getElementById('shop-number').textContent = match.shop_number || '';
+              document.getElementById('shop-name').textContent = match.shop_name || '';
+            }
+          }
+        }).catch(() => {});
+        return;
+      }
+
+      // 否则回退到通过 token 查询店铺列表（用于直接打开 result.html 的情况）
+      fetch(`${API_BASE}/api/merchant/shops`, {
+        headers: { 'Authorization': `Bearer ${savedToken}` }
+      }).then(r => r.json()).then(data => {
+        if (data.shops && data.shops.length > 0) {
+          currentShop = data.shops[0];
+          document.getElementById('shop-number').textContent = currentShop.shop_number || '';
+          document.getElementById('shop-name').textContent = currentShop.shop_name || '';
+          document.getElementById('page-login').classList.add('hidden');
+          document.getElementById('page-result').classList.remove('hidden');
+          applyResultLang();
+          loadData();
+          startCountdown();
+        } else {
+          // 无店铺则清除 token，提示回收银台登录
+          localStorage.removeItem('lottery_token');
+          document.getElementById('page-login').classList.remove('hidden');
+          document.getElementById('page-result').classList.add('hidden');
+        }
+      }).catch(() => {
+        document.getElementById('page-login').classList.remove('hidden');
+        document.getElementById('page-result').classList.add('hidden');
+      });
+    })();
+
+    // 兜底：无论上面逻辑是否成功，至少保证抬头里的店号/店名根据 URL 参数展示
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const sn = params.get('sn');
+        const sname = params.get('sname');
+        if (sn) {
+          const snEl = document.getElementById('shop-number');
+          if (snEl) snEl.textContent = sn;
+        }
+        if (sname) {
+          const nameEl = document.getElementById('shop-name');
+          if (nameEl) nameEl.textContent = decodeURIComponent(sname);
+        }
+      } catch (e) {
+        // ignore
+      }
+    });
+
+    // 赔率
+    const PAYOUTS = {
+      billete: {
+        exact: 5000,
+        first3: 500,
+        last3: 500,
+        first2: 50,
+        last2: 50
+      },
+      chance: {
+        exact: 80
+      }
+    };
+
+    // 此页面不再提供单独登录，只允许从收银台登录后携带 token 访问
+
+    // 倒计时：
+    // - 默认每周三、日 15:00
+    // - 如果总后台发送了开奖时间，则以后台时间为准
+    function startCountdown() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      
+      function updateCountdown() {
+        const now = new Date();
+        const day = now.getDay();      // 本地周几
+        const hour = now.getHours();   // 本地小时
+        
+        const box = document.getElementById('draw-waiting');
+        const timerEl = document.getElementById('countdown-timer');
+        if (!box || !timerEl) return;
+
+        // 1. 如果后台配置了开奖时间，优先用后台时间
+        if (customDrawTime instanceof Date && !isNaN(customDrawTime.getTime())) {
+          if (now < customDrawTime) {
+            const diff = customDrawTime.getTime() - now.getTime();
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            box.classList.remove('hidden');
+            timerEl.textContent =
+              `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            return;
+          } else {
+            // 当天已经过了后台设置的开奖时间：显示“今日已开奖”，到凌晨 0 点再重新进入默认规则
+            if (now.toDateString() === customDrawTime.toDateString()) {
+              box.classList.remove('hidden');
+              timerEl.textContent = '今日已开奖';
+              return;
+            }
+            // 过了这一天，清空自定义时间，回到默认规则
+            customDrawTime = null;
+          }
+        }
+
+        // 2. 默认规则：每周三 / 周日 15:00
+        const drawDays = [0, 3]; // 周日 0, 周三 3
+
+        // 如果今天是开奖日且已经过 15:00，则显示“今日已开奖”
+        if (drawDays.includes(day) && hour >= 15) {
+          box.classList.remove('hidden');
+          timerEl.textContent = '今日已开奖';
+          return;
+        }
+
+        // 计算下一次开奖时间（从当前时刻向后找最近的周三/周日 15:00）
+        let nextDraw = null;
+        for (let i = 0; i <= 7; i++) {
+          const cand = new Date(now);
+          cand.setDate(now.getDate() + i);
+          cand.setHours(15, 0, 0, 0);
+          if (drawDays.includes(cand.getDay()) && cand > now) {
+            nextDraw = cand;
+            break;
+          }
+        }
+
+        if (!nextDraw) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        const diff = nextDraw.getTime() - now.getTime();
+        if (diff <= 0) {
+          box.classList.add('hidden');
+          return;
+        }
+
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        box.classList.remove('hidden');
+        timerEl.textContent =
+          `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+      }
+      
+      updateCountdown();
+      countdownInterval = setInterval(updateCountdown, 1000);
+    }
+
+    // 加载数据
+    async function loadData() {
+      if (DEBUG) console.log("loadData called, currentShop:", currentShop);
+      if (!currentShop) return;
+      
+      try {
+        const ordersRes = await fetch(`${API_BASE}/api/shop/${currentShop.shop_id}/orders?limit=20000`);
+        const ordersData = await ordersRes.json();
+        allOrders = ordersData.orders || [];
+        
+        const paidOrders = allOrders.filter(o => o.status === 'paid' || o.status === 1);
+        
+        const drawRes = await fetch(`${API_BASE}/api/draw/latest`);
+        const drawData = await drawRes.json();
+        drawResult = drawData.draw;
+        
+        // 尝试读取后端配置的开奖时间（如果存在则优先用于倒计时）
+        if (drawData.draw && (drawData.draw.draw_time || drawData.draw.next_draw_time)) {
+          const t = new Date(drawData.draw.draw_time || drawData.draw.next_draw_time);
+          if (!isNaN(t.getTime())) {
+            customDrawTime = t;
+          }
+        }
+        
+        // 结算页所有统计只基于已付款订单
+        calculateSales(paidOrders);
+        
+        if (drawResult) {
+          calculatePayouts();
+        }
+
+        // 最近历史结算记录
+        await loadHistory();
+        
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 加载最近 7 期结算记录（简单历史）
+    async function loadHistory() {
+      const historyEl = document.getElementById('history-list');
+      if (!historyEl || !currentShop) return;
+      historyEl.innerHTML = '<div class="py-3 text-center text-gray-500">加载中...</div>';
+      try {
+        // 期望后端提供接口：返回最近若干期的结算汇总
+        // GET /api/settlement/history?shopId=&limit=7
+        const params = new URLSearchParams({
+          shopId: String(currentShop.shop_id),
+          limit: '7'
+        });
+        const res = await fetch(`${API_BASE}/api/settlement/history?` + params.toString(), {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '加载失败');
+        recentHistory = Array.isArray(data.items) ? data.items : [];
+        if (recentHistory.length === 0) {
+          historyEl.innerHTML = '<div class="py-3 text-center text-gray-500">暂无历史记录</div>';
+          return;
+        }
+        historyEl.innerHTML = recentHistory.map(item => {
+          const dateStr = item.date || item.drawDate || '';
+          const n1 = item.primer || item.first || '--';
+          const n2 = item.segundo || item.second || '--';
+          const n3 = item.tercero || item.third || '--';
+          const salesNum = Number(item.totalSales || 0);
+          const payoutNum = Number(item.totalPayout || 0);
+          const profitNum = Number(item.netProfit != null ? item.netProfit : (salesNum - payoutNum));
+          const sales = salesNum.toFixed(2);
+          const payout = payoutNum.toFixed(2);
+          const profit = profitNum.toFixed(2);
+          const profitColor = profitNum >= 0 ? 'text-green-400' : 'text-red-400';
+          return `
+            <div class="py-2 flex flex-col gap-1">
+              <div class="flex justify-between items-center">
+                <div class="text-[11px] text-gray-400">${dateStr}</div>
+                <div class="font-mono text-xs">
+                  <span class="mr-2">🥇 ${n1}</span>
+                  <span class="mr-2">🥈 ${n2}</span>
+                  <span>🥉 ${n3}</span>
+                </div>
+              </div>
+              <div class="flex justify-between items-center text-[11px]">
+                <span class="text-gray-400">销售: <span class="text-green-400">$${sales}</span></span>
+                <span class="text-gray-400">赔付: <span class="text-red-400">$${payout}</span></span>
+                <span class="text-gray-400">净利润: <span class="${profitColor}">$${profit}</span></span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+        historyEl.innerHTML = '<div class="py-3 text-center text-red-400 text-xs">历史记录加载失败</div>';
+      }
+    }
+
+    // 计算销售（总额 + 号码维度），这里传入的 orders 已经是“已付款订单”
+    function calculateSales(orders) {
+      let chanceSales = 0;
+      let billeteSales = 0;
+
+      // 号码维度：Chance 00-99 全部，Billete 仅已售（都只看已付款）
+      const chanceCountMap = {};  // { '00': 数量 }
+      const billeteCountMap = {}; // { '1234': 数量 }
+
+      orders.forEach(order => {
+        if (!order.numbers) return;
+        if (order.game_type === 'CHANCE') {
+          chanceSales += order.amount;
+          order.numbers.forEach(n => {
+            const num = n.n.toString().slice(-2).padStart(2, '0');
+            const qty = Number(n.q) || 0;
+            chanceCountMap[num] = (chanceCountMap[num] || 0) + qty;
+          });
+        } else if (order.game_type === 'BILLETE') {
+          billeteSales += order.amount;
+          order.numbers.forEach(n => {
+            const num = n.n.toString().slice(-4).padStart(4, '0');
+            const qty = Number(n.q) || 0;
+            billeteCountMap[num] = (billeteCountMap[num] || 0) + qty;
+          });
+        }
+      });
+      
+      const total = chanceSales + billeteSales;
+      
+      document.getElementById('today-sales').textContent = '$' + total.toFixed(2);
+      document.getElementById('chance-sales').textContent = '$' + chanceSales.toFixed(2);
+      document.getElementById('billete-sales').textContent = '$' + billeteSales.toFixed(2);
+
+      renderChanceFullGrid(chanceCountMap);
+      renderBilleteFullList(billeteCountMap);
+    }
+
+    // 渲染 Chance 00-99 全部号码
+    function renderChanceFullGrid(countMap) {
+      const container = document.getElementById('chance-full-grid');
+      if (!container) return;
+      const cells = [];
+      for (let i = 0; i < 100; i++) {
+        const num = i.toString().padStart(2, '0');
+        const qty = countMap[num] || 0;
+        cells.push(`
+          <div class="bg-gray-700 rounded-md px-1.5 py-1 flex flex-col items-center">
+            <span class="text-xs font-bold">${num}</span>
+            <span class="text-[10px] ${qty > 0 ? 'text-blue-300' : 'text-gray-500'}">${qty} 张</span>
+          </div>
+        `);
+      }
+      container.innerHTML = cells.join('');
+    }
+
+    // 渲染 Billete 所有已售号码（不显示 0）
+    function renderBilleteFullList(countMap) {
+      const container = document.getElementById('billete-full-list');
+      if (!container) return;
+
+      const entries = Object.entries(countMap)
+        .filter(([_, qty]) => qty > 0)
+        .sort((a, b) => Number(a[0]) - Number(b[0]));
+
+      if (entries.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-sm text-center">暂无 Billete 销售</p>';
+        return;
+      }
+
+      container.innerHTML = entries.map(([num, qty]) => `
+        <div class="flex justify-between items-center bg-gray-700 rounded-lg px-3 py-1">
+          <span class="font-mono font-bold">${num}</span>
+          <span class="text-sm text-gray-200">${qty} 张</span>
+        </div>
+      `).join('');
+    }
+
+    // 计算赔付
+    function calculatePayouts() {
+      if (!drawResult) return;
+      
+      const winning = JSON.parse(drawResult.winning_numbers);
+      const win1st = winning.billete || '';
+      const win2nd = winning.primeras || '';
+      const win3rd = winning.ultimas || '';
+      
+      // 自动计算Chance后两位
+      const chance1st = win1st.slice(-2);
+      const chance2nd = win2nd.slice(-2);
+      const chance3rd = win3rd.slice(-2);
+      
+      // 显示开奖结果
+      document.getElementById('draw-waiting').classList.add('hidden');
+      document.getElementById('draw-result').classList.remove('hidden');
+      document.getElementById('result-1st').textContent = win1st || '----';
+      document.getElementById('result-2nd').textContent = win2nd || '----';
+      document.getElementById('result-3rd').textContent = win3rd || '----';
+      
+      const paidOrders = allOrders.filter(o => o.status === 'paid' || o.status === 1);
+      
+      let billetePayouts = [];
+      let chancePayouts = [];
+      let totalPayout = 0;
+      
+      // Billete赔率说明
+      const billeteRate = { exact: 5000, first3: 500, last3: 500, first2: 50, last2: 50 };
+      const chanceRate = 80;
+      
+      paidOrders.forEach(order => {
+        if (!order.numbers) return;
+        
+        order.numbers.forEach(bet => {
+          const num = bet.n;
+          const qty = bet.q;
+          let payouts = [];
+          
+          if (order.game_type === 'BILLETE') {
+            const winNum = win1st.padStart(4, '0');
+            const betNum = num.toString().slice(-4).padStart(4, '0');
+            
+            // 检查各种中奖情况
+            if (betNum === winNum) payouts.push({type: '4位全中', rate: billeteRate.exact, qty: qty});
+            else if (betNum.length >= 3 && winNum.length >= 3 && betNum.substring(0, 3) === winNum.substring(0, 3)) payouts.push({type: '前3位', rate: billeteRate.first3, qty: qty});
+            else if (betNum.length >= 3 && winNum.length >= 3 && betNum.substring(1) === winNum.substring(1)) payouts.push({type: '后3位', rate: billeteRate.last3, qty: qty});
+            else if (betNum.length >= 2 && winNum.length >= 2 && betNum.substring(0, 2) === winNum.substring(0, 2)) payouts.push({type: '前2位', rate: billeteRate.first2, qty: qty});
+            else if (betNum.length >= 2 && winNum.length >= 2 && betNum.substring(2) === winNum.substring(2)) payouts.push({type: '后2位', rate: billeteRate.last2, qty: qty});
+            
+            if (payouts.length > 0) {
+              const totalWin = payouts.reduce((sum, p) => sum + p.rate * p.qty, 0);
+              billetePayouts.push({ number: num, qty, payouts, totalWin });
+              totalPayout += totalWin;
+            }
+          } else if (order.game_type === 'CHANCE') {
+            const betCh = num.toString().slice(-2);
+            const matched = [];
+            if (betCh === chance1st) matched.push(chance1st);
+            if (betCh === chance2nd) matched.push(chance2nd);
+            if (betCh === chance3rd) matched.push(chance3rd);
+            
+            if (matched.length > 0) {
+              const uniqueMatched = [...new Set(matched)];
+              uniqueMatched.forEach(m => {
+                payouts.push({type: '2位中', rate: chanceRate, qty: qty});
+              });
+              const totalWin = qty * chanceRate * uniqueMatched.length;
+              chancePayouts.push({ number: num, qty, payouts, totalWin });
+              totalPayout += totalWin;
+            }
+          }
+        });
+      });
+      
+      // Billete中奖显示
+      const billeteContainer = document.getElementById('billete-winners');
+      if (billetePayouts.length === 0) {
+        document.getElementById('no-billete-winners').classList.remove('hidden');
+        billeteContainer.classList.add('hidden');
+      } else {
+        document.getElementById('no-billete-winners').classList.add('hidden');
+        billeteContainer.classList.remove('hidden');
+        billetePayouts.sort((a, b) => b.totalWin - a.totalWin);
+        billeteContainer.innerHTML = billetePayouts.map(p => {
+          const prizeDetails = p.payouts.map(x => `${x.type}×${x.qty}@${x.rate}`).join('+');
+          return `
+            <div class="bg-gray-700 rounded-lg px-3 py-2 mb-1">
+              <div class="flex justify-between items-center">
+                <span class="font-mono font-bold text-yellow-400">${p.number}</span>
+                <span class="text-gray-400">× ${p.qty}</span>
+                <span class="text-red-400 font-bold">$ ${p.totalWin}</span>
+              </div>
+              <div class="text-xs text-gray-500">${prizeDetails}</div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      // Chance中奖显示
+      const chanceContainer = document.getElementById('chance-winners');
+      if (chancePayouts.length === 0) {
+        document.getElementById('no-chance-winners').classList.remove('hidden');
+        chanceContainer.classList.add('hidden');
+      } else {
+        document.getElementById('no-chance-winners').classList.add('hidden');
+        chanceContainer.classList.remove('hidden');
+        chancePayouts.sort((a, b) => b.totalWin - a.totalWin);
+        chanceContainer.innerHTML = chancePayouts.map(p => {
+          const prizeDetails = p.payouts.map(x => `${x.type}×${x.qty}@${x.rate}`).join('+');
+          return `
+            <div class="bg-gray-700 rounded-lg px-3 py-2 mb-1">
+              <div class="flex justify-between items-center">
+                <span class="font-mono font-bold text-blue-400">${p.number}</span>
+                <span class="text-gray-400">× ${p.qty}</span>
+                <span class="text-red-400 font-bold">$ ${p.totalWin}</span>
+              </div>
+              <div class="text-xs text-gray-500">${prizeDetails}</div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      // 总赔付
+      document.getElementById('total-payout').textContent = '$' + totalPayout.toFixed(2);
+      
+      // 利润
+      const sales = parseFloat(document.getElementById('today-sales').textContent.replace('$', ''));
+      const profit = sales - totalPayout;
+      
+      const profitEl = document.getElementById('profit-amount');
+      const profitSection = document.getElementById('profit-section');
+      
+      if (profit >= 0) {
+        profitEl.textContent = '+$' + profit.toFixed(2);
+        profitEl.className = 'text-4xl font-bold text-green-400';
+        profitSection.className = 'bg-green-900/30 rounded-2xl p-4 text-center';
+      } else {
+        profitEl.textContent = '-$' + Math.abs(profit).toFixed(2);
+        profitEl.className = 'text-4xl font-bold text-red-400';
+        profitSection.className = 'bg-red-900/30 rounded-2xl p-4 text-center';
+      }
+    }
+
+    // 定时刷新
+    setInterval(() => {
+      if (currentShop) { if (DEBUG) console.log("Auto loading data..."); loadData(); }
+    }, 5000); setTimeout(() => { if(currentShop && allOrders.length === 0) loadData(); }, 2000);
+
+// 启动初始化
+initResultPage();
+    // 如果有URL参数，3秒后加载数据
+    setTimeout(function(){ if(currentShop) loadData(); }, 3000);
+  </script>
+
+</body>
+</html>

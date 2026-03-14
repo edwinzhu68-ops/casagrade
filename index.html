@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="es-PA">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedido de lotería</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  
+  <!-- 首页 - 输入店号 -->
+  <div id="page-home" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="text-5xl mb-2">🖨️</div>
+        <div class="text-3xl mb-2">🧾</div>
+        <p class="text-gray-500 mt-2">Introduce el número de tienda para empezar</p>
+      </div>
+      
+      <input type="text" maxlength="5" id="store-input" placeholder="Introduce un número de tienda de 5 dígitos"
+        class="w-full text-center text-4xl font-mono py-4 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none mb-6" />
+      
+      <button id="btn-entrar" onclick="goToShop()" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
+        Entrar
+      </button>
+      
+      <div class="mt-6 text-center">
+        <a href="merchant.html" class="text-sm text-gray-400">Acceso del banquero</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 店铺页 -->
+  <div id="page-shop" class="hidden min-h-screen pb-24">
+    <header class="bg-green-600 text-white p-3 sticky top-0 z-10">
+      <div class="max-w-md mx-auto">
+        <div class="flex items-center justify-between">
+          <!-- placeholder izquierdo para centrar el número de tienda -->
+          <span class="w-12 text-sm opacity-0">Salir</span>
+          <h1 class="font-bold text-3xl text-center flex-1 font-mono tracking-widest">
+            <span id="shop-number">-----</span>
+          </h1>
+          <button onclick="exitClientShop()" class="w-12 text-sm opacity-80 text-right">Salir</button>
+        </div>
+        <!-- Cuenta regresiva para cierre de ventas：solo在离停售 <=10分钟时显示 -->
+        <div id="client-stop-countdown" class="hidden mt-2 bg-orange-500/90 rounded-lg px-3 py-1 text-center text-xs">
+          <span>Cuenta regresiva para cierre de ventas</span>
+          <span id="client-stop-timer" class="font-mono font-bold ml-1">--:--</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 玩法选择 -->
+    <div class="max-w-md mx-auto p-4">
+      <div class="flex gap-2 mb-4">
+        <button onclick="setGameType('BILLETE')" id="btn-billete" 
+          class="flex-1 bg-green-600 text-white py-2 rounded-xl font-bold">Billete ($1)</button>
+        <button onclick="setGameType('CHANCE')" id="btn-chance"
+          class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold">Chance ($0.25)</button>
+      </div>
+
+      <!-- Visualización de entrada actual -->
+      <div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <div class="flex gap-3">
+          <div id="display-number" onclick="openKeyboard('number')" class="flex-1 text-center py-2 border-2 border-blue-500 rounded-xl cursor-pointer">
+            <span class="text-gray-400 text-sm">Número</span>
+            <p class="text-2xl font-mono font-bold">----</p>
+          </div>
+          <div id="display-quantity" onclick="openKeyboard('quantity')" class="flex-1 text-center py-2 border-2 border-gray-200 rounded-xl cursor-pointer">
+            <span class="text-gray-400 text-sm">Cantidad</span>
+            <p class="text-2xl font-mono font-bold">1</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Lista de números seleccionados -->
+      <div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <p class="text-sm text-gray-500 mb-2">Números seleccionados</p>
+        <div id="bet-list" class="space-y-2 max-h-48 overflow-y-auto">
+          <p class="text-gray-400 text-sm text-center py-2">Sin números aún</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部总计 -->
+    <div class="max-w-md mx-auto w-full px-4 pb-4">
+      <div class="bg-white rounded-2xl shadow-sm p-3 space-y-2">
+        <div class="flex justify-between items-center">
+          <span class="text-gray-600">Total <span id="total-count">0</span> apuestas</span>
+          <span class="text-lg font-bold text-green-600">$<span id="total-amount">0</span></span>
+        </div>
+        <button onclick="submitBet()" id="submit-btn"
+          class="w-full bg-green-600 text-white py-3 rounded-xl font-bold disabled:bg-gray-300" disabled>
+          Confirmar apuesta
+        </button>
+        <!-- 已付款订单列表（可多单） -->
+        <div id="client-paid-order" class="hidden mt-1">
+          <p class="text-xs text-gray-500 mb-1">Pedidos pagados — toca para ver detalle y QR</p>
+          <div id="client-paid-order-list" class="space-y-1 max-h-40 overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 键盘弹窗 -->
+  <div id="keyboard-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end"
+       onclick="if (event.target === this) closeKeyboard()">
+    <div class="bg-white rounded-t-3xl w-full max-w-md mx-auto p-4">
+      <!-- Título del teclado -->
+      <div class="text-center mb-4">
+        <p id="keyboard-title" class="text-lg font-bold text-blue-600">Introduce el número de lotería</p>
+      </div>
+
+      <!-- 数字显示 -->
+      <div class="bg-gray-100 rounded-xl py-4 mb-4">
+        <div id="keyboard-display" class="flex justify-center gap-2"></div>
+      </div>
+
+      <!-- 九宫格 -->
+      <div class="grid grid-cols-3 gap-1.5">
+        <button onclick="keyPress('1')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">1</button>
+        <button onclick="keyPress('2')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">2</button>
+        <button onclick="keyPress('3')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">3</button>
+        <button onclick="keyPress('4')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">4</button>
+        <button onclick="keyPress('5')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">5</button>
+        <button onclick="keyPress('6')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">6</button>
+        <button onclick="keyPress('7')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">7</button>
+        <button onclick="keyPress('8')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">8</button>
+        <button onclick="keyPress('9')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">9</button>
+        <button onclick="keyBackspace()" class="key-btn bg-gray-300 py-2.5 rounded-xl font-bold text-xl">×</button>
+        <button onclick="keyPress('0')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">0</button>
+        <button onclick="addToList()" class="key-btn bg-orange-500 text-white py-2.5 rounded-xl font-bold text-sm">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 付款页 -->
+  <div id="page-pay" class="hidden min-h-screen bg-orange-100 flex flex-col">
+    <div class="flex-1 p-4">
+      <div class="bg-white rounded-3xl shadow-xl p-6 max-w-md mx-auto">
+        <div class="text-center mb-4">
+          <!-- 这里是二维码容器：出示给收银员扫码。如果以后要改样式或尺寸，只需要改这个方块。 -->
+          <div class="flex justify-center mb-2">
+            <div id="pay-qr" class="bg-white p-3 rounded-2xl shadow-inner inline-block">
+              <!-- 占位假二维码，用于查看尺寸；正式由 renderPaymentQR 渲染 -->
+              <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="block">
+                <rect width="200" height="200" fill="#fff"/>
+                <rect x="10" y="10" width="50" height="50" fill="#000"/>
+                <rect x="65" y="10" width="8" height="8" fill="#000"/>
+                <rect x="78" y="10" width="8" height="8" fill="#000"/>
+                <rect x="140" y="10" width="50" height="50" fill="#000"/>
+                <rect x="10" y="65" width="8" height="8" fill="#000"/>
+                <rect x="23" y="65" width="8" height="8" fill="#000"/>
+                <rect x="65" y="65" width="70" height="70" fill="#000" opacity="0.15"/>
+                <rect x="78" y="78" width="44" height="44" fill="#fff"/>
+                <rect x="85" y="85" width="8" height="8" fill="#000"/>
+                <rect x="98" y="85" width="8" height="8" fill="#000"/>
+                <rect x="85" y="98" width="8" height="8" fill="#000"/>
+                <rect x="98" y="98" width="8" height="8" fill="#000"/>
+                <rect x="10" y="140" width="50" height="50" fill="#000"/>
+                <rect x="140" y="65" width="8" height="8" fill="#000"/>
+                <rect x="153" y="65" width="8" height="8" fill="#000"/>
+                <rect x="140" y="140" width="50" height="50" fill="#000"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-sm text-gray-500">Muéstralo al cajero para escanear</p>
+          <p class="text-[10px] text-gray-400 mt-1">El código QR incluye el número de pedido y una firma de seguridad; el cajero lo usa para cobrar y pagar premios.</p>
+        </div>
+        
+        <div class="bg-gray-50 rounded-xl p-4 mb-4">
+          <div class="flex justify-between mb-2">
+            <span class="text-gray-500">N.º de pedido</span>
+            <span class="font-mono font-bold" id="pay-order-id">------</span>
+          </div>
+          <p class="text-[11px] text-amber-600 mb-2">El número de pedido es tu comprobante para cobrar el premio. Consérvalo.</p>
+          <div class="mb-2">
+            <p class="text-gray-500 text-xs mb-1">Números y cantidades</p>
+            <div id="pay-order-detail" class="text-xs text-gray-700 space-y-0.5">
+              <!-- 号码×数量×金额 由 JS 填充 -->
+            </div>
+          </div>
+          <div class="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
+            <span class="text-gray-600 font-medium">Total</span>
+            <span class="text-2xl font-bold text-green-600">$<span id="pay-amount">0</span></span>
+          </div>
+          <div class="mt-2 flex items-center justify-between text-[11px] text-gray-500">
+            <span>Válido 30 min, se cancela si no se paga.</span>
+            <span id="pay-countdown" class="font-mono font-bold text-orange-600">30:00</span>
+          </div>
+        </div>
+        
+        <div class="text-center py-2">
+          <div class="text-4xl mb-1">🟡</div>
+          <p class="text-xl font-bold text-orange-600">Esperando pago</p>
+          <p class="text-xs text-gray-400 mt-1">Después de que el cajero escanee, el estado se actualizará automáticamente.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-4 bg-white space-y-2">
+      <button onclick="stopPayCountdown(); showPage('page-shop')" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">
+        返回修改
+      </button>
+    </div>
+  </div>
+
+      <!-- Esperando confirmación -->
+  <div id="page-waiting" class="hidden min-h-screen bg-orange-100 flex flex-col">
+    <div class="flex-1 p-4">
+      <div class="bg-white rounded-3xl shadow-xl p-6 max-w-md mx-auto">
+        <div class="text-center mb-4">
+          <div class="text-6xl mb-2 animate-pulse">⏳</div>
+          <p class="text-xl font-bold text-orange-600">Esperando confirmación</p>
+          <p class="text-sm text-gray-500 mt-2">Entrega el importe al cajero</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-xl p-4 mb-4 space-y-1">
+          <div class="flex justify-between">
+            <span class="text-gray-500">N.º de pedido</span>
+            <span class="font-mono font-bold" id="wait-order-id">------</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Importe</span>
+            <span class="text-2xl font-bold text-green-600">$<span id="wait-amount">0</span></span>
+          </div>
+          <p class="text-[11px] text-gray-400 mt-1">
+            Verifica que el importe sea correcto. El cajero usará el mismo código QR para cobrar y, después del sorteo, para pagar premios.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 已确认 / 订单详情与结算结果 -->
+  <div id="page-confirmed" class="hidden min-h-screen bg-green-100 flex flex-col">
+    <div class="flex-1 p-4">
+      <div class="bg-white rounded-3xl shadow-xl p-6 max-w-md mx-auto">
+        <!-- 结算结果：中奖时最上方醒目展示 -->
+        <div id="confirmed-result-area" class="mb-4 rounded-2xl p-4 text-center hidden">
+          <div id="confirmed-result-won" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div class="text-5xl mb-2">🎉</div>
+            <p class="text-xl font-bold text-amber-600">¡Felicidades! Has ganado</p>
+            <p class="text-3xl font-bold text-green-600 mt-1">$<span id="confirmed-win-amount">0</span></p>
+            <p class="text-sm text-amber-700 mt-2 font-medium">Presenta este comprobante (QR o número de pedido) en la tienda para cobrar tu premio.</p>
+          </div>
+          <div id="confirmed-result-redeemed" class="hidden bg-green-50 border border-green-200 rounded-xl p-4">
+            <div class="text-5xl mb-2">✅</div>
+            <p class="text-xl font-bold text-green-600">Premio cobrado</p>
+            <p class="text-sm text-gray-600 mt-1">已兑奖 · Gracias por participar.</p>
+          </div>
+          <div id="confirmed-result-lost" class="hidden bg-gray-100 border border-gray-300 rounded-xl p-4">
+            <p class="text-lg font-medium text-gray-600">Sorteo realizado</p>
+            <p class="text-gray-500 text-sm mt-1">No has resultado premiado en este pedido.</p>
+          </div>
+          <div id="confirmed-result-waiting" class="hidden">
+            <p class="text-lg font-medium text-blue-600">Esperando el sorteo</p>
+            <p class="text-gray-500 text-sm mt-1">Guarda el QR para cobrar si ganas.</p>
+          </div>
+        </div>
+
+        <div class="text-center mb-4">
+          <div class="flex justify-center mb-2">
+            <div id="confirmed-qr" class="bg-white p-3 rounded-2xl shadow-inner inline-block">
+              <!-- 占位假二维码，用于查看尺寸；正式由 renderPaymentQR 渲染 -->
+              <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="block">
+                <rect width="200" height="200" fill="#fff"/>
+                <rect x="10" y="10" width="50" height="50" fill="#000"/>
+                <rect x="65" y="10" width="8" height="8" fill="#000"/>
+                <rect x="78" y="10" width="8" height="8" fill="#000"/>
+                <rect x="140" y="10" width="50" height="50" fill="#000"/>
+                <rect x="10" y="65" width="8" height="8" fill="#000"/>
+                <rect x="23" y="65" width="8" height="8" fill="#000"/>
+                <rect x="65" y="65" width="70" height="70" fill="#000" opacity="0.15"/>
+                <rect x="78" y="78" width="44" height="44" fill="#fff"/>
+                <rect x="85" y="85" width="8" height="8" fill="#000"/>
+                <rect x="98" y="85" width="8" height="8" fill="#000"/>
+                <rect x="85" y="98" width="8" height="8" fill="#000"/>
+                <rect x="98" y="98" width="8" height="8" fill="#000"/>
+                <rect x="10" y="140" width="50" height="50" fill="#000"/>
+                <rect x="140" y="65" width="8" height="8" fill="#000"/>
+                <rect x="153" y="65" width="8" height="8" fill="#000"/>
+                <rect x="140" y="140" width="50" height="50" fill="#000"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xl font-bold text-green-600 mt-2">Pedido confirmado</p>
+          <p class="text-sm text-gray-500 mt-1">Este QR es tu comprobante para cobrar el premio en el punto de venta.</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-xl p-4 mb-4">
+          <div class="flex justify-between mb-2">
+            <span class="text-gray-500">N.º de pedido</span>
+            <span class="font-mono font-bold" id="confirmed-order-id">------</span>
+          </div>
+          <div class="flex justify-between mb-2">
+            <span class="text-gray-500">Importe pagado</span>
+            <span class="text-2xl font-bold text-green-600">$<span id="confirmed-amount">0</span></span>
+          </div>
+        </div>
+
+        <button onclick="resetShop()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">
+          Seguir apostando
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 简单二维码库 -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  
+  <script>
+    // 配置
+    const API_BASE = '';
+    
+    // 状态
+    // 临时客户端账号：匿名顾客在这台设备上的ID
+    const CLIENT_ID_KEY = 'lottery_temp_client_id';
+    const CLIENT_LAST_PAID_KEY = 'lottery_client_last_paid_order';
+    const CLIENT_PAID_ORDERS_KEY = 'lottery_client_paid_orders';
+    const MAX_PAID_ORDERS_SAVED = 50;
+    let clientId = null;
+    let currentShop = null;
+    let gameType = 'BILLETE';
+    let maxDigits = 4;
+    let defaultQuantity = 1;
+    let betList = [];
+    let currentNumber = '';
+    let currentQuantity = '';
+    let isQuantityMode = false;
+    let currentOrderId = null;
+    let currentOrderHash = null;
+    // 单价（从老板端设置中读取，默认 Billete 1 美元 / Chance 0.25 美元）
+    let priceBillete = 1;
+    let priceChance = 0.25;
+    let clientStopCountdownInterval = null;
+
+    // 页面跳转
+    function showPage(id) {
+      document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    // 初始化临时客户端账号（匿名），以及页面上的“已付款订单”提示
+    (function initClientId() {
+      try {
+        clientId = localStorage.getItem(CLIENT_ID_KEY);
+        if (!clientId) {
+          clientId = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+          localStorage.setItem(CLIENT_ID_KEY, clientId);
+        }
+      } catch (e) {
+        clientId = 'c_' + Math.random().toString(36).slice(2);
+      }
+      renderClientPaidBanner();
+    })();
+
+    // 初始化首页店号（如果之前输过）
+    (function initStoreInput() {
+      try {
+        const lastShop = localStorage.getItem('lastShopNumber');
+        if (lastShop) {
+          const input = document.getElementById('store-input');
+          input.value = lastShop;
+        }
+      } catch (e) {
+        // 忽略本地存储错误
+      }
+    })();
+
+    // 从本地读取老板设置的单价
+    (function initPrices() {
+      try {
+        const pBillete = parseFloat(localStorage.getItem('price_billete') || '1');
+        const pChance = parseFloat(localStorage.getItem('price_chance') || '0.25');
+        if (!isNaN(pBillete) && pBillete > 0) priceBillete = pBillete;
+        if (!isNaN(pChance) && pChance > 0) priceChance = pChance;
+      } catch (e) {
+        // 忽略
+      }
+    })();
+
+    // 进入店铺
+    async function goToShop() {
+      const shopNumber = document.getElementById('store-input').value.trim();
+      if (shopNumber.length !== 5) {
+        alert('Por favor introduce un número de tienda de 5 dígitos');
+        return;
+      }
+
+      const btn = document.getElementById('btn-entrar');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Cargando...';
+
+      try {
+        // 检查是否可以下注（失败不阻止进店，只影响提示）
+        try {
+          const statusRes = await fetch(`${API_BASE}/api/bet-status`);
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData && statusData.canBet === false) {
+              alert('Las apuestas se cierran 5 minutos antes del sorteo; inténtalo más tarde.');
+              return;
+            }
+            const mins = statusData && statusData.minutesUntilDraw;
+            if (typeof mins === 'number' && !isNaN(mins) && mins <= 10 && mins >= 0) {
+              alert('⚠️ Quedan menos de ' + mins + ' minutos para el sorteo, realiza tu apuesta cuanto antes.');
+            }
+          }
+        } catch (_) { /* 忽略 bet-status 失败，继续查店铺 */ }
+
+        const res = await fetch(`${API_BASE}/api/shop/${shopNumber}`);
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.message || data.error || '下单失败');
+        
+        currentShop = data.shop;
+        // 记住本次店号
+        try {
+          localStorage.setItem('lastShopNumber', shopNumber);
+        } catch (e) {}
+        document.getElementById('shop-number').textContent = shopNumber;
+        
+        showPage('page-shop');
+        startClientStopCountdown();
+      } catch (err) {
+        alert(err.message || 'La tienda no existe o no se puede conectar. Comprueba el número.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    // 切换玩法
+    function setGameType(type) {
+      gameType = type;
+      maxDigits = type === 'BILLETE' ? 4 : 2;
+      defaultQuantity = type === 'BILLETE' ? 1 : 4;
+      
+      document.getElementById('btn-billete').className = type === 'BILLETE' 
+        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold' 
+        : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
+      document.getElementById('btn-chance').className = type === 'CHANCE'
+        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold'
+        : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
+      
+      currentNumber = '';
+      currentQuantity = '';
+      updateKeyboardDisplay();
+    }
+
+    // 打开键盘
+    function openKeyboard(mode) {
+      isQuantityMode = mode === 'quantity';
+      
+      const title = document.getElementById('keyboard-title');
+      title.textContent = isQuantityMode ? 'Introduce la cantidad a comprar' : 'Introduce el número de lotería';
+      title.className = isQuantityMode ? 'text-lg font-bold text-green-600' : 'text-lg font-bold text-blue-600';
+      
+      const display = document.getElementById('keyboard-display');
+      // 统一用flex布局，颜色在每个格子里控制
+      display.className = 'flex justify-center gap-2';
+      
+      document.getElementById('keyboard-modal').classList.remove('hidden');
+      updateKeyboardDisplay();
+    }
+
+    // 关闭键盘
+    function closeKeyboard() {
+      document.getElementById('keyboard-modal').classList.add('hidden');
+    }
+
+    // 按键
+    function keyPress(num) {
+      if (isQuantityMode) {
+        if (currentQuantity.length < 3) currentQuantity += num;
+      } else {
+        if (currentNumber.length < maxDigits) currentNumber += num;
+        if (currentNumber.length === maxDigits) {
+          setTimeout(() => openKeyboard('quantity'), 300);
+        }
+      }
+      updateKeyboardDisplay();
+      // 同步更新主页面的数字/数量显示
+      updateUI();
+    }
+
+    // 删除
+    function keyBackspace() {
+      if (isQuantityMode) {
+        currentQuantity = currentQuantity.slice(0, -1);
+      } else {
+        currentNumber = currentNumber.slice(0, -1);
+      }
+      updateKeyboardDisplay();
+      // 同步更新主页面的数字/数量显示
+      updateUI();
+    }
+
+    // 更新显示：分格显示每一位
+    function updateKeyboardDisplay() {
+      const display = document.getElementById('keyboard-display');
+      display.innerHTML = '';
+
+      if (isQuantityMode) {
+        const digits = currentQuantity || '_';
+        for (let i = 0; i < digits.length; i++) {
+          const box = document.createElement('span');
+          box.className = 'inline-flex w-10 h-12 items-center justify-center border-2 border-green-500 rounded-lg text-2xl font-mono font-bold text-green-600';
+          box.textContent = digits[i];
+          display.appendChild(box);
+        }
+      } else {
+        const digits = currentNumber.padEnd(maxDigits, '_');
+        for (let i = 0; i < maxDigits; i++) {
+          const box = document.createElement('span');
+          box.className = 'inline-flex w-10 h-12 items-center justify-center border-2 border-blue-500 rounded-lg text-2xl font-mono font-bold text-blue-600';
+          box.textContent = digits[i];
+          display.appendChild(box);
+        }
+      }
+    }
+
+    // 添加到列表
+    function addToList() {
+      if (currentNumber.length !== maxDigits) {
+        openKeyboard('number');
+        return;
+      }
+      
+      let qty = currentQuantity === '' ? defaultQuantity : parseInt(currentQuantity);
+      if (isNaN(qty) || qty < 1) qty = 1;
+      if (qty > 999) qty = 999;
+      
+      const unitPrice = gameType === 'BILLETE' ? priceBillete : priceChance;
+      
+      const existing = betList.find(b => b.number === currentNumber);
+      if (existing) {
+        existing.quantity += qty;
+      } else {
+        betList.push({ number: currentNumber, quantity: qty, unitPrice, gameType });
+      }
+      
+      currentNumber = '';
+      currentQuantity = '';
+      closeKeyboard();
+      updateUI();
+    }
+
+    // 更新UI
+    function updateUI() {
+      // 更新显示
+      document.getElementById('display-number').querySelector('p').textContent = 
+        currentNumber.padEnd(maxDigits, '_');
+      document.getElementById('display-quantity').querySelector('p').textContent = 
+        currentQuantity || defaultQuantity;
+      
+      // 更新列表
+      const list = document.getElementById('bet-list');
+      if (betList.length === 0) {
+        list.innerHTML = '<p class="text-gray-400 text-sm text-center py-2">Sin números aún</p>';
+      } else {
+        list.innerHTML = betList.map((b, i) => `
+          <div class="bet-row flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 transition-colors duration-150">
+            <div class="bet-main">
+              <span class="font-mono font-bold">${b.number}</span>
+              <span class="text-gray-500 text-sm">× ${b.quantity}</span>
+              <span class="text-green-600 text-sm">$${(b.quantity * b.unitPrice).toFixed(2)}</span>
+            </div>
+            <button
+              onclick="removeBet(${i})"
+              onmouseover="highlightBetRow(this, true)"
+              onmouseout="highlightBetRow(this, false)"
+              class="text-red-500 text-lg font-bold px-2"
+              aria-label="Eliminar"
+            >
+              ✕
+            </button>
+          </div>
+        `).join('');
+      }
+      
+      // 更新总计
+      const totalBets = betList.reduce((sum, b) => sum + b.quantity, 0);
+      const totalAmount = betList.reduce((sum, b) => sum + b.quantity * b.unitPrice, 0);
+      document.getElementById('total-count').textContent = totalBets;
+      document.getElementById('total-amount').textContent = totalAmount.toFixed(2);
+      
+      // 更新按钮状态
+      document.getElementById('submit-btn').disabled = betList.length === 0;
+    }
+
+    // 删除
+    function removeBet(index) {
+      betList.splice(index, 1);
+      updateUI();
+    }
+
+    // 鼠标悬停删除按钮时，高亮整行
+    function highlightBetRow(btn, active) {
+      const row = btn.closest('.bet-row');
+      if (!row) return;
+      if (active) {
+        row.classList.remove('bg-gray-50');
+        row.classList.add('bg-red-50');
+        const main = row.querySelector('.bet-main');
+        if (main) {
+          main.classList.add('text-red-600');
+        }
+      } else {
+        row.classList.add('bg-gray-50');
+        row.classList.remove('bg-red-50');
+        const main = row.querySelector('.bet-main');
+        if (main) {
+          main.classList.remove('text-red-600');
+        }
+      }
+    }
+
+    // 提交订单
+    async function submitBet() {
+      if (betList.length === 0) return;
+      if (!currentShop) {
+        alert('Primero selecciona una tienda');
+        return;
+      }
+
+      const totalAmount = betList.reduce((sum, b) => sum + b.quantity * b.unitPrice, 0);
+      
+      // 转换为API格式
+      const numbers = betList.map(b => ({ n: b.number, q: b.quantity }));
+      
+      try {
+        const res = await fetch(`${API_BASE}/api/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopId: currentShop.shop_id,
+            numbers,
+            amount: totalAmount,
+            gameType,
+            clientId, // 临时匿名账号，方便后续做登录迁移或风控
+            ipAddress: '127.0.0.1'
+          })
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || '下单失败');
+        
+        currentOrderId = data.orderId ?? data.order_id;
+        currentOrderHash = data.orderHash ?? data.order_hash;
+        const orderNumber = data.order_number ?? data.orderNumber;
+        
+        document.getElementById('pay-order-id').textContent = orderNumber;
+        document.getElementById('pay-amount').textContent = totalAmount.toFixed(2);
+        // 付款页显示订单明细：号码 × 数量 → 金额
+        const detailEl = document.getElementById('pay-order-detail');
+        if (detailEl && betList.length) {
+          detailEl.innerHTML = betList.map(b =>
+            '<div class="flex justify-between"><span class="font-mono">' + b.number + ' × ' + b.quantity + '</span><span>$' + (b.quantity * b.unitPrice).toFixed(2) + '</span></div>'
+          ).join('');
+        }
+        // 启动 30 分钟倒计时（到点未付款订单会被后端取消）
+        startPayCountdown();
+        
+        // 生成付款&兑奖共用二维码（付款页）
+        const qrInfo = {
+          orderId: currentOrderId,
+          orderNumber,
+          orderHash: currentOrderHash,
+          amount: totalAmount,
+          shopId: currentShop.shop_id
+        };
+        renderPaymentQR(qrInfo, 'pay-qr');
+        
+        showPage('page-pay');
+        
+        // 启动轮询，监听收银端确认付款
+        startStatusPolling(orderNumber);
+      } catch (err) {
+        alert(err.message || 'No se pudo crear el pedido');
+      }
+    }
+
+    // 生成二维码：包含订单号 + 防伪hash，既可用于付款也可用于兑奖
+    function renderPaymentQR(info, targetId = 'pay-qr') {
+      const qrContainer = document.getElementById(targetId);
+      if (!qrContainer) return;
+      qrContainer.innerHTML = '';
+      
+      // 约定二维码数据结构，供收银端/兑奖端解析
+      const payload = {
+        type: 'lottery_order',
+        orderId: info.orderId,
+        orderNumber: info.orderNumber,
+        orderHash: info.orderHash,
+        amount: info.amount,
+        shopId: info.shopId
+      };
+      
+      // 二维码库未加载时显示同尺寸假二维码占位（不再显示原始 JSON）
+      const placeholderSvg = '<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="block"><rect width="200" height="200" fill="#fff"/><rect x="10" y="10" width="50" height="50" fill="#000"/><rect x="65" y="10" width="8" height="8" fill="#000"/><rect x="78" y="10" width="8" height="8" fill="#000"/><rect x="140" y="10" width="50" height="50" fill="#000"/><rect x="10" y="65" width="8" height="8" fill="#000"/><rect x="23" y="65" width="8" height="8" fill="#000"/><rect x="65" y="65" width="70" height="70" fill="#000" opacity="0.15"/><rect x="78" y="78" width="44" height="44" fill="#fff"/><rect x="85" y="85" width="8" height="8" fill="#000"/><rect x="98" y="85" width="8" height="8" fill="#000"/><rect x="85" y="98" width="8" height="8" fill="#000"/><rect x="98" y="98" width="8" height="8" fill="#000"/><rect x="10" y="140" width="50" height="50" fill="#000"/><rect x="140" y="65" width="8" height="8" fill="#000"/><rect x="153" y="65" width="8" height="8" fill="#000"/><rect x="140" y="140" width="50" height="50" fill="#000"/></svg>';
+      if (typeof QRCode === 'undefined') {
+        qrContainer.innerHTML = placeholderSvg;
+        return;
+      }
+      
+      const canvas = document.createElement('canvas');
+      qrContainer.appendChild(canvas);
+      
+      try {
+        QRCode.toCanvas(
+          canvas,
+          JSON.stringify(payload),
+          { width: 200, margin: 1 },
+          function (error) {
+            if (error) {
+              qrContainer.innerHTML = placeholderSvg;
+            }
+          }
+        );
+      } catch (e) {
+        qrContainer.innerHTML = placeholderSvg;
+      }
+    }
+    
+    // 轮询订单状态
+    let pollingInterval = null;
+    let payCountdownInterval = null;
+
+    function startPayCountdown() {
+      if (payCountdownInterval) clearInterval(payCountdownInterval);
+      const endMs = Date.now() + 30 * 60 * 1000;
+      const el = document.getElementById('pay-countdown');
+      if (!el) return;
+      function tick() {
+        const left = Math.max(0, endMs - Date.now());
+        if (left <= 0) {
+          clearInterval(payCountdownInterval);
+          payCountdownInterval = null;
+          el.textContent = '0:00';
+          checkOrderCanceledAndRedirect();
+          return;
+        }
+        const m = Math.floor(left / 60000);
+        const s = Math.floor((left % 60000) / 1000);
+        el.textContent = m + ':' + String(s).padStart(2, '0');
+      }
+      tick();
+      payCountdownInterval = setInterval(tick, 1000);
+    }
+
+    function stopPayCountdown() {
+      if (payCountdownInterval) {
+        clearInterval(payCountdownInterval);
+        payCountdownInterval = null;
+      }
+    }
+
+    async function checkOrderCanceledAndRedirect() {
+      const orderNumber = document.getElementById('pay-order-id') && document.getElementById('pay-order-id').textContent;
+      if (!orderNumber || orderNumber === '------') {
+        showPage('page-shop');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
+        const data = await res.json();
+        const canceled = data.status === -1 || data.status === 'canceled';
+        if (canceled) {
+          alert('El pedido ha sido cancelado por tiempo. Por favor, realiza un nuevo pedido.');
+        } else {
+          alert('Tiempo agotado. El pedido puede haber sido cancelado. Por favor, verifica o realiza un nuevo pedido.');
+        }
+      } catch (e) {}
+      showPage('page-shop');
+    }
+
+    function startStatusPolling(orderNumber) {
+      if (pollingInterval) clearInterval(pollingInterval);
+      
+      pollingInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
+          const data = await res.json();
+          const isPaid = data.status === 1 || data.status === 'paid';
+          if (isPaid) {
+            stopStatusPolling();
+            stopPayCountdown();
+            showConfirmedState(orderNumber, data.amount);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }, 2000);
+    }
+
+    function stopStatusPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    }
+
+    function showConfirmedState(orderNumber, amount) {
+      document.getElementById('confirmed-order-id').textContent = orderNumber;
+      document.getElementById('confirmed-amount').textContent = typeof amount === 'number' ? amount.toFixed(2) : amount;
+      // 刚付款时显示“等待开奖”
+      const resultArea = document.getElementById('confirmed-result-area');
+      const resultWon = document.getElementById('confirmed-result-won');
+      const resultLost = document.getElementById('confirmed-result-lost');
+      const resultWaiting = document.getElementById('confirmed-result-waiting');
+      if (resultArea && resultWon && resultLost && resultWaiting) {
+        resultWon.classList.add('hidden');
+        resultLost.classList.add('hidden');
+        resultWaiting.classList.remove('hidden');
+        resultArea.classList.remove('hidden');
+      }
+      
+      try {
+        const info = {
+          clientId,
+          orderNumber,
+          order_number: orderNumber,
+          orderId: currentOrderId,
+          orderHash: currentOrderHash,
+          amount,
+          shopNumber: document.getElementById('shop-number').textContent || '',
+          shopId: currentShop ? currentShop.shop_id : null,
+          ts: Date.now()
+        };
+        let list = [];
+        try {
+          const raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+          if (raw) list = JSON.parse(raw);
+        } catch (e) {}
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(o => o.clientId === clientId);
+        list.unshift(info);
+        if (list.length > MAX_PAID_ORDERS_SAVED) list = list.slice(0, MAX_PAID_ORDERS_SAVED);
+        localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
+        localStorage.setItem(CLIENT_LAST_PAID_KEY, JSON.stringify(info));
+      } catch (e) {}
+      
+      renderPaymentQR(
+        {
+          orderId: currentOrderId,
+          orderNumber,
+          orderHash: currentOrderHash,
+          amount,
+          shopId: currentShop ? currentShop.shop_id : null
+        },
+        'confirmed-qr'
+      );
+      
+      renderClientPaidBanner();
+      showPage('page-confirmed');
+    }
+
+    // 根据本地存储渲染“已付款订单”列表（支持多单）
+    function renderClientPaidBanner() {
+      const wrap = document.getElementById('client-paid-order');
+      const listEl = document.getElementById('client-paid-order-list');
+      if (!wrap || !listEl) return;
+      try {
+        let list = [];
+        const raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+        if (raw) list = JSON.parse(raw);
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(o => o && o.clientId === clientId).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        if (list.length === 0) {
+          const lastRaw = localStorage.getItem(CLIENT_LAST_PAID_KEY);
+          if (lastRaw) {
+            try {
+              const one = JSON.parse(lastRaw);
+              if (one && one.clientId === clientId) {
+                list = [{ ...one, ts: one.ts || Date.now() }];
+                localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
+              }
+            } catch (e) {}
+          }
+        }
+        if (list.length === 0) {
+          wrap.classList.add('hidden');
+          return;
+        }
+        wrap.classList.remove('hidden');
+        listEl.innerHTML = list.map(info => {
+          const num = (info.order_number ?? info.orderNumber || '').toString();
+          const winAmt = Number(info.win_amount || 0);
+          const amt = winAmt > 0 ? '$' + winAmt.toFixed(2) : '$' + Number(info.amount || 0).toFixed(2);
+          const isWon = winAmt > 0;
+          const safeNum = num.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          const btnClass = isWon ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-700';
+          return '<button type="button" onclick="openClientOrderDetail(\'' + safeNum + '\')" class="w-full border-2 rounded-xl px-3 py-2 flex justify-between items-center text-left ' + btnClass + '"><span class="font-mono text-sm">#' + num + '</span><span class="font-mono font-bold text-sm">' + amt + '</span></button>';
+        }).join('');
+
+        list.forEach(info => {
+          const orderNumber = info.order_number ?? info.orderNumber;
+          if (!orderNumber) return;
+          fetch(`${API_BASE}/api/orders/${orderNumber}`).then(r => r.json()).then(data => {
+            const isWon = (data.status === 'won' || data.status === 3) && Number(data.win_amount || 0) > 0;
+            if (isWon) {
+              try {
+                const raw2 = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+                let arr = raw2 ? JSON.parse(raw2) : [];
+                arr = arr.map(o => (o.order_number === orderNumber || o.orderNumber === orderNumber) ? { ...o, status: data.status, win_amount: data.win_amount, redeemed_at: data.redeemed_at } : o);
+                localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(arr));
+                renderClientPaidBanner();
+              } catch (e) {}
+            }
+          }).catch(() => {});
+        });
+      } catch (e) {
+        wrap.classList.add('hidden');
+      }
+    }
+
+    // 顾客点击“已付款订单”某一单：拉取订单状态，进入完成页并展示清晰的结算结果（中奖/未中/待开奖）
+    async function openClientOrderDetail(orderNumberFromList) {
+      try {
+        let info = null;
+        const raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+        let list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(o => o && o.clientId === clientId);
+        if (orderNumberFromList) {
+          info = list.find(o => (o.order_number || o.orderNumber) === orderNumberFromList);
+        }
+        if (!info && list.length) info = list[0];
+        if (!info) {
+          const lastRaw = localStorage.getItem(CLIENT_LAST_PAID_KEY);
+          if (lastRaw) info = JSON.parse(lastRaw);
+        }
+        if (!info || info.clientId !== clientId) return;
+
+        const orderNumber = info.order_number ?? info.orderNumber ?? orderNumberFromList;
+        document.getElementById('confirmed-order-id').textContent = orderNumber || '------';
+        document.getElementById('confirmed-amount').textContent = Number(info.amount || 0).toFixed(2);
+
+        const resultArea = document.getElementById('confirmed-result-area');
+        const resultWon = document.getElementById('confirmed-result-won');
+        const resultLost = document.getElementById('confirmed-result-lost');
+        const resultWaiting = document.getElementById('confirmed-result-waiting');
+        resultWon.classList.add('hidden');
+        resultLost.classList.add('hidden');
+        resultWaiting.classList.add('hidden');
+        resultArea.classList.add('hidden');
+
+        const resultRedeemed = document.getElementById('confirmed-result-redeemed');
+        if (resultRedeemed) resultRedeemed.classList.add('hidden');
+
+        if (orderNumber) {
+          try {
+            const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
+            const data = await res.json();
+            const status = data.status;
+            const winAmount = Number(data.win_amount || 0);
+            const redeemed = !!data.redeemed_at;
+            const isWon = (status === 'won' || status === 3) && winAmount > 0;
+            const isSettled = status === 'settled' || status === 2 || status === 'won' || status === 3;
+
+            resultArea.classList.remove('hidden');
+            if (isWon && redeemed) {
+              resultRedeemed.classList.remove('hidden');
+            } else if (isWon) {
+              document.getElementById('confirmed-win-amount').textContent = winAmount.toFixed(2);
+              resultWon.classList.remove('hidden');
+            } else if (isSettled) {
+              resultLost.classList.remove('hidden');
+            } else {
+              resultWaiting.classList.remove('hidden');
+            }
+          } catch (e) {
+            resultArea.classList.remove('hidden');
+            resultWaiting.classList.remove('hidden');
+          }
+        }
+
+        renderPaymentQR(
+          {
+            orderId: info.orderId ?? null,
+            orderNumber: orderNumber ?? info.orderNumber,
+            orderHash: info.orderHash ?? null,
+            amount: info.amount,
+            shopId: info.shopId ?? null
+          },
+          'confirmed-qr'
+        );
+
+        showPage('page-confirmed');
+      } catch (e) {}
+    }
+
+    function resetShop() {
+      betList = [];
+      currentNumber = '';
+      currentQuantity = '';
+      isQuantityMode = false;
+      currentOrderId = null;
+      currentOrderHash = null;
+      stopStatusPolling();
+      updateUI();
+      showPage('page-shop');
+      startClientStopCountdown();
+    }
+
+    // 退出店铺（清理倒计时）
+    function exitClientShop() {
+      if (clientStopCountdownInterval) {
+        clearInterval(clientStopCountdownInterval);
+        clientStopCountdownInterval = null;
+      }
+      showPage('page-home');
+    }
+
+    // 客户端停止售卖倒计时：仅在距离停售 <=10 分钟时显示（使用巴拿马本地时间 15:00 开奖）
+    function startClientStopCountdown() {
+      if (clientStopCountdownInterval) clearInterval(clientStopCountdownInterval);
+
+      const box = document.getElementById('client-stop-countdown');
+      const timerEl = document.getElementById('client-stop-timer');
+      if (!box || !timerEl) return;
+
+      function update() {
+        const now = new Date();
+        const day = now.getDay();      // 使用本地周几
+        const hour = now.getHours();   // 使用本地小时
+
+        let nextDraw = new Date(now);
+        // 巴拿马时间 15:00 开奖
+        nextDraw.setHours(15, 0, 0, 0);
+
+        if (day === 3 || day === 0) {
+          if (hour >= 15) {
+            box.classList.add('hidden');
+            return;
+          }
+        } else {
+          let daysUntil = day < 3 ? 3 - day : 7 - day + 3;
+          nextDraw.setUTCDate(now.getUTCDate() + daysUntil);
+        }
+
+        // 停售时间 = 开奖时间前5分钟
+        const stopSellTime = new Date(nextDraw.getTime() - 5 * 60 * 1000);
+        const diffToStop = stopSellTime - now;
+
+        // 仅当距离停售 <=10 分钟 且 >0 时显示
+        if (diffToStop > 0 && diffToStop <= 10 * 60 * 1000) {
+          const m = Math.floor(diffToStop / 60000);
+          const s = Math.floor((diffToStop % 60000) / 1000);
+          timerEl.textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+          box.classList.remove('hidden');
+        } else {
+          box.classList.add('hidden');
+        }
+      }
+
+      update();
+      clientStopCountdownInterval = setInterval(update, 1000);
+    }
+  </script>
+</body>
+</html>

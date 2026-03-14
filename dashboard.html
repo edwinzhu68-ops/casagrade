@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>总后台 - 管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  
+  <!-- 登录页 -->
+  <div id="page-login" class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-800 rounded-3xl shadow-2xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">⚙️</div>
+        <h1 class="text-2xl font-bold">总后台</h1>
+        <p class="text-gray-400 mt-2">管理员登录</p>
+      </div>
+      
+      <input type="text" id="admin-account" placeholder="账号" value="12345"
+        class="w-full text-center text-xl py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-green-500 focus:outline-none mb-3" />
+      
+      <input type="password" id="admin-password" placeholder="密码" value="123456"
+        class="w-full text-center text-xl py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-green-500 focus:outline-none mb-3" />
+      
+      <input type="password" id="admin-secret" placeholder="管理员密钥（可选，与服务器 ADMIN_TOKEN 一致才可开奖/结算）"
+        class="w-full text-center text-sm py-2 border border-gray-600 rounded-lg bg-gray-700 focus:border-green-500 focus:outline-none mb-6" />
+      
+      <button onclick="login()" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
+        登录
+      </button>
+    </div>
+  </div>
+
+  <!-- 总后台主页 -->
+  <div id="page-admin" class="hidden min-h-screen pb-20">
+    <header class="bg-gray-800 p-3 sticky top-0 z-10">
+      <div class="max-w-4xl mx-auto flex justify-between items-center">
+        <div>
+          <h1 class="font-bold text-lg">⚙️ 总后台</h1>
+          <p class="text-xs text-gray-400">全部店铺销售监控</p>
+        </div>
+        <button onclick="logout()" class="text-gray-400 text-sm">退出</button>
+      </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto p-3 space-y-3">
+      <!-- 总体统计 -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-4 text-center">
+          <p class="text-sm opacity-80">店铺数</p>
+          <p class="text-3xl font-bold" id="total-shops">0</p>
+        </div>
+        <div class="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-4 text-center">
+          <p class="text-sm opacity-80">今日订单</p>
+          <p class="text-3xl font-bold" id="total-orders">0</p>
+        </div>
+        <div class="bg-gradient-to-r from-yellow-600 to-yellow-500 rounded-2xl p-4 text-center">
+          <p class="text-sm opacity-80">今日销售额（已付）</p>
+          <p class="text-3xl font-bold" id="total-sales">$0</p>
+        </div>
+      </div>
+
+      <!-- 当前开奖结果 -->
+      <div id="current-result" class="bg-gray-800 rounded-2xl p-4">
+        <h2 class="font-bold mb-2">📋 当前开奖结果</h2>
+        <div id="current-numbers" class="text-center py-2">
+          <p class="text-gray-500">等待开奖...</p>
+        </div>
+        <p class="text-xs text-gray-500 text-center" id="update-time"></p>
+      </div>
+
+      <!-- 手动开奖 -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <h2 class="font-bold mb-3">🎰 手动开奖</h2>
+        
+        <div class="grid grid-cols-4 gap-2 mb-3">
+          <div>
+            <p class="text-xs text-gray-400 mb-1">开奖日期</p>
+            <div class="space-y-1.5">
+              <input type="date" id="draw-date"
+                class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+              <input type="time" id="draw-time" value="15:00"
+                class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+            </div>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-1">1奖(4位)</p>
+            <input type="text" id="draw-1st" maxlength="4" placeholder="----"
+              class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-1">2奖(4位)</p>
+            <input type="text" id="draw-2nd" maxlength="4" placeholder="----"
+              class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-1">3奖(4位)</p>
+            <input type="text" id="draw-3rd" maxlength="4" placeholder="----"
+              class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+          </div>
+        </div>
+        
+        <div class="flex gap-3">
+          <button onclick="sendDrawTime()" class="flex-1 bg-blue-600 py-2 rounded-lg font-bold text-sm">
+            📅 发送开奖时间
+          </button>
+          <button onclick="manualDraw()" class="flex-1 bg-red-600 py-2 rounded-lg font-bold text-sm">
+            🔴 发送开奖结果
+          </button>
+        </div>
+      </div>
+
+      <!-- 按店铺号查看销售明细（和老板端样式一致） -->
+      <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center gap-2 mb-1">
+          <h2 class="font-bold text-sm">店铺销售明细</h2>
+          <span class="text-xs text-gray-400">输入店号，查看该店 Chance / Billete 销量</span>
+        </div>
+        <div class="flex gap-2">
+          <input id="admin-shop-number" type="text" placeholder="输入店号，如 88888"
+            class="flex-1 text-center py-2 bg-gray-700 rounded-lg font-mono text-sm" />
+          <button onclick="loadShopSales()" class="px-4 py-2 bg-blue-600 rounded-lg text-sm font-bold">
+            查询
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mt-2">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <h3 class="font-bold text-sm">Chance 销售明细</h3>
+            </div>
+            <div id="admin-chance-grid" class="grid grid-cols-10 gap-1 text-[11px]">
+              <p class="text-gray-500 text-xs col-span-10 text-center">请输入店号并点击查询</p>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <h3 class="font-bold text-sm">Billete 销售明细</h3>
+            </div>
+            <div id="admin-billete-grid" class="grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto">
+              <p class="text-gray-500 text-xs col-span-4 text-center">请输入店号并点击查询</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 全部店铺总销售数据 -->
+      <div class="bg-gray-800 rounded-2xl p-4 space-y-2">
+        <div class="flex items-center gap-2 mb-1">
+          <h2 class="font-bold text-sm">全部店铺总销售数据</h2>
+          <span class="text-xs text-gray-400">基于所有店铺已付款订单</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mt-1">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <h3 class="font-bold text-sm">Chance 总销售（00-99）</h3>
+            </div>
+            <div id="admin-chance-total" class="grid grid-cols-10 gap-1 text-[11px]">
+              <p class="text-gray-500 text-xs col-span-10 text-center">加载中...</p>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <h3 class="font-bold text-sm">Billete 总销售</h3>
+              <span class="text-[10px] text-gray-400">按销量从高到低排列</span>
+            </div>
+            <div id="admin-billete-total" class="grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto">
+              <p class="text-gray-500 text-xs col-span-4 text-center">加载中...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 店铺对比：Top N 销售额 / 净利润 -->
+      <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="font-bold text-sm">店铺对比</h2>
+          <span class="text-xs text-gray-400">选择时间段，对比 Top N 店铺</span>
+        </div>
+        <div class="grid grid-cols-5 gap-2 text-[11px] mb-2">
+          <div class="col-span-2">
+            <p class="text-gray-400 mb-1">开始日期</p>
+            <input type="date" id="compare-start" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+          </div>
+          <div class="col-span-2">
+            <p class="text-gray-400 mb-1">结束日期</p>
+            <input type="date" id="compare-end" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+          </div>
+          <div>
+            <p class="text-gray-400 mb-1">Top N</p>
+            <input type="number" id="compare-top" value="10" min="3" max="50"
+              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+          </div>
+        </div>
+        <button onclick="loadShopCompare()" class="w-full bg-blue-600 py-2 rounded-lg font-bold text-sm mb-2">
+          载入店铺对比
+        </button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <h3 class="font-bold text-xs">Top N 按销售额</h3>
+            </div>
+            <div id="chart-sales" class="space-y-1 min-h-[60px]">
+              <p class="text-gray-500 text-xs text-center">请选择时间段并点击载入</p>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <h3 class="font-bold text-xs">Top N 按净利润</h3>
+            </div>
+            <div id="chart-profit" class="space-y-1 min-h-[60px]">
+              <p class="text-gray-500 text-xs text-center">请选择时间段并点击载入</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统设置 / 运行状态 -->
+      <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="font-bold text-sm">系统设置</h2>
+          <span class="text-xs text-gray-400">仅影响当天新订单</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-[11px]">
+          <div class="space-y-1.5">
+            <p class="text-gray-400">单店单笔最大投注金额</p>
+            <input type="number" id="setting-max-order" value="200"
+              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+            <p class="text-gray-400 mt-2">单店单日最大总额</p>
+            <input type="number" id="setting-max-daily" value="2000"
+              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+          </div>
+          <div class="space-y-1.5">
+            <p class="text-gray-400">未付订单超时时间（分钟）</p>
+            <input type="number" id="setting-unpaid-timeout" value="30"
+              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+            <p class="text-gray-400 mt-2">同一账号/设备单日最大金额</p>
+            <input type="number" id="setting-user-daily" value="500"
+              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
+          </div>
+        </div>
+        <button onclick="saveSystemSettings()" class="w-full bg-green-600 py-2 rounded-lg font-bold text-sm">
+          保存系统设置
+        </button>
+        <div class="border-t border-gray-700 pt-3 mt-1 text-[11px]">
+          <h3 class="font-bold mb-1">系统运行状态</h3>
+          <div id="system-health" class="space-y-1">
+            <p class="text-gray-500 text-xs">正在检查 API / 数据库 状态...</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 店铺详情弹窗 -->
+  <div id="modal-shop" class="hidden fixed inset-0 bg-black/70 z-50 overflow-y-auto">
+    <div class="min-h-screen p-4 flex items-center justify-center">
+      <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold" id="shop-detail-title">店铺详情</h2>
+          <button onclick="closeModal()" class="text-gray-400">✕</button>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-3 mb-4 text-center">
+          <div class="bg-gray-700 rounded-lg p-3">
+            <p class="text-xs text-gray-400">订单</p>
+            <p class="text-xl font-bold" id="shop-orders">0</p>
+          </div>
+          <div class="bg-gray-700 rounded-lg p-3">
+            <p class="text-xs text-gray-400">已付</p>
+            <p class="text-xl font-bold text-green-400" id="shop-paid">$0</p>
+          </div>
+          <div class="bg-gray-700 rounded-lg p-3">
+            <p class="text-xs text-gray-400">未付</p>
+            <p class="text-xl font-bold text-orange-400" id="shop-unpaid">$0</p>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <h4 class="font-bold mb-2">Chance 销售</h4>
+          <div id="shop-chance" class="space-y-1 max-h-32 overflow-y-auto text-sm"></div>
+        </div>
+
+        <div>
+          <h4 class="font-bold mb-2">Billete 销售</h4>
+          <div id="shop-billete" class="space-y-1 max-h-32 overflow-y-auto text-sm"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    const ADMIN_TOKEN_KEY = 'lottery_admin_token';
+    
+    let authToken = localStorage.getItem('lottery_token') || null;
+
+    function getAdminHeaders(includeAuth) {
+      const h = { 'Content-Type': 'application/json' };
+      if (includeAuth && authToken) h['Authorization'] = 'Bearer ' + authToken;
+      const t = localStorage.getItem(ADMIN_TOKEN_KEY);
+      if (t) h['X-Admin-Token'] = t;
+      return h;
+    }
+
+    // 初始化开奖日期默认值为“今日 15:00”
+    function initDrawDefaults() {
+      const dateInput = document.getElementById('draw-date');
+      if (!dateInput) return;
+      if (!dateInput.value) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        dateInput.value = `${y}-${m}-${d}`;
+      }
+    }
+
+    // 检查是否已登录
+    if (!authToken) {
+      document.getElementById('page-login').classList.remove('hidden');
+      document.getElementById('page-admin').classList.add('hidden');
+    } else {
+      document.getElementById('page-login').classList.add('hidden');
+      document.getElementById('page-admin').classList.remove('hidden');
+      initDrawDefaults();
+      loadData();
+    }
+    let allOrders = [];
+    let allShops = [];
+
+    // 登录
+    async function login() {
+      const account = document.getElementById('admin-account').value;
+      const password = document.getElementById('admin-password').value;
+      
+      if (!account || !password) {
+        alert('请输入账号和密码');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/merchant/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountNumber: account, password })
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || '登录失败');
+        
+        authToken = data.token;
+        var secretEl = document.getElementById('admin-secret');
+        if (secretEl && secretEl.value) localStorage.setItem(ADMIN_TOKEN_KEY, secretEl.value);
+        
+        document.getElementById('page-login').classList.add('hidden');
+        document.getElementById('page-admin').classList.remove('hidden');
+        
+        initDrawDefaults();
+        loadData();
+      } catch (err) {
+        alert(err.message || '登录失败');
+      }
+    }
+
+    function logout() {
+      authToken = null;
+      localStorage.removeItem('lottery_token');
+      document.getElementById('admin-password').value = '';
+      document.getElementById('page-admin').classList.add('hidden');
+      document.getElementById('page-login').classList.remove('hidden');
+    }
+
+    // 刷新数据
+    async function refreshData() {
+      await loadData();
+      alert('已刷新');
+    }
+
+    // 手动开奖（发送开奖结果）
+    async function manualDraw() {
+      const drawDate = document.getElementById('draw-date').value;
+      const drawClock = document.getElementById('draw-time').value || '15:00';
+      const billete = document.getElementById('draw-1st').value.trim();
+      const segundas = document.getElementById('draw-2nd').value.trim();
+      const terceras = document.getElementById('draw-3rd').value.trim();
+      
+      if (!drawDate) {
+        alert('请选择开奖日期');
+        return;
+      }
+
+      const drawTime = drawDate + 'T' + drawClock + ':00';
+      
+      if (!billete || !segundas || !terceras) {
+        alert('请输入 1、2、3 奖的四位号码（可以留空的奖项用 ---- 不要填写）');
+        return;
+      }
+      
+      if (billete.length !== 4 || segundas.length !== 4 || terceras.length !== 4) {
+        alert('每个号码必须是4位数字');
+        return;
+      }
+      
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/manual`, {
+          method: 'POST',
+          headers: getAdminHeaders(false),
+          body: JSON.stringify({ billete, segundas, terceras, drawTime })
+        });
+        
+        const data = await res.json();
+        if (data.success) {
+          alert("手动开奖成功！\n时间: " + drawTime + "\n1奖: " + billete + "\n2奖: " + segundas + "\n3奖: " + terceras);
+          
+          // 自动结算
+          fetch(`${API_BASE}/api/draw/latest`).then(r=>r.json()).then(d=>{
+            if(d.draw && d.draw.drawId) {
+              fetch(`${API_BASE}/api/settlement/settle/${d.draw.drawId}`, { method: 'POST', headers: getAdminHeaders(false) }).then(r=>r.json()).then(s=>{
+                alert("结算完成！\n销售额: $" + s.data.totalSales + "\n赔付: $" + s.data.totalPayout + "\n利润: $" + (s.data.totalSales - s.data.totalPayout));
+                loadData();
+              }).catch(e=>{ console.error(e); loadData(); });
+            } else {
+              loadData();
+            }
+          }).catch(e=>{ console.error(e); loadData(); });
+        } else {
+          alert(data.message || data.error || '开奖失败');
+        }
+      } catch (err) {
+        alert('开奖失败: ' + err.message);
+      }
+    }
+
+    // 加载数据
+    async function loadData() {
+      try {
+        // 获取所有店铺
+        const shopsRes = await fetch(`${API_BASE}/api/merchant/shops`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const shopsData = await shopsRes.json();
+        allShops = shopsData.shops || [];
+        
+        // 获取所有订单
+        const allOrdersData = [];
+        for (const shop of allShops) {
+          const res = await fetch(`${API_BASE}/api/shop/${shop.shop_id}/orders?limit=20000`);
+          const data = await res.json();
+          (data.orders || []).forEach(o => o.shop_number = shop.shop_number);
+          allOrdersData.push(...(data.orders || []));
+        }
+        allOrders = allOrdersData;
+        
+        // 计算统计数据
+        calculateStats();
+        renderTotalSales();
+        renderCurrentResult();
+        loadSystemHealth();
+        // 店铺对比图表不自动刷新，按按钮触发即可
+        
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 店铺对比：按时间段加载 Top N 店铺销售/利润
+    async function loadShopCompare() {
+      const startInput = document.getElementById('compare-start');
+      const endInput = document.getElementById('compare-end');
+      const topInput = document.getElementById('compare-top');
+      const chartSales = document.getElementById('chart-sales');
+      const chartProfit = document.getElementById('chart-profit');
+      if (!startInput || !endInput || !topInput || !chartSales || !chartProfit) return;
+
+      const start = startInput.value;
+      const end = endInput.value;
+      const topN = parseInt(topInput.value) || 10;
+      if (!start || !end) {
+        alert('请选择开始和结束日期');
+        return;
+      }
+
+      chartSales.innerHTML = '<p class="text-gray-500 text-xs text-center">加载中...</p>';
+      chartProfit.innerHTML = '<p class="text-gray-500 text-xs text-center">加载中...</p>';
+
+      try {
+        // 期望后端提供接口：
+        // GET /api/admin/shop-compare?from=YYYY-MM-DD&to=YYYY-MM-DD&top=10
+        // 返回 items: [{ shopNumber, shopName, totalSales, netProfit }]
+        const params = new URLSearchParams({
+          from: start,
+          to: end,
+          top: String(topN)
+        });
+        const res = await fetch(`${API_BASE}/api/admin/shop-compare?` + params.toString(), {
+          headers: getAdminHeaders(true)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || '加载失败');
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (items.length === 0) {
+          chartSales.innerHTML = '<p class="text-gray-500 text-xs text-center">暂无数据</p>';
+          chartProfit.innerHTML = '<p class="text-gray-500 text-xs text-center">暂无数据</p>';
+          return;
+        }
+
+        const maxSales = Math.max(...items.map(i => Number(i.totalSales || 0)), 1);
+        const maxProfitAbs = Math.max(...items.map(i => Math.abs(Number(i.netProfit || 0))), 1);
+
+        chartSales.innerHTML = items.map(i => {
+          const shopLabel = i.shopNumber || i.shop_number || '未知';
+          const sales = Number(i.totalSales || 0);
+          const width = Math.max(5, (sales / maxSales) * 100);
+          return `
+            <div class="flex items-center gap-1">
+              <div class="w-10 text-right font-mono">${shopLabel}</div>
+              <div class="flex-1 bg-gray-700 rounded-full overflow-hidden">
+                <div class="bg-blue-500 h-2" style="width:${width}%;"></div>
+              </div>
+              <div class="w-16 text-right text-[10px] text-gray-300">$${sales.toFixed(2)}</div>
+            </div>
+          `;
+        }).join('');
+
+        chartProfit.innerHTML = items.map(i => {
+          const shopLabel = i.shopNumber || i.shop_number || '未知';
+          const profit = Number(i.netProfit || 0);
+          const scale = Math.abs(profit) / maxProfitAbs;
+          const width = Math.max(5, scale * 100);
+          const color = profit >= 0 ? 'bg-green-500' : 'bg-red-500';
+          return `
+            <div class="flex items-center gap-1">
+              <div class="w-10 text-right font-mono">${shopLabel}</div>
+              <div class="flex-1 bg-gray-700 rounded-full overflow-hidden">
+                <div class="${color} h-2" style="width:${width}%;"></div>
+              </div>
+              <div class="w-16 text-right text-[10px] ${profit >= 0 ? 'text-green-300' : 'text-red-300'}">$${profit.toFixed(2)}</div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error(e);
+        chartSales.innerHTML = '<p class="text-red-400 text-xs text-center">加载失败</p>';
+        chartProfit.innerHTML = '<p class="text-red-400 text-xs text-center">加载失败</p>';
+      }
+    }
+
+    // 保存系统设置（目前存到 localStorage，后端可扩展成真正的风控规则）
+    function saveSystemSettings() {
+      const maxOrder = parseFloat(document.getElementById('setting-max-order')?.value || '0') || 0;
+      const maxDaily = parseFloat(document.getElementById('setting-max-daily')?.value || '0') || 0;
+      const unpaidTimeout = parseInt(document.getElementById('setting-unpaid-timeout')?.value || '30') || 30;
+      const userDaily = parseFloat(document.getElementById('setting-user-daily')?.value || '0') || 0;
+
+      const cfg = {
+        maxOrder,
+        maxDaily,
+        unpaidTimeoutMinutes: unpaidTimeout,
+        userDaily
+      };
+      localStorage.setItem('admin_system_settings', JSON.stringify(cfg));
+      alert('系统设置已保存（当前仅前端本地生效，后端可以按此结构接入风控）');
+    }
+
+    // 加载系统设置并填充表单
+    (function initSystemSettings() {
+      try {
+        const raw = localStorage.getItem('admin_system_settings');
+        if (!raw) return;
+        const cfg = JSON.parse(raw);
+        if (cfg.maxOrder != null) document.getElementById('setting-max-order').value = cfg.maxOrder;
+        if (cfg.maxDaily != null) document.getElementById('setting-max-daily').value = cfg.maxDaily;
+        if (cfg.unpaidTimeoutMinutes != null) document.getElementById('setting-unpaid-timeout').value = cfg.unpaidTimeoutMinutes;
+        if (cfg.userDaily != null) document.getElementById('setting-user-daily').value = cfg.userDaily;
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+
+    // 系统运行状态：简单检查 API / 数据库
+    async function loadSystemHealth() {
+      const el = document.getElementById('system-health');
+      if (!el) return;
+      el.innerHTML = '<p class="text-gray-500 text-xs">正在检查...</p>';
+      try {
+        const pingRes = await fetch(`${API_BASE}/api/draw/latest`);
+        const pingOk = pingRes.ok;
+        const pingData = await pingRes.json().catch(() => ({}));
+
+        // 预留一个 /api/admin/health 接口（由新后端实现），用于返回 db / queue 状态
+        let health = null;
+        try {
+          const healthRes = await fetch(`${API_BASE}/api/admin/health`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+          health = await healthRes.json();
+        } catch (_) {
+          // ignore
+        }
+
+        const dbOk = health && health.db === 'ok';
+        const queueOk = health && health.queue === 'ok';
+
+        el.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400">后端 API 连接</span>
+            <span class="${pingOk ? 'text-green-400' : 'text-red-400'} text-xs">
+              ${pingOk ? '正常' : '异常'}
+            </span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400">数据库</span>
+            <span class="${dbOk ? 'text-green-400' : 'text-yellow-400'} text-xs">
+              ${dbOk ? '正常' : '未知'}
+            </span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400">队列 / 定时任务</span>
+            <span class="${queueOk ? 'text-green-400' : 'text-yellow-400'} text-xs">
+              ${queueOk ? '正常' : '未知'}
+            </span>
+          </div>
+        `;
+      } catch (e) {
+        console.error(e);
+        el.innerHTML = '<p class="text-red-400 text-xs">系统状态检测失败</p>';
+      }
+    }
+
+    // 统计
+    function calculateStats() {
+      const paidOrders = allOrders.filter(o => o.status >= 1);
+      document.getElementById('total-shops').textContent = allShops.length;
+      document.getElementById('total-orders').textContent = allOrders.length;
+      // 今日销售额只统计已付款订单
+      document.getElementById('total-sales').textContent = '$' + paidOrders.reduce((s, o) => s + o.amount, 0).toFixed(0);
+    }
+
+    // 仅发送开奖时间（不强制要求填开奖号码）
+    async function sendDrawTime() {
+      const drawDate = document.getElementById('draw-date').value;
+      const drawClock = document.getElementById('draw-time').value || '15:00';
+      if (!drawDate) {
+        alert('请选择开奖日期');
+        return;
+      }
+      const drawTime = drawDate + 'T' + drawClock + ':00';
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/time`, {
+          method: 'POST',
+          headers: getAdminHeaders(false),
+          body: JSON.stringify({ drawTime })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('已发送开奖时间：' + drawTime);
+        } else {
+          alert(data.error || '发送开奖时间失败');
+        }
+      } catch (err) {
+        alert('发送开奖时间失败: ' + err.message);
+      }
+    }
+
+    // 根据店号渲染 Chance / Billete 销售明细（样式参考老板端）
+    function loadShopSales() {
+      const input = document.getElementById('admin-shop-number');
+      const chanceGrid = document.getElementById('admin-chance-grid');
+      const billeteGrid = document.getElementById('admin-billete-grid');
+      const shopNumber = (input.value || '').trim();
+
+      if (!shopNumber) {
+        alert('请输入店号');
+        return;
+      }
+
+      const shop = allShops.find(s => String(s.shop_number) === shopNumber);
+      if (!shop) {
+        alert('未找到该店号的店铺');
+        chanceGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-10 text-center">未找到该店号</p>';
+        billeteGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-4 text-center">未找到该店号</p>';
+        return;
+      }
+
+      // 只看该店铺的已付款订单
+      const paidOrders = allOrders.filter(o => o.shop_id === shop.shop_id && o.status >= 1);
+
+      const chanceCount = {};
+      const billeteCount = {};
+
+      paidOrders.forEach(order => {
+        if (order.numbers) {
+          order.numbers.forEach(n => {
+            if (order.game_type === 'CHANCE') {
+              const key = n.n.toString().slice(-2).padStart(2, '0');
+              chanceCount[key] = (chanceCount[key] || 0) + n.q;
+            } else if (order.game_type === 'BILLETE') {
+              const key = n.n.toString().slice(-4).padStart(4, '0');
+              billeteCount[key] = (billeteCount[key] || 0) + n.q;
+            }
+          });
+        }
+      });
+
+      // Chance 00-99 网格（用老板端的样式）
+      const entries = [];
+      for (let i = 0; i < 100; i++) {
+        const num = i.toString().padStart(2, '0');
+        const qty = chanceCount[num] || 0;
+        entries.push([num, qty]);
+      }
+      const sortedByQty = entries.slice().sort((a, b) => {
+        if (b[1] === a[1]) return Number(a[0]) - Number(b[0]);
+        return b[1] - a[1];
+      });
+
+      chanceGrid.className = 'grid grid-cols-10 gap-1 text-[11px]';
+      chanceGrid.innerHTML = '';
+      entries.sort((a, b) => Number(a[0]) - Number(b[0])).forEach(([num, qty]) => {
+        const rank = sortedByQty.findIndex(([n]) => n === num);
+        let qtyColorClass = 'text-gray-500';
+        if (qty > 0) {
+          qtyColorClass = 'text-green-300';
+          if (rank < 20) qtyColorClass = 'text-red-400';
+          else if (rank < 40) qtyColorClass = 'text-yellow-300';
+          else if (rank < 60) qtyColorClass = 'text-green-300';
+        }
+        const div = document.createElement('div');
+        div.className = 'text-center py-1.5 rounded font-mono bg-gray-700/40';
+        div.innerHTML = `<div class="font-bold text-xs">${num}</div><div class="text-[10px] ${qtyColorClass}">${qty}</div>`;
+        chanceGrid.appendChild(div);
+      });
+
+      // Billete 0000-9999 网格（只显示卖出的，样式同老板端）
+      const billeteEntries = Object.entries(billeteCount).filter(([_, q]) => q > 0);
+      billeteEntries.sort((a, b) => Number(a[0]) - Number(b[0]));
+
+      billeteGrid.className = 'grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto';
+      if (billeteEntries.length === 0) {
+        billeteGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-4 text-center">暂无 Billete 销售</p>';
+      } else {
+        billeteGrid.innerHTML = billeteEntries.map(([num, qty], index) => {
+          let qtyColorClass = 'text-gray-500';
+          if (qty > 0) {
+            qtyColorClass = 'text-green-300';
+          }
+          return `
+            <div class="text-center py-2 rounded font-mono bg-gray-700/40">
+              <div class="font-bold text-sm">${num}</div>
+              <div class="text-[11px] ${qtyColorClass}">${qty}</div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // 全部店铺总销售数据（样式和老板端销售明细类似）
+    function renderTotalSales() {
+      const chanceTotalGrid = document.getElementById('admin-chance-total');
+      const billeteTotalGrid = document.getElementById('admin-billete-total');
+      if (!chanceTotalGrid || !billeteTotalGrid) return;
+
+      // 只统计已付款订单
+      const paidOrders = allOrders.filter(o => o.status >= 1);
+
+      const chanceCount = {};
+      const billeteCount = {};
+
+      paidOrders.forEach(order => {
+        if (order.numbers) {
+          order.numbers.forEach(n => {
+            if (order.game_type === 'CHANCE') {
+              const key = n.n.toString().slice(-2).padStart(2, '0');
+              chanceCount[key] = (chanceCount[key] || 0) + n.q;
+            } else if (order.game_type === 'BILLETE') {
+              const key = n.n.toString().slice(-4).padStart(4, '0');
+              billeteCount[key] = (billeteCount[key] || 0) + n.q;
+            }
+          });
+        }
+      });
+
+      // Chance 00-99 总销售
+      const entries = [];
+      for (let i = 0; i < 100; i++) {
+        const num = i.toString().padStart(2, '0');
+        const qty = chanceCount[num] || 0;
+        entries.push([num, qty]);
+      }
+      const sortedByQty = entries.slice().sort((a, b) => {
+        if (b[1] === a[1]) return Number(a[0]) - Number(b[0]);
+        return b[1] - a[1];
+      });
+
+      chanceTotalGrid.className = 'grid grid-cols-10 gap-1 text-[11px]';
+      chanceTotalGrid.innerHTML = '';
+      entries.sort((a, b) => Number(a[0]) - Number(b[0])).forEach(([num, qty]) => {
+        const rank = sortedByQty.findIndex(([n]) => n === num);
+        let qtyColorClass = 'text-gray-500';
+        if (qty > 0) {
+          qtyColorClass = 'text-green-300';
+          if (rank < 20) qtyColorClass = 'text-red-400';
+          else if (rank < 40) qtyColorClass = 'text-yellow-300';
+          else if (rank < 60) qtyColorClass = 'text-green-300';
+        }
+        const div = document.createElement('div');
+        div.className = 'text-center py-1.5 rounded font-mono bg-gray-700/40';
+        div.innerHTML = `<div class="font-bold text-xs">${num}</div><div class="text-[10px] ${qtyColorClass}">${qty}</div>`;
+        chanceTotalGrid.appendChild(div);
+      });
+
+      // Billete 总销售：按销量从高到低排列，只显示卖出过的号码
+      const billeteEntries = Object.entries(billeteCount).filter(([_, q]) => q > 0);
+      billeteEntries.sort((a, b) => {
+        if (b[1] === a[1]) return Number(a[0]) - Number(b[0]);
+        return b[1] - a[1];
+      });
+
+      billeteTotalGrid.className = 'grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto';
+      if (billeteEntries.length === 0) {
+        billeteTotalGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-4 text-center">暂无 Billete 销售</p>';
+      } else {
+        billeteTotalGrid.innerHTML = billeteEntries.map(([num, qty]) => {
+          let qtyColorClass = 'text-gray-500';
+          if (qty > 0) {
+            qtyColorClass = 'text-green-300';
+          }
+          return `
+            <div class="text-center py-2 rounded font-mono bg-gray-700/40">
+              <div class="font-bold text-sm">${num}</div>
+              <div class="text-[11px] ${qtyColorClass}">${qty}</div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // 显示当前开奖结果
+    async function renderCurrentResult() {
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/latest`);
+        const data = await res.json();
+        
+        const container = document.getElementById('current-numbers');
+        const timeEl = document.getElementById('update-time');
+        
+        if (data.draw) {
+          const numbers = JSON.parse(data.draw.winning_numbers || '{}');
+          
+          container.innerHTML = `
+            <div class="grid grid-cols-3 gap-2">
+              <div class="bg-yellow-900/50 rounded-lg py-2">
+                <p class="text-xs text-yellow-300">1奖</p>
+                <p class="text-xl font-mono font-bold">${numbers.billete || '----'}</p>
+              </div>
+              <div class="bg-gray-700 rounded-lg py-2">
+                <p class="text-xs text-gray-400">2奖</p>
+                <p class="text-xl font-mono font-bold">${numbers.primeras || '----'}</p>
+              </div>
+              <div class="bg-gray-700 rounded-lg py-2">
+                <p class="text-xs text-gray-400">3奖</p>
+                <p class="text-xl font-mono font-bold">${numbers.ultimas || '----'}</p>
+              </div>
+            </div>
+          `;
+          
+          const updateTime = new Date(data.draw.draw_time || data.draw.created_at);
+          timeEl.textContent = '开奖时间: ' + updateTime.toLocaleString();
+        } else {
+          container.innerHTML = '<p class="text-gray-500">等待开奖...</p>';
+          timeEl.textContent = '';
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 查看店铺详情
+    function viewShop(shopId) {
+      const shop = allShops.find(s => s.shop_id === shopId);
+      const orders = allOrders.filter(o => o.shop_id === shopId);
+      const paidOrders = orders.filter(o => o.status >= 1);
+      const unpaidOrders = orders.filter(o => o.status === 0);
+      
+      document.getElementById('shop-detail-title').textContent = `店铺 ${shop.shop_number}`;
+      document.getElementById('shop-orders').textContent = orders.length;
+      document.getElementById('shop-paid').textContent = '$' + paidOrders.reduce((s, o) => s + o.amount, 0).toFixed(2);
+      document.getElementById('shop-unpaid').textContent = '$' + unpaidOrders.reduce((s, o) => s + o.amount, 0).toFixed(2);
+      
+      // Chance销售
+      const chanceCount = {};
+      paidOrders.filter(o => o.game_type === 'CHANCE').forEach(o => {
+        o.numbers.forEach(n => {
+          chanceCount[n.n] = (chanceCount[n.n] || 0) + n.q;
+        });
+      });
+      const chanceSorted = Object.entries(chanceCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      document.getElementById('shop-chance').innerHTML = chanceSorted.length ? 
+        chanceSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${num}</span><span>${qty}张</span></div>`).join('') :
+        '<p class="text-gray-500">暂无</p>';
+      
+      // Billete销售
+      const billeteCount = {};
+      paidOrders.filter(o => o.game_type === 'BILLETE').forEach(o => {
+        o.numbers.forEach(n => {
+          billeteCount[n.n] = (billeteCount[n.n] || 0) + n.q;
+        });
+      });
+      const billeteSorted = Object.entries(billeteCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      document.getElementById('shop-billete').innerHTML = billeteSorted.length ? 
+        billeteSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${num}</span><span>${qty}张</span></div>`).join('') :
+        '<p class="text-gray-500">暂无</p>';
+      
+      document.getElementById('modal-shop').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-shop').classList.add('hidden');
+    }
+
+    // 定时刷新
+    setInterval(() => {
+      if (authToken) loadData();
+    }, 30000);
+  </script>
+</body>
+</html>
