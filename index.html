@@ -220,6 +220,35 @@
     </div>
   </div>
 
+  <!-- 无法退出提示弹窗 -->
+  <div id="cant-exit-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-2xl">🔒</span>
+        <h3 class="text-lg font-bold text-gray-800">No puedes salir aún</h3>
+      </div>
+      <p class="text-sm text-gray-600 mb-2">Tienes pedidos pendientes de sorteo o premios sin cobrar.</p>
+      <p class="text-sm text-gray-500 mb-5">Revisa <span class="font-semibold text-orange-500">Pedidos pagados</span> y cobra tus premios, o espera el resultado del sorteo.</p>
+      <button onclick="document.getElementById('cant-exit-modal').classList.add('hidden')" class="w-full py-3 rounded-xl bg-orange-500 text-white font-bold">Entendido</button>
+    </div>
+  </div>
+
+  <!-- 超限确认弹窗 -->
+  <div id="over-limit-modal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-2xl">⚠️</span>
+        <h3 class="text-lg font-bold text-gray-800">Límite de ventas</h3>
+      </div>
+      <p class="text-sm text-gray-500 mb-3">Los siguientes números superan el límite. Se ajustará la cantidad automáticamente.</p>
+      <div id="over-limit-list" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
+      <div class="flex gap-3">
+        <button onclick="closeOverLimitModal(false)" class="flex-1 py-3 rounded-xl border border-gray-300 text-gray-600 font-bold">Cancelar</button>
+        <button onclick="closeOverLimitModal(true)" class="flex-1 py-3 rounded-xl bg-orange-500 text-white font-bold">Continuar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 付款页 -->
   <div id="page-pay" class="hidden min-h-screen bg-orange-100 flex flex-col">
     <div class="flex-1 p-4">
@@ -471,9 +500,11 @@
     let clientStopCountdownInterval = null;
     let betStatusPollInterval = null;
     let clientPaidOrdersPollInterval = null; // 开奖后定期拉取订单状态，使列表从"绿色已付款"变为"已开奖/已中奖"
+    let clientRedeemPollInterval = null; // 高频轮询兑奖状态，老板确认后立即刷新
     let clientPendingOrdersPollInterval = null; // 店铺页轮询未付款订单，老板端确认后自动从待付款移到已付款
 
     const LAST_PAGE_KEY = 'lottery_last_page';
+    const LAST_ORDER_KEY = 'lottery_last_order_number'; // 当前查看的订单号
     const MAX_PENDING_ORDERS = 3;
 
     // 订单号短显：1个字母+4位数字（取订单号最后5位）
@@ -501,6 +532,11 @@
           if (betStatusPollInterval) { clearInterval(betStatusPollInterval); betStatusPollInterval = null; }
         }
         if (id === 'page-home') localStorage.setItem(LAST_PAGE_KEY, 'home');
+        // 离开确认页时清除保存的订单号和轮询
+        if (id !== 'page-confirmed') {
+          localStorage.removeItem(LAST_ORDER_KEY);
+          if (clientRedeemPollInterval) { clearInterval(clientRedeemPollInterval); clientRedeemPollInterval = null; }
+        }
       } catch (e) {}
       // 在店铺页或完成页时，定期刷新已付款订单列表（开奖后能自动从绿色变为已开奖/已中奖）
       if (clientPaidOrdersPollInterval) {
@@ -510,9 +546,16 @@
       if (id === 'page-shop' || id === 'page-confirmed') {
         updatePaidOrdersFromServer(); // 从服务器更新订单状态
         renderClientPaidBanner(); // 立即刷新
+        // 保存当前查看的订单号用于轮询刷新
+        var currentViewOrder = localStorage.getItem(LAST_ORDER_KEY);
         clientPaidOrdersPollInterval = setInterval(function () {
+          var prevOrder = localStorage.getItem(LAST_ORDER_KEY);
           updatePaidOrdersFromServer();
           renderClientPaidBanner();
+          // 如果在确认页且订单号没变，检查是否需要刷新订单详情
+          if (id === 'page-confirmed' && prevOrder && prevOrder === localStorage.getItem(LAST_ORDER_KEY)) {
+            openClientOrderDetail(localStorage.getItem(LAST_ORDER_KEY));
+          }
         }, 15000);
       }
     }
@@ -756,9 +799,10 @@
       if (isPaidBtn || isHomeBtn) {
         e.preventDefault();
         e.stopPropagation();
+        console.log('点击了已付款订单:', num);
         openClientOrderDetail(num);
       }
-    }, true);
+    }); // 使用冒泡阶段（默认），让 onclick 属性也能正常工作
 
     function renderOrderDetailFromApi(numbers, gameType, targetId) {
       var el = document.getElementById(targetId);
@@ -767,11 +811,11 @@
         el.innerHTML = '<p class="text-gray-400">-</p>';
         return;
       }
-      var gt = (gameType || '').toUpperCase();
-      var unitPrice = (gt === 'CHANCE' ? priceChance : priceBillete);
       el.innerHTML = numbers.map(function (item) {
-        var n = item.n != null ? String(item.n) : '';
-        var q = Math.max(0, parseInt(item.q, 10) || 0);
+        var numVal = item.n != null ? item.n : (item.number != null ? item.number : item);
+        var n = String(numVal || '').replace(/\D/g, '');
+        var q = Math.max(0, parseInt(item.q != null ? item.q : (item.quantity != null ? item.quantity : 1), 10) || 1);
+        var unitPrice = n.length >= 4 ? priceBillete : priceChance;
         var lineTotal = (q * unitPrice).toFixed(2);
         return '<div class="flex justify-between"><span class="font-mono">' + n + ' × ' + q + '</span><span>$' + lineTotal + '</span></div>';
       }).join('');
@@ -1169,6 +1213,8 @@
       try { localStorage.setItem('lastShopNumber', shopNumber); } catch (e) {}
       document.getElementById('shop-number').textContent = shopNumber;
       updateHeaderAccount();
+      // 进店前先从服务器同步一次订单状态，确保渲染时数据是最新的
+      await updatePaidOrdersFromServer();
     }
 
     // 进入店铺（从首页点击 Entrar）
@@ -1405,6 +1451,40 @@
       }
     }
 
+    // 超限弹窗
+    var _overLimitMap = {};
+    function showOverLimitModal(items, overMap) {
+      _overLimitMap = overMap;
+      const list = document.getElementById('over-limit-list');
+      list.innerHTML = items.map(function(item) {
+        const canBuy = item.limit - item.alreadySold;
+        const tag = canBuy > 0
+          ? '<span class="text-orange-500 font-bold">→ ' + canBuy + ' ud.</span>'
+          : '<span class="text-red-500 font-bold">Agotado</span>';
+        return '<div class="flex justify-between items-center bg-orange-50 rounded-xl px-3 py-2">'
+          + '<span class="font-mono font-bold text-gray-800">' + item.n + '</span>'
+          + '<span class="text-xs text-gray-400">' + item.alreadySold + '/' + item.limit + '</span>'
+          + tag
+          + '</div>';
+      }).join('');
+      document.getElementById('over-limit-modal').classList.remove('hidden');
+    }
+    function closeOverLimitModal(confirmed) {
+      document.getElementById('over-limit-modal').classList.add('hidden');
+      if (!confirmed) return;
+      betList = betList.map(function(b) {
+        const maxAllowed = _overLimitMap[String(b.number)];
+        if (maxAllowed === undefined) return b;
+        if (maxAllowed <= 0) return null;
+        return Object.assign({}, b, { quantity: maxAllowed });
+      }).filter(Boolean);
+      if (betList.length === 0) {
+        alert('Todos los números han alcanzado el límite de ventas.');
+        return;
+      }
+      submitBet();
+    }
+
     // 提交订单
     async function submitBet() {
       if (betList.length === 0) return;
@@ -1448,7 +1528,18 @@
         });
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || data.error || '下单失败');
+        if (!res.ok) {
+          // 超限错误：弹确认框让用户选择删掉超限号码继续下单
+          if (data.overLimitItems && data.overLimitItems.length > 0) {
+            const overMap = {};
+            data.overLimitItems.forEach(function(item) {
+              overMap[String(item.n)] = item.limit - item.alreadySold;
+            });
+            showOverLimitModal(data.overLimitItems, overMap);
+            return;
+          }
+          throw new Error(data.message || data.error || '下单失败');
+        }
 
         currentOrderId = data.orderId != null ? data.orderId : data.order_id;
         currentOrderHash = data.orderHash != null ? data.orderHash : data.order_hash;
@@ -1678,6 +1769,9 @@
       if (cqr) cqr.textContent = sn;
       if (csn) csn.textContent = sn;
       if (betList && betList.length) renderOrderDetailFromBetList(betList, 'confirmed-order-detail');
+      // 保存当前查看的订单号
+      var currentOrderNum = currentOrderId || (betList && betList.length > 0 && localStorage.getItem(CLIENT_LAST_PAID_KEY) ? JSON.parse(localStorage.getItem(CLIENT_LAST_PAID_KEY)).order_number : null);
+      if (currentOrderNum) localStorage.setItem(LAST_ORDER_KEY, String(currentOrderNum));
       renderClientPaidBanner();
       showPage('page-confirmed');
     }
@@ -1705,20 +1799,20 @@
     }
 
     // 从服务器更新已付款订单的最新状态（中奖、兑奖等）
+    // 所有订单并发请求，避免串行等待
     async function updatePaidOrdersFromServer() {
       try {
         var raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
         var list = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(list)) list = [];
         var changed = false;
-        for (var i = 0; i < list.length; i++) {
-          var orderNumber = list[i].order_number || list[i].orderNumber;
-          if (!orderNumber) continue;
+        await Promise.all(list.map(async function(item, i) {
+          var orderNumber = item.order_number || item.orderNumber;
+          if (!orderNumber) return;
           try {
             var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
-            if (!res.ok) continue;
+            if (!res.ok) return;
             var data = await res.json();
-            // 更新订单状态
             if (list[i].status !== data.status || list[i].win_amount !== data.win_amount || list[i].redeemed_at !== data.redeemed_at) {
               list[i].status = data.status;
               list[i].win_amount = data.win_amount;
@@ -1727,9 +1821,9 @@
               changed = true;
             }
           } catch (e) {}
-        }
+        }));
         if (changed) {
-          localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
+          try { localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list)); } catch (e) {}
         }
       } catch (e) {}
     }
@@ -1797,37 +1891,48 @@
           var shortNum = shortOrderNumber(num);
           var safeNum = (num + '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           var lineThrough = past ? '<span class="absolute inset-y-0 left-0 right-0 flex items-center pointer-events-none" aria-hidden="true"><span class="w-full h-px bg-gray-400"></span></span>' : '';
-          return '<button type="button" class="client-order-btn client-paid-item w-full border-2 rounded-xl px-3 py-2 flex justify-between items-center text-left ' + btnClass + '" data-order-number="' + safeNum + '">' + lineThrough + '<span class="' + (past ? 'relative z-10 ' : '') + 'font-mono text-sm">' + shop + ' · #' + shortNum + '</span><span class="' + (past ? 'relative z-10 ' : '') + 'font-mono font-bold text-sm">' + amt + '</span></button>';
+          var rawNum = (num + '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          return '<button type="button" onclick="openClientOrderDetail(\'' + rawNum + '\')" class="client-order-btn client-paid-item w-full border-2 rounded-xl px-3 py-2 flex justify-between items-center text-left ' + btnClass + '" data-order-number="' + safeNum + '">' + lineThrough + '<span class="' + (past ? 'relative z-10 ' : '') + 'font-mono text-sm">' + shop + ' · #' + shortNum + '</span><span class="' + (past ? 'relative z-10 ' : '') + 'font-mono font-bold text-sm">' + amt + '</span></button>';
         }).join('');
 
+        // 限制并发请求数量，避免 ERR_INSUFFICIENT_RESOURCES
+        var concurrent = 0;
+        var maxConcurrent = 3;
         list.forEach(function (info) {
           var orderNumber = info.order_number != null ? info.order_number : info.orderNumber;
           if (!orderNumber) return;
-          fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber))).then(function (r) {
-            if (!r.ok) return null;
-            return r.json();
-          }).then(function (data) {
-            if (!data) return;
-            try {
-              var raw2 = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
-              var arr = raw2 ? JSON.parse(raw2) : [];
-              var winAmt = Number(data.win_amount) || 0;
-              if (winAmt === 0 && data.win_breakdown && data.win_breakdown.length) {
-                data.win_breakdown.forEach(function (b) { winAmt += Number(b.win) || 0; });
-              }
-              var updated = {
-                status: data.status,
-                win_amount: winAmt,
-                redeemed_at: data.redeemed_at,
-                drawn_at: data.drawn_at || data.updated_at || (data.status !== 1 && data.status !== 'paid' ? Date.now() : undefined)
-              };
-              var numStr = String(orderNumber);
-              arr = arr.map(function (o) { return (String(o.order_number || o.orderNumber || '') === numStr) ? Object.assign({}, o, updated) : o; });
-              localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(arr));
-              var onShopPage = document.getElementById('page-shop') && !document.getElementById('page-shop').classList.contains('hidden');
-              if (onShopPage) renderClientPaidBanner();
-            } catch (e) {}
-          }).catch(function () {});
+          var checkAndFetch = function() {
+            if (concurrent >= maxConcurrent) {
+              setTimeout(checkAndFetch, 100);
+              return;
+            }
+            concurrent++;
+            fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber))).then(function (r) {
+              if (!r.ok) return null;
+              return r.json();
+            }).then(function (data) {
+              if (!data) return;
+              try {
+                var raw2 = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+                var arr = raw2 ? JSON.parse(raw2) : [];
+                var winAmt = Number(data.win_amount) || 0;
+                if (winAmt === 0 && data.win_breakdown && data.win_breakdown.length) {
+                  data.win_breakdown.forEach(function (b) { winAmt += Number(b.win) || 0; });
+                }
+                var updated = {
+                  status: data.status,
+                  win_amount: winAmt,
+                  redeemed_at: data.redeemed_at,
+                  drawn_at: data.drawn_at || data.updated_at || (data.status !== 1 && data.status !== 'paid' ? Date.now() : undefined)
+                };
+                var numStr = String(orderNumber);
+                arr = arr.map(function (o) { return (String(o.order_number || o.orderNumber || '') === numStr) ? Object.assign({}, o, updated) : o; });
+                localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(arr));
+                // 不要在这里调用 renderClientPaidBanner，会导致无限循环！
+              } catch (e) {}
+            }).catch(function () {}).finally(function() { concurrent--; });
+          };
+          checkAndFetch();
         });
       } catch (e) {
         wrap.classList.add('hidden');
@@ -1866,7 +1971,8 @@
           var rowClass = past ? 'bg-gray-100 text-gray-500 opacity-80' : 'bg-gray-50 hover:bg-gray-100';
           var shortNum = shortOrderNumber(num);
           var safeNum = (num + '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return '<button type="button" class="client-home-order-item w-full text-left rounded-lg px-3 py-2 ' + rowClass + ' text-sm border border-transparent hover:bg-gray-100 cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono">' + shop + ' · #' + shortNum + '</span> <span class="font-bold text-green-600">$' + amt + '</span></button>';
+          var rawNum = (num + '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          return '<button type="button" onclick="openClientOrderDetail(\'' + rawNum + '\')" class="client-home-order-item w-full text-left rounded-lg px-3 py-2 ' + rowClass + ' text-sm border border-transparent hover:bg-gray-100 cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono">' + shop + ' · #' + shortNum + '</span> <span class="font-bold text-green-600">$' + amt + '</span></button>';
         }).join('');
       } catch (e) {
         wrap.classList.add('hidden');
@@ -1876,6 +1982,7 @@
     // 顾客点击"已付款订单"某一单：先立即进入二维码页，再后台拉取开奖状态更新
     var __openingOrderNumber = null;
     async function openClientOrderDetail(orderNumberFromList) {
+      console.log('openClientOrderDetail 被调用:', orderNumberFromList);
       if (!orderNumberFromList) return;
       var orderNumStr = String(orderNumberFromList).trim();
       if (!orderNumStr) return;
@@ -1921,6 +2028,7 @@
         } catch (e) {}
       }
       if (!info) {
+        window.__openingOrderNumber = null;
         alert('No se encontró el pedido.');
         return;
       }
@@ -1978,8 +2086,9 @@
           'confirmed-qr'
         );
 
+        // 保存当前查看的订单号
+        if (orderNumber) localStorage.setItem(LAST_ORDER_KEY, String(orderNumber));
         showPage('page-confirmed');
-        loadAndShowDrawNumbers();
 
         if (orderNumber) {
           fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)))
@@ -2032,6 +2141,44 @@
               }
             })
             .catch(function () {});
+            
+          // 高频轮询兑奖状态（每 1 秒），老板确认后立即刷新
+          var currentOrderNum = orderNumber;
+          if (clientRedeemPollInterval) clearInterval(clientRedeemPollInterval);
+          clientRedeemPollInterval = setInterval(function() {
+            if (!currentOrderNum || !document.getElementById('page-confirmed') || 
+                document.getElementById('page-confirmed').classList.contains('hidden')) {
+              if (clientRedeemPollInterval) { clearInterval(clientRedeemPollInterval); clientRedeemPollInterval = null; }
+              return;
+            }
+            fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(currentOrderNum)))
+              .then(function(r) { return r.ok ? r.json() : null; })
+              .then(function(data) {
+                if (!data) return;
+                // 更新本地存储
+                var raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+                var arr = raw ? JSON.parse(raw) : [];
+                var updated = false;
+                arr = arr.map(function(o) {
+                  if (String(o.order_number || o.orderNumber || '') === String(currentOrderNum)) {
+                    var oldRedeemed = o.redeemed_at;
+                    o.redeemed_at = data.redeemed_at;
+                    o.status = data.status;
+                    o.win_amount = data.win_amount;
+                    if (oldRedeemed !== data.redeemed_at) updated = true;
+                  }
+                  return o;
+                });
+                if (updated) {
+                  localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(arr));
+                  // 如果刚被兑奖，立即刷新显示
+                  if (data.redeemed_at) {
+                    openClientOrderDetail(currentOrderNum);
+                    if (clientRedeemPollInterval) { clearInterval(clientRedeemPollInterval); clientRedeemPollInterval = null; }
+                  }
+                }
+              }).catch(function() {});
+          }, 1000);
         }
       } catch (err) {
         console.error('openClientOrderDetail', err);
@@ -2105,7 +2252,7 @@
     function exitClientShop() {
       checkCanExit(function(ok) {
         if (!ok) {
-          alert('No puedes salir mientras tengas pedidos pendientes de sorteo o premios sin cobrar. Revisa "Pedidos pagados" y cobra o espera el sorteo.');
+          document.getElementById('cant-exit-modal').classList.remove('hidden');
           return;
         }
         if (clientStopCountdownInterval) {
@@ -2206,6 +2353,10 @@
         document.body.style.visibility = 'visible';
       }
       updateHeaderAccount();
+      var lastOrder = null;
+      try {
+        lastOrder = localStorage.getItem(LAST_ORDER_KEY);
+      } catch (e) {}
       try {
         if (localStorage.getItem(LAST_PAGE_KEY) === 'shop') {
           var sn = (localStorage.getItem('lastShopNumber') || '').trim();
@@ -2216,6 +2367,10 @@
               showPage('page-shop');
               startClientStopCountdown();
               updateHeaderAccount();
+              // 如果有保存的订单号，自动打开
+              if (lastOrder) {
+                openClientOrderDetail(lastOrder);
+              }
               show();
             }).catch(function() {
               showPage('page-home');
@@ -2226,6 +2381,10 @@
         }
       } catch (e) {}
       showPage('page-home');
+      // 如果有保存的订单号，自动打开
+      if (lastOrder) {
+        openClientOrderDetail(lastOrder);
+      }
       show();
     })();
 

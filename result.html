@@ -638,16 +638,21 @@
       orders.forEach(order => {
         if (!order.numbers) return;
         // 按号码位数区分：4位是Billete，2位是Chance（不再按game_type字段区分）
+        const totalQty = order.numbers.reduce((s, x) => {
+          const q = Number(x.q != null ? x.q : (x.quantity != null ? x.quantity : 1)) || 1;
+          return s + q;
+        }, 0) || 1;
         order.numbers.forEach(n => {
-          const numStr = String(n.n || '');
-          const numLen = numStr.replace(/\D/g, '').length;
-          const qty = Number(n.q) || 0;
+          const numVal = n.n != null ? n.n : (n.number != null ? n.number : n);
+          const numStr = String(numVal || '').replace(/\D/g, '');
+          const numLen = numStr.length;
+          const qty = Number(n.q != null ? n.q : (n.quantity != null ? n.quantity : 1)) || 1;
           if (numLen >= 4) {
-            billeteSales += Number(n.q || 0) * Number(order.amount || 0) / (order.numbers.reduce((s, x) => s + Number(x.q || 0), 0) || 1);
+            billeteSales += qty * Number(order.amount || 0) / totalQty;
             const numBi = numStr.slice(-4).padStart(4, '0');
             billeteCountMap[numBi] = (billeteCountMap[numBi] || 0) + qty;
           } else if (numLen >= 2) {
-            chanceSales += Number(n.q || 0) * Number(order.amount || 0) / (order.numbers.reduce((s, x) => s + Number(x.q || 0), 0) || 1);
+            chanceSales += qty * Number(order.amount || 0) / totalQty;
             const numCh = numStr.slice(-2).padStart(2, '0');
             chanceCountMap[numCh] = (chanceCountMap[numCh] || 0) + qty;
           }
@@ -667,7 +672,7 @@
       if (wonEl) wonEl.textContent = wonCount;
 
       renderResultPaidOrderList(orders);
-      renderResultRedeemList(allOrders);
+      renderResultRedeemList(orders);
     }
 
     // 渲染等待兑奖列表
@@ -761,14 +766,19 @@
         const short = num.length <= 4 ? num : num.slice(-4);
         const amt = Number(o.amount || 0).toFixed(2);
         const winAmt = getOrderWinAmount(o);
-        const disp = winAmt > 0 ? '$' + winAmt.toFixed(2) : '$' + amt;
         const status = statusText(o);
         const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const amtBlock = winAmt > 0
+          ? `<span class="flex flex-col items-end leading-tight">
+               <span class="font-mono text-xs text-gray-300">售 $${amt}</span>
+               <span class="font-mono font-bold text-sm text-yellow-300">奖 $${winAmt.toFixed(2)}</span>
+             </span>`
+          : `<span class="font-mono font-bold text-sm flex-shrink-0">$${amt}</span>`;
         return `<button type="button" class="result-order-btn w-full text-left rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 ${rowClass(o)}" data-order-number-full="${safeNum}">
           <span class="font-mono text-sm truncate">#${short}</span>
           ${shopLabel ? '<span class="text-xs text-gray-400 flex-shrink-0">' + (t('shop_short') || '店') + ' ' + shopLabel + '</span>' : ''}
           <span class="font-mono text-xs opacity-90 flex-shrink-0">${status}</span>
-          <span class="font-mono font-bold text-sm flex-shrink-0">${disp}</span>
+          ${amtBlock}
         </button>`;
       }).join('');
       container.querySelectorAll('.result-order-btn').forEach(btn => {
@@ -966,16 +976,13 @@
       } else {
         document.getElementById('no-billete-winners').classList.add('hidden');
         billeteContainer.classList.remove('hidden');
-        billeteContainer.innerHTML = billetePayouts.map(p => `
-          <div class="bg-gray-700 rounded-lg px-3 py-2 mb-1">
-            <div class="flex justify-between items-center">
-              <span class="font-mono font-bold text-yellow-400">${p.number}</span>
-              <span class="text-gray-400">× ${p.qty}</span>
-              <span class="text-red-400 font-bold">$ ${p.totalWin.toFixed(2)}</span>
-            </div>
-            <div class="text-xs text-gray-500">应赔 $${p.totalWin.toFixed(2)}</div>
+        billeteContainer.innerHTML = '<div class="grid grid-cols-5 gap-1">' + billetePayouts.map(p => `
+          <div class="bg-gray-700 rounded-lg px-1 py-1.5 text-center">
+            <div class="font-mono font-bold text-yellow-400 text-xs">${p.number}</div>
+            <div class="text-gray-400 text-xs">×${p.qty}</div>
+            <div class="text-red-400 font-bold text-xs">$${p.totalWin.toFixed(2)}</div>
           </div>
-        `).join('');
+        `).join('') + '</div>';
       }
       
       const chanceContainer = document.getElementById('chance-winners');
@@ -985,16 +992,13 @@
       } else {
         document.getElementById('no-chance-winners').classList.add('hidden');
         chanceContainer.classList.remove('hidden');
-        chanceContainer.innerHTML = chancePayouts.map(p => `
-          <div class="bg-gray-700 rounded-lg px-3 py-2 mb-1">
-            <div class="flex justify-between items-center">
-              <span class="font-mono font-bold text-blue-400">${p.number}</span>
-              <span class="text-gray-400">× ${p.qty}</span>
-              <span class="text-red-400 font-bold">$ ${p.totalWin.toFixed(2)}</span>
-            </div>
-            <div class="text-xs text-gray-500">应赔 $${p.totalWin.toFixed(2)}</div>
+        chanceContainer.innerHTML = '<div class="grid grid-cols-5 gap-1">' + chancePayouts.map(p => `
+          <div class="bg-gray-700 rounded-lg px-1 py-1.5 text-center">
+            <div class="font-mono font-bold text-blue-400 text-xs">${p.number}</div>
+            <div class="text-gray-400 text-xs">×${p.qty}</div>
+            <div class="text-red-400 font-bold text-xs">$${p.totalWin.toFixed(2)}</div>
           </div>
-        `).join('');
+        `).join('') + '</div>';
       }
       
       // 总赔付

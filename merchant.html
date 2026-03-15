@@ -36,12 +36,13 @@
       <div class="space-y-3 mt-2">
         <button onclick="login()" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl" data-i18n="btn_login">登录</button>
         <button onclick="openRegisterModal()" class="w-full bg-gray-700 text-gray-100 py-3 rounded-xl font-bold text-sm border border-gray-600" data-i18n="btn_register">注册新账号</button>
+        <button onclick="openForgotModal()" class="w-full text-gray-400 text-sm py-1" data-i18n="btn_forgot">忘记密码？</button>
       </div>
     </div>
   </div>
 
   <!-- 注册弹窗 -->
-  <div id="modal-register" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div id="modal-register" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeRegisterModal()">
     <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold" data-i18n="reg_title">注册新门店账号</h2>
@@ -56,8 +57,8 @@
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="reg_password_label">密码</p>
-            <input id="reg-password" type="password" placeholder="至少6位"
+            <p class="text-xs text-gray-400 mb-1" data-i18n="reg_password_label">密码（字母+数字）</p>
+            <input id="reg-password" type="password" placeholder="例如：abc123"
               class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
           </div>
           <div>
@@ -66,6 +67,11 @@
               class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
           </div>
         </div>
+        <div>
+          <p class="text-xs text-gray-400 mb-1" data-i18n="reg_email_label">邮箱（可不填，用于找回密码）</p>
+          <input id="reg-email" type="email" placeholder="例如：shop@gmail.com"
+            class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
+        </div>
       </div>
 
       <div class="flex gap-3 mt-6">
@@ -73,7 +79,24 @@
         <button onclick="submitRegister()" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold" data-i18n="reg_submit">提交注册</button>
       </div>
 
-      <p class="text-[11px] text-gray-500 mt-3" data-i18n="reg_footer">注册一次即获得两个登录方式：<strong>账号</strong>（字母+数字，你填的）与<strong>店号</strong>（纯数字，系统分配），密码相同，任选其一登录。</p>
+      <p class="text-[11px] text-gray-500 mt-3" data-i18n="reg_footer">注册成功后系统随机分配店号，账号与店号均可登录。</p>
+    </div>
+  </div>
+
+  <!-- 忘记密码弹窗 -->
+  <div id="modal-forgot" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeForgotModal()">
+    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-white" data-i18n="forgot_title">忘记密码</h2>
+        <button onclick="closeForgotModal()" class="text-gray-400 text-lg">✕</button>
+      </div>
+      <p class="text-xs text-gray-400 mb-3" data-i18n="forgot_hint">输入注册时绑定的邮箱，系统将发送新临时密码到该邮箱。</p>
+      <input id="forgot-email" type="email" placeholder="输入邮箱"
+        class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500 mb-4" />
+      <div class="flex gap-3">
+        <button onclick="closeForgotModal()" class="flex-1 bg-gray-700 text-white py-3 rounded-xl font-bold" data-i18n="forgot_cancel">取消</button>
+        <button onclick="submitForgotPassword()" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold" data-i18n="forgot_send">发送</button>
+      </div>
     </div>
   </div>
 
@@ -83,8 +106,9 @@
       <div class="max-w-2xl mx-auto">
         <div class="flex items-center justify-between mb-2">
           <button type="button" id="btn-lang-toggle" onclick="toggleMerchantLang()" class="w-14 h-10 flex items-center justify-center text-2xl rounded-lg hover:bg-gray-700" title="" data-i18n-title="lang_switch_title">🇵🇦</button>
-          <h1 class="font-bold text-lg text-center flex-1">
-            🏪 <span id="shop-number">-----</span>
+          <h1 class="font-bold text-center flex-1">
+            <span class="text-xs text-gray-400 block leading-tight">🏪</span>
+            <span id="shop-number" class="text-3xl font-black tracking-widest text-red-400">-----</span>
           </h1>
           <button onclick="logout()" id="txt-logout" class="w-16 text-gray-400 text-sm text-right" data-i18n="logout">退出</button>
         </div>
@@ -175,41 +199,28 @@
         </div>
       </div>
 
-      <!-- 销售限额与单价设置 -->
+      <!-- 销售限额设置 -->
       <div class="bg-gray-800 rounded-2xl p-4">
-        <h3 class="font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额与单价</h3>
+        <h3 class="font-bold mb-3">⚙️ 销售限额</h3>
         <div class="grid grid-cols-2 gap-4">
           <div>
             <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
-            <div class="flex items-center mb-2">
+            <div class="flex items-center">
               <input type="number" id="limit-chance" value="50"
                 class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
               <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
             </div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="chance_price_label">Chance 单价</p>
-            <div class="flex items-center">
-              <span class="text-gray-400 mr-1">$</span>
-              <input type="number" id="price-chance" value="0.25" step="0.01" min="0"
-                class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-            </div>
           </div>
           <div>
             <p class="text-xs text-gray-400 mb-1" data-i18n="billete_limit_label">Billete 每号最多</p>
-            <div class="flex items-center mb-2">
+            <div class="flex items-center">
               <input type="number" id="limit-billete" value="10"
                 class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
               <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
             </div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="billete_price_label">Billete 单价</p>
-            <div class="flex items-center">
-              <span class="text-gray-400 mr-1">$</span>
-              <input type="number" id="price-billete" value="1" step="0.01" min="0"
-                class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-            </div>
           </div>
         </div>
         <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-3 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
-        <p class="text-[11px] text-gray-500 mt-1" data-i18n="settings_note">价格仅影响客户端下单金额计算。</p>
       </div>
 
     </main>
@@ -254,7 +265,7 @@
   </div>
 
   <!-- 输入订单号弹窗（可扫码或手动输入） -->
-  <div id="modal-scan" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+  <div id="modal-scan" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeScan()">
     <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md">
       <div id="scan-form-area">
         <div class="text-center mb-4">
@@ -293,7 +304,7 @@
   </div>
 
   <!-- 订单详情弹窗（z 高于本期订单弹窗，点单号时详情盖在本期订单上） -->
-  <div id="modal-order" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4">
+  <div id="modal-order" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)closeModal('modal-order')">
     <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md">
       <div class="text-center mb-4">
         <div class="text-4xl mb-2">📝</div>
@@ -325,19 +336,24 @@
       </div>
 
       <div class="flex gap-3">
-        <button onclick="closeModal('modal-order')" class="flex-1 bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="cancel">关闭</button>
+        <button onclick="closeModal('modal-order')" class="flex-1 bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="close">关闭</button>
+        <button id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 bg-red-700 text-white py-4 rounded-xl font-bold">🗑 删除</button>
+        <button id="modal-btn-confirm-pay" onclick="confirmPayment()" class="hidden flex-1 bg-green-600 text-white py-4 rounded-xl font-bold">确认收款</button>
+        <button id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 bg-amber-500 text-white py-4 rounded-xl font-bold">兑奖</button>
       </div>
     </div>
   </div>
 
   <!-- 本期订单列表弹窗（点击「本期订单」数字打开） -->
-  <div id="modal-period-orders" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div id="modal-period-orders" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeModal('modal-period-orders')">
     <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[85vh] flex flex-col">
       <div class="flex justify-between items-center mb-3">
         <h3 class="text-lg font-bold" data-i18n="period_orders_list">本期订单</h3>
         <button type="button" onclick="closeModal('modal-period-orders')" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
       </div>
       <p class="text-xs text-gray-400 mb-2" data-i18n="period_orders_hint">16:00 开售～下次 14:55 停售 · 点击单号查看详情</p>
+      <input id="period-order-filter" type="text" maxlength="10" placeholder="最后4位" oninput="filterPeriodOrders(this.value)"
+        class="w-full mb-2 px-3 py-2 bg-gray-700 rounded-lg text-sm font-mono border border-gray-600 focus:border-blue-500 focus:outline-none" />
       <div id="period-order-list" class="flex-1 overflow-y-auto space-y-1 text-sm font-mono">
         <p class="text-gray-500 text-center py-4">暂无订单</p>
       </div>
@@ -345,11 +361,27 @@
     </div>
   </div>
 
+  <!-- 删除订单确认弹窗 -->
+  <div id="modal-delete-confirm" class="hidden fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
+      <div class="text-center mb-4">
+        <div class="text-4xl mb-2">⚠️</div>
+        <h3 class="text-lg font-bold text-white">确认删除订单？</h3>
+        <p class="text-sm text-gray-400 mt-2">此操作无法撤回，订单将被永久删除。</p>
+        <p class="text-xs text-red-400 mt-1 font-mono" id="delete-confirm-order-id"></p>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('modal-delete-confirm').classList.add('hidden')" class="flex-1 bg-gray-600 text-white py-3 rounded-xl font-bold">取消</button>
+        <button onclick="executeDeleteOrder()" class="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold">确认删除</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 成功提示 -->
   <div id="toast-success" class="hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-10 py-6 rounded-2xl font-bold text-2xl z-50" data-i18n="toast_paid">✅ 收款成功！</div>
 
   <!-- 兑奖弹窗（扫码后醒目展示） -->
-  <div id="modal-redeem" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+  <div id="modal-redeem" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeModal('modal-redeem')">
     <div class="bg-gradient-to-b from-amber-900/90 to-gray-800 rounded-3xl p-6 w-full max-w-md border-2 border-amber-400 shadow-2xl">
       <div class="text-center mb-4">
         <div class="text-6xl mb-2">🎉</div>
@@ -392,13 +424,21 @@
         reg_title: '注册新门店账号',
         reg_account_label: '登录账号（字母或数字）',
         reg_account_placeholder: '例如：SHOP123 或 panama01',
-        reg_password_label: '密码',
-        reg_password_placeholder: '至少6位',
+        reg_password_label: '密码（字母+数字）',
+        reg_password_placeholder: '例如：abc123',
         reg_confirm_label: '确认密码',
         reg_confirm_placeholder: '再输一遍',
+        reg_email_label: '邮箱（可不填，用于找回密码）',
+        reg_email_placeholder: '例如：shop@gmail.com',
         reg_cancel: '取消',
         reg_submit: '提交注册',
-        reg_footer: '提交后，系统会为该账号随机分配一个 5 位数店号。登录时可以使用账号或店号进入收银工作台。',
+        reg_footer: '注册成功后系统随机分配店号，账号与店号均可登录。',
+        btn_forgot: '忘记密码？',
+        forgot_title: '忘记密码',
+        forgot_hint: '输入注册时绑定的邮箱，系统将发送新临时密码到该邮箱。',
+        forgot_email_placeholder: '输入邮箱',
+        forgot_cancel: '取消',
+        forgot_send: '发送',
         chance_hot: 'Chance 热门号码',
         billete_hot: 'Billete 热门号码',
         view_all: '查看全部 →',
@@ -473,6 +513,7 @@
         pending_title: '等待付款',
         pending_hint: '点击订单号确认收款 · 输入尾数可筛订单',
         pending_filter_placeholder: '最后4位',
+        period_order_filter_placeholder: '最后4位',
         no_pending: '暂无未付款订单',
         no_match_pending: '无匹配订单',
         wait_redeem: '等待兑奖',
@@ -505,13 +546,21 @@
         reg_title: 'Registrar nueva tienda',
         reg_account_label: 'Cuenta (letras o números)',
         reg_account_placeholder: 'Ej: SHOP123 o panama01',
-        reg_password_label: 'Contraseña',
-        reg_password_placeholder: 'Mín. 6 caracteres',
+        reg_password_label: 'Contraseña (letras + números)',
+        reg_password_placeholder: 'Ej: abc123',
         reg_confirm_label: 'Confirmar contraseña',
         reg_confirm_placeholder: 'Repetir contraseña',
+        reg_email_label: 'Correo (opcional, para recuperar contraseña)',
+        reg_email_placeholder: 'Ej: shop@gmail.com',
         reg_cancel: 'Cancelar',
         reg_submit: 'Registrarse',
-        reg_footer: 'Al enviar, se asignará un número de tienda de 5 dígitos. Podrás entrar con la cuenta o el número de tienda.',
+        reg_footer: 'Al registrarte se asignará un número de tienda. Puedes entrar con la cuenta o el número.',
+        btn_forgot: '¿Olvidaste tu contraseña?',
+        forgot_title: 'Recuperar contraseña',
+        forgot_hint: 'Ingresa el correo que registraste y recibirás una nueva contraseña temporal.',
+        forgot_email_placeholder: 'Tu correo electrónico',
+        forgot_cancel: 'Cancelar',
+        forgot_send: 'Enviar',
         chance_hot: 'Chance más jugados',
         billete_hot: 'Billete más jugados',
         view_all: 'Ver todo →',
@@ -586,6 +635,7 @@
         pending_title: 'Esperando pago',
         pending_hint: 'Toca el pedido para confirmar · Escribe los últimos dígitos para filtrar',
         pending_filter_placeholder: 'Últimos 4',
+        period_order_filter_placeholder: 'Últimos 4',
         no_pending: 'Sin pedidos pendientes',
         no_match_pending: 'Ningún pedido coincide',
         wait_redeem: 'Pendiente de cobro',
@@ -650,6 +700,12 @@
       if (regPwd && MERCHANT_T[lang].reg_password_placeholder) regPwd.placeholder = MERCHANT_T[lang].reg_password_placeholder;
       var regPwd2 = document.getElementById('reg-password-confirm');
       if (regPwd2 && MERCHANT_T[lang].reg_confirm_placeholder) regPwd2.placeholder = MERCHANT_T[lang].reg_confirm_placeholder;
+      var periodFilter = document.getElementById('period-order-filter');
+      if (periodFilter && MERCHANT_T[lang].period_order_filter_placeholder) periodFilter.placeholder = MERCHANT_T[lang].period_order_filter_placeholder;
+      var regEmail = document.getElementById('reg-email');
+      if (regEmail && MERCHANT_T[lang].reg_email_placeholder) regEmail.placeholder = MERCHANT_T[lang].reg_email_placeholder;
+      var forgotEmail = document.getElementById('forgot-email');
+      if (forgotEmail && MERCHANT_T[lang].forgot_email_placeholder) forgotEmail.placeholder = MERCHANT_T[lang].forgot_email_placeholder;
       var shopNumEl = document.getElementById('shop-number');
       if (shopNumEl && currentShop) shopNumEl.textContent = currentShop.shop_number;
       else if (shopNumEl && MERCHANT_T[lang].shop_not_set) shopNumEl.textContent = MERCHANT_T[lang].shop_not_set;
@@ -658,6 +714,7 @@
 
     let currentShop = null;
     let authToken = null;
+    applyMerchantLang();
     let currentOrder = null;
     let lastUnpaidOrders = [];
     let currentRedeemOrder = null;
@@ -710,16 +767,10 @@
             currentShop = data.shops[0];
             if (DEBUG) console.log("Setting shop number:", currentShop);
             document.getElementById("shop-number").textContent = currentShop.shop_number || t('shop_not_set');
-            limits.chance = parseInt(localStorage.getItem('limit_chance') || '50');
-            limits.billete = parseInt(localStorage.getItem('limit_billete') || '10');
-            document.getElementById('limit-chance').value = limits.chance;
-            document.getElementById('limit-billete').value = limits.billete;
-            const priceChance = parseFloat(localStorage.getItem('price_chance') || '0.25');
-            const priceBillete = parseFloat(localStorage.getItem('price_billete') || '1');
-            const priceChanceInput = document.getElementById('price-chance');
-            const priceBilleteInput = document.getElementById('price-billete');
-            if (priceChanceInput) priceChanceInput.value = priceChance.toString();
-            if (priceBilleteInput) priceBilleteInput.value = priceBillete.toString();
+            limits.chance = currentShop.limit_chance != null ? Number(currentShop.limit_chance) : null;
+            limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
+            document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
+            document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
             document.getElementById('page-login').classList.add('hidden');
             document.getElementById('page-cashier').classList.remove('hidden');
             applyMerchantLang();
@@ -742,6 +793,31 @@
 
     function closeRegisterModal() {
       document.getElementById('modal-register').classList.add('hidden');
+    }
+
+    function openForgotModal() {
+      document.getElementById('forgot-email').value = '';
+      document.getElementById('modal-forgot').classList.remove('hidden');
+    }
+    function closeForgotModal() {
+      document.getElementById('modal-forgot').classList.add('hidden');
+    }
+    async function submitForgotPassword() {
+      const email = (document.getElementById('forgot-email').value || '').trim();
+      if (!email) { alert('请输入邮箱'); return; }
+      try {
+        const res = await fetch(`${API_BASE}/api/merchant/forgot-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || '发送失败');
+        closeForgotModal();
+        alert('新密码已发送到 ' + email + '，请查收邮件后登录。');
+      } catch (err) {
+        alert(err.message || '发送失败');
+      }
     }
 
     // 提交注册：调用后端，注册成功即获得账号（字母+数字）与店号（纯数字），两者均可登录
@@ -775,6 +851,8 @@
         return;
       }
 
+      const email = (document.getElementById('reg-email').value || '').trim();
+
       try {
         const res = await fetch(`${API_BASE}/api/merchant/register`, {
           method: 'POST',
@@ -783,7 +861,8 @@
             accountNumber: account,
             password: password,
             passwordConfirm: password2,
-            shop_name: ''
+            shop_name: '',
+            email: email || undefined
           })
         });
         const data = await res.json().catch(function () { return {}; });
@@ -865,19 +944,11 @@
         if (DEBUG) console.log("Setting shop number:", currentShop);
         document.getElementById("shop-number").textContent = currentShop.shop_number || t('shop_not_set');
 
-        // 加载限额
-        limits.chance = parseInt(localStorage.getItem('limit_chance') || '50');
-        limits.billete = parseInt(localStorage.getItem('limit_billete') || '10');
-        document.getElementById('limit-chance').value = limits.chance;
-        document.getElementById('limit-billete').value = limits.billete;
-        // 加载单价
-        const priceChance = parseFloat(localStorage.getItem('price_chance') || '0.25');
-        const priceBillete = parseFloat(localStorage.getItem('price_billete') || '1');
-        const priceChanceInput = document.getElementById('price-chance');
-        const priceBilleteInput = document.getElementById('price-billete');
-        if (priceChanceInput) priceChanceInput.value = priceChance.toString();
-        if (priceBilleteInput) priceBilleteInput.value = priceBillete.toString();
-
+        // 加载限额（从店铺数据读取，null = 无限制）
+        limits.chance = currentShop.limit_chance != null ? Number(currentShop.limit_chance) : null;
+        limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
+        document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
+        document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-cashier').classList.remove('hidden');
 
@@ -923,17 +994,37 @@
       window.location.href = url;
     }
 
-    // 保存限额与单价（存到 localStorage，客户端按此计算金额）
-    function saveLimits() {
-      limits.chance = parseInt(document.getElementById('limit-chance').value) || 50;
-      limits.billete = parseInt(document.getElementById('limit-billete').value) || 10;
-      const priceChance = parseFloat(document.getElementById('price-chance').value) || 0.25;
-      const priceBillete = parseFloat(document.getElementById('price-billete').value) || 1;
-      localStorage.setItem('limit_chance', limits.chance);
-      localStorage.setItem('limit_billete', limits.billete);
-      localStorage.setItem('price_chance', priceChance.toString());
-      localStorage.setItem('price_billete', priceBillete.toString());
-      alert(t('alert_limits_saved'));
+    // 保存销售限额
+    async function saveLimits() {
+      if (!currentShop) {
+        alert(t('alert_no_shop_info'));
+        return;
+      }
+      const chanceVal = document.getElementById('limit-chance').value.trim();
+      const billeteVal = document.getElementById('limit-billete').value.trim();
+      const newChance = chanceVal === '' ? null : (parseInt(chanceVal) || null);
+      const newBillete = billeteVal === '' ? null : (parseInt(billeteVal) || null);
+      try {
+        const res = await fetch(`/api/shop/${currentShop.shop_id}/limits`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          body: JSON.stringify({ limitChance: newChance, limitBillete: newBillete })
+        });
+        if (!res.ok) {
+          let errMsg = '保存失败 (HTTP ' + res.status + ')';
+          try { const d = await res.json(); errMsg = d.message || errMsg; } catch(e) {}
+          throw new Error(errMsg);
+        }
+        limits.chance = newChance;
+        limits.billete = newBillete;
+        if (newChance != null) localStorage.setItem('limit_chance', newChance);
+        else localStorage.removeItem('limit_chance');
+        if (newBillete != null) localStorage.setItem('limit_billete', newBillete);
+        else localStorage.removeItem('limit_billete');
+        alert(t('alert_limits_saved'));
+      } catch (err) {
+        alert(err.message || '保存限额失败');
+      }
     }
 
     let scanStreamRef = null;
@@ -997,8 +1088,6 @@
                 var data = code.data.trim();
                 document.getElementById('scan-input').value = data;
                 stopQrScan();
-                document.getElementById('scan-form-area').classList.remove('hidden');
-                document.getElementById('scan-camera-area').classList.add('hidden');
                 scanOrder();
                 return;
               }
@@ -1063,12 +1152,10 @@
           }
           const isWon = data.status === 3 || data.status === 'won';
           const redeemed = data.redeemed_at && data.redeemed_at !== '' && data.redeemed_at !== 'null';
-          if (isWon && !redeemed) {
-            showRedeemModal(data, orderHash);
-          } else if (isWon && redeemed) {
+          if (isWon && redeemed) {
             alert(t('alert_already_redeemed'));
           } else {
-            showOrderDetail(data);
+            showOrderDetail(data, orderHash);
           }
         })
         .catch(() => alert(t('alert_order_not_found')));
@@ -1265,9 +1352,16 @@
 
         const now = Date.now();
         const THIRTY_MIN = 30 * 60 * 1000;
+        function parseCreatedAt(val) {
+          if (!val) return 0;
+          // SQLite 有时返回 "2026-03-15 20:00:00.000"（空格），需换成 T 才能兼容所有浏览器
+          var s = String(val).replace(' ', 'T');
+          var t = new Date(s).getTime();
+          return isNaN(t) ? 0 : t;
+        }
         const unpaidOrders = allOrders.filter(o =>
           (o.status === 'pending' || o.status === 0) &&
-          (now - new Date(o.created_at).getTime() < THIRTY_MIN)
+          (now - parseCreatedAt(o.created_at) < THIRTY_MIN)
         );
         // 待兑奖订单（用于显示中奖金额，与结算页区分：这里只显示本店待兑付的金额）
         const redeemPendingOrders = allOrders.filter(function (o) { 
@@ -1538,7 +1632,7 @@
       var suffix = (value || '').trim().replace(/\D/g, '');
       var inputEl = document.getElementById('pending-filter-input');
       if (inputEl) inputEl.value = suffix;
-      renderPendingOrders(lastUnpaidOrders || [], suffix);
+      renderPendingOrders(lastUnpaidOrders || [], suffix, allOrders);
     }
 
     // 未付款订单 + 等待兑奖；suffixFilter 按订单号尾数筛；allOrdersForRedeem 用于从全部订单里筛待兑奖（不传则用 orders）
@@ -1549,7 +1643,8 @@
       if (suf) {
         pending = pending.filter(function (o) {
           var num = String(o.order_number || o.orderNumber || '');
-          return num.length >= suf.length && num.slice(-suf.length) === suf;
+          var last4 = num.slice(-4);
+          return last4.includes(suf) || num.includes(suf);
         });
       }
       var redeemList = (allOrdersForRedeem && allOrdersForRedeem.length) ? allOrdersForRedeem : (orders || []);
@@ -1637,8 +1732,9 @@
       return typeof status === 'string' ? (map[status] ?? -1) : status;
     }
 
-    function showOrderDetail(order) {
+    function showOrderDetail(order, hashFromQR) {
       currentOrder = order;
+      currentOrder._hash = hashFromQR || null;
       var statusColors = ['text-orange-400', 'text-green-400', 'text-blue-400', 'text-purple-400'];
       var statusKeys = ['status_order_0', 'status_order_1', 'status_order_2', 'status_order_3'];
       var idx = normalizeStatus(order.status);
@@ -1649,8 +1745,35 @@
       document.getElementById('detail-status').textContent = (statusKeys[idx] ? t(statusKeys[idx]) : t('status_unknown'));
       document.getElementById('detail-status').className = (statusColors[idx] || 'text-gray-400') + ' font-bold';
 
+      var breakdown = order.win_breakdown || [];
+      var winMap = {};
+      breakdown.forEach(function (b) { if (b.n != null) winMap[String(b.n)] = Number(b.win) || 0; });
+      var priceBillete = 1, priceChance = 0.25;
       var numbersHtml = (order.numbers || []).map(function (n) {
-        return '<div class="flex justify-between"><span class="font-mono">' + String(n.n != null ? n.n : '').replace(/</g, '&lt;') + '</span><span>× ' + (n.q != null ? n.q : 0) + '</span></div>';
+        var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
+        var numStr = String(numVal).replace(/\D/g, '');
+        var qty = Number(n.q != null ? n.q : (n.quantity != null ? n.quantity : 1)) || 1;
+        var isBillete = numStr.length >= 4;
+        var typeLabel = isBillete
+          ? '<span class="text-yellow-400 text-xs font-bold mr-1">B</span>'
+          : '<span class="text-blue-400 text-xs font-bold mr-1">C</span>';
+        var unitPrice = isBillete ? priceBillete : priceChance;
+        var lineTotal = (qty * unitPrice).toFixed(2);
+        var right;
+        if (isWon) {
+          var winAmt = winMap[String(numVal)];
+          right = (winAmt > 0)
+            ? '<span class="text-emerald-400 font-bold">+$' + winAmt.toFixed(2) + '</span>'
+            : '<span class="text-gray-500">—</span>';
+        } else {
+          right = '<span class="text-green-400">$' + lineTotal + '</span>';
+        }
+        var rowClass = (isWon && winMap[String(numVal)] > 0) ? 'bg-emerald-900/30 rounded px-1' : '';
+        return '<div class="flex justify-between items-center py-1 ' + rowClass + '">'
+          + '<span>' + typeLabel + '<span class="font-mono">' + numStr + '</span>'
+          + ' <span class="text-gray-400 text-xs">×' + qty + '</span></span>'
+          + right
+          + '</div>';
       }).join('');
       document.getElementById('detail-numbers').innerHTML = numbersHtml || '<span class="text-gray-500">—</span>';
 
@@ -1671,28 +1794,85 @@
         winSection.classList.add('hidden');
       }
 
+      // 按钮显隐：未付款→确认付款，已中奖未兑→兑奖，其余隐藏
+      var isPending = order.status === 0 || order.status === 'pending';
+      var isWonNotRedeemed = isWon && !(order.redeemed_at && order.redeemed_at !== '' && order.redeemed_at !== 'null');
+      document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
+      document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
+
       document.getElementById('modal-order').classList.remove('hidden');
     }
 
+    // 从订单详情弹窗触发兑奖
+    function redeemFromDetail() {
+      if (!currentOrder) return;
+      closeModal('modal-order');
+      showRedeemModal(currentOrder, currentOrder._hash);
+    }
+
+    function confirmDeleteOrder() {
+      if (!currentOrder) return;
+      var num = currentOrder.order_number || currentOrder.orderNumber || '';
+      document.getElementById('delete-confirm-order-id').textContent = '单号：' + num;
+      document.getElementById('modal-delete-confirm').classList.remove('hidden');
+    }
+
+    async function executeDeleteOrder() {
+      if (!currentOrder) return;
+      var num = currentOrder.order_number || currentOrder.orderNumber || '';
+      document.getElementById('modal-delete-confirm').classList.add('hidden');
+      try {
+        const res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(num), {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || '删除失败');
+        closeModal('modal-order');
+        // 本地同步移除
+        allOrders = allOrders.filter(function(o) {
+          return (o.order_number || o.orderNumber) !== num;
+        });
+        periodOrders = periodOrders.filter(function(o) {
+          return (o.order_number || o.orderNumber) !== num;
+        });
+        renderPeriodOrderList(document.getElementById('period-order-filter') ? document.getElementById('period-order-filter').value : '');
+        loadDashboard();
+      } catch (err) {
+        alert(err.message || '删除失败');
+      }
+    }
+
     // 本期订单列表：本期全部订单（已付款、已开奖、已中奖），不包含未付款；点击整行或单号打开订单详情
-    function openPeriodOrderList() {
+    function periodOrderStatusText(o) {
+      var s = o.status;
+      if (s === 'won' || s === 3) return t('status_order_3') || '已中奖';
+      if (s === 'settled' || s === 2) return t('status_order_2') || '已开奖';
+      if (s === 'paid' || s === 1) return t('status_order_1') || '已付款';
+      return t('status_order_0') || '未付款';
+    }
+    function renderPeriodOrderList(suffix) {
       var listEl = document.getElementById('period-order-list');
       if (!listEl) return;
-      var list = (periodOrders || []).filter(function (o) { return o.status !== 0 && o.status !== 'pending'; });
+      var list = (periodOrders || []).filter(function (o) {
+        var s = o.status;
+        return s === 1 || s === 'paid' || s === 2 || s === 'settled' || s === 3 || s === 'won';
+      });
+      if (suffix) {
+        var suf = suffix.trim();
+        list = list.filter(function (o) {
+          var num = (o.order_number || o.orderNumber || '').toString();
+          var last4 = num.slice(-4);
+          return last4.includes(suf) || num.includes(suf);
+        });
+      }
       if (list.length === 0) {
         listEl.innerHTML = '<p class="text-gray-500 text-center py-4">' + (t('no_data') || '暂无订单') + '</p>';
       } else {
-        function statusText(o) {
-          var s = o.status;
-          if (s === 'won' || s === 3) return t('status_order_3') || '已中奖';
-          if (s === 'settled' || s === 2) return t('status_order_2') || '已开奖';
-          if (s === 'paid' || s === 1) return t('status_order_1') || '已付款';
-          return t('status_order_0') || '未付款';
-        }
         listEl.innerHTML = list.map(function (o) {
           var num = (o.order_number || o.orderNumber || '').toString();
           var amt = Number(o.amount || 0).toFixed(2);
-          var status = statusText(o);
+          var status = periodOrderStatusText(o);
           var safeAttr = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           var isWon = o.status === 3 || o.status === 'won';
           var rowBg = isWon ? 'bg-emerald-900/40 border-l-4 border-emerald-500' : 'bg-gray-700';
@@ -1705,6 +1885,14 @@
             '</div>';
         }).join('');
       }
+    }
+    function filterPeriodOrders(val) {
+      renderPeriodOrderList(val);
+    }
+    function openPeriodOrderList() {
+      var filterEl = document.getElementById('period-order-filter');
+      if (filterEl) filterEl.value = '';
+      renderPeriodOrderList('');
       document.getElementById('modal-period-orders').classList.remove('hidden');
     }
 

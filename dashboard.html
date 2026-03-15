@@ -439,10 +439,13 @@
           return;
         }
       } catch (e) {}
-      const next = getNextWednesday15();
-      const y = next.getFullYear(), m = String(next.getMonth() + 1).padStart(2, '0'), d = String(next.getDate()).padStart(2, '0');
-      dateInput.value = `${y}-${m}-${d}`;
-      timeInput.value = '15:00';
+      try {
+        const r = await fetch(API_BASE + '/api/draw/next-date');
+        if (r.ok) {
+          const o = await r.json();
+          if (o.date) { dateInput.value = o.date; timeInput.value = o.time || '15:00'; return; }
+        }
+      } catch (e) {}
     }
 
     // 手动修改日期/时间时保存，便于顺延后按此时间轮询
