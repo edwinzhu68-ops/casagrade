@@ -5,50 +5,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pedido de lotería</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     .hidden { display: none !important; }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-  
+<body class="bg-gray-50 min-h-screen" style="visibility:hidden">
+
   <!-- 首页 - 输入店号 -->
   <div id="page-home" class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md">
+    <div class="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md relative">
+      <button type="button" id="home-account-btn" onclick="openAuthModal()" class="absolute top-4 right-4 text-sm text-green-600 hover:underline">Cuenta</button>
       <div class="text-center mb-8">
         <div class="text-5xl mb-2">🖨️</div>
         <div class="text-3xl mb-2">🧾</div>
         <p class="text-gray-500 mt-2">Introduce el número de tienda para empezar</p>
       </div>
-      
-      <input type="text" maxlength="5" id="store-input" placeholder="Introduce un número de tienda de 5 dígitos"
+
+      <input type="text" maxlength="9" id="store-input" placeholder="Número de tienda (ej. 1, 01, 88888)"
         class="w-full text-center text-4xl font-mono py-4 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none mb-6" />
-      
-      <button id="btn-entrar" onclick="goToShop()" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
+
+      <button id="btn-entrar" type="button" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
         Entrar
       </button>
-      
+
       <div class="mt-6 text-center">
         <a href="merchant.html" class="text-sm text-gray-400">Acceso del banquero</a>
+      </div>
+      <!-- 近期订单（同设备临时账号），带店号，刷新后仍可见 -->
+      <div id="home-recent-orders" class="hidden mt-6 pt-4 border-t border-gray-200">
+        <p class="text-xs text-gray-500 mb-2">Tus pedidos recientes (toca para ver)</p>
+        <div id="home-recent-orders-list" class="space-y-1 max-h-32 overflow-y-auto"></div>
       </div>
     </div>
   </div>
 
   <!-- 店铺页 -->
-  <div id="page-shop" class="hidden min-h-screen pb-24">
-    <header class="bg-green-600 text-white p-3 sticky top-0 z-10">
+  <div id="page-shop" class="hidden min-h-screen pb-16">
+    <header class="bg-green-600 text-white px-3 py-2 sticky top-0 z-10">
       <div class="max-w-md mx-auto">
-        <div class="flex items-center justify-between">
-          <!-- placeholder izquierdo para centrar el número de tienda -->
-          <span class="w-12 text-sm opacity-0">Salir</span>
-          <h1 class="font-bold text-3xl text-center flex-1 font-mono tracking-widest">
-            <span id="shop-number">-----</span>
-          </h1>
-          <button onclick="exitClientShop()" class="w-12 text-sm opacity-80 text-right">Salir</button>
+        <div class="flex items-center gap-2">
+          <!-- 左：固定宽，与右侧对称，使中间店号真正居中 -->
+          <div id="header-account-area" class="flex-shrink-0 w-14 text-left cursor-pointer rounded px-1 py-0.5 hover:bg-white/10 active:bg-white/20" title="Toca para registrarte o entrar" onclick="openAuthModal()">
+            <p id="header-account-label" class="text-xs opacity-95 leading-tight truncate">Cuenta</p>
+            <p id="header-account-value" class="text-xs font-mono truncate opacity-90">-</p>
+          </div>
+          <div class="flex-1 flex flex-col items-center justify-center min-w-0">
+            <h1 class="font-bold text-xl sm:text-2xl font-mono text-center tabular-nums">
+              <span id="shop-number">-----</span>
+            </h1>
+          </div>
+          <div class="relative flex flex-shrink-0 w-14 justify-end">
+            <button type="button" id="header-menu-btn" onclick="toggleHeaderMenu()" class="p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white" title="Menú" aria-label="Menú">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
+            </button>
+            <div id="header-menu-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-20">
+              <button type="button" onclick="closeHeaderMenu(); goToOtherStore();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100">Otra tienda</button>
+              <div class="border-t border-gray-100 my-1"></div>
+              <button type="button" onclick="closeHeaderMenu(); exitClientShop();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100">Salir</button>
+            </div>
+          </div>
         </div>
-        <!-- Cuenta regresiva para cierre de ventas：solo在离停售 <=10分钟时显示 -->
-        <div id="client-stop-countdown" class="hidden mt-2 bg-orange-500/90 rounded-lg px-3 py-1 text-center text-xs">
+        <!-- 开奖中 15:00-16:00：暂停销售、下单禁用 -->
+        <div id="client-draw-window-banner" class="hidden mt-1.5 bg-amber-500/90 rounded-lg px-3 py-1 text-center text-xs font-medium">
+          Sorteo en curso - Ventas suspendidas
+        </div>
+        <!-- Cuenta regresiva para cierre de ventas：离停售 <=10 分钟时显示 -->
+        <div id="client-stop-countdown" class="hidden mt-1.5 bg-orange-500/90 rounded-lg px-3 py-1 text-center text-xs">
           <span>Cuenta regresiva para cierre de ventas</span>
           <span id="client-stop-timer" class="font-mono font-bold ml-1">--:--</span>
         </div>
@@ -56,52 +81,65 @@
     </header>
 
     <!-- 玩法选择 -->
-    <div class="max-w-md mx-auto p-4">
-      <div class="flex gap-2 mb-4">
-        <button onclick="setGameType('BILLETE')" id="btn-billete" 
-          class="flex-1 bg-green-600 text-white py-2 rounded-xl font-bold">Billete ($1)</button>
+    <div class="max-w-md mx-auto pt-0.5 px-3 pb-1">
+      <!-- 开奖日期：放在 Billete/Chance 上面，紧贴绿色 header -->
+      <div id="client-current-period" class="hidden mb-2 -mt-0.5">
+        <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl shadow-sm py-2 px-3 text-center border border-green-100">
+          <span class="text-xs font-medium text-green-700/80 tracking-wide block">Fecha del sorteo</span>
+          <span id="client-period-date" class="font-mono font-bold text-green-700 text-base tracking-tight">--</span>
+        </div>
+      </div>
+      <div class="flex gap-2 mb-2">
+        <button onclick="setGameType('BILLETE')" id="btn-billete"
+          class="flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm">Billete ($1)</button>
         <button onclick="setGameType('CHANCE')" id="btn-chance"
-          class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold">Chance ($0.25)</button>
+          class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold text-sm">Chance ($0.25)</button>
       </div>
 
       <!-- Visualización de entrada actual -->
-      <div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
-        <div class="flex gap-3">
-          <div id="display-number" onclick="openKeyboard('number')" class="flex-1 text-center py-2 border-2 border-blue-500 rounded-xl cursor-pointer">
-            <span class="text-gray-400 text-sm">Número</span>
-            <p class="text-2xl font-mono font-bold">----</p>
+      <div class="bg-white rounded-xl shadow-sm p-3 mb-2">
+        <div class="flex gap-2">
+          <div id="display-number" onclick="openKeyboard('number')" class="flex-1 text-center py-1.5 border-2 border-blue-500 rounded-lg cursor-pointer">
+            <span class="text-gray-400 text-xs">Número</span>
+            <p class="text-xl font-mono font-bold">----</p>
           </div>
-          <div id="display-quantity" onclick="openKeyboard('quantity')" class="flex-1 text-center py-2 border-2 border-gray-200 rounded-xl cursor-pointer">
-            <span class="text-gray-400 text-sm">Cantidad</span>
-            <p class="text-2xl font-mono font-bold">1</p>
+          <div id="display-quantity" onclick="openKeyboard('quantity')" class="flex-1 text-center py-1.5 border-2 border-gray-200 rounded-lg cursor-pointer">
+            <span class="text-gray-400 text-xs">Cantidad</span>
+            <p class="text-xl font-mono font-bold">1</p>
           </div>
         </div>
       </div>
-      
+
       <!-- Lista de números seleccionados -->
-      <div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
-        <p class="text-sm text-gray-500 mb-2">Números seleccionados</p>
-        <div id="bet-list" class="space-y-2 max-h-48 overflow-y-auto">
-          <p class="text-gray-400 text-sm text-center py-2">Sin números aún</p>
+      <div class="bg-white rounded-xl shadow-sm p-3 mb-2">
+        <p class="text-xs text-gray-500 mb-1">Números seleccionados</p>
+        <div id="bet-list" class="space-y-1.5 max-h-32 overflow-y-auto">
+          <p class="text-gray-400 text-sm text-center py-1">Sin números aún</p>
         </div>
       </div>
     </div>
 
-    <!-- 底部总计 -->
-    <div class="max-w-md mx-auto w-full px-4 pb-4">
-      <div class="bg-white rounded-2xl shadow-sm p-3 space-y-2">
+    <!-- 底部总计 + Confirmar apuesta（上移，减少下方留白） -->
+    <div class="max-w-md mx-auto w-full px-3 pb-3">
+      <div class="bg-white rounded-xl shadow-sm p-3 space-y-1.5">
         <div class="flex justify-between items-center">
-          <span class="text-gray-600">Total <span id="total-count">0</span> apuestas</span>
-          <span class="text-lg font-bold text-green-600">$<span id="total-amount">0</span></span>
+          <span class="text-gray-600 text-sm">Total <span id="total-count">0</span> apuestas</span>
+          <span class="text-base font-bold text-green-600">$<span id="total-amount">0</span></span>
         </div>
         <button onclick="submitBet()" id="submit-btn"
           class="w-full bg-green-600 text-white py-3 rounded-xl font-bold disabled:bg-gray-300" disabled>
           Confirmar apuesta
         </button>
+        <p id="submit-btn-hint" class="text-xs text-center text-amber-600 mt-0.5 hidden"></p>
+        <!-- 未付款订单（等待收银确认） -->
+        <div id="client-pending-order" class="hidden mt-1.5 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+          <p class="text-xs text-orange-700 font-medium mb-0.5">Pedidos pendientes de pago</p>
+          <div id="client-pending-order-list" class="space-y-1 max-h-28 overflow-y-auto"></div>
+        </div>
         <!-- 已付款订单列表（可多单） -->
         <div id="client-paid-order" class="hidden mt-1">
-          <p class="text-xs text-gray-500 mb-1">Pedidos pagados — toca para ver detalle y QR</p>
-          <div id="client-paid-order-list" class="space-y-1 max-h-40 overflow-y-auto"></div>
+          <p class="text-xs text-gray-500 mb-0.5">Pedidos pagados - toca para ver detalle y QR</p>
+          <div id="client-paid-order-list" class="space-y-1 max-h-32 overflow-y-auto"></div>
         </div>
       </div>
     </div>
@@ -139,10 +177,53 @@
     </div>
   </div>
 
+  <!-- 注册/登录弹窗 -->
+  <div id="auth-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onclick="if (event.target === this) closeAuthModal()">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-gray-800">Cuenta</h3>
+        <button type="button" onclick="closeAuthModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+      </div>
+      <!-- 未选时：两个入口 -->
+      <div id="auth-choice" class="space-y-2">
+        <button type="button" onclick="showAuthRegisterForm()" class="w-full py-3 rounded-xl bg-green-600 text-white font-bold">Registrarse</button>
+        <button type="button" onclick="document.getElementById('auth-choice').classList.add('hidden'); document.getElementById('auth-login-form').classList.remove('hidden');" class="w-full py-3 rounded-xl bg-gray-200 text-gray-800 font-bold">Iniciar sesión</button>
+      </div>
+      <!-- 注册表单 -->
+      <div id="auth-register-form" class="hidden space-y-3">
+        <input type="text" id="auth-reg-username" placeholder="Usuario" class="w-full px-3 py-2 border rounded-xl" maxlength="32" />
+        <input type="password" id="auth-reg-password" placeholder="Contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
+        <input type="password" id="auth-reg-password2" placeholder="Repetir contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
+        <div>
+          <p class="text-xs text-gray-500 mb-1">Nombre (opcional). Toca el cuadro para cambiar.</p>
+          <input type="text" id="auth-reg-display" placeholder="Toca para cambiar" class="w-full px-3 py-2 border rounded-xl" maxlength="32" title="Toca para cambiar" onblur="saveSessionDisplayName(this.value)" />
+        </div>
+        <div class="flex gap-2">
+          <button type="button" onclick="showAuthChoice()" class="flex-1 py-2 rounded-xl border text-gray-600">Atrás</button>
+          <button type="button" onclick="doRegister()" class="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold">Registrarse</button>
+        </div>
+      </div>
+      <!-- 登录表单 -->
+      <div id="auth-login-form" class="hidden space-y-3">
+        <input type="text" id="auth-log-username" placeholder="Usuario" class="w-full px-3 py-2 border rounded-xl" maxlength="32" />
+        <input type="password" id="auth-log-password" placeholder="Contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
+        <div class="flex gap-2">
+          <button type="button" onclick="showAuthChoice()" class="flex-1 py-2 rounded-xl border text-gray-600">Atrás</button>
+          <button type="button" onclick="doLogin()" class="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold">Entrar</button>
+        </div>
+      </div>
+      <!-- 已登录：显示名字 + 退出 -->
+      <div id="auth-logged-in" class="hidden">
+        <p id="auth-logged-in-name" class="text-gray-700 mb-3"></p>
+        <button type="button" onclick="doLogout()" class="w-full py-3 rounded-xl bg-gray-200 text-gray-800 font-bold">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 付款页 -->
   <div id="page-pay" class="hidden min-h-screen bg-orange-100 flex flex-col">
     <div class="flex-1 p-4">
-      <div class="bg-white rounded-3xl shadow-xl p-6 max-w-md mx-auto">
+      <div id="pay-order-card" class="bg-white rounded-3xl shadow-xl p-6 max-w-md mx-auto">
         <div class="text-center mb-4">
           <!-- 这里是二维码容器：出示给收银员扫码。如果以后要改样式或尺寸，只需要改这个方块。 -->
           <div class="flex justify-center mb-2">
@@ -169,10 +250,20 @@
               </svg>
             </div>
           </div>
-          <p class="text-sm text-gray-500">Muéstralo al cajero para escanear</p>
+          <p class="text-center text-lg font-bold font-mono text-gray-800 mt-2"><span id="pay-shop-number">-</span></p>
+          <!-- 开奖号码：二维码下方显示头奖、二奖、三奖 -->
+          <div id="pay-draw-numbers" class="mt-3 bg-gray-100 rounded-xl p-3 text-center hidden">
+            <p class="text-xs text-gray-500 mb-2">Resultado del sorteo</p>
+            <div class="grid grid-cols-3 gap-2 font-mono text-sm">
+              <div><span class="text-gray-500 block text-[10px]">1º</span><span id="pay-draw-1st" class="font-bold text-amber-600">-</span></div>
+              <div><span class="text-gray-500 block text-[10px]">2º</span><span id="pay-draw-2nd" class="font-bold">-</span></div>
+              <div><span class="text-gray-500 block text-[10px]">3º</span><span id="pay-draw-3rd" class="font-bold">-</span></div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-500 mt-1">Muéstralo al cajero para escanear</p>
           <p class="text-[10px] text-gray-400 mt-1">El código QR incluye el número de pedido y una firma de seguridad; el cajero lo usa para cobrar y pagar premios.</p>
         </div>
-        
+
         <div class="bg-gray-50 rounded-xl p-4 mb-4">
           <div class="flex justify-between mb-2">
             <span class="text-gray-500">N.º de pedido</span>
@@ -194,7 +285,7 @@
             <span id="pay-countdown" class="font-mono font-bold text-orange-600">30:00</span>
           </div>
         </div>
-        
+
         <div class="text-center py-2">
           <div class="text-4xl mb-1">🟡</div>
           <p class="text-xl font-bold text-orange-600">Esperando pago</p>
@@ -204,8 +295,15 @@
     </div>
 
     <div class="p-4 bg-white space-y-2">
-      <button onclick="stopPayCountdown(); showPage('page-shop')" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">
-        返回修改
+      <button type="button" onclick="sharePayOrderViaWhatsApp()" class="w-full bg-[#25D366] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        <span id="pay-btn-whatsapp">Enviar imagen del pedido al banquero</span>
+      </button>
+      <button type="button" onclick="goBackSaveOrder()" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold">
+        Guardar pedido
+      </button>
+      <button type="button" onclick="goBackAndCancelOrder()" class="w-full bg-gray-200 text-gray-800 py-3 rounded-xl font-bold border border-gray-300">
+        Cancelar pedido
       </button>
     </div>
   </div>
@@ -289,11 +387,25 @@
               </svg>
             </div>
           </div>
+          <p class="text-center text-lg font-bold font-mono text-gray-800 mt-2"><span id="confirmed-qr-shop-number">-</span></p>
+          <!-- 开奖号码：二维码下方显示头奖、二奖、三奖 -->
+          <div id="confirmed-draw-numbers" class="mt-3 bg-gray-100 rounded-xl p-3 text-center hidden">
+            <p class="text-xs text-gray-500 mb-2">Resultado del sorteo</p>
+            <div class="grid grid-cols-3 gap-2 font-mono text-sm">
+              <div><span class="text-gray-500 block text-[10px]">1º</span><span id="confirmed-draw-1st" class="font-bold text-amber-600">-</span></div>
+              <div><span class="text-gray-500 block text-[10px]">2º</span><span id="confirmed-draw-2nd" class="font-bold">-</span></div>
+              <div><span class="text-gray-500 block text-[10px]">3º</span><span id="confirmed-draw-3rd" class="font-bold">-</span></div>
+            </div>
+          </div>
           <p class="text-xl font-bold text-green-600 mt-2">Pedido confirmado</p>
           <p class="text-sm text-gray-500 mt-1">Este QR es tu comprobante para cobrar el premio en el punto de venta.</p>
         </div>
 
         <div class="bg-gray-50 rounded-xl p-4 mb-4">
+          <div class="flex justify-between mb-2">
+            <span class="text-gray-500">Tienda</span>
+            <span class="font-mono font-bold" id="confirmed-shop-number">-</span>
+          </div>
           <div class="flex justify-between mb-2">
             <span class="text-gray-500">N.º de pedido</span>
             <span class="font-mono font-bold" id="confirmed-order-id">------</span>
@@ -301,6 +413,12 @@
           <div class="flex justify-between mb-2">
             <span class="text-gray-500">Importe pagado</span>
             <span class="text-2xl font-bold text-green-600">$<span id="confirmed-amount">0</span></span>
+          </div>
+          <div class="mb-2">
+            <p class="text-gray-500 text-xs mb-1">Números y cantidades</p>
+            <div id="confirmed-order-detail" class="text-xs text-gray-700 space-y-0.5">
+              <!-- 由 JS 从接口填充 -->
+            </div>
           </div>
         </div>
 
@@ -311,20 +429,32 @@
     </div>
   </div>
 
-  <!-- 简单二维码库 -->
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-  
+  <!-- 二维码库（1.5.1 含 browser build；1.5.2+ 的 npm 包可能缺 build 导致假码） -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+
   <script>
-    // 配置
-    const API_BASE = '';
-    
+    // API 地址：优先从 localStorage 读取 lottery_api_base（本地调试可设为 http://localhost:3000）；否则本地打开用相对路径，线上用 api.casagrade.com
+    var API_BASE = (function () {
+      try {
+        var saved = localStorage.getItem('lottery_api_base');
+        if (saved !== null && saved !== '') return saved.replace(/\/$/, '');
+      } catch (e) {}
+      if (typeof location !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) return 'http://localhost:3000';
+      return 'https://api.casagrade.com';
+    })();
+
     // 状态
     // 临时客户端账号：匿名顾客在这台设备上的ID
     const CLIENT_ID_KEY = 'lottery_temp_client_id';
     const CLIENT_LAST_PAID_KEY = 'lottery_client_last_paid_order';
     const CLIENT_PAID_ORDERS_KEY = 'lottery_client_paid_orders';
-    const MAX_PAID_ORDERS_SAVED = 50;
+    const CLIENT_PENDING_ORDERS_KEY = 'lottery_client_pending_orders';
+    const PAID_ORDERS_KEEP_DAYS_AFTER_DRAW = 14;
+    const AUTH_CURRENT_KEY = 'lottery_auth_current';
+    const AUTH_USERS_KEY = 'lottery_auth_users';
+    const SESSION_DISPLAY_NAME_KEY = 'lottery_session_display_name';
     let clientId = null;
+    let authCurrent = null;
     let currentShop = null;
     let gameType = 'BILLETE';
     let maxDigits = 4;
@@ -339,26 +469,611 @@
     let priceBillete = 1;
     let priceChance = 0.25;
     let clientStopCountdownInterval = null;
+    let betStatusPollInterval = null;
+    let clientPaidOrdersPollInterval = null; // 开奖后定期拉取订单状态，使列表从"绿色已付款"变为"已开奖/已中奖"
+    let clientPendingOrdersPollInterval = null; // 店铺页轮询未付款订单，老板端确认后自动从待付款移到已付款
 
-    // 页面跳转
-    function showPage(id) {
-      document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
-      document.getElementById(id).classList.remove('hidden');
+    const LAST_PAGE_KEY = 'lottery_last_page';
+    const MAX_PENDING_ORDERS = 3;
+
+    // 订单号短显：1个字母+4位数字（取订单号最后5位）
+    function shortOrderNumber(num) {
+      var s = String(num || '');
+      if (s.length <= 5) return s;
+      return s.slice(-5);
     }
 
-    // 初始化临时客户端账号（匿名），以及页面上的“已付款订单”提示
-    (function initClientId() {
+    // 页面跳转（并记录上次页面，用于刷新恢复）
+    function showPage(id) {
+      document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
+      var pageEl = document.getElementById(id);
+      if (pageEl) pageEl.classList.remove('hidden');
       try {
-        clientId = localStorage.getItem(CLIENT_ID_KEY);
-        if (!clientId) {
-          clientId = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-          localStorage.setItem(CLIENT_ID_KEY, clientId);
+        if (id === 'page-shop') {
+          localStorage.setItem(LAST_PAGE_KEY, 'shop');
+          renderClientPendingOrders();
+          renderClientPaidBanner();
+          if (typeof startClientStopCountdown === 'function') startClientStopCountdown();
+          startPendingOrdersPoll();
+        } else {
+          stopPendingOrdersPoll();
+          if (clientStopCountdownInterval) { clearInterval(clientStopCountdownInterval); clientStopCountdownInterval = null; }
+          if (betStatusPollInterval) { clearInterval(betStatusPollInterval); betStatusPollInterval = null; }
+        }
+        if (id === 'page-home') localStorage.setItem(LAST_PAGE_KEY, 'home');
+      } catch (e) {}
+      // 在店铺页或完成页时，定期刷新已付款订单列表（开奖后能自动从绿色变为已开奖/已中奖）
+      if (clientPaidOrdersPollInterval) {
+        clearInterval(clientPaidOrdersPollInterval);
+        clientPaidOrdersPollInterval = null;
+      }
+      if (id === 'page-shop' || id === 'page-confirmed') {
+        updatePaidOrdersFromServer(); // 从服务器更新订单状态
+        renderClientPaidBanner(); // 立即刷新
+        clientPaidOrdersPollInterval = setInterval(function () {
+          updatePaidOrdersFromServer();
+          renderClientPaidBanner();
+        }, 15000);
+      }
+    }
+
+    // 店铺页轮询未付款订单：老板端确认后自动从未付款列表移除并加入已付款，界面立即更新
+    function startPendingOrdersPoll() {
+      if (clientPendingOrdersPollInterval) return;
+      clientPendingOrdersPollInterval = setInterval(pollPendingOrdersStatus, 2500);
+      pollPendingOrdersStatus();
+    }
+    function stopPendingOrdersPoll() {
+      if (clientPendingOrdersPollInterval) {
+        clearInterval(clientPendingOrdersPollInterval);
+        clientPendingOrdersPollInterval = null;
+      }
+    }
+    async function pollPendingOrdersStatus() {
+      var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+      var list = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) list = [];
+      list = list.filter(function (o) { return o && o.clientId === clientId; });
+      if (list.length === 0) return;
+      var changed = false;
+      for (var i = 0; i < list.length; i++) {
+        var info = list[i];
+        var orderNumber = (info.order_number != null ? info.order_number : info.orderNumber || '').toString();
+        if (!orderNumber) continue;
+        try {
+          var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
+          if (!res.ok) continue;
+          var data = await res.json();
+          var isPaid = data.status === 1 || data.status === 'paid';
+          if (!isPaid) continue;
+          removePendingOrderByNumber(orderNumber);
+          var paidInfo = {
+            clientId: clientId,
+            orderNumber: orderNumber,
+            order_number: orderNumber,
+            orderId: info.orderId != null ? info.orderId : (data.order_id != null ? data.order_id : null),
+            orderHash: info.orderHash != null ? info.orderHash : (data.order_hash != null ? data.order_hash : null),
+            amount: Number(data.amount != null ? data.amount : info.amount) || 0,
+            shopNumber: (info.shopNumber || info.shop_number || '').toString() || (data.shop_number || '') || '-',
+            shop_number: (info.shop_number != null ? info.shop_number : info.shopNumber) || (data.shop_number || ''),
+            shopId: info.shopId != null ? info.shopId : (data.shop_id != null ? data.shop_id : null),
+            ts: Date.now(),
+            status: data.status,
+            win_amount: data.win_amount,
+            redeemed_at: data.redeemed_at
+          };
+          var paidRaw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+          var paidList = paidRaw ? JSON.parse(paidRaw) : [];
+          if (!Array.isArray(paidList)) paidList = [];
+          paidList = paidList.filter(function (o) { return o && o.clientId === clientId; });
+          paidList.unshift(paidInfo);
+          localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(paidList));
+          localStorage.setItem(CLIENT_LAST_PAID_KEY, JSON.stringify(paidInfo));
+          changed = true;
+        } catch (e) {}
+      }
+      if (changed) {
+        renderClientPendingOrders();
+        renderClientPaidBanner();
+      }
+    }
+
+    // 保存订单：返回店铺页，订单保留在未付款列表，不调用取消接口；清空当前选号以便继续下一单
+    function goBackSaveOrder() {
+      stopStatusPolling();
+      stopPayCountdown();
+      betList = [];
+      currentNumber = '';
+      currentQuantity = '';
+      if (typeof updateUI === 'function') updateUI();
+      
+      // 确保店号显示并重新加载店铺数据
+      var savedShop = localStorage.getItem('lastShopNumber');
+      if (savedShop) {
+        document.getElementById('shop-number').textContent = savedShop;
+        // 重新获取店铺信息
+        fetch(API_BASE + '/api/shop/' + savedShop).then(function(r){return r.ok?r.json():null;}).then(function(data){
+          if(data && data.shop) currentShop = data.shop;
+        }).catch(function(){});
+      }
+      
+      showPage('page-shop');
+      renderClientPendingOrders();
+      renderClientPaidBanner();
+      startPendingOrdersPoll();
+      if (typeof startClientStopCountdown === 'function') startClientStopCountdown();
+    }
+
+    // 取消订单：调用后端取消，老板端同步取消，并从本地未付款列表移除
+    async function goBackAndCancelOrder() {
+      var orderIdEl = document.getElementById('pay-order-id');
+      var orderNumber = (orderIdEl ? orderIdEl.textContent : '').trim();
+      if (!orderNumber || orderNumber === '------') {
+        stopStatusPolling();
+        stopPayCountdown();
+        currentOrderId = null;
+        currentOrderHash = null;
+        showPage('page-shop');
+        renderClientPendingOrders();
+        return;
+      }
+      try {
+        var url = API_BASE + '/api/orders-cancel';
+        var r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderNumber: orderNumber })
+        });
+        if (r.ok) {
+          removePendingOrderByNumber(orderNumber);
+        } else {
+          var errMsg = '取消失败';
+          try {
+            var data = await r.json();
+            errMsg = data.message || data.error || errMsg;
+          } catch (e) {}
+          alert(errMsg + ' (HTTP ' + r.status + ')');
         }
       } catch (e) {
-        clientId = 'c_' + Math.random().toString(36).slice(2);
+        alert('无法连接服务器，请检查网络。' + (e && e.message ? e.message : ''));
       }
+      stopStatusPolling();
+      stopPayCountdown();
+      currentOrderId = null;
+      currentOrderHash = null;
+      showPage('page-shop');
+      renderClientPendingOrders();
+    }
+
+    function removePendingOrderByNumber(orderNumber) {
+      try {
+        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(function (o) { return String(o.order_number || o.orderNumber || '') !== String(orderNumber); });
+        localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(list));
+      } catch (e) {}
+    }
+
+    function renderClientPendingOrders() {
+      var wrap = document.getElementById('client-pending-order');
+      var listEl = document.getElementById('client-pending-order-list');
+      if (!wrap || !listEl) return;
+      try {
+        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(function (o) { return o && o.clientId === clientId; });
+        if (list.length === 0) {
+          wrap.classList.add('hidden');
+          return;
+        }
+        wrap.classList.remove('hidden');
+        listEl.innerHTML = list.map(function (o) {
+          var num = (o.order_number || o.orderNumber || '').toString();
+          var shop = (o.shopNumber || o.shop_number || '').toString() || '-';
+          var shortNum = shortOrderNumber(num);
+          var amt = Number(o.amount || 0).toFixed(2);
+          var safeNum = (num + '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return '<button type="button" class="client-pending-item w-full flex justify-between items-center py-1.5 px-2 bg-white rounded-lg text-sm text-left border border-orange-200 hover:bg-orange-50 cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono">' + shop + ' · #' + shortNum + '</span><span class="font-bold text-orange-600">$' + amt + '</span></button>';
+        }).join('');
+      } catch (e) {
+        wrap.classList.add('hidden');
+      }
+    }
+
+    // 初始化临时客户端账号（匿名），localStorage + sessionStorage 双写，刷新/关标签不丢
+    function loadOrCreateClientId() {
+      var stored = null;
+      try {
+        stored = localStorage.getItem(CLIENT_ID_KEY);
+      } catch (e) {}
+      if (!stored) {
+        try {
+          stored = sessionStorage.getItem(CLIENT_ID_KEY);
+        } catch (e) {}
+      }
+      if (stored) {
+        clientId = stored;
+        try {
+          sessionStorage.setItem(CLIENT_ID_KEY, clientId);
+        } catch (e) {}
+        return;
+      }
+      clientId = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      try {
+        localStorage.setItem(CLIENT_ID_KEY, clientId);
+        sessionStorage.setItem(CLIENT_ID_KEY, clientId);
+      } catch (e) {
+        try {
+          sessionStorage.setItem(CLIENT_ID_KEY, clientId);
+        } catch (e2) {}
+      }
+    }
+    (function initClientId() {
+      loadOrCreateClientId();
+      try {
+        var ac = localStorage.getItem(AUTH_CURRENT_KEY);
+        if (ac) authCurrent = JSON.parse(ac);
+      } catch (e) {}
       renderClientPaidBanner();
+      if (document.getElementById('home-recent-orders-list')) renderHomeRecentOrders();
     })();
+
+    window.openOrderDetail = function (btn) {
+      if (!btn || typeof btn.getAttribute !== 'function') return;
+      var num = btn.getAttribute('data-order-number');
+      if (num) openClientOrderDetail(num);
+    };
+
+    window.openPaidOrderByIndex = function (i) {
+      var list = window.__paidOrderNums;
+      if (list && list[i] != null) openClientOrderDetail(list[i]);
+    };
+    window.openHomeOrderByIndex = function (i) {
+      var list = window.__homeOrderNums;
+      if (list && list[i] != null) openClientOrderDetail(list[i]);
+    };
+
+    document.addEventListener('click', function (e) {
+      var el = e.target && e.target.closest ? e.target.closest('[data-order-number]') : null;
+      if (!el) return;
+      var num = el.getAttribute('data-order-number');
+      if (!num) return;
+      var isPendingBtn = el.classList && el.classList.contains('client-pending-item');
+      if (isPendingBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        var one = list.find(function (o) { return String(o.order_number || o.orderNumber || '') === String(num); });
+        if (one) goToPayPageForOrder(one);
+        return;
+      }
+      var isPaidBtn = el.classList && el.classList.contains('client-paid-item');
+      var isHomeBtn = el.classList && el.classList.contains('client-home-order-item');
+      if (isPaidBtn || isHomeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        openClientOrderDetail(num);
+      }
+    }, true);
+
+    function renderOrderDetailFromApi(numbers, gameType, targetId) {
+      var el = document.getElementById(targetId);
+      if (!el) return;
+      if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
+        el.innerHTML = '<p class="text-gray-400">-</p>';
+        return;
+      }
+      var gt = (gameType || '').toUpperCase();
+      var unitPrice = (gt === 'CHANCE' ? priceChance : priceBillete);
+      el.innerHTML = numbers.map(function (item) {
+        var n = item.n != null ? String(item.n) : '';
+        var q = Math.max(0, parseInt(item.q, 10) || 0);
+        var lineTotal = (q * unitPrice).toFixed(2);
+        return '<div class="flex justify-between"><span class="font-mono">' + n + ' × ' + q + '</span><span>$' + lineTotal + '</span></div>';
+      }).join('');
+    }
+
+    /** 用当前页的 betList（刚付款完成时）渲染订单明细到确认页 */
+    function renderOrderDetailFromBetList(betList, targetId) {
+      var el = document.getElementById(targetId);
+      if (!el) return;
+      if (!betList || !Array.isArray(betList) || betList.length === 0) {
+        el.innerHTML = '<p class="text-gray-400">-</p>';
+        return;
+      }
+      el.innerHTML = betList.map(function (b) {
+        var lineTotal = (b.quantity * (b.unitPrice || 0)).toFixed(2);
+        return '<div class="flex justify-between"><span class="font-mono">' + (b.number || '') + ' × ' + (b.quantity || 0) + '</span><span>$' + lineTotal + '</span></div>';
+      }).join('');
+    }
+
+    /** 拉取最新开奖结果并填充到二维码下方的 1/2/3 奖显示（仅当订单已中奖时才显示） */
+    function loadAndShowDrawNumbers(orderStatus) {
+      fetch(API_BASE + '/api/draw/latest').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        if (!d || !d.draw) return;
+        // 只有订单已中奖（status=3 或 'won'）时才显示开奖号
+        var isWon = (orderStatus === 3 || orderStatus === 'won');
+        if (!isWon) return;
+        
+        var draw = d.draw;
+        var win1 = (draw.primer != null ? String(draw.primer) : '') || (draw.winning_numbers && (function () { try { var w = JSON.parse(draw.winning_numbers); return w.primer || w.billete || ''; } catch (e) { return ''; } })());
+        var win2 = (draw.segundo != null ? String(draw.segundo) : '') || (draw.winning_numbers && (function () { try { var w = JSON.parse(draw.winning_numbers); return w.segundo || w.segundas || ''; } catch (e) { return ''; } })());
+        var win3 = (draw.tercero != null ? String(draw.tercero) : '') || (draw.winning_numbers && (function () { try { var w = JSON.parse(draw.winning_numbers); return w.tercero || w.terceras || ''; } catch (e) { return ''; } })());
+        var hasAny = (win1 || win2 || win3);
+        function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val || '-'; }
+        set('confirmed-draw-1st', win1);
+        set('confirmed-draw-2nd', win2);
+        set('confirmed-draw-3rd', win3);
+        set('pay-draw-1st', win1);
+        set('pay-draw-2nd', win2);
+        set('pay-draw-3rd', win3);
+        var confBlock = document.getElementById('confirmed-draw-numbers');
+        var payBlock = document.getElementById('pay-draw-numbers');
+        if (confBlock) { if (hasAny) confBlock.classList.remove('hidden'); else confBlock.classList.add('hidden'); }
+        if (payBlock) { if (hasAny) payBlock.classList.remove('hidden'); else payBlock.classList.add('hidden'); }
+      }).catch(function () {});
+    }
+
+    /** 已付款且中奖时：显示每注是否中奖及中奖金额（需接口返回 win_breakdown） */
+    function renderOrderDetailWithWins(winBreakdown, targetId) {
+      var el = document.getElementById(targetId);
+      if (!el) return;
+      if (!winBreakdown || !Array.isArray(winBreakdown) || winBreakdown.length === 0) {
+        el.innerHTML = '<p class="text-gray-400">-</p>';
+        return;
+      }
+      el.innerHTML = winBreakdown.map(function (item) {
+        var n = item.n != null ? String(item.n) : '';
+        var q = Math.max(0, parseInt(item.q, 10) || 0);
+        var win = Number(item.win) || 0;
+        var right = win > 0
+          ? '<span class="font-bold text-green-600">$' + win.toFixed(2) + ' ✓ Premio</span>'
+          : '<span class="text-gray-400">-</span>';
+        return '<div class="flex justify-between items-center py-0.5"><span class="font-mono">' + n + ' × ' + q + '</span>' + right + '</div>';
+      }).join('');
+    }
+
+    async function goToPayPageForOrder(pendingInfo) {
+      var orderNumber = (pendingInfo.order_number || pendingInfo.orderNumber || '').toString();
+      var amount = Number(pendingInfo.amount || 0);
+      if (!orderNumber || !currentShop) return;
+      currentOrderId = pendingInfo.orderId || null;
+      currentOrderHash = pendingInfo.orderHash || null;
+      var payOrderId = document.getElementById('pay-order-id');
+      var payAmount = document.getElementById('pay-amount');
+      if (payOrderId) payOrderId.textContent = orderNumber;
+      if (payAmount) payAmount.textContent = amount.toFixed(2);
+      try {
+        var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
+        if (res.ok) {
+          var data = await res.json();
+          renderOrderDetailFromApi(data.numbers, data.game_type, 'pay-order-detail');
+        } else {
+          document.getElementById('pay-order-detail').innerHTML = '<p class="text-gray-400">-</p>';
+        }
+      } catch (e) {
+        var payDetail = document.getElementById('pay-order-detail');
+        if (payDetail) payDetail.innerHTML = '<p class="text-gray-400">-</p>';
+      }
+      renderPaymentQR({
+        orderId: currentOrderId,
+        orderNumber: orderNumber,
+        orderHash: currentOrderHash,
+        amount: amount,
+        shopId: currentShop.shop_id
+      }, 'pay-qr');
+      var payShopEl = document.getElementById('pay-shop-number');
+      if (payShopEl) payShopEl.textContent = currentShop.shop_number || '-';
+      startPayCountdown();
+      startStatusPolling(orderNumber);
+      showPage('page-pay');
+      loadAndShowDrawNumbers(0); // 待付款状态，不显示开奖号
+    }
+
+    // 直接转发订单图片给老板：支持的系统会弹出分享选 WhatsApp 发图；否则下载图片再打开 WhatsApp
+    function sharePayOrderViaWhatsApp() {
+      var orderIdEl = document.getElementById('pay-order-id');
+      var amountEl = document.getElementById('pay-amount');
+      var shopEl = document.getElementById('pay-shop-number');
+      var orderNumber = (orderIdEl && orderIdEl.textContent) ? orderIdEl.textContent.trim() : '';
+      var amount = (amountEl && amountEl.textContent) ? amountEl.textContent.trim() : '0';
+      var shopNumber = (shopEl && shopEl.textContent) ? shopEl.textContent.trim() : '-';
+      if (!orderNumber || orderNumber === '------') return;
+      var shortCaption = 'Pedido #' + orderNumber + ' · Tienda ' + shopNumber + ' · $' + amount;
+
+      var cardEl = document.getElementById('pay-order-card');
+      if (typeof html2canvas !== 'undefined' && cardEl) {
+        html2canvas(cardEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false })
+          .then(function (canvas) {
+            canvas.toBlob(function (blob) {
+              if (!blob) {
+                openWhatsAppWithText(shortCaption);
+                return;
+              }
+              var file = new File([blob], 'pedido_' + orderNumber + '.png', { type: 'image/png' });
+              if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                navigator.share({
+                  title: 'Pedido ' + orderNumber,
+                  text: shortCaption,
+                  files: [file]
+                }).then(function () { /* 已直接分享图片，不再另开 WhatsApp */ }).catch(function () {
+                  downloadOrderImage(blob, orderNumber);
+                  openWhatsAppWithText('Imagen del pedido guardada. Adjunta la imagen y envía al banquero.');
+                });
+              } else {
+                downloadOrderImage(blob, orderNumber);
+                openWhatsAppWithText('Imagen del pedido guardada. Adjunta la imagen y envía al banquero.');
+              }
+            }, 'image/png', 0.95);
+          })
+          .catch(function () {
+            openWhatsAppWithText(shortCaption);
+          });
+      } else {
+        openWhatsAppWithText(shortCaption);
+      }
+    }
+    function openWhatsAppWithText(msg) {
+      var url = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(msg);
+      window.open(url, '_blank', 'noopener');
+    }
+    function downloadOrderImage(blob, orderNumber) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'pedido_' + (orderNumber || '') + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }
+
+    function getSessionDisplayName() {
+      try {
+        var s = localStorage.getItem(SESSION_DISPLAY_NAME_KEY);
+        if (s && s.trim()) return s.trim();
+      } catch (e) {}
+      return clientId ? (clientId.length > 8 ? clientId.slice(-8) : clientId) : '-';
+    }
+    function saveSessionDisplayName(name) {
+      var v = (name || '').trim();
+      try {
+        if (v) localStorage.setItem(SESSION_DISPLAY_NAME_KEY, v);
+        else localStorage.removeItem(SESSION_DISPLAY_NAME_KEY);
+      } catch (e) {}
+      updateHeaderAccount();
+    }
+    function updateHeaderAccount() {
+      var label = document.getElementById('header-account-label');
+      var value = document.getElementById('header-account-value');
+      if (label && value) {
+        if (authCurrent && authCurrent.displayName) {
+          label.textContent = 'Bienvenido';
+          value.textContent = authCurrent.displayName;
+        } else if (authCurrent && authCurrent.username) {
+          label.textContent = 'Bienvenido';
+          value.textContent = authCurrent.username;
+        } else {
+          label.textContent = 'Cuenta';
+          value.textContent = getSessionDisplayName();
+        }
+      }
+      var homeBtn = document.getElementById('home-account-btn');
+      if (homeBtn) homeBtn.textContent = (authCurrent && (authCurrent.displayName || authCurrent.username)) || getSessionDisplayName();
+    }
+
+    function toggleHeaderMenu() {
+      var el = document.getElementById('header-menu-dropdown');
+      if (el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+        setTimeout(function () { document.addEventListener('click', closeHeaderMenuOnClick); }, 0);
+      } else {
+        el.classList.add('hidden');
+        document.removeEventListener('click', closeHeaderMenuOnClick);
+      }
+    }
+    function closeHeaderMenu() {
+      var el = document.getElementById('header-menu-dropdown');
+      if (el) el.classList.add('hidden');
+      document.removeEventListener('click', closeHeaderMenuOnClick);
+    }
+    function closeHeaderMenuOnClick(e) {
+      var btn = document.getElementById('header-menu-btn');
+      var drop = document.getElementById('header-menu-dropdown');
+      if (drop && !drop.contains(e.target) && btn && !btn.contains(e.target)) {
+        closeHeaderMenu();
+      }
+    }
+
+    function openAuthModal() {
+      document.getElementById('auth-modal').classList.remove('hidden');
+      document.getElementById('auth-choice').classList.add('hidden');
+      document.getElementById('auth-register-form').classList.add('hidden');
+      document.getElementById('auth-login-form').classList.add('hidden');
+      document.getElementById('auth-logged-in').classList.add('hidden');
+      var ru = document.getElementById('auth-reg-username'), rp = document.getElementById('auth-reg-password'), rp2 = document.getElementById('auth-reg-password2'), rd = document.getElementById('auth-reg-display');
+      var lu = document.getElementById('auth-log-username'), lp = document.getElementById('auth-log-password');
+      if (ru) ru.value = ''; if (rp) rp.value = ''; if (rp2) rp2.value = ''; if (rd) rd.value = '';
+      if (lu) lu.value = ''; if (lp) lp.value = '';
+      if (authCurrent) {
+        document.getElementById('auth-logged-in').classList.remove('hidden');
+        document.getElementById('auth-logged-in-name').textContent = 'Has iniciado sesión como ' + (authCurrent.displayName || authCurrent.username);
+      } else {
+        document.getElementById('auth-choice').classList.remove('hidden');
+      }
+    }
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+    }
+    function showAuthChoice() {
+      document.getElementById('auth-register-form').classList.add('hidden');
+      document.getElementById('auth-login-form').classList.add('hidden');
+      document.getElementById('auth-choice').classList.remove('hidden');
+    }
+    function showAuthRegisterForm() {
+      document.getElementById('auth-choice').classList.add('hidden');
+      document.getElementById('auth-register-form').classList.remove('hidden');
+      var disp = document.getElementById('auth-reg-display');
+      if (disp) disp.value = getSessionDisplayName();
+    }
+
+    function doRegister() {
+      var username = (document.getElementById('auth-reg-username').value || '').trim();
+      var password = (document.getElementById('auth-reg-password').value || '');
+      var password2 = (document.getElementById('auth-reg-password2').value || '');
+      var displayName = (document.getElementById('auth-reg-display').value || '').trim();
+      if (!username) { alert('Introduce un usuario'); return; }
+      if (!password) { alert('Introduce una contraseña'); return; }
+      if (password.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
+      if (password !== password2) { alert('Las dos contraseñas no coinciden'); return; }
+      var users = [];
+      try {
+        var raw = localStorage.getItem(AUTH_USERS_KEY);
+        if (raw) users = JSON.parse(raw);
+      } catch (e) {}
+      if (!Array.isArray(users)) users = [];
+      if (users.some(function(u) { return u.username === username; })) {
+        alert('Ese usuario ya existe');
+        return;
+      }
+      var finalDisplay = displayName || username;
+      users.push({ username: username, password: password, displayName: finalDisplay });
+      localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
+      authCurrent = { username: username, displayName: finalDisplay };
+      localStorage.setItem(AUTH_CURRENT_KEY, JSON.stringify(authCurrent));
+      if (displayName) saveSessionDisplayName(displayName);
+      closeAuthModal();
+      updateHeaderAccount();
+    }
+    function doLogin() {
+      var username = (document.getElementById('auth-log-username').value || '').trim();
+      var password = (document.getElementById('auth-log-password').value || '');
+      if (!username) { alert('Introduce un usuario'); return; }
+      var users = [];
+      try {
+        var raw = localStorage.getItem(AUTH_USERS_KEY);
+        if (raw) users = JSON.parse(raw);
+      } catch (e) {}
+      if (!Array.isArray(users)) users = [];
+      var u = users.find(function(x) { return x.username === username; });
+      if (!u || u.password !== password) {
+        alert('Usuario o contraseña incorrectos');
+        return;
+      }
+      authCurrent = { username: u.username, displayName: u.displayName || u.username };
+      localStorage.setItem(AUTH_CURRENT_KEY, JSON.stringify(authCurrent));
+      closeAuthModal();
+      updateHeaderAccount();
+    }
+    function doLogout() {
+      authCurrent = null;
+      try { localStorage.removeItem(AUTH_CURRENT_KEY); } catch (e) {}
+      closeAuthModal();
+      updateHeaderAccount();
+    }
 
     // 初始化首页店号（如果之前输过）
     (function initStoreInput() {
@@ -385,52 +1100,94 @@
       }
     })();
 
-    // 进入店铺
+    // 服务端下注状态：14:55 停售，15:00-16:00 开奖中（巴拿马时间）
+    var lastBetStatus = { canBet: true, isDrawWindow: false, currentPeriodDate: null };
+
+    function updateBetStatusUI() {
+      var periodWrap = document.getElementById('client-current-period');
+      var periodEl = document.getElementById('client-period-date');
+      var drawBanner = document.getElementById('client-draw-window-banner');
+      if (periodWrap && periodEl) {
+        var showDate = lastBetStatus.currentPeriodDate && lastBetStatus.canBet && !lastBetStatus.isDrawWindow;
+        if (showDate) {
+          periodEl.textContent = lastBetStatus.currentPeriodDate;
+          periodWrap.classList.remove('hidden');
+        } else {
+          periodWrap.classList.add('hidden');
+        }
+      }
+      if (drawBanner) {
+        if (lastBetStatus.isDrawWindow) drawBanner.classList.remove('hidden');
+        else drawBanner.classList.add('hidden');
+      }
+      var submitBtn = document.getElementById('submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = betList.length === 0 || !lastBetStatus.canBet || lastBetStatus.isDrawWindow;
+      }
+    }
+
+    async function refreshBetStatus() {
+      if (!currentShop) return;
+      try {
+        var r = await fetch(API_BASE + '/api/bet-status');
+        if (!r.ok) return;
+        var d = await r.json();
+        lastBetStatus = {
+          canBet: d.canBet !== false,
+          isDrawWindow: !!d.isDrawWindow,
+          currentPeriodDate: d.currentPeriodDate || null
+        };
+        updateBetStatusUI();
+      } catch (e) {}
+    }
+
+    // 进店逻辑（仅拉取店铺并写状态，不切换页面；用于正常进店与刷新恢复）
+    async function enterShop(shopNumber) {
+      try {
+        const statusRes = await fetch(API_BASE + '/api/bet-status');
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          lastBetStatus = {
+            canBet: statusData.canBet !== false,
+            isDrawWindow: !!statusData.isDrawWindow,
+            currentPeriodDate: statusData.currentPeriodDate || null
+          };
+          updateBetStatusUI();
+          if (statusData && statusData.canBet === false) {
+            throw new Error('Las apuestas se cierran a las 14:55 (hora de Panamá). Ventas suspendidas.');
+          }
+          var mins = statusData && statusData.minutesUntilDraw;
+          if (typeof mins === 'number' && !isNaN(mins) && mins <= 10 && mins >= 0) {
+            alert('⚠️ Quedan menos de ' + mins + ' minutos para el sorteo.');
+          }
+        }
+      } catch (_) {}
+      var res = await fetch(API_BASE + '/api/shop/' + shopNumber);
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'No existe esta tienda');
+      currentShop = data.shop;
+      try { localStorage.setItem('lastShopNumber', shopNumber); } catch (e) {}
+      document.getElementById('shop-number').textContent = shopNumber;
+      updateHeaderAccount();
+    }
+
+    // 进入店铺（从首页点击 Entrar）
     async function goToShop() {
-      const shopNumber = document.getElementById('store-input').value.trim();
-      if (shopNumber.length !== 5) {
-        alert('Por favor introduce un número de tienda de 5 dígitos');
+      var shopNumber = (document.getElementById('store-input').value || '').trim();
+      if (!shopNumber || !/^\d{1,9}$/.test(shopNumber)) {
+        alert('Introduce el número de tienda (solo dígitos, ej. 1, 01, 002)');
         return;
       }
-
-      const btn = document.getElementById('btn-entrar');
-      const originalText = btn.textContent;
+      var btn = document.getElementById('btn-entrar');
+      var originalText = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Cargando...';
-
       try {
-        // 检查是否可以下注（失败不阻止进店，只影响提示）
-        try {
-          const statusRes = await fetch(`${API_BASE}/api/bet-status`);
-          if (statusRes.ok) {
-            const statusData = await statusRes.json();
-            if (statusData && statusData.canBet === false) {
-              alert('Las apuestas se cierran 5 minutos antes del sorteo; inténtalo más tarde.');
-              return;
-            }
-            const mins = statusData && statusData.minutesUntilDraw;
-            if (typeof mins === 'number' && !isNaN(mins) && mins <= 10 && mins >= 0) {
-              alert('⚠️ Quedan menos de ' + mins + ' minutos para el sorteo, realiza tu apuesta cuanto antes.');
-            }
-          }
-        } catch (_) { /* 忽略 bet-status 失败，继续查店铺 */ }
-
-        const res = await fetch(`${API_BASE}/api/shop/${shopNumber}`);
-        const data = await res.json();
-        
-        if (!res.ok) throw new Error(data.message || data.error || '下单失败');
-        
-        currentShop = data.shop;
-        // 记住本次店号
-        try {
-          localStorage.setItem('lastShopNumber', shopNumber);
-        } catch (e) {}
-        document.getElementById('shop-number').textContent = shopNumber;
-        
+        await enterShop(shopNumber);
         showPage('page-shop');
         startClientStopCountdown();
       } catch (err) {
-        alert(err.message || 'La tienda no existe o no se puede conectar. Comprueba el número.');
+        alert(err.message || 'No existe esta tienda o no se puede conectar.');
       } finally {
         btn.disabled = false;
         btn.textContent = originalText;
@@ -441,15 +1198,15 @@
     function setGameType(type) {
       gameType = type;
       maxDigits = type === 'BILLETE' ? 4 : 2;
-      defaultQuantity = type === 'BILLETE' ? 1 : 4;
-      
-      document.getElementById('btn-billete').className = type === 'BILLETE' 
-        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold' 
+      defaultQuantity = type === 'BILLETE' ? 1 : 1;
+
+      document.getElementById('btn-billete').className = type === 'BILLETE'
+        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold'
         : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
       document.getElementById('btn-chance').className = type === 'CHANCE'
         ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold'
         : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
-      
+
       currentNumber = '';
       currentQuantity = '';
       updateKeyboardDisplay();
@@ -458,15 +1215,15 @@
     // 打开键盘
     function openKeyboard(mode) {
       isQuantityMode = mode === 'quantity';
-      
+
       const title = document.getElementById('keyboard-title');
       title.textContent = isQuantityMode ? 'Introduce la cantidad a comprar' : 'Introduce el número de lotería';
       title.className = isQuantityMode ? 'text-lg font-bold text-green-600' : 'text-lg font-bold text-blue-600';
-      
+
       const display = document.getElementById('keyboard-display');
       // 统一用flex布局，颜色在每个格子里控制
       display.className = 'flex justify-center gap-2';
-      
+
       document.getElementById('keyboard-modal').classList.remove('hidden');
       updateKeyboardDisplay();
     }
@@ -533,34 +1290,38 @@
         openKeyboard('number');
         return;
       }
-      
+
       let qty = currentQuantity === '' ? defaultQuantity : parseInt(currentQuantity);
       if (isNaN(qty) || qty < 1) qty = 1;
       if (qty > 999) qty = 999;
-      
+
       const unitPrice = gameType === 'BILLETE' ? priceBillete : priceChance;
-      
+
       const existing = betList.find(b => b.number === currentNumber);
       if (existing) {
         existing.quantity += qty;
       } else {
         betList.push({ number: currentNumber, quantity: qty, unitPrice, gameType });
       }
-      
+
       currentNumber = '';
       currentQuantity = '';
-      closeKeyboard();
       updateUI();
+      // 延迟关闭再自动弹出九宫格（号码模式），无需再点 Número/Cantidad
+      setTimeout(function () {
+        closeKeyboard();
+        setTimeout(function () { openKeyboard('number'); }, 80);
+      }, 120);
     }
 
     // 更新UI
     function updateUI() {
       // 更新显示
-      document.getElementById('display-number').querySelector('p').textContent = 
+      document.getElementById('display-number').querySelector('p').textContent =
         currentNumber.padEnd(maxDigits, '_');
-      document.getElementById('display-quantity').querySelector('p').textContent = 
+      document.getElementById('display-quantity').querySelector('p').textContent =
         currentQuantity || defaultQuantity;
-      
+
       // 更新列表
       const list = document.getElementById('bet-list');
       if (betList.length === 0) {
@@ -585,15 +1346,36 @@
           </div>
         `).join('');
       }
-      
+
       // 更新总计
       const totalBets = betList.reduce((sum, b) => sum + b.quantity, 0);
       const totalAmount = betList.reduce((sum, b) => sum + b.quantity * b.unitPrice, 0);
       document.getElementById('total-count').textContent = totalBets;
       document.getElementById('total-amount').textContent = totalAmount.toFixed(2);
-      
-      // 更新按钮状态
-      document.getElementById('submit-btn').disabled = betList.length === 0;
+
+      // 更新按钮状态（无号码 或 停售/开奖中 时禁用），并显示禁用原因
+      var sb = document.getElementById('submit-btn');
+      var hint = document.getElementById('submit-btn-hint');
+      var disabled = betList.length === 0 || !lastBetStatus.canBet || lastBetStatus.isDrawWindow;
+      if (sb) sb.disabled = disabled;
+      if (hint) {
+        if (!disabled) {
+          hint.classList.add('hidden');
+          hint.textContent = '';
+        } else if (betList.length === 0) {
+          hint.classList.add('hidden');
+          hint.textContent = '';
+        } else if (lastBetStatus.isDrawWindow) {
+          hint.classList.remove('hidden');
+          hint.textContent = 'Sorteo en curso (15:00-16:00). Ventas suspendidas.';
+        } else if (!lastBetStatus.canBet) {
+          hint.classList.remove('hidden');
+          hint.textContent = 'Ventas suspendidas hasta el próximo sorteo (cierre 14:55).';
+        } else {
+          hint.classList.add('hidden');
+          hint.textContent = '';
+        }
+      }
     }
 
     // 删除
@@ -630,12 +1412,27 @@
         alert('Primero selecciona una tienda');
         return;
       }
+      if (!lastBetStatus.canBet || lastBetStatus.isDrawWindow) {
+        alert('Ventas suspendidas. Sorteo en curso o cerrado (14:55-16:00 hora de Panamá).');
+        return;
+      }
+      var pendingList = [];
+      try {
+        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+        if (raw) pendingList = JSON.parse(raw);
+        if (!Array.isArray(pendingList)) pendingList = [];
+        pendingList = pendingList.filter(function (o) { return o && o.clientId === clientId; });
+      } catch (e) {}
+      if (pendingList.length >= MAX_PENDING_ORDERS) {
+        alert('你已有3张未付款订单，请先付款再继续下单');
+        return;
+      }
 
       const totalAmount = betList.reduce((sum, b) => sum + b.quantity * b.unitPrice, 0);
-      
+
       // 转换为API格式
       const numbers = betList.map(b => ({ n: b.number, q: b.quantity }));
-      
+
       try {
         const res = await fetch(`${API_BASE}/api/orders`, {
           method: 'POST',
@@ -649,14 +1446,14 @@
             ipAddress: '127.0.0.1'
           })
         });
-        
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || data.error || '下单失败');
-        
-        currentOrderId = data.orderId ?? data.order_id;
-        currentOrderHash = data.orderHash ?? data.order_hash;
-        const orderNumber = data.order_number ?? data.orderNumber;
-        
+
+        currentOrderId = data.orderId != null ? data.orderId : data.order_id;
+        currentOrderHash = data.orderHash != null ? data.orderHash : data.order_hash;
+        const orderNumber = data.order_number != null ? data.order_number : data.orderNumber;
+
         document.getElementById('pay-order-id').textContent = orderNumber;
         document.getElementById('pay-amount').textContent = totalAmount.toFixed(2);
         // 付款页显示订单明细：号码 × 数量 → 金额
@@ -668,7 +1465,7 @@
         }
         // 启动 30 分钟倒计时（到点未付款订单会被后端取消）
         startPayCountdown();
-        
+
         // 生成付款&兑奖共用二维码（付款页）
         const qrInfo = {
           orderId: currentOrderId,
@@ -678,13 +1475,37 @@
           shopId: currentShop.shop_id
         };
         renderPaymentQR(qrInfo, 'pay-qr');
-        
+        var payShopEl = document.getElementById('pay-shop-number');
+        if (payShopEl) payShopEl.textContent = currentShop.shop_number || '-';
+        try {
+          var pendingRaw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+          var pendingList = pendingRaw ? JSON.parse(pendingRaw) : [];
+          if (!Array.isArray(pendingList)) pendingList = [];
+          pendingList = pendingList.filter(function (o) { return o && o.clientId === clientId; });
+          pendingList.unshift({
+            clientId: clientId,
+            order_number: orderNumber,
+            orderNumber: orderNumber,
+            orderId: currentOrderId,
+            orderHash: currentOrderHash,
+            amount: totalAmount,
+            shopNumber: currentShop.shop_number,
+            shop_number: currentShop.shop_number,
+            shopId: currentShop.shop_id,
+            ts: Date.now()
+          });
+          localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(pendingList));
+        } catch (e) {}
         showPage('page-pay');
-        
+        loadAndShowDrawNumbers(0); // 待付款状态，不显示开奖号
         // 启动轮询，监听收银端确认付款
         startStatusPolling(orderNumber);
       } catch (err) {
-        alert(err.message || 'No se pudo crear el pedido');
+        var msg = err.message || 'No se pudo crear el pedido';
+        if (msg === 'Failed to fetch' || (err && err.name === 'TypeError' && err.message && err.message.indexOf('fetch') !== -1)) {
+          msg = 'No se pudo conectar con el servidor (Failed to fetch). Comprueba la red o que la API esté en ' + (API_BASE || 'esta página') + '.';
+        }
+        alert(msg);
       }
     }
 
@@ -693,8 +1514,7 @@
       const qrContainer = document.getElementById(targetId);
       if (!qrContainer) return;
       qrContainer.innerHTML = '';
-      
-      // 约定二维码数据结构，供收银端/兑奖端解析
+
       const payload = {
         type: 'lottery_order',
         orderId: info.orderId,
@@ -703,33 +1523,27 @@
         amount: info.amount,
         shopId: info.shopId
       };
-      
-      // 二维码库未加载时显示同尺寸假二维码占位（不再显示原始 JSON）
+      const text = JSON.stringify(payload);
+
       const placeholderSvg = '<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="block"><rect width="200" height="200" fill="#fff"/><rect x="10" y="10" width="50" height="50" fill="#000"/><rect x="65" y="10" width="8" height="8" fill="#000"/><rect x="78" y="10" width="8" height="8" fill="#000"/><rect x="140" y="10" width="50" height="50" fill="#000"/><rect x="10" y="65" width="8" height="8" fill="#000"/><rect x="23" y="65" width="8" height="8" fill="#000"/><rect x="65" y="65" width="70" height="70" fill="#000" opacity="0.15"/><rect x="78" y="78" width="44" height="44" fill="#fff"/><rect x="85" y="85" width="8" height="8" fill="#000"/><rect x="98" y="85" width="8" height="8" fill="#000"/><rect x="85" y="98" width="8" height="8" fill="#000"/><rect x="98" y="98" width="8" height="8" fill="#000"/><rect x="10" y="140" width="50" height="50" fill="#000"/><rect x="140" y="65" width="8" height="8" fill="#000"/><rect x="153" y="65" width="8" height="8" fill="#000"/><rect x="140" y="140" width="50" height="50" fill="#000"/></svg>';
-      if (typeof QRCode === 'undefined') {
+      var QR = typeof QRCode !== 'undefined' ? QRCode : (typeof qrcode !== 'undefined' ? qrcode : null);
+      if (!QR || typeof QR.toCanvas !== 'function') {
         qrContainer.innerHTML = placeholderSvg;
         return;
       }
-      
-      const canvas = document.createElement('canvas');
+
+      var canvas = document.createElement('canvas');
       qrContainer.appendChild(canvas);
-      
+
       try {
-        QRCode.toCanvas(
-          canvas,
-          JSON.stringify(payload),
-          { width: 200, margin: 1 },
-          function (error) {
-            if (error) {
-              qrContainer.innerHTML = placeholderSvg;
-            }
-          }
-        );
+        QR.toCanvas(canvas, text, { width: 200, margin: 1 }, function (err) {
+          if (err) qrContainer.innerHTML = placeholderSvg;
+        });
       } catch (e) {
         qrContainer.innerHTML = placeholderSvg;
       }
     }
-    
+
     // 轮询订单状态
     let pollingInterval = null;
     let payCountdownInterval = null;
@@ -784,7 +1598,7 @@
 
     function startStatusPolling(orderNumber) {
       if (pollingInterval) clearInterval(pollingInterval);
-      
+
       pollingInterval = setInterval(async () => {
         try {
           const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
@@ -811,7 +1625,7 @@
     function showConfirmedState(orderNumber, amount) {
       document.getElementById('confirmed-order-id').textContent = orderNumber;
       document.getElementById('confirmed-amount').textContent = typeof amount === 'number' ? amount.toFixed(2) : amount;
-      // 刚付款时显示“等待开奖”
+      // 刚付款时显示"等待开奖"
       const resultArea = document.getElementById('confirmed-result-area');
       const resultWon = document.getElementById('confirmed-result-won');
       const resultLost = document.getElementById('confirmed-result-lost');
@@ -822,7 +1636,8 @@
         resultWaiting.classList.remove('hidden');
         resultArea.classList.remove('hidden');
       }
-      
+
+      removePendingOrderByNumber(orderNumber);
       try {
         const info = {
           clientId,
@@ -843,11 +1658,10 @@
         if (!Array.isArray(list)) list = [];
         list = list.filter(o => o.clientId === clientId);
         list.unshift(info);
-        if (list.length > MAX_PAID_ORDERS_SAVED) list = list.slice(0, MAX_PAID_ORDERS_SAVED);
         localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
         localStorage.setItem(CLIENT_LAST_PAID_KEY, JSON.stringify(info));
       } catch (e) {}
-      
+
       renderPaymentQR(
         {
           orderId: currentOrderId,
@@ -858,12 +1672,69 @@
         },
         'confirmed-qr'
       );
-      
+      var sn = (currentShop && currentShop.shop_number) ? String(currentShop.shop_number) : (document.getElementById('shop-number') && document.getElementById('shop-number').textContent) || '-';
+      var cqr = document.getElementById('confirmed-qr-shop-number');
+      var csn = document.getElementById('confirmed-shop-number');
+      if (cqr) cqr.textContent = sn;
+      if (csn) csn.textContent = sn;
+      if (betList && betList.length) renderOrderDetailFromBetList(betList, 'confirmed-order-detail');
       renderClientPaidBanner();
       showPage('page-confirmed');
     }
 
-    // 根据本地存储渲染“已付款订单”列表（支持多单）
+    // 是否"已开奖/已兑奖"的历史单（用于浅色展示）
+    function isOrderPast(info) {
+      var s = info.status;
+      var won = s === 'won' || s === 3;
+      var redeemed = !!info.redeemed_at;
+      var settled = s === 'settled' || s === 2;
+      return settled || (won && redeemed);
+    }
+    // 是否"中奖未兑奖"（排到最前）
+    function isOrderUnredeemed(info) {
+      var s = info.status;
+      var won = s === 'won' || s === 3;
+      return won && !info.redeemed_at;
+    }
+    // 开奖后保留天数，超期不再展示
+    function isOrderWithinKeepDays(info) {
+      var drawn = info.drawn_at || info.updated_at;
+      if (!drawn) return true;
+      var t = typeof drawn === 'number' ? drawn : new Date(drawn).getTime();
+      return (Date.now() - t) <= PAID_ORDERS_KEEP_DAYS_AFTER_DRAW * 24 * 60 * 60 * 1000;
+    }
+
+    // 从服务器更新已付款订单的最新状态（中奖、兑奖等）
+    async function updatePaidOrdersFromServer() {
+      try {
+        var raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        var changed = false;
+        for (var i = 0; i < list.length; i++) {
+          var orderNumber = list[i].order_number || list[i].orderNumber;
+          if (!orderNumber) continue;
+          try {
+            var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
+            if (!res.ok) continue;
+            var data = await res.json();
+            // 更新订单状态
+            if (list[i].status !== data.status || list[i].win_amount !== data.win_amount || list[i].redeemed_at !== data.redeemed_at) {
+              list[i].status = data.status;
+              list[i].win_amount = data.win_amount;
+              list[i].redeemed_at = data.redeemed_at;
+              list[i].win_breakdown = data.win_breakdown;
+              changed = true;
+            }
+          } catch (e) {}
+        }
+        if (changed) {
+          localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
+        }
+      } catch (e) {}
+    }
+
+    // 根据本地存储渲染"已付款订单"列表：未兑奖排最前，当期正常色，开奖后14天内浅色，超期不展示
     function renderClientPaidBanner() {
       const wrap = document.getElementById('client-paid-order');
       const listEl = document.getElementById('client-paid-order-list');
@@ -873,129 +1744,301 @@
         const raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
         if (raw) list = JSON.parse(raw);
         if (!Array.isArray(list)) list = [];
-        list = list.filter(o => o && o.clientId === clientId).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        list = list.filter(o => o && o.clientId === clientId);
+        var before = list.length;
+        list = list.filter(isOrderWithinKeepDays);
+        if (before !== list.length) {
+          try {
+            localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
+          } catch (e) {}
+        }
         if (list.length === 0) {
           const lastRaw = localStorage.getItem(CLIENT_LAST_PAID_KEY);
           if (lastRaw) {
             try {
               const one = JSON.parse(lastRaw);
-              if (one && one.clientId === clientId) {
+              if (one && one.clientId === clientId && isOrderWithinKeepDays(one)) {
                 list = [{ ...one, ts: one.ts || Date.now() }];
                 localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
               }
             } catch (e) {}
           }
         }
+        list.sort((a, b) => {
+          const ua = isOrderUnredeemed(a), ub = isOrderUnredeemed(b);
+          if (ua && !ub) return -1;
+          if (!ua && ub) return 1;
+          return (b.ts || 0) - (a.ts || 0);
+        });
         if (list.length === 0) {
           wrap.classList.add('hidden');
           return;
         }
         wrap.classList.remove('hidden');
-        listEl.innerHTML = list.map(info => {
-          const num = (info.order_number ?? info.orderNumber || '').toString();
-          const winAmt = Number(info.win_amount || 0);
+        function getDisplayWinAmount(o) {
+          var w = Number(o && o.win_amount);
+          if (w > 0) return w;
+          var b = o && o.win_breakdown;
+          if (!Array.isArray(b) || b.length === 0) return 0;
+          return b.reduce(function (s, i) { return s + (Number(i.win) || 0); }, 0);
+        }
+        listEl.innerHTML = list.map(function (info) {
+          const num = (info.order_number != null ? info.order_number : info.orderNumber || '').toString();
+          const winAmt = getDisplayWinAmount(info);
           const amt = winAmt > 0 ? '$' + winAmt.toFixed(2) : '$' + Number(info.amount || 0).toFixed(2);
           const isWon = winAmt > 0;
-          const safeNum = num.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-          const btnClass = isWon ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-700';
-          return '<button type="button" onclick="openClientOrderDetail(\'' + safeNum + '\')" class="w-full border-2 rounded-xl px-3 py-2 flex justify-between items-center text-left ' + btnClass + '"><span class="font-mono text-sm">#' + num + '</span><span class="font-mono font-bold text-sm">' + amt + '</span></button>';
+          const shop = (info.shopNumber || info.shop_number || '').toString() || '-';
+          const s = info.status;
+          const settled = s === 'settled' || s === 2;
+          const past = isOrderPast(info) || (settled && !isWon);
+          let btnClass = past
+            ? 'border-gray-200 bg-gray-100 text-gray-500 opacity-75 relative'
+            : (isWon ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-700');
+          var shortNum = shortOrderNumber(num);
+          var safeNum = (num + '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var lineThrough = past ? '<span class="absolute inset-y-0 left-0 right-0 flex items-center pointer-events-none" aria-hidden="true"><span class="w-full h-px bg-gray-400"></span></span>' : '';
+          return '<button type="button" class="client-order-btn client-paid-item w-full border-2 rounded-xl px-3 py-2 flex justify-between items-center text-left ' + btnClass + '" data-order-number="' + safeNum + '">' + lineThrough + '<span class="' + (past ? 'relative z-10 ' : '') + 'font-mono text-sm">' + shop + ' · #' + shortNum + '</span><span class="' + (past ? 'relative z-10 ' : '') + 'font-mono font-bold text-sm">' + amt + '</span></button>';
         }).join('');
 
-        list.forEach(info => {
-          const orderNumber = info.order_number ?? info.orderNumber;
+        list.forEach(function (info) {
+          var orderNumber = info.order_number != null ? info.order_number : info.orderNumber;
           if (!orderNumber) return;
-          fetch(`${API_BASE}/api/orders/${orderNumber}`).then(r => r.json()).then(data => {
-            const isWon = (data.status === 'won' || data.status === 3) && Number(data.win_amount || 0) > 0;
-            if (isWon) {
-              try {
-                const raw2 = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
-                let arr = raw2 ? JSON.parse(raw2) : [];
-                arr = arr.map(o => (o.order_number === orderNumber || o.orderNumber === orderNumber) ? { ...o, status: data.status, win_amount: data.win_amount, redeemed_at: data.redeemed_at } : o);
-                localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(arr));
-                renderClientPaidBanner();
-              } catch (e) {}
-            }
-          }).catch(() => {});
+          fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber))).then(function (r) {
+            if (!r.ok) return null;
+            return r.json();
+          }).then(function (data) {
+            if (!data) return;
+            try {
+              var raw2 = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+              var arr = raw2 ? JSON.parse(raw2) : [];
+              var winAmt = Number(data.win_amount) || 0;
+              if (winAmt === 0 && data.win_breakdown && data.win_breakdown.length) {
+                data.win_breakdown.forEach(function (b) { winAmt += Number(b.win) || 0; });
+              }
+              var updated = {
+                status: data.status,
+                win_amount: winAmt,
+                redeemed_at: data.redeemed_at,
+                drawn_at: data.drawn_at || data.updated_at || (data.status !== 1 && data.status !== 'paid' ? Date.now() : undefined)
+              };
+              var numStr = String(orderNumber);
+              arr = arr.map(function (o) { return (String(o.order_number || o.orderNumber || '') === numStr) ? Object.assign({}, o, updated) : o; });
+              localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(arr));
+              var onShopPage = document.getElementById('page-shop') && !document.getElementById('page-shop').classList.contains('hidden');
+              if (onShopPage) renderClientPaidBanner();
+            } catch (e) {}
+          }).catch(function () {});
         });
       } catch (e) {
         wrap.classList.add('hidden');
       }
     }
 
-    // 顾客点击“已付款订单”某一单：拉取订单状态，进入完成页并展示清晰的结算结果（中奖/未中/待开奖）
-    async function openClientOrderDetail(orderNumberFromList) {
+    // 首页「近期订单」：同临时账号，带店号，未兑奖排前，开奖后14天内，刷新后仍可见
+    function renderHomeRecentOrders() {
+      var wrap = document.getElementById('home-recent-orders');
+      var listEl = document.getElementById('home-recent-orders-list');
+      if (!wrap || !listEl) return;
       try {
-        let info = null;
-        const raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
-        let list = raw ? JSON.parse(raw) : [];
+        var list = [];
+        var raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+        if (raw) list = JSON.parse(raw);
         if (!Array.isArray(list)) list = [];
-        list = list.filter(o => o && o.clientId === clientId);
-        if (orderNumberFromList) {
-          info = list.find(o => (o.order_number || o.orderNumber) === orderNumberFromList);
+        list = list.filter(function(o) { return o && o.clientId === clientId; });
+        list = list.filter(isOrderWithinKeepDays);
+        list.sort(function(a, b) {
+          var ua = isOrderUnredeemed(a), ub = isOrderUnredeemed(b);
+          if (ua && !ub) return -1;
+          if (!ua && ub) return 1;
+          return (b.ts || 0) - (a.ts || 0);
+        });
+        if (list.length === 0) {
+          wrap.classList.add('hidden');
+          return;
         }
+        wrap.classList.remove('hidden');
+        var sliceList = list.slice(0, 15);
+        listEl.innerHTML = sliceList.map(function (info) {
+          var num = (info.order_number != null ? info.order_number : info.orderNumber || '').toString();
+          var amt = Number(info.amount || 0).toFixed(2);
+          var shop = (info.shopNumber || info.shop_number || '').toString() || '-';
+          var past = isOrderPast(info);
+          var rowClass = past ? 'bg-gray-100 text-gray-500 opacity-80' : 'bg-gray-50 hover:bg-gray-100';
+          var shortNum = shortOrderNumber(num);
+          var safeNum = (num + '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return '<button type="button" class="client-home-order-item w-full text-left rounded-lg px-3 py-2 ' + rowClass + ' text-sm border border-transparent hover:bg-gray-100 cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono">' + shop + ' · #' + shortNum + '</span> <span class="font-bold text-green-600">$' + amt + '</span></button>';
+        }).join('');
+      } catch (e) {
+        wrap.classList.add('hidden');
+      }
+    }
+
+    // 顾客点击"已付款订单"某一单：先立即进入二维码页，再后台拉取开奖状态更新
+    var __openingOrderNumber = null;
+    async function openClientOrderDetail(orderNumberFromList) {
+      if (!orderNumberFromList) return;
+      var orderNumStr = String(orderNumberFromList).trim();
+      if (!orderNumStr) return;
+      if (window.__openingOrderNumber === orderNumStr) return;
+      window.__openingOrderNumber = orderNumStr;
+
+      var info = null;
+      try {
+        var raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(function (o) { return o && o.clientId === clientId; });
+        info = list.find(function (o) {
+          var n = o.order_number != null ? o.order_number : o.orderNumber;
+          return String(n || '') === orderNumStr;
+        });
         if (!info && list.length) info = list[0];
         if (!info) {
-          const lastRaw = localStorage.getItem(CLIENT_LAST_PAID_KEY);
+          var lastRaw = localStorage.getItem(CLIENT_LAST_PAID_KEY);
           if (lastRaw) info = JSON.parse(lastRaw);
         }
-        if (!info || info.clientId !== clientId) return;
+      } catch (e) {}
 
-        const orderNumber = info.order_number ?? info.orderNumber ?? orderNumberFromList;
-        document.getElementById('confirmed-order-id').textContent = orderNumber || '------';
-        document.getElementById('confirmed-amount').textContent = Number(info.amount || 0).toFixed(2);
-
-        const resultArea = document.getElementById('confirmed-result-area');
-        const resultWon = document.getElementById('confirmed-result-won');
-        const resultLost = document.getElementById('confirmed-result-lost');
-        const resultWaiting = document.getElementById('confirmed-result-waiting');
-        resultWon.classList.add('hidden');
-        resultLost.classList.add('hidden');
-        resultWaiting.classList.add('hidden');
-        resultArea.classList.add('hidden');
-
-        const resultRedeemed = document.getElementById('confirmed-result-redeemed');
-        if (resultRedeemed) resultRedeemed.classList.add('hidden');
-
-        if (orderNumber) {
-          try {
-            const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
-            const data = await res.json();
-            const status = data.status;
-            const winAmount = Number(data.win_amount || 0);
-            const redeemed = !!data.redeemed_at;
-            const isWon = (status === 'won' || status === 3) && winAmount > 0;
-            const isSettled = status === 'settled' || status === 2 || status === 'won' || status === 3;
-
-            resultArea.classList.remove('hidden');
-            if (isWon && redeemed) {
-              resultRedeemed.classList.remove('hidden');
-            } else if (isWon) {
-              document.getElementById('confirmed-win-amount').textContent = winAmount.toFixed(2);
-              resultWon.classList.remove('hidden');
-            } else if (isSettled) {
-              resultLost.classList.remove('hidden');
-            } else {
-              resultWaiting.classList.remove('hidden');
-            }
-          } catch (e) {
-            resultArea.classList.remove('hidden');
-            resultWaiting.classList.remove('hidden');
+      if (!info && orderNumStr) {
+        try {
+          var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumStr));
+          if (res.ok) {
+            var data = await res.json();
+            info = {
+              order_number: data.order_number,
+              orderNumber: data.order_number,
+              amount: data.amount,
+              shopId: data.shopId,
+              shop_number: data.shopNumber,
+              shopNumber: data.shopNumber,
+              orderId: data.order_id,
+              orderHash: data.order_hash,
+              clientId: clientId,
+              status: data.status,
+              win_amount: data.win_amount
+            };
           }
+        } catch (e) {}
+      }
+      if (!info) {
+        alert('No se encontró el pedido.');
+        return;
+      }
+
+      try {
+        var orderNumber = info.order_number != null ? info.order_number : (info.orderNumber != null ? info.orderNumber : orderNumStr);
+        var shopNum = (info.shopNumber || info.shop_number || '').toString() || '-';
+        var shopNumEl = document.getElementById('confirmed-shop-number');
+        if (shopNumEl) shopNumEl.textContent = shopNum;
+        var cqrShop = document.getElementById('confirmed-qr-shop-number');
+        if (cqrShop) cqrShop.textContent = shopNum;
+        var orderIdEl = document.getElementById('confirmed-order-id');
+        if (orderIdEl) orderIdEl.textContent = orderNumber || '------';
+        var amountEl = document.getElementById('confirmed-amount');
+        if (amountEl) amountEl.textContent = Number(info.amount || 0).toFixed(2);
+
+        var resultArea = document.getElementById('confirmed-result-area');
+        var resultWon = document.getElementById('confirmed-result-won');
+        var resultLost = document.getElementById('confirmed-result-lost');
+        var resultWaiting = document.getElementById('confirmed-result-waiting');
+        var resultRedeemed = document.getElementById('confirmed-result-redeemed');
+        if (resultWon) resultWon.classList.add('hidden');
+        if (resultLost) resultLost.classList.add('hidden');
+        if (resultWaiting) resultWaiting.classList.add('hidden');
+        if (resultRedeemed) resultRedeemed.classList.add('hidden');
+        if (resultArea) resultArea.classList.remove('hidden');
+
+        var infoStatus = info.status;
+        var infoWinAmt = Number(info.win_amount || 0);
+        var infoRedeemed = !!info.redeemed_at;
+        var infoIsWon = (infoStatus === 'won' || infoStatus === 3) && infoWinAmt > 0;
+        if (infoIsWon && infoRedeemed && resultRedeemed) {
+          resultRedeemed.classList.remove('hidden');
+        } else if (infoIsWon && resultWon) {
+          var winAmtEl = document.getElementById('confirmed-win-amount');
+          if (winAmtEl) winAmtEl.textContent = infoWinAmt.toFixed(2);
+          resultWon.classList.remove('hidden');
+        } else if ((infoStatus === 'settled' || infoStatus === 2) && resultLost) {
+          resultLost.classList.remove('hidden');
+        } else {
+          resultWaiting.classList.remove('hidden');
         }
+
+        var confirmedDetailEl = document.getElementById('confirmed-order-detail');
+        if (confirmedDetailEl) confirmedDetailEl.innerHTML = '<p class="text-gray-400">Cargando…</p>';
 
         renderPaymentQR(
           {
-            orderId: info.orderId ?? null,
-            orderNumber: orderNumber ?? info.orderNumber,
-            orderHash: info.orderHash ?? null,
+            orderId: info.orderId != null ? info.orderId : null,
+            orderNumber: orderNumber != null ? orderNumber : info.orderNumber,
+            orderHash: info.orderHash != null ? info.orderHash : null,
             amount: info.amount,
-            shopId: info.shopId ?? null
+            shopId: info.shopId != null ? info.shopId : null
           },
           'confirmed-qr'
         );
 
         showPage('page-confirmed');
-      } catch (e) {}
+        loadAndShowDrawNumbers();
+
+        if (orderNumber) {
+          fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)))
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (data2) {
+              if (!data2) return;
+              var status = data2.status;
+              if (typeof status === 'number') {
+                if (status === 3) status = 'won';
+                else if (status === 2) status = 'settled';
+                else if (status === 1) status = 'paid';
+                else if (status === 0) status = 'pending';
+              }
+              // 根据订单状态决定是否显示开奖号
+              loadAndShowDrawNumbers(status);
+              
+              var winAmount = Number(data2.win_amount) || 0;
+              if (winAmount === 0 && data2.win_breakdown && data2.win_breakdown.length > 0) {
+                data2.win_breakdown.forEach(function (b) { winAmount += Number(b.win) || 0; });
+              }
+              var redeemed = !!data2.redeemed_at;
+              var isWon = (status === 'won' || status === 3) && winAmount > 0;
+              var isSettled = status === 'settled' || status === 2 || status === 'won' || status === 3;
+              var amountEl = document.getElementById('confirmed-amount');
+              if (amountEl && (data2.amount != null || data2.amount === 0)) amountEl.textContent = Number(data2.amount).toFixed(2);
+              var rArea = document.getElementById('confirmed-result-area');
+              var rWon = document.getElementById('confirmed-result-won');
+              var rLost = document.getElementById('confirmed-result-lost');
+              var rWaiting = document.getElementById('confirmed-result-waiting');
+              var rRedeemed = document.getElementById('confirmed-result-redeemed');
+              if (rWon) rWon.classList.add('hidden');
+              if (rLost) rLost.classList.add('hidden');
+              if (rWaiting) rWaiting.classList.add('hidden');
+              if (rRedeemed) rRedeemed.classList.add('hidden');
+              if (rArea) rArea.classList.remove('hidden');
+              if (isWon && redeemed && rRedeemed) rRedeemed.classList.remove('hidden');
+              else if (isWon && rWon) {
+                var winAmtEl = document.getElementById('confirmed-win-amount');
+                if (winAmtEl) winAmtEl.textContent = winAmount.toFixed(2);
+                rWon.classList.remove('hidden');
+              } else if (isSettled && rLost) rLost.classList.remove('hidden');
+              else if (rWaiting) rWaiting.classList.remove('hidden');
+              var numbers = data2.numbers;
+              var winBreakdown = data2.win_breakdown;
+              if (isWon && winBreakdown && winBreakdown.length > 0) {
+                renderOrderDetailWithWins(winBreakdown, 'confirmed-order-detail');
+              }
+              if ((!isWon || !winBreakdown || winBreakdown.length === 0) && numbers && numbers.length > 0) {
+                renderOrderDetailFromApi(numbers, data2.game_type, 'confirmed-order-detail');
+              }
+            })
+            .catch(function () {});
+        }
+      } catch (err) {
+        console.error('openClientOrderDetail', err);
+        alert('No se pudo abrir el pedido. ' + (err && err.message ? err.message : ''));
+      } finally {
+        window.__openingOrderNumber = null;
+      }
     }
 
     function resetShop() {
@@ -1011,13 +2054,77 @@
       startClientStopCountdown();
     }
 
-    // 退出店铺（清理倒计时）
-    function exitClientShop() {
-      if (clientStopCountdownInterval) {
-        clearInterval(clientStopCountdownInterval);
-        clientStopCountdownInterval = null;
-      }
+    // 去另一家店：回首页输入新店号，账号保留
+    function goToOtherStore() {
       showPage('page-home');
+      if (document.getElementById('home-recent-orders-list')) renderHomeRecentOrders();
+    }
+
+    // 检查是否有未开奖或未兑奖订单，有则不允许退出
+    function checkCanExit(callback) {
+      var list = [];
+      try {
+        var raw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
+        if (raw) list = JSON.parse(raw);
+      } catch (e) { callback(true); return; }
+      if (!Array.isArray(list)) list = [];
+      list = list.filter(function(o) { return o && o.clientId === clientId; });
+      if (list.length === 0) { callback(true); return; }
+      var orderNumbers = list.map(function(o) { return o.order_number != null ? o.order_number : o.orderNumber; }).filter(Boolean);
+      if (orderNumbers.length === 0) { callback(true); return; }
+      var pending = 0;
+      var checked = 0;
+      function done() {
+        checked++;
+        if (checked === orderNumbers.length) callback(pending === 0);
+      }
+      orderNumbers.forEach(function(ordNum) {
+        fetch(API_BASE + '/api/orders/' + ordNum).then(function(r) { return r.json(); }).then(function(data) {
+          var status = data.status;
+          var paid = status === 1 || status === 'paid';
+          var won = status === 3 || status === 'won';
+          var redeemed = !!data.redeemed_at;
+          if (paid || (won && !redeemed)) pending++;
+          done();
+        }).catch(function() { done(); });
+      });
+    }
+
+    // 生成新的临时 clientId（Salir 时彻底清空会话）
+    function resetClientId() {
+      clientId = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      try {
+        localStorage.setItem(CLIENT_ID_KEY, clientId);
+        sessionStorage.setItem(CLIENT_ID_KEY, clientId);
+      } catch (e) {
+        try { sessionStorage.setItem(CLIENT_ID_KEY, clientId); } catch (e2) {}
+      }
+    }
+
+    // 退出店铺（Salir）：清除登录、清空显示名、新临时会话，回到首页
+    function exitClientShop() {
+      checkCanExit(function(ok) {
+        if (!ok) {
+          alert('No puedes salir mientras tengas pedidos pendientes de sorteo o premios sin cobrar. Revisa "Pedidos pagados" y cobra o espera el sorteo.');
+          return;
+        }
+        if (clientStopCountdownInterval) {
+          clearInterval(clientStopCountdownInterval);
+          clientStopCountdownInterval = null;
+        }
+        if (betStatusPollInterval) {
+          clearInterval(betStatusPollInterval);
+          betStatusPollInterval = null;
+        }
+        doLogout();
+        try {
+          localStorage.removeItem(SESSION_DISPLAY_NAME_KEY);
+        } catch (e) {}
+        resetClientId();
+        showPage('page-home');
+        updateHeaderAccount();
+        if (document.getElementById('home-recent-orders-list')) renderHomeRecentOrders();
+      });
     }
 
     // 客户端停止售卖倒计时：仅在距离停售 <=10 分钟时显示（使用巴拿马本地时间 15:00 开奖）
@@ -1029,27 +2136,34 @@
       if (!box || !timerEl) return;
 
       function update() {
-        const now = new Date();
-        const day = now.getDay();      // 使用本地周几
-        const hour = now.getHours();   // 使用本地小时
+        // 巴拿马永远 UTC-5，无夏令时
+        const PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
+        const nowUTC = Date.now();
+        const panamaLocal = new Date(nowUTC + PANAMA_OFFSET_MS);
+        const panamaDay  = panamaLocal.getUTCDay();
+        const panamaHour = panamaLocal.getUTCHours();
 
-        let nextDraw = new Date(now);
-        // 巴拿马时间 15:00 开奖
-        nextDraw.setHours(15, 0, 0, 0);
+        // UTC 时刻对应巴拿马今日 00:00
+        const panamaMidnightUTC = nowUTC
+          - (panamaLocal.getUTCHours()   * 3600000
+           + panamaLocal.getUTCMinutes() *   60000
+           + panamaLocal.getUTCSeconds() *    1000
+           + panamaLocal.getUTCMilliseconds());
 
-        if (day === 3 || day === 0) {
-          if (hour >= 15) {
-            box.classList.add('hidden');
-            return;
-          }
-        } else {
-          let daysUntil = day < 3 ? 3 - day : 7 - day + 3;
-          nextDraw.setUTCDate(now.getUTCDate() + daysUntil);
-        }
+        // 开奖日：周三(3)、周日(0)，15:00 巴拿马时间
+        let daysUntil;
+        if ((panamaDay === 0 || panamaDay === 3) && panamaHour < 15) { daysUntil = 0; }
+        else if (panamaDay === 0) { daysUntil = 3; } // 周日已过 → 下个周三
+        else if (panamaDay === 1) { daysUntil = 2; }
+        else if (panamaDay === 2) { daysUntil = 1; }
+        else if (panamaDay === 3) { daysUntil = 4; } // 周三已过 → 下个周日
+        else if (panamaDay === 4) { daysUntil = 3; }
+        else if (panamaDay === 5) { daysUntil = 2; }
+        else                      { daysUntil = 1; } // 周六 → 下个周日
 
-        // 停售时间 = 开奖时间前5分钟
-        const stopSellTime = new Date(nextDraw.getTime() - 5 * 60 * 1000);
-        const diffToStop = stopSellTime - now;
+        const nextDrawUTC  = panamaMidnightUTC + daysUntil * 86400000 + 15 * 3600000;
+        const stopSellUTC  = nextDrawUTC - 5 * 60 * 1000;
+        const diffToStop   = stopSellUTC - nowUTC;
 
         // 仅当距离停售 <=10 分钟 且 >0 时显示
         if (diffToStop > 0 && diffToStop <= 10 * 60 * 1000) {
@@ -1064,7 +2178,60 @@
 
       update();
       clientStopCountdownInterval = setInterval(update, 1000);
+      refreshBetStatus();
+      if (betStatusPollInterval) clearInterval(betStatusPollInterval);
+      betStatusPollInterval = setInterval(refreshBetStatus, 30000);
     }
+
+    // 供 HTML onclick 使用的函数挂到 window，避免被其他脚本或打包环境覆盖/未定义
+    window.goToShop = goToShop;
+    window.goToOtherStore = goToOtherStore;
+    window.exitClientShop = exitClientShop;
+    window.setGameType = setGameType;
+    window.openKeyboard = openKeyboard;
+    window.closeKeyboard = closeKeyboard;
+    window.keyPress = keyPress;
+    window.keyBackspace = keyBackspace;
+    window.addToList = addToList;
+    window.removeBet = removeBet;
+    window.highlightBetRow = highlightBetRow;
+    window.submitBet = submitBet;
+    window.resetShop = resetShop;
+    window.openClientOrderDetail = openClientOrderDetail;
+    window.openAuthModal = openAuthModal;
+
+    // 刷新恢复：若上次在店铺页，自动重新进店（避免先闪首页）
+    (function initPage() {
+      function show() {
+        document.body.style.visibility = 'visible';
+      }
+      updateHeaderAccount();
+      try {
+        if (localStorage.getItem(LAST_PAGE_KEY) === 'shop') {
+          var sn = (localStorage.getItem('lastShopNumber') || '').trim();
+          if (sn && /^\d{1,9}$/.test(sn)) {
+            var storeInput = document.getElementById('store-input');
+            if (storeInput) storeInput.value = sn;
+            enterShop(sn).then(function() {
+              showPage('page-shop');
+              startClientStopCountdown();
+              updateHeaderAccount();
+              show();
+            }).catch(function() {
+              showPage('page-home');
+              show();
+            });
+            return;
+          }
+        }
+      } catch (e) {}
+      showPage('page-home');
+      show();
+    })();
+
+    // 直接绑定「Entrar」按钮，确保点进去一定能进店（不依赖 onclick 或全局名）
+    var btnEntrar = document.getElementById('btn-entrar');
+    if (btnEntrar) btnEntrar.addEventListener('click', goToShop);
   </script>
 </body>
 </html>
