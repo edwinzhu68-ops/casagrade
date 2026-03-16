@@ -2644,7 +2644,7 @@
       const push = (...b) => buf.push(...b);
       const txt  = s  => push(...encLatin1(s));
       const LF   = () => push(0x0A);
-      const W    = 28;  // 55mm纸宽
+      const W    = 26;  // 55mm纸宽试调
       const row  = (l, r) => {                          // 左右对齐一行
         const sp = Math.max(1, W - l.length - r.length);
         txt(l + ' '.repeat(sp) + r); LF();
@@ -2674,22 +2674,12 @@
       txt('si ganas.'); LF();
       LF();
 
-      // ── QR 码（放在ganas和fecha中间）──
-      const qrData = JSON.stringify({
-        orderNumber: orderNum,
-        orderHash:   order.order_hash || order.orderHash || '',
-        shopId:      currentShop ? currentShop.shop_id : 0,
-      });
-      const qrBytes = encLatin1(qrData);
-      const pL = (qrBytes.length + 3) & 0xFF;
-      const pH = ((qrBytes.length + 3) >> 8) & 0xFF;
+      // ── QR 码（打印机不支持ESC/POS QR指令，改用文字）──
       push(...CENTER);
-      push(0x1D,0x28,0x6B,0x04,0x00,0x31,0x41,0x32,0x00);
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x43,0x04);
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x45,0x31);
-      push(0x1D,0x28,0x6B,pL,pH,0x31,0x50,0x30,...qrBytes);
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x51,0x30);
-      LF(); LF();
+      push(...BON);
+      txt('Pedido: ' + orderNum); LF();
+      push(...BOFF);
+      LF();
 
       // ── 2. 日期（inline "标签: 值"）──
       push(...CENTER);
