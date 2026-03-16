@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pedido de lotería</title>
+  <link rel="manifest" href="/manifest-client.json">
+  <meta name="theme-color" content="#16a34a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Lotería">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
   <style>
@@ -21,22 +27,22 @@
       <div class="text-center mb-8">
         <div class="text-5xl mb-2">🖨️</div>
         <div class="text-3xl mb-2">🧾</div>
-        <p class="text-gray-500 mt-2">Introduce el número de tienda para empezar</p>
+        <p class="text-gray-500 mt-2" data-i18n="home_intro">Introduce el número de tienda para empezar</p>
       </div>
 
-      <input type="text" maxlength="9" id="store-input" placeholder="Número de tienda (ej. 1, 01, 88888)"
+      <input type="text" maxlength="9" id="store-input" data-i18n-ph="home_store_placeholder" placeholder="Número de tienda (ej. 1, 01, 88888)"
         class="w-full text-center text-4xl font-mono py-4 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:outline-none mb-6" />
 
-      <button id="btn-entrar" type="button" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
+      <button id="btn-entrar" type="button" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl" data-i18n="btn_enter">
         Entrar
       </button>
 
       <div class="mt-6 text-center">
-        <a href="merchant.html" class="text-sm text-gray-400">Acceso del banquero</a>
+        <a href="merchant.html" class="text-sm text-gray-400" data-i18n="home_banker_link">Acceso del banquero</a>
       </div>
       <!-- 近期订单（同设备临时账号），带店号，刷新后仍可见 -->
       <div id="home-recent-orders" class="hidden mt-6 pt-4 border-t border-gray-200">
-        <p class="text-xs text-gray-500 mb-2">Tus pedidos recientes (toca para ver)</p>
+        <p class="text-xs text-gray-500 mb-2" data-i18n="home_recent_label">Tus pedidos recientes (toca para ver)</p>
         <div id="home-recent-orders-list" class="space-y-1 max-h-32 overflow-y-auto"></div>
       </div>
     </div>
@@ -56,25 +62,28 @@
             <h1 class="font-bold text-xl sm:text-2xl font-mono text-center tabular-nums">
               <span id="shop-number">-----</span>
             </h1>
+            <span id="draw-status-badge" class="hidden mt-0.5 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-200"></span>
           </div>
           <div class="relative flex flex-shrink-0 w-14 justify-end">
             <button type="button" id="header-menu-btn" onclick="toggleHeaderMenu()" class="p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white" title="Menú" aria-label="Menú">
               <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
             </button>
             <div id="header-menu-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-20">
-              <button type="button" onclick="closeHeaderMenu(); goToOtherStore();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100">Otra tienda</button>
+              <button id="menu-lang-btn" type="button" onclick="closeHeaderMenu(); toggleClientLang();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100">🇨🇳 中文</button>
               <div class="border-t border-gray-100 my-1"></div>
-              <button type="button" onclick="closeHeaderMenu(); exitClientShop();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100">Salir</button>
+              <button type="button" onclick="closeHeaderMenu(); goToOtherStore();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100" data-i18n="menu_other_store">Otra tienda</button>
+              <div class="border-t border-gray-100 my-1"></div>
+              <button type="button" onclick="closeHeaderMenu(); exitClientShop();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100" data-i18n="menu_exit">Salir</button>
             </div>
           </div>
         </div>
         <!-- 开奖中 15:00-16:00：暂停销售、下单禁用 -->
         <div id="client-draw-window-banner" class="hidden mt-1.5 bg-amber-500/90 rounded-lg px-3 py-1 text-center text-xs font-medium">
-          Sorteo en curso - Ventas suspendidas
+          <span data-i18n="draw_window_banner">Sorteo en curso · Ventas suspendidas</span>
         </div>
         <!-- Cuenta regresiva para cierre de ventas：离停售 <=10 分钟时显示 -->
         <div id="client-stop-countdown" class="hidden mt-1.5 bg-orange-500/90 rounded-lg px-3 py-1 text-center text-xs">
-          <span>Cuenta regresiva para cierre de ventas</span>
+          <span data-i18n="countdown_label">Cierre de ventas en</span>
           <span id="client-stop-timer" class="font-mono font-bold ml-1">--:--</span>
         </div>
       </div>
@@ -84,9 +93,15 @@
     <div class="max-w-md mx-auto pt-0.5 px-3 pb-1">
       <!-- 开奖日期：放在 Billete/Chance 上面，紧贴绿色 header -->
       <div id="client-current-period" class="hidden mb-2 -mt-0.5">
-        <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl shadow-sm py-2 px-3 text-center border border-green-100">
-          <span class="text-xs font-medium text-green-700/80 tracking-wide block">Fecha del sorteo</span>
-          <span id="client-period-date" class="font-mono font-bold text-green-700 text-base tracking-tight">--</span>
+        <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl shadow-sm py-2 px-3 border border-green-100 flex items-center justify-between">
+          <div class="text-center flex-1">
+            <span class="text-xs font-medium text-green-700/80 tracking-wide block" data-i18n="fecha_sorteo">Fecha del sorteo</span>
+            <span id="client-period-date" class="font-mono font-bold text-green-700 text-base tracking-tight">--</span>
+          </div>
+          <button id="client-pwa-btn2" onclick="showClientPwaPrompt()" class="hidden flex-shrink-0 ml-3 flex flex-col items-center text-green-600 hover:text-green-800">
+            <span class="text-lg leading-none">📲</span>
+            <span class="text-[10px] font-medium leading-tight mt-0.5">Pantalla<br>principal</span>
+          </button>
         </div>
       </div>
       <div class="flex gap-2 mb-2">
@@ -100,11 +115,11 @@
       <div class="bg-white rounded-xl shadow-sm p-3 mb-2">
         <div class="flex gap-2">
           <div id="display-number" onclick="openKeyboard('number')" class="flex-1 text-center py-1.5 border-2 border-blue-500 rounded-lg cursor-pointer">
-            <span class="text-gray-400 text-xs">Número</span>
+            <span class="text-gray-400 text-xs" data-i18n="label_number">Número</span>
             <p class="text-xl font-mono font-bold">----</p>
           </div>
           <div id="display-quantity" onclick="openKeyboard('quantity')" class="flex-1 text-center py-1.5 border-2 border-gray-200 rounded-lg cursor-pointer">
-            <span class="text-gray-400 text-xs">Cantidad</span>
+            <span class="text-gray-400 text-xs" data-i18n="label_quantity">Cantidad</span>
             <p class="text-xl font-mono font-bold">1</p>
           </div>
         </div>
@@ -112,9 +127,9 @@
 
       <!-- Lista de números seleccionados -->
       <div class="bg-white rounded-xl shadow-sm p-3 mb-2">
-        <p class="text-xs text-gray-500 mb-1">Números seleccionados</p>
+        <p class="text-xs text-gray-500 mb-1" data-i18n="selected_numbers">Números seleccionados</p>
         <div id="bet-list" class="space-y-1.5 max-h-32 overflow-y-auto">
-          <p class="text-gray-400 text-sm text-center py-1">Sin números aún</p>
+          <p class="text-gray-400 text-sm text-center py-1" data-i18n="no_numbers_yet">Sin números aún</p>
         </div>
       </div>
     </div>
@@ -123,25 +138,29 @@
     <div class="max-w-md mx-auto w-full px-3 pb-3">
       <div class="bg-white rounded-xl shadow-sm p-3 space-y-1.5">
         <div class="flex justify-between items-center">
-          <span class="text-gray-600 text-sm">Total <span id="total-count">0</span> apuestas</span>
+          <span class="text-gray-600 text-sm"><span data-i18n="total_label">Total</span> <span id="total-count">0</span> <span data-i18n="total_bets_suffix">apuestas</span></span>
           <span class="text-base font-bold text-green-600">$<span id="total-amount">0</span></span>
         </div>
         <button onclick="submitBet()" id="submit-btn"
           class="w-full bg-green-600 text-white py-3 rounded-xl font-bold disabled:bg-gray-300" disabled>
-          Confirmar apuesta
+          <span data-i18n="btn_confirm_bet">Confirmar apuesta</span>
         </button>
         <p id="submit-btn-hint" class="text-xs text-center text-amber-600 mt-0.5 hidden"></p>
         <!-- 未付款订单（等待收银确认） -->
         <div id="client-pending-order" class="hidden mt-1.5 p-2 bg-orange-50 border border-orange-200 rounded-lg">
-          <p class="text-xs text-orange-700 font-medium mb-0.5">Pedidos pendientes de pago</p>
+          <p class="text-xs text-orange-700 font-medium mb-0.5" data-i18n="pending_orders_label">Pedidos pendientes de pago</p>
           <div id="client-pending-order-list" class="space-y-1 max-h-28 overflow-y-auto"></div>
         </div>
         <!-- 已付款订单列表（可多单） -->
         <div id="client-paid-order" class="hidden mt-1">
-          <p class="text-xs text-gray-500 mb-0.5">Pedidos pagados - toca para ver detalle y QR</p>
+          <p class="text-xs text-gray-500 mb-0.5" data-i18n="paid_orders_label">Pedidos pagados · toca para ver detalle</p>
           <div id="client-paid-order-list" class="space-y-1 max-h-32 overflow-y-auto"></div>
         </div>
       </div>
+      <!-- Disclaimer -->
+      <p class="text-center text-gray-400 text-[10px] mt-2 pb-1 px-4 leading-snug">
+        Este sistema es únicamente una herramienta de registro de ventas y no participa en la emisión ni comercialización de lotería.
+      </p>
     </div>
   </div>
 
@@ -151,7 +170,7 @@
     <div class="bg-white rounded-t-3xl w-full max-w-md mx-auto p-4">
       <!-- Título del teclado -->
       <div class="text-center mb-4">
-        <p id="keyboard-title" class="text-lg font-bold text-blue-600">Introduce el número de lotería</p>
+        <p id="keyboard-title" class="text-lg font-bold text-blue-600" data-i18n="keyboard_number_title">Introduce el número de lotería</p>
       </div>
 
       <!-- 数字显示 -->
@@ -172,7 +191,7 @@
         <button onclick="keyPress('9')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">9</button>
         <button onclick="keyBackspace()" class="key-btn bg-gray-300 py-2.5 rounded-xl font-bold text-xl">×</button>
         <button onclick="keyPress('0')" class="key-btn bg-gray-100 py-2.5 rounded-xl font-bold text-xl">0</button>
-        <button onclick="addToList()" class="key-btn bg-orange-500 text-white py-2.5 rounded-xl font-bold text-sm">添加</button>
+        <button onclick="addToList()" class="key-btn bg-orange-500 text-white py-2.5 rounded-xl font-bold text-sm" data-i18n="btn_add">Agregar</button>
       </div>
     </div>
   </div>
@@ -181,41 +200,41 @@
   <div id="auth-modal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onclick="if (event.target === this) closeAuthModal()">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onclick="event.stopPropagation()">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-bold text-gray-800">Cuenta</h3>
+        <h3 class="text-lg font-bold text-gray-800" data-i18n="auth_title">Cuenta</h3>
         <button type="button" onclick="closeAuthModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
       </div>
       <!-- 未选时：两个入口 -->
       <div id="auth-choice" class="space-y-2">
-        <button type="button" onclick="showAuthRegisterForm()" class="w-full py-3 rounded-xl bg-green-600 text-white font-bold">Registrarse</button>
-        <button type="button" onclick="document.getElementById('auth-choice').classList.add('hidden'); document.getElementById('auth-login-form').classList.remove('hidden');" class="w-full py-3 rounded-xl bg-gray-200 text-gray-800 font-bold">Iniciar sesión</button>
+        <button type="button" onclick="showAuthRegisterForm()" class="w-full py-3 rounded-xl bg-green-600 text-white font-bold" data-i18n="btn_register">Registrarse</button>
+        <button type="button" onclick="document.getElementById('auth-choice').classList.add('hidden'); document.getElementById('auth-login-form').classList.remove('hidden');" class="w-full py-3 rounded-xl bg-gray-200 text-gray-800 font-bold" data-i18n="btn_login_choice">Iniciar sesión</button>
       </div>
       <!-- 注册表单 -->
       <div id="auth-register-form" class="hidden space-y-3">
-        <input type="text" id="auth-reg-username" placeholder="Usuario" class="w-full px-3 py-2 border rounded-xl" maxlength="32" />
-        <input type="password" id="auth-reg-password" placeholder="Contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
-        <input type="password" id="auth-reg-password2" placeholder="Repetir contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
+        <input type="text" id="auth-reg-username" data-i18n-ph="auth_username" placeholder="Usuario" class="w-full px-3 py-2 border rounded-xl" maxlength="32" />
+        <input type="password" id="auth-reg-password" data-i18n-ph="auth_password" placeholder="Contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
+        <input type="password" id="auth-reg-password2" data-i18n-ph="auth_password2" placeholder="Repetir contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
         <div>
-          <p class="text-xs text-gray-500 mb-1">Nombre (opcional). Toca el cuadro para cambiar.</p>
-          <input type="text" id="auth-reg-display" placeholder="Toca para cambiar" class="w-full px-3 py-2 border rounded-xl" maxlength="32" title="Toca para cambiar" onblur="saveSessionDisplayName(this.value)" />
+          <p class="text-xs text-gray-500 mb-1" data-i18n="auth_display_hint">Nombre (opcional). Toca el cuadro para cambiar.</p>
+          <input type="text" id="auth-reg-display" data-i18n-ph="auth_display_placeholder" placeholder="Toca para cambiar" class="w-full px-3 py-2 border rounded-xl" maxlength="32" onblur="saveSessionDisplayName(this.value)" />
         </div>
         <div class="flex gap-2">
-          <button type="button" onclick="showAuthChoice()" class="flex-1 py-2 rounded-xl border text-gray-600">Atrás</button>
-          <button type="button" onclick="doRegister()" class="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold">Registrarse</button>
+          <button type="button" onclick="showAuthChoice()" class="flex-1 py-2 rounded-xl border text-gray-600" data-i18n="btn_back">Atrás</button>
+          <button type="button" onclick="doRegister()" class="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold" data-i18n="btn_register">Registrarse</button>
         </div>
       </div>
       <!-- 登录表单 -->
       <div id="auth-login-form" class="hidden space-y-3">
-        <input type="text" id="auth-log-username" placeholder="Usuario" class="w-full px-3 py-2 border rounded-xl" maxlength="32" />
-        <input type="password" id="auth-log-password" placeholder="Contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
+        <input type="text" id="auth-log-username" data-i18n-ph="auth_username" placeholder="Usuario" class="w-full px-3 py-2 border rounded-xl" maxlength="32" />
+        <input type="password" id="auth-log-password" data-i18n-ph="auth_password" placeholder="Contraseña" class="w-full px-3 py-2 border rounded-xl" maxlength="64" />
         <div class="flex gap-2">
-          <button type="button" onclick="showAuthChoice()" class="flex-1 py-2 rounded-xl border text-gray-600">Atrás</button>
-          <button type="button" onclick="doLogin()" class="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold">Entrar</button>
+          <button type="button" onclick="showAuthChoice()" class="flex-1 py-2 rounded-xl border text-gray-600" data-i18n="btn_back">Atrás</button>
+          <button type="button" onclick="doLogin()" class="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold" data-i18n="btn_login_choice">Entrar</button>
         </div>
       </div>
       <!-- 已登录：显示名字 + 退出 -->
       <div id="auth-logged-in" class="hidden">
         <p id="auth-logged-in-name" class="text-gray-700 mb-3"></p>
-        <button type="button" onclick="doLogout()" class="w-full py-3 rounded-xl bg-gray-200 text-gray-800 font-bold">Cerrar sesión</button>
+        <button type="button" onclick="doLogout()" class="w-full py-3 rounded-xl bg-gray-200 text-gray-800 font-bold" data-i18n="btn_logout">Cerrar sesión</button>
       </div>
     </div>
   </div>
@@ -225,11 +244,11 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
       <div class="flex items-center gap-2 mb-3">
         <span class="text-2xl">🔒</span>
-        <h3 class="text-lg font-bold text-gray-800">No puedes salir aún</h3>
+        <h3 class="text-lg font-bold text-gray-800" data-i18n="cant_exit_title">No puedes salir aún</h3>
       </div>
-      <p class="text-sm text-gray-600 mb-2">Tienes pedidos pendientes de sorteo o premios sin cobrar.</p>
-      <p class="text-sm text-gray-500 mb-5">Revisa <span class="font-semibold text-orange-500">Pedidos pagados</span> y cobra tus premios, o espera el resultado del sorteo.</p>
-      <button onclick="document.getElementById('cant-exit-modal').classList.add('hidden')" class="w-full py-3 rounded-xl bg-orange-500 text-white font-bold">Entendido</button>
+      <p class="text-sm text-gray-600 mb-2" data-i18n="cant_exit_msg1">Tienes pedidos pendientes de sorteo o premios sin cobrar.</p>
+      <p class="text-sm text-gray-500 mb-5" data-i18n="cant_exit_msg2">Revisa los pedidos pagados y cobra tus premios, o espera el resultado del sorteo.</p>
+      <button onclick="document.getElementById('cant-exit-modal').classList.add('hidden')" class="w-full py-3 rounded-xl bg-orange-500 text-white font-bold" data-i18n="btn_understood">Entendido</button>
     </div>
   </div>
 
@@ -238,13 +257,13 @@
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
       <div class="flex items-center gap-2 mb-3">
         <span class="text-2xl">⚠️</span>
-        <h3 class="text-lg font-bold text-gray-800">Límite de ventas</h3>
+        <h3 class="text-lg font-bold text-gray-800" data-i18n="overlimit_title">Límite de ventas</h3>
       </div>
-      <p class="text-sm text-gray-500 mb-3">Los siguientes números superan el límite. Se ajustará la cantidad automáticamente.</p>
+      <p class="text-sm text-gray-500 mb-3" data-i18n="overlimit_msg">Los siguientes números superan el límite. Se ajustará la cantidad automáticamente.</p>
       <div id="over-limit-list" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
       <div class="flex gap-3">
-        <button onclick="closeOverLimitModal(false)" class="flex-1 py-3 rounded-xl border border-gray-300 text-gray-600 font-bold">Cancelar</button>
-        <button onclick="closeOverLimitModal(true)" class="flex-1 py-3 rounded-xl bg-orange-500 text-white font-bold">Continuar</button>
+        <button onclick="closeOverLimitModal(false)" class="flex-1 py-3 rounded-xl border border-gray-300 text-gray-600 font-bold" data-i18n="btn_cancel">Cancelar</button>
+        <button onclick="closeOverLimitModal(true)" class="flex-1 py-3 rounded-xl bg-orange-500 text-white font-bold" data-i18n="btn_continue">Continuar</button>
       </div>
     </div>
   </div>
@@ -279,46 +298,51 @@
               </svg>
             </div>
           </div>
+          <!-- 下单时间 / 开奖时间（显示在二维码下方，所有状态统一） -->
+          <div class="text-[11px] text-gray-500 leading-tight mt-1 space-y-0.5">
+            <p><span data-i18n="label_placed_at">Fecha de compra</span>: <span id="pay-placed-at">--</span></p>
+            <p><span data-i18n="label_draw_at">Fecha del sorteo</span>: <span id="pay-draw-at">--</span></p>
+          </div>
           <p class="text-center text-lg font-bold font-mono text-gray-800 mt-2"><span id="pay-shop-number">-</span></p>
           <!-- 开奖号码：二维码下方显示头奖、二奖、三奖 -->
           <div id="pay-draw-numbers" class="mt-3 bg-gray-100 rounded-xl p-3 text-center hidden">
-            <p class="text-xs text-gray-500 mb-2">Resultado del sorteo</p>
+            <p class="text-xs text-gray-500 mb-2" data-i18n="draw_result">Resultado del sorteo</p>
             <div class="grid grid-cols-3 gap-2 font-mono text-sm">
               <div><span class="text-gray-500 block text-[10px]">1º</span><span id="pay-draw-1st" class="font-bold text-amber-600">-</span></div>
               <div><span class="text-gray-500 block text-[10px]">2º</span><span id="pay-draw-2nd" class="font-bold">-</span></div>
               <div><span class="text-gray-500 block text-[10px]">3º</span><span id="pay-draw-3rd" class="font-bold">-</span></div>
             </div>
           </div>
-          <p class="text-sm text-gray-500 mt-1">Muéstralo al cajero para escanear</p>
-          <p class="text-[10px] text-gray-400 mt-1">El código QR incluye el número de pedido y una firma de seguridad; el cajero lo usa para cobrar y pagar premios.</p>
+          <p class="text-sm text-gray-500 mt-1" data-i18n="pay_show_cashier">Muéstralo al cajero para escanear</p>
+          <p class="text-[10px] text-gray-400 mt-1" data-i18n="pay_qr_note">El código QR incluye el número de pedido; el cajero lo usa para cobrar y pagar premios.</p>
         </div>
 
         <div class="bg-gray-50 rounded-xl p-4 mb-4">
           <div class="flex justify-between mb-2">
-            <span class="text-gray-500">N.º de pedido</span>
+            <span class="text-gray-500" data-i18n="pay_order_num">N.º de pedido</span>
             <span class="font-mono font-bold" id="pay-order-id">------</span>
           </div>
-          <p class="text-[11px] text-amber-600 mb-2">El número de pedido es tu comprobante para cobrar el premio. Consérvalo.</p>
+          <p class="text-[11px] text-amber-600 mb-2" data-i18n="pay_order_note">El número de pedido es tu comprobante para cobrar el premio. Consérvalo.</p>
           <div class="mb-2">
-            <p class="text-gray-500 text-xs mb-1">Números y cantidades</p>
+            <p class="text-gray-500 text-xs mb-1" data-i18n="pay_numbers_label">Números y cantidades</p>
             <div id="pay-order-detail" class="text-xs text-gray-700 space-y-0.5">
               <!-- 号码×数量×金额 由 JS 填充 -->
             </div>
           </div>
           <div class="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
-            <span class="text-gray-600 font-medium">Total</span>
+            <span class="text-gray-600 font-medium" data-i18n="pay_total">Total</span>
             <span class="text-2xl font-bold text-green-600">$<span id="pay-amount">0</span></span>
           </div>
           <div class="mt-2 flex items-center justify-between text-[11px] text-gray-500">
-            <span>Válido 30 min, se cancela si no se paga.</span>
+            <span data-i18n="pay_valid">Válido 30 min, se cancela si no se paga.</span>
             <span id="pay-countdown" class="font-mono font-bold text-orange-600">30:00</span>
           </div>
         </div>
 
         <div class="text-center py-2">
           <div class="text-4xl mb-1">🟡</div>
-          <p class="text-xl font-bold text-orange-600">Esperando pago</p>
-          <p class="text-xs text-gray-400 mt-1">Después de que el cajero escanee, el estado se actualizará automáticamente.</p>
+          <p class="text-xl font-bold text-orange-600" data-i18n="pay_waiting">Esperando pago</p>
+          <p class="text-xs text-gray-400 mt-1" data-i18n="pay_waiting_note">Después de que el cajero escanee, el estado se actualizará.</p>
         </div>
       </div>
     </div>
@@ -326,12 +350,12 @@
     <div class="p-4 bg-white space-y-2">
       <button type="button" onclick="sharePayOrderViaWhatsApp()" class="w-full bg-[#25D366] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        <span id="pay-btn-whatsapp">Enviar imagen del pedido al banquero</span>
+        <span id="pay-btn-whatsapp" data-i18n="btn_whatsapp">Enviar imagen del pedido al banquero</span>
       </button>
-      <button type="button" onclick="goBackSaveOrder()" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold">
+      <button type="button" onclick="goBackSaveOrder()" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold" data-i18n="btn_save_order">
         Guardar pedido
       </button>
-      <button type="button" onclick="goBackAndCancelOrder()" class="w-full bg-gray-200 text-gray-800 py-3 rounded-xl font-bold border border-gray-300">
+      <button type="button" onclick="goBackAndCancelOrder()" class="w-full bg-gray-200 text-gray-800 py-3 rounded-xl font-bold border border-gray-300" data-i18n="btn_cancel_order">
         Cancelar pedido
       </button>
     </div>
@@ -343,21 +367,21 @@
       <div class="bg-white rounded-3xl shadow-xl p-6 max-w-md mx-auto">
         <div class="text-center mb-4">
           <div class="text-6xl mb-2 animate-pulse">⏳</div>
-          <p class="text-xl font-bold text-orange-600">Esperando confirmación</p>
-          <p class="text-sm text-gray-500 mt-2">Entrega el importe al cajero</p>
+          <p class="text-xl font-bold text-orange-600" data-i18n="waiting_title">Esperando confirmación</p>
+          <p class="text-sm text-gray-500 mt-2" data-i18n="waiting_note">Entrega el importe al cajero</p>
         </div>
 
         <div class="bg-gray-50 rounded-xl p-4 mb-4 space-y-1">
           <div class="flex justify-between">
-            <span class="text-gray-500">N.º de pedido</span>
+            <span class="text-gray-500" data-i18n="waiting_order_num">N.º de pedido</span>
             <span class="font-mono font-bold" id="wait-order-id">------</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-gray-500">Importe</span>
+            <span class="text-gray-500" data-i18n="waiting_amount">Importe</span>
             <span class="text-2xl font-bold text-green-600">$<span id="wait-amount">0</span></span>
           </div>
           <p class="text-[11px] text-gray-400 mt-1">
-            Verifica que el importe sea correcto. El cajero usará el mismo código QR para cobrar y, después del sorteo, para pagar premios.
+            <span data-i18n="waiting_verify">Verifica que el importe sea correcto.</span>
           </p>
         </div>
       </div>
@@ -372,22 +396,22 @@
         <div id="confirmed-result-area" class="mb-4 rounded-2xl p-4 text-center hidden">
           <div id="confirmed-result-won" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4">
             <div class="text-5xl mb-2">🎉</div>
-            <p class="text-xl font-bold text-amber-600">¡Felicidades! Has ganado</p>
+            <p class="text-xl font-bold text-amber-600" data-i18n="won_title">¡Felicidades! Has ganado</p>
             <p class="text-3xl font-bold text-green-600 mt-1">$<span id="confirmed-win-amount">0</span></p>
-            <p class="text-sm text-amber-700 mt-2 font-medium">Presenta este comprobante (QR o número de pedido) en la tienda para cobrar tu premio.</p>
+            <p class="text-sm text-amber-700 mt-2 font-medium" data-i18n="won_note">Presenta este comprobante (QR o número de pedido) en la tienda para cobrar tu premio.</p>
           </div>
           <div id="confirmed-result-redeemed" class="hidden bg-green-50 border border-green-200 rounded-xl p-4">
             <div class="text-5xl mb-2">✅</div>
-            <p class="text-xl font-bold text-green-600">Premio cobrado</p>
+            <p class="text-xl font-bold text-green-600" data-i18n="redeemed_title">Premio cobrado</p>
             <p class="text-sm text-gray-600 mt-1">已兑奖 · Gracias por participar.</p>
           </div>
           <div id="confirmed-result-lost" class="hidden bg-gray-100 border border-gray-300 rounded-xl p-4">
-            <p class="text-lg font-medium text-gray-600">Sorteo realizado</p>
-            <p class="text-gray-500 text-sm mt-1">No has resultado premiado en este pedido.</p>
+            <p class="text-lg font-medium text-gray-600" data-i18n="lost_title">Sorteo realizado</p>
+            <p class="text-gray-500 text-sm mt-1" data-i18n="lost_note">No has resultado premiado en este pedido.</p>
           </div>
           <div id="confirmed-result-waiting" class="hidden">
-            <p class="text-lg font-medium text-blue-600">Esperando el sorteo</p>
-            <p class="text-gray-500 text-sm mt-1">Guarda el QR para cobrar si ganas.</p>
+            <p class="text-lg font-medium text-blue-600" data-i18n="awaiting_title">Esperando el sorteo</p>
+            <p class="text-gray-500 text-sm mt-1" data-i18n="awaiting_note">Guarda el QR para cobrar si ganas.</p>
           </div>
         </div>
 
@@ -416,35 +440,40 @@
               </svg>
             </div>
           </div>
+          <!-- 确认页：同样在二维码下方展示下单时间与开奖时间 -->
+          <div class="text-[11px] text-gray-500 leading-tight mt-1 space-y-0.5">
+            <p><span data-i18n="label_placed_at">Fecha de compra</span>: <span id="confirmed-placed-at">--</span></p>
+            <p><span data-i18n="label_draw_at">Fecha del sorteo</span>: <span id="confirmed-draw-at">--</span></p>
+          </div>
           <p class="text-center text-lg font-bold font-mono text-gray-800 mt-2"><span id="confirmed-qr-shop-number">-</span></p>
           <!-- 开奖号码：二维码下方显示头奖、二奖、三奖 -->
           <div id="confirmed-draw-numbers" class="mt-3 bg-gray-100 rounded-xl p-3 text-center hidden">
-            <p class="text-xs text-gray-500 mb-2">Resultado del sorteo</p>
+            <p class="text-xs text-gray-500 mb-2" data-i18n="draw_result">Resultado del sorteo</p>
             <div class="grid grid-cols-3 gap-2 font-mono text-sm">
               <div><span class="text-gray-500 block text-[10px]">1º</span><span id="confirmed-draw-1st" class="font-bold text-amber-600">-</span></div>
               <div><span class="text-gray-500 block text-[10px]">2º</span><span id="confirmed-draw-2nd" class="font-bold">-</span></div>
               <div><span class="text-gray-500 block text-[10px]">3º</span><span id="confirmed-draw-3rd" class="font-bold">-</span></div>
             </div>
           </div>
-          <p class="text-xl font-bold text-green-600 mt-2">Pedido confirmado</p>
-          <p class="text-sm text-gray-500 mt-1">Este QR es tu comprobante para cobrar el premio en el punto de venta.</p>
+          <p class="text-xl font-bold text-green-600 mt-2" data-i18n="confirmed_title">Pedido confirmado</p>
+          <p class="text-sm text-gray-500 mt-1" data-i18n="confirmed_note">Este QR es tu comprobante para cobrar el premio en el punto de venta.</p>
         </div>
 
         <div class="bg-gray-50 rounded-xl p-4 mb-4">
           <div class="flex justify-between mb-2">
-            <span class="text-gray-500">Tienda</span>
+            <span class="text-gray-500" data-i18n="label_store">Tienda</span>
             <span class="font-mono font-bold" id="confirmed-shop-number">-</span>
           </div>
           <div class="flex justify-between mb-2">
-            <span class="text-gray-500">N.º de pedido</span>
+            <span class="text-gray-500" data-i18n="label_order_num">N.º de pedido</span>
             <span class="font-mono font-bold" id="confirmed-order-id">------</span>
           </div>
           <div class="flex justify-between mb-2">
-            <span class="text-gray-500">Importe pagado</span>
+            <span class="text-gray-500" data-i18n="label_paid">Importe pagado</span>
             <span class="text-2xl font-bold text-green-600">$<span id="confirmed-amount">0</span></span>
           </div>
           <div class="mb-2">
-            <p class="text-gray-500 text-xs mb-1">Números y cantidades</p>
+            <p class="text-gray-500 text-xs mb-1" data-i18n="label_numbers">Números y cantidades</p>
             <div id="confirmed-order-detail" class="text-xs text-gray-700 space-y-0.5">
               <!-- 由 JS 从接口填充 -->
             </div>
@@ -452,7 +481,7 @@
         </div>
 
         <button onclick="resetShop()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">
-          Seguir apostando
+          <span data-i18n="btn_keep_betting">Seguir apostando</span>
         </button>
       </div>
     </div>
@@ -471,6 +500,213 @@
       if (typeof location !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) return 'http://localhost:3000';
       return 'https://api.casagrade.com';
     })();
+
+    // ── 双语系统（西班牙语 / 中文）──────────────────────────
+    const CLIENT_LANG_KEY = 'lottery_client_lang';
+    const CLIENT_T = {
+      es: {
+        home_intro: 'Introduce el número de tienda para empezar',
+        home_store_placeholder: 'Número de tienda (ej. 1, 01, 88888)',
+        btn_enter: 'Entrar',
+        home_banker_link: 'Acceso del banquero',
+        home_recent_label: 'Tus pedidos recientes (toca para ver)',
+        header_account: 'Cuenta',
+        header_badge_drawing: 'Sorteo en curso',
+        header_badge_in_progress: 'En curso · {date}',
+        menu_other_store: 'Otra tienda',
+        menu_exit: 'Salir',
+        menu_lang: '🇨🇳 中文',
+        // 开奖中提示（不再带具体时间段，只提示暂停销售）
+        draw_window_banner: 'Sorteo en curso · Ventas suspendidas',
+        countdown_label: 'Cierre de ventas en',
+        fecha_sorteo: 'Fecha del sorteo',
+        label_number: 'Número',
+        label_quantity: 'Cantidad',
+        selected_numbers: 'Números seleccionados',
+        no_numbers_yet: 'Sin números aún',
+        total_label: 'Total',
+        total_bets_suffix: 'apuestas',
+        btn_confirm_bet: 'Confirmar apuesta',
+        pending_orders_label: 'Pedidos pendientes de pago',
+        paid_orders_label: 'Pedidos pagados · toca para ver detalle',
+        keyboard_number_title: 'Introduce el número de lotería',
+        keyboard_qty_title: 'Cantidad',
+        btn_add: 'Agregar',
+        auth_title: 'Cuenta',
+        btn_register: 'Registrarse',
+        btn_login_choice: 'Iniciar sesión',
+        auth_username: 'Usuario',
+        auth_password: 'Contraseña',
+        auth_password2: 'Repetir contraseña',
+        auth_display_hint: 'Nombre (opcional). Toca para cambiar.',
+        auth_display_placeholder: 'Toca para cambiar',
+        btn_back: 'Atrás',
+        btn_logout: 'Cerrar sesión',
+        cant_exit_title: 'No puedes salir aún',
+        cant_exit_msg1: 'Tienes pedidos pendientes de sorteo o premios sin cobrar.',
+        cant_exit_msg2: 'Revisa los pedidos pagados y cobra tus premios, o espera el resultado del sorteo.',
+        btn_understood: 'Entendido',
+        overlimit_title: 'Límite de ventas',
+        overlimit_msg: 'Los siguientes números superan el límite. Se ajustará la cantidad automáticamente.',
+        btn_cancel: 'Cancelar',
+        btn_continue: 'Continuar',
+        pay_show_cashier: 'Muéstralo al cajero para escanear',
+        pay_qr_note: 'El código QR incluye el número de pedido; el cajero lo usa para cobrar y pagar premios.',
+        pay_order_num: 'N.º de pedido',
+        pay_order_note: 'El número de pedido es tu comprobante para cobrar el premio. Consérvalo.',
+        pay_numbers_label: 'Números y cantidades',
+        pay_total: 'Total',
+        pay_valid: 'Válido 30 min, se cancela si no se paga.',
+        pay_waiting: 'Esperando pago',
+        pay_waiting_note: 'Después de que el cajero escanee, el estado se actualizará.',
+        btn_whatsapp: 'Enviar imagen del pedido al banquero',
+        btn_save_order: 'Guardar pedido',
+        btn_cancel_order: 'Cancelar pedido',
+        waiting_title: 'Esperando confirmación',
+        waiting_note: 'Entrega el importe al cajero',
+        waiting_order_num: 'N.º de pedido',
+        waiting_amount: 'Importe',
+        waiting_verify: 'Verifica que el importe sea correcto.',
+        won_title: '¡Felicidades! Has ganado',
+        won_note: 'Presenta este comprobante (QR o número de pedido) en la tienda para cobrar tu premio.',
+        redeemed_title: 'Premio cobrado',
+        lost_title: 'Sorteo realizado',
+        lost_note: 'No has resultado premiado en este pedido.',
+        awaiting_title: 'Esperando el sorteo',
+        awaiting_note: 'Guarda el QR para cobrar si ganas.',
+        confirmed_title: 'Pedido confirmado',
+        confirmed_note: 'Este QR es tu comprobante para cobrar el premio en el punto de venta.',
+        label_store: 'Tienda',
+        label_order_num: 'N.º de pedido',
+        label_paid: 'Importe pagado',
+        label_numbers: 'Números y cantidades',
+        btn_keep_betting: 'Seguir apostando',
+        draw_result: 'Resultado del sorteo',
+        label_placed_at: 'Fecha de compra',
+        label_draw_at: 'Fecha del sorteo',
+      },
+      zh: {
+        home_intro: '输入门店号码开始下单',
+        home_store_placeholder: '门店号码（例：1、01、88888）',
+        btn_enter: '进入',
+        home_banker_link: '商家入口',
+        home_recent_label: '最近订单（点击查看）',
+        header_account: '账户',
+        header_badge_drawing: '开奖中',
+        header_badge_in_progress: '进行中 · {date}',
+        menu_other_store: '换门店',
+        menu_exit: '退出',
+        menu_lang: '🇵🇦 Español',
+        draw_window_banner: '开奖中 · 暂停销售',
+        countdown_label: '距停售',
+        fecha_sorteo: '开奖日期',
+        label_number: '号码',
+        label_quantity: '数量',
+        selected_numbers: '已选号码',
+        no_numbers_yet: '还没有号码',
+        total_label: '共',
+        total_bets_suffix: '注',
+        btn_confirm_bet: '确认下单',
+        pending_orders_label: '待付款订单',
+        paid_orders_label: '已付款订单 · 点击查看详情',
+        keyboard_number_title: '输入彩票号码',
+        keyboard_qty_title: '数量',
+        btn_add: '添加',
+        auth_title: '账户',
+        btn_register: '注册',
+        btn_login_choice: '登录',
+        auth_username: '用户名',
+        auth_password: '密码',
+        auth_password2: '确认密码',
+        auth_display_hint: '昵称（可选），点击修改。',
+        auth_display_placeholder: '点击修改',
+        btn_back: '返回',
+        btn_logout: '退出登录',
+        cant_exit_title: '暂时无法退出',
+        cant_exit_msg1: '您有待开奖的订单或未兑换的奖金。',
+        cant_exit_msg2: '请查看已付款订单并兑奖，或等待开奖结果。',
+        btn_understood: '知道了',
+        overlimit_title: '销售限额',
+        overlimit_msg: '以下号码超出限额，数量将自动调整。',
+        btn_cancel: '取消',
+        btn_continue: '继续',
+        pay_show_cashier: '出示给收银员扫码',
+        pay_qr_note: '二维码包含订单号；收银员扫码付款，开奖后也凭此兑奖。',
+        pay_order_num: '订单号',
+        pay_order_note: '订单号是您的兑奖凭证，请妥善保存。',
+        pay_numbers_label: '号码和数量',
+        pay_total: '合计',
+        pay_valid: '30分钟内有效，超时自动取消。',
+        pay_waiting: '等待付款',
+        pay_waiting_note: '收银员扫码后状态将自动更新。',
+        btn_whatsapp: '将订单图片发给收银员',
+        btn_save_order: '保存订单',
+        btn_cancel_order: '取消订单',
+        waiting_title: '等待确认',
+        waiting_note: '请将款项交给收银员',
+        waiting_order_num: '订单号',
+        waiting_amount: '金额',
+        waiting_verify: '请确认金额无误。',
+        won_title: '🎉 恭喜中奖！',
+        won_note: '请携带此凭证（二维码或订单号）到门店兑奖。',
+        redeemed_title: '奖金已兑付',
+        lost_title: '已开奖',
+        lost_note: '本单未中奖。',
+        awaiting_title: '等待开奖',
+        awaiting_note: '请保存二维码，中奖后凭此兑奖。',
+        confirmed_title: '订单已确认',
+        confirmed_note: '此二维码是您的兑奖凭证，请到门店出示。',
+        label_store: '门店',
+        label_order_num: '订单号',
+        label_paid: '实付金额',
+        label_numbers: '号码和数量',
+        btn_keep_betting: '继续下单',
+        draw_result: '开奖结果',
+        label_placed_at: '下单时间',
+        label_draw_at: '开奖时间',
+      }
+    };
+
+    function getClientLang() {
+      return localStorage.getItem(CLIENT_LANG_KEY) || 'es';
+    }
+    function setClientLang(lang) {
+      localStorage.setItem(CLIENT_LANG_KEY, lang);
+      applyClientLang();
+    }
+    function toggleClientLang() {
+      setClientLang(getClientLang() === 'es' ? 'zh' : 'es');
+    }
+    function tc(key) {
+      var lang = getClientLang();
+      return (CLIENT_T[lang] && CLIENT_T[lang][key]) ? CLIENT_T[lang][key] : (CLIENT_T['es'][key] || key);
+    }
+    function applyClientLang() {
+      // data-i18n 静态元素
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var key = el.getAttribute('data-i18n');
+        el.textContent = tc(key);
+      });
+      // placeholder
+      document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
+        el.placeholder = tc(el.getAttribute('data-i18n-ph'));
+      });
+      // 语言切换按钮
+      var langBtn = document.getElementById('menu-lang-btn');
+      if (langBtn) langBtn.textContent = tc('menu_lang');
+      // 动态更新：总计行
+      var countEl = document.getElementById('total-count');
+      if (countEl) {
+        var countRow = countEl.closest('.flex');
+        if (countRow) {
+          var spans = countRow.querySelectorAll('span.text-gray-600');
+          if (spans.length > 0) {
+            spans[0].innerHTML = tc('total_label') + ' <span id="total-count">' + countEl.textContent + '</span> ' + tc('total_bets_suffix');
+          }
+        }
+      }
+    }
+    // ──────────────────────────────────────────────────────
 
     // 状态
     // 临时客户端账号：匿名顾客在这台设备上的ID
@@ -585,6 +821,11 @@
         if (!orderNumber) continue;
         try {
           var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
+          if (res.status === 404) {
+            removePendingOrderByNumber(orderNumber);
+            changed = true;
+            continue;
+          }
           if (!res.ok) continue;
           var data = await res.json();
           var isPaid = data.status === 1 || data.status === 'paid';
@@ -603,7 +844,8 @@
             ts: Date.now(),
             status: data.status,
             win_amount: data.win_amount,
-            redeemed_at: data.redeemed_at
+            redeemed_at: data.redeemed_at,
+            created_at: data.created_at || null
           };
           var paidRaw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
           var paidList = paidRaw ? JSON.parse(paidRaw) : [];
@@ -678,7 +920,7 @@
           alert(errMsg + ' (HTTP ' + r.status + ')');
         }
       } catch (e) {
-        alert('无法连接服务器，请检查网络。' + (e && e.message ? e.message : ''));
+        alert('No se pudo conectar al servidor. Verifica tu red.' + (e && e.message ? ' ' + e.message : ''));
       }
       stopStatusPolling();
       stopPayCountdown();
@@ -706,7 +948,15 @@
         var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
         var list = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(list)) list = [];
-        list = list.filter(function (o) { return o && o.clientId === clientId; });
+        const now = Date.now();
+        list = list.filter(function (o) {
+          if (!o || o.clientId !== clientId) return false;
+          // 过滤超时订单（超过 30 分钟）
+          const end = o.endMs || (o.ts ? o.ts + 30 * 60 * 1000 : now + 1);
+          return end > now;
+        });
+        // 写回（去掉已超时的）
+        try { localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(list)); } catch (e) {}
         if (list.length === 0) {
           wrap.classList.add('hidden');
           return;
@@ -791,7 +1041,16 @@
         var list = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(list)) list = [];
         var one = list.find(function (o) { return String(o.order_number || o.orderNumber || '') === String(num); });
-        if (one) goToPayPageForOrder(one);
+        if (one) {
+          // 超时订单直接静默删除，不跳转不弹窗
+          var endMs = one.endMs || (one.ts ? one.ts + 30 * 60 * 1000 : 0);
+          if (endMs && endMs <= Date.now()) {
+            removePendingOrderByNumber(num);
+            renderClientPendingOrders();
+            return;
+          }
+          goToPayPageForOrder(one);
+        }
         return;
       }
       var isPaidBtn = el.classList && el.classList.contains('client-paid-item');
@@ -903,16 +1162,27 @@
         var payDetail = document.getElementById('pay-order-detail');
         if (payDetail) payDetail.innerHTML = '<p class="text-gray-400">-</p>';
       }
+      // 优先用存储的 endMs，否则从 ts 推算
+      const orderEndMs = pendingInfo.endMs || (pendingInfo.ts ? pendingInfo.ts + 30 * 60 * 1000 : Date.now() + 30 * 60 * 1000);
+      if (orderEndMs <= Date.now()) {
+        // 已超时，静默删除，回首页
+        removePendingOrder(orderNumber);
+        renderClientPendingOrders();
+        return;
+      }
+      // 店号和 shopId 固定用订单创建时的店铺，不受当前切换店铺影响
+      var orderShopId = pendingInfo.shopId || (currentShop && currentShop.shop_id);
+      var orderShopNumber = (pendingInfo.shopNumber || pendingInfo.shop_number || (currentShop && currentShop.shop_number) || '-').toString();
       renderPaymentQR({
         orderId: currentOrderId,
         orderNumber: orderNumber,
         orderHash: currentOrderHash,
         amount: amount,
-        shopId: currentShop.shop_id
+        shopId: orderShopId
       }, 'pay-qr');
       var payShopEl = document.getElementById('pay-shop-number');
-      if (payShopEl) payShopEl.textContent = currentShop.shop_number || '-';
-      startPayCountdown();
+      if (payShopEl) payShopEl.textContent = orderShopNumber;
+      startPayCountdown(orderEndMs);
       startStatusPolling(orderNumber);
       showPage('page-pay');
       loadAndShowDrawNumbers(0); // 待付款状态，不显示开奖号
@@ -1144,8 +1414,9 @@
       }
     })();
 
-    // 服务端下注状态：14:55 停售，15:00-16:00 开奖中（巴拿马时间）
+    // 服务端下注状态
     var lastBetStatus = { canBet: true, isDrawWindow: false, currentPeriodDate: null };
+    var stopSellAtTimestamp = null; // 后端返回的停售时间戳（ms），null 表示未知
 
     function updateBetStatusUI() {
       var periodWrap = document.getElementById('client-current-period');
@@ -1164,6 +1435,21 @@
         if (lastBetStatus.isDrawWindow) drawBanner.classList.remove('hidden');
         else drawBanner.classList.add('hidden');
       }
+      var badge = document.getElementById('draw-status-badge');
+      if (badge) {
+        // 顶部徽章：西语/中文都用 i18n 文案，而不是硬编码中文
+        if (lastBetStatus.isDrawWindow) {
+          badge.textContent = t('header_badge_drawing');
+          badge.className = 'mt-0.5 text-xs px-2 py-0.5 rounded-full bg-orange-500/30 text-orange-200';
+          badge.classList.remove('hidden');
+        } else if (lastBetStatus.currentPeriodDate) {
+          badge.textContent = t('header_badge_in_progress').replace('{date}', lastBetStatus.currentPeriodDate);
+          badge.className = 'mt-0.5 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-200';
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      }
       var submitBtn = document.getElementById('submit-btn');
       if (submitBtn) {
         submitBtn.disabled = betList.length === 0 || !lastBetStatus.canBet || lastBetStatus.isDrawWindow;
@@ -1181,7 +1467,23 @@
           isDrawWindow: !!d.isDrawWindow,
           currentPeriodDate: d.currentPeriodDate || null
         };
+        // 用后端返回的停售时间戳或 minutesUntilStop/minutesUntilDraw 推算
+        if (typeof d.stopSellAt === 'number') {
+          stopSellAtTimestamp = d.stopSellAt;
+        } else if (typeof d.minutesUntilStop === 'number') {
+          stopSellAtTimestamp = Date.now() + d.minutesUntilStop * 60000;
+        } else if (typeof d.minutesUntilDraw === 'number') {
+          // 停售 = 开奖前 5 分钟
+          stopSellAtTimestamp = Date.now() + (d.minutesUntilDraw - 5) * 60000;
+        }
         updateBetStatusUI();
+        // 临近停售（<=10分钟）或开奖窗口时加快轮询到 5 秒，平时 30 秒
+        var mins = typeof d.minutesUntilDraw === 'number' ? d.minutesUntilDraw : 99;
+        var interval = (mins <= 10 || d.isDrawWindow) ? 5000 : 30000;
+        if (betStatusPollInterval) {
+          clearInterval(betStatusPollInterval);
+          betStatusPollInterval = setInterval(refreshBetStatus, interval);
+        }
       } catch (e) {}
     }
 
@@ -1504,7 +1806,7 @@
         pendingList = pendingList.filter(function (o) { return o && o.clientId === clientId; });
       } catch (e) {}
       if (pendingList.length >= MAX_PENDING_ORDERS) {
-        alert('你已有3张未付款订单，请先付款再继续下单');
+        alert('Ya tienes 3 pedidos pendientes de pago. Por favor paga primero antes de hacer más pedidos.');
         return;
       }
 
@@ -1555,7 +1857,8 @@
           ).join('');
         }
         // 启动 30 分钟倒计时（到点未付款订单会被后端取消）
-        startPayCountdown();
+        const newOrderEndMs = Date.now() + 30 * 60 * 1000;
+        startPayCountdown(newOrderEndMs);
 
         // 生成付款&兑奖共用二维码（付款页）
         const qrInfo = {
@@ -1568,6 +1871,33 @@
         renderPaymentQR(qrInfo, 'pay-qr');
         var payShopEl = document.getElementById('pay-shop-number');
         if (payShopEl) payShopEl.textContent = currentShop.shop_number || '-';
+        // 保存后端返回的真实下单时间（固定在订单上，不随页面刷新变化）
+        const orderCreatedAt = data.created_at || new Date().toISOString();
+
+        // 在付款页显示下单时间和开奖时间（展示用统一 DD-MM-YYYY）
+        try {
+          var placedAtEl = document.getElementById('pay-placed-at');
+          if (placedAtEl) {
+            var _t = new Date(orderCreatedAt);
+            var y = _t.getFullYear();
+            var m = String(_t.getMonth() + 1).padStart(2, '0');
+            var d = String(_t.getDate()).padStart(2, '0');
+            var hh = String(_t.getHours()).padStart(2, '0');
+            var mm2 = String(_t.getMinutes()).padStart(2, '0');
+            placedAtEl.textContent = d + '-' + m + '-' + y + ' ' + hh + ':' + mm2;
+          }
+          var drawAtEl = document.getElementById('pay-draw-at');
+          if (drawAtEl) {
+            var dateStr = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
+            if (dateStr && dateStr !== '--') {
+              // client-period-date 已经是 DD-MM-YYYY
+              drawAtEl.textContent = dateStr;
+            } else {
+              drawAtEl.textContent = '--';
+            }
+          }
+        } catch (e) {}
+
         try {
           var pendingRaw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
           var pendingList = pendingRaw ? JSON.parse(pendingRaw) : [];
@@ -1583,7 +1913,9 @@
             shopNumber: currentShop.shop_number,
             shop_number: currentShop.shop_number,
             shopId: currentShop.shop_id,
-            ts: Date.now()
+            ts: Date.now(),
+            endMs: newOrderEndMs,
+            created_at: orderCreatedAt,
           });
           localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(pendingList));
         } catch (e) {}
@@ -1639,9 +1971,9 @@
     let pollingInterval = null;
     let payCountdownInterval = null;
 
-    function startPayCountdown() {
+    function startPayCountdown(endMs) {
       if (payCountdownInterval) clearInterval(payCountdownInterval);
-      const endMs = Date.now() + 30 * 60 * 1000;
+      if (!endMs) endMs = Date.now() + 30 * 60 * 1000;
       const el = document.getElementById('pay-countdown');
       if (!el) return;
       function tick() {
@@ -1668,8 +2000,22 @@
       }
     }
 
-    async function checkOrderCanceledAndRedirect() {
-      const orderNumber = document.getElementById('pay-order-id') && document.getElementById('pay-order-id').textContent;
+    function removePendingOrder(orderNumber) {
+      try {
+        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) return;
+        list = list.filter(o => o && o.order_number !== orderNumber && o.orderNumber !== orderNumber);
+        localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(list));
+        renderPendingOrders();
+      } catch (e) {}
+    }
+
+    async function checkOrderCanceledAndRedirect(orderNumber) {
+      if (!orderNumber) {
+        const el = document.getElementById('pay-order-id');
+        orderNumber = el ? el.textContent : '';
+      }
       if (!orderNumber || orderNumber === '------') {
         showPage('page-shop');
         return;
@@ -1693,6 +2039,12 @@
       pollingInterval = setInterval(async () => {
         try {
           const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
+          if (res.status === 404) {
+            stopStatusPolling();
+            stopPayCountdown();
+            showPage('page-home');
+            return;
+          }
           const data = await res.json();
           const isPaid = data.status === 1 || data.status === 'paid';
           if (isPaid) {
@@ -1729,6 +2081,12 @@
       }
 
       removePendingOrderByNumber(orderNumber);
+      // 固定店号：优先从付款页已锁定的 pay-shop-number 读取，避免用户切换店铺后被覆盖
+      var payShopNumEl = document.getElementById('pay-shop-number');
+      var sn = (payShopNumEl && payShopNumEl.textContent && payShopNumEl.textContent !== '-')
+        ? payShopNumEl.textContent
+        : ((currentShop && currentShop.shop_number) ? String(currentShop.shop_number) : '-');
+      var orderShopId = currentShop ? currentShop.shop_id : null;
       try {
         const info = {
           clientId,
@@ -1737,9 +2095,19 @@
           orderId: currentOrderId,
           orderHash: currentOrderHash,
           amount,
-          shopNumber: document.getElementById('shop-number').textContent || '',
-          shopId: currentShop ? currentShop.shop_id : null,
-          ts: Date.now()
+          shopNumber: sn,
+          shopId: orderShopId,
+          ts: Date.now(),
+          created_at: (() => {
+            // 优先从 pending 订单里取后端固定的 created_at
+            try {
+              const pr = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+              const pl = pr ? JSON.parse(pr) : [];
+              const found = Array.isArray(pl) && pl.find(o => (o.order_number || o.orderNumber) === orderNumber);
+              if (found && found.created_at) return found.created_at;
+            } catch (e) {}
+            return new Date().toISOString();
+          })()
         };
         let list = [];
         try {
@@ -1754,16 +2122,9 @@
       } catch (e) {}
 
       renderPaymentQR(
-        {
-          orderId: currentOrderId,
-          orderNumber,
-          orderHash: currentOrderHash,
-          amount,
-          shopId: currentShop ? currentShop.shop_id : null
-        },
+        { orderId: currentOrderId, orderNumber, orderHash: currentOrderHash, amount, shopId: orderShopId },
         'confirmed-qr'
       );
-      var sn = (currentShop && currentShop.shop_number) ? String(currentShop.shop_number) : (document.getElementById('shop-number') && document.getElementById('shop-number').textContent) || '-';
       var cqr = document.getElementById('confirmed-qr-shop-number');
       var csn = document.getElementById('confirmed-shop-number');
       if (cqr) cqr.textContent = sn;
@@ -1811,6 +2172,11 @@
           if (!orderNumber) return;
           try {
             var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
+            if (res.status === 404) {
+              list[i]._deleted = true;
+              changed = true;
+              return;
+            }
             if (!res.ok) return;
             var data = await res.json();
             if (list[i].status !== data.status || list[i].win_amount !== data.win_amount || list[i].redeemed_at !== data.redeemed_at) {
@@ -1823,6 +2189,7 @@
           } catch (e) {}
         }));
         if (changed) {
+          list = list.filter(function(o) { return !o._deleted; });
           try { localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list)); } catch (e) {}
         }
       } catch (e) {}
@@ -1980,6 +2347,15 @@
     }
 
     // 顾客点击"已付款订单"某一单：先立即进入二维码页，再后台拉取开奖状态更新
+    function normalizeNumbersForCompare(list) {
+      if (!Array.isArray(list)) return [];
+      return list.map(function(n) {
+        var numStr = String(n && (n.n != null ? n.n : (n.number != null ? n.number : ''))).replace(/\D/g, '');
+        var qty = Number(n && (n.q != null ? n.q : (n.quantity != null ? n.quantity : 1))) || 1;
+        return { num: numStr, qty: qty };
+      }).filter(function (x) { return x.num; });
+    }
+
     var __openingOrderNumber = null;
     async function openClientOrderDetail(orderNumberFromList) {
       console.log('openClientOrderDetail 被调用:', orderNumberFromList);
@@ -1999,32 +2375,33 @@
           var n = o.order_number != null ? o.order_number : o.orderNumber;
           return String(n || '') === orderNumStr;
         });
-        if (!info && list.length) info = list[0];
+              if (!info && list.length) info = list[0];
         if (!info) {
           var lastRaw = localStorage.getItem(CLIENT_LAST_PAID_KEY);
-          if (lastRaw) info = JSON.parse(lastRaw);
+              if (lastRaw) info = JSON.parse(lastRaw);
         }
       } catch (e) {}
 
       if (!info && orderNumStr) {
         try {
-          var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumStr));
-          if (res.ok) {
-            var data = await res.json();
-            info = {
-              order_number: data.order_number,
-              orderNumber: data.order_number,
-              amount: data.amount,
-              shopId: data.shopId,
-              shop_number: data.shopNumber,
-              shopNumber: data.shopNumber,
-              orderId: data.order_id,
-              orderHash: data.order_hash,
-              clientId: clientId,
-              status: data.status,
-              win_amount: data.win_amount
-            };
-          }
+            var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumStr));
+            if (res.ok) {
+              var data = await res.json();
+              info = {
+                order_number: data.order_number,
+                orderNumber: data.order_number,
+                amount: data.amount,
+                shopId: data.shopId,
+                shop_number: data.shopNumber,
+                shopNumber: data.shopNumber,
+                orderId: data.order_id,
+                orderHash: data.order_hash,
+                clientId: clientId,
+                status: data.status,
+                win_amount: data.win_amount,
+                created_at: data.created_at || null
+              };
+            }
         } catch (e) {}
       }
       if (!info) {
@@ -2032,6 +2409,9 @@
         alert('No se encontró el pedido.');
         return;
       }
+
+      // 记录首次打开时的号码列表快照，用于后续与服务器返回的数据对比
+      var initialNumbersSnapshot = normalizeNumbersForCompare(info.numbers);
 
       try {
         var orderNumber = info.order_number != null ? info.order_number : (info.orderNumber != null ? info.orderNumber : orderNumStr);
@@ -2044,6 +2424,37 @@
         if (orderIdEl) orderIdEl.textContent = orderNumber || '------';
         var amountEl = document.getElementById('confirmed-amount');
         if (amountEl) amountEl.textContent = Number(info.amount || 0).toFixed(2);
+
+        // 确认页：二维码上方展示下单时间和开奖时间（统一 DD-MM-YYYY）
+        try {
+          var placedEl = document.getElementById('confirmed-placed-at');
+          var drawAtEl2 = document.getElementById('confirmed-draw-at');
+          if (placedEl) {
+            if (info.created_at) {
+              var t = new Date(info.created_at);
+              if (!isNaN(t.getTime())) {
+                var y2 = t.getFullYear();
+                var m2 = String(t.getMonth() + 1).padStart(2, '0');
+                var d2 = String(t.getDate()).padStart(2, '0');
+                var hh2 = String(t.getHours()).padStart(2, '0');
+                var mm3 = String(t.getMinutes()).padStart(2, '0');
+                placedEl.textContent = d2 + '-' + m2 + '-' + y2 + ' ' + hh2 + ':' + mm3;
+              } else {
+                placedEl.textContent = '--';
+              }
+            } else {
+              placedEl.textContent = '--';
+            }
+          }
+          if (drawAtEl2) {
+            var periodDate = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
+            if (periodDate && periodDate !== '--') {
+              drawAtEl2.textContent = periodDate;
+            } else {
+              drawAtEl2.textContent = '--';
+            }
+          }
+        } catch (e) {}
 
         var resultArea = document.getElementById('confirmed-result-area');
         var resultWon = document.getElementById('confirmed-result-won');
@@ -2072,8 +2483,11 @@
           resultWaiting.classList.remove('hidden');
         }
 
-        var confirmedDetailEl = document.getElementById('confirmed-order-detail');
-        if (confirmedDetailEl) confirmedDetailEl.innerHTML = '<p class="text-gray-400">Cargando…</p>';
+        // 首次打开详情时，用本地 info.numbers 渲染「Números y cantidades」
+        var initialNumbers = info.numbers;
+        if (initialNumbers && initialNumbers.length) {
+          renderOrderDetailFromApi(initialNumbers, info.game_type, 'confirmed-order-detail');
+        }
 
         renderPaymentQR(
           {
@@ -2131,13 +2545,31 @@
                 rWon.classList.remove('hidden');
               } else if (isSettled && rLost) rLost.classList.remove('hidden');
               else if (rWaiting) rWaiting.classList.remove('hidden');
+
+              // 后端是真实数据源：若当前展示的号码+数量和后端返回一致，则不动；
+              // 若前端被篡改导致不一致，则用后端数据覆盖「Números y cantidades」以纠正。
               var numbers = data2.numbers;
-              var winBreakdown = data2.win_breakdown;
-              if (isWon && winBreakdown && winBreakdown.length > 0) {
-                renderOrderDetailWithWins(winBreakdown, 'confirmed-order-detail');
-              }
-              if ((!isWon || !winBreakdown || winBreakdown.length === 0) && numbers && numbers.length > 0) {
-                renderOrderDetailFromApi(numbers, data2.game_type, 'confirmed-order-detail');
+              if (numbers && numbers.length) {
+                var snapshotDom = (function() {
+                  var el = document.getElementById('confirmed-order-detail');
+                  if (!el) return null;
+                  var lines = Array.from(el.querySelectorAll('[data-num-row]'));
+                  if (!lines.length) return null;
+                  return lines.map(function(row) {
+                    var num = row.getAttribute('data-num') || '';
+                    var qty = Number(row.getAttribute('data-qty') || '0') || 0;
+                    return { num: num, qty: qty };
+                  });
+                })();
+                var backendSnapshot = normalizeNumbersForCompare(numbers);
+                var same = snapshotDom &&
+                  snapshotDom.length === backendSnapshot.length &&
+                  snapshotDom.every(function(x, i) {
+                    return x.num === backendSnapshot[i].num && x.qty === backendSnapshot[i].qty;
+                  });
+                if (!same) {
+                  renderOrderDetailFromApi(numbers, data2.game_type, 'confirmed-order-detail');
+                }
               }
             })
             .catch(function () {});
@@ -2274,7 +2706,7 @@
       });
     }
 
-    // 客户端停止售卖倒计时：仅在距离停售 <=10 分钟时显示（使用巴拿马本地时间 15:00 开奖）
+    // 客户端停止售卖倒计时：基于后端返回的停售时间戳，距停售 <=10 分钟时显示
     function startClientStopCountdown() {
       if (clientStopCountdownInterval) clearInterval(clientStopCountdownInterval);
 
@@ -2283,36 +2715,8 @@
       if (!box || !timerEl) return;
 
       function update() {
-        // 巴拿马永远 UTC-5，无夏令时
-        const PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
-        const nowUTC = Date.now();
-        const panamaLocal = new Date(nowUTC + PANAMA_OFFSET_MS);
-        const panamaDay  = panamaLocal.getUTCDay();
-        const panamaHour = panamaLocal.getUTCHours();
-
-        // UTC 时刻对应巴拿马今日 00:00
-        const panamaMidnightUTC = nowUTC
-          - (panamaLocal.getUTCHours()   * 3600000
-           + panamaLocal.getUTCMinutes() *   60000
-           + panamaLocal.getUTCSeconds() *    1000
-           + panamaLocal.getUTCMilliseconds());
-
-        // 开奖日：周三(3)、周日(0)，15:00 巴拿马时间
-        let daysUntil;
-        if ((panamaDay === 0 || panamaDay === 3) && panamaHour < 15) { daysUntil = 0; }
-        else if (panamaDay === 0) { daysUntil = 3; } // 周日已过 → 下个周三
-        else if (panamaDay === 1) { daysUntil = 2; }
-        else if (panamaDay === 2) { daysUntil = 1; }
-        else if (panamaDay === 3) { daysUntil = 4; } // 周三已过 → 下个周日
-        else if (panamaDay === 4) { daysUntil = 3; }
-        else if (panamaDay === 5) { daysUntil = 2; }
-        else                      { daysUntil = 1; } // 周六 → 下个周日
-
-        const nextDrawUTC  = panamaMidnightUTC + daysUntil * 86400000 + 15 * 3600000;
-        const stopSellUTC  = nextDrawUTC - 5 * 60 * 1000;
-        const diffToStop   = stopSellUTC - nowUTC;
-
-        // 仅当距离停售 <=10 分钟 且 >0 时显示
+        if (!stopSellAtTimestamp) { box.classList.add('hidden'); return; }
+        const diffToStop = stopSellAtTimestamp - Date.now();
         if (diffToStop > 0 && diffToStop <= 10 * 60 * 1000) {
           const m = Math.floor(diffToStop / 60000);
           const s = Math.floor((diffToStop % 60000) / 1000);
@@ -2352,6 +2756,7 @@
       function show() {
         document.body.style.visibility = 'visible';
       }
+      applyClientLang(); // 初始化语言
       updateHeaderAccount();
       var lastOrder = null;
       try {
@@ -2391,6 +2796,76 @@
     // 直接绑定「Entrar」按钮，确保点进去一定能进店（不依赖 onclick 或全局名）
     var btnEntrar = document.getElementById('btn-entrar');
     if (btnEntrar) btnEntrar.addEventListener('click', goToShop);
+  </script>
+
+  <!-- PWA 添加到桌面提示（客户端） -->
+  <div id="modal-client-pwa" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
+      <h3 class="text-base font-bold text-gray-800 mb-2">📲 Agregar a pantalla principal</h3>
+      <p class="text-sm text-gray-500 mb-4 leading-relaxed">Ábrela directo desde el ícono en tu pantalla, sin escribir la dirección cada vez.</p>
+      <!-- iOS -->
+      <div id="client-pwa-ios" class="hidden mb-3 bg-gray-100 rounded-xl p-3 text-xs text-gray-600 leading-relaxed">
+        En iOS: toca <span class="font-bold text-gray-800">Compartir</span> → <span class="font-bold text-gray-800">Agregar a pantalla de inicio</span><br>
+        <span class="text-gray-500">iOS：点底部"分享"→"添加到主屏幕"</span>
+      </div>
+      <!-- Android sin prompt nativo -->
+      <div id="client-pwa-manual" class="hidden mb-3 bg-gray-100 rounded-xl p-3 text-xs text-gray-600 leading-relaxed">
+        Toca el menú <span class="font-bold text-gray-800">⋮</span> del navegador → <span class="font-bold text-gray-800">Agregar a pantalla de inicio</span><br>
+        <span class="text-gray-500">点浏览器右上角菜单 ⋮ → 添加到主屏幕</span>
+      </div>
+      <!-- Ya instalado -->
+      <div id="client-pwa-installed" class="hidden mb-3 bg-green-50 rounded-xl p-3 text-xs text-green-700">
+        ✅ Ya está en tu pantalla principal · 已安装到桌面
+      </div>
+      <div class="flex gap-3">
+        <button id="client-pwa-install-btn" onclick="doClientPwaInstall()"
+          class="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold text-sm">
+          Agregar · 添加
+        </button>
+        <button onclick="document.getElementById('modal-client-pwa').classList.add('hidden')"
+          class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-3 rounded-xl font-bold text-sm">
+          Ahora no · 以后再说
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // PWA 安装提示（客户端）
+    var _clientPwaPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      _clientPwaPrompt = e;
+      var btn = document.getElementById('client-pwa-btn2');
+      if (btn) btn.classList.remove('hidden');
+    });
+
+    function showClientPwaPrompt() {
+      var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+      var isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+      document.getElementById('client-pwa-ios').classList.toggle('hidden', !isIOS);
+      document.getElementById('client-pwa-manual').classList.toggle('hidden', isIOS || isInstalled || !!_clientPwaPrompt);
+      document.getElementById('client-pwa-install-btn').classList.toggle('hidden', isIOS || isInstalled || !_clientPwaPrompt);
+      document.getElementById('client-pwa-installed').classList.toggle('hidden', !isInstalled);
+      document.getElementById('modal-client-pwa').classList.remove('hidden');
+    }
+
+    async function doClientPwaInstall() {
+      if (!_clientPwaPrompt) return;
+      _clientPwaPrompt.prompt();
+      await _clientPwaPrompt.userChoice;
+      _clientPwaPrompt = null;
+      document.getElementById('modal-client-pwa').classList.add('hidden');
+      var btn = document.getElementById('client-pwa-btn2');
+      if (btn) btn.classList.add('hidden');
+    }
+
+    // 注册 Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+      });
+    }
   </script>
 </body>
 </html>

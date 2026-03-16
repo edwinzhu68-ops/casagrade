@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>卡密管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .hidden { display: none !important; }
+    .card-code {
+      letter-spacing: 0.12em;
+      user-select: all;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.25s ease; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+
+  <!-- 登录页 -->
+  <div id="page-login" class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-800 rounded-3xl shadow-2xl p-8 w-full max-w-sm">
+      <div class="text-center mb-8">
+        <div class="text-5xl mb-3">🎫</div>
+        <h1 class="text-xl font-bold">卡密管理</h1>
+        <p class="text-gray-400 text-sm mt-1">输入管理员密钥登录</p>
+      </div>
+      <input type="password" id="login-token" placeholder="管理员密钥（ADMIN_TOKEN）"
+        class="w-full text-center py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-purple-500 focus:outline-none mb-4"
+        onkeydown="if(event.key==='Enter') login()" />
+      <button onclick="login()" class="w-full bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl font-bold text-lg">
+        登录
+      </button>
+      <p id="login-error" class="text-red-400 text-sm text-center mt-3 hidden"></p>
+    </div>
+  </div>
+
+  <!-- 主页面 -->
+  <div id="page-main" class="hidden min-h-screen pb-20">
+    <header class="bg-gray-800 sticky top-0 z-10 shadow-lg">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">🎫</span>
+          <div>
+            <h1 class="font-bold text-base leading-tight">卡密管理</h1>
+            <p class="text-xs text-gray-400">未激活卡密列表</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="loadCards()" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg">🔄 刷新</button>
+          <button onclick="logout()" class="text-gray-400 text-sm hover:text-white">退出</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto p-4 space-y-5">
+
+      <!-- 生成卡密 -->
+      <div class="bg-gray-800 rounded-2xl p-5">
+        <h2 class="font-bold mb-4">✨ 生成新卡密</h2>
+        <div class="flex flex-wrap gap-3 items-end">
+          <div>
+            <p class="text-xs text-gray-400 mb-1">类型</p>
+            <div class="flex gap-2">
+              <label class="flex items-center gap-2 cursor-pointer bg-blue-900/50 border-2 border-blue-500 rounded-xl px-4 py-2 has-[:checked]:bg-blue-600 has-[:checked]:border-blue-400 transition-colors">
+                <input type="radio" name="gen-type" value="monthly" checked class="accent-blue-400" />
+                <span class="text-sm font-bold">🌙 月卡</span>
+                <span class="text-xs text-blue-300">+30天</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer bg-yellow-900/30 border-2 border-yellow-600 rounded-xl px-4 py-2 has-[:checked]:bg-yellow-600 has-[:checked]:border-yellow-400 transition-colors">
+                <input type="radio" name="gen-type" value="yearly" class="accent-yellow-400" />
+                <span class="text-sm font-bold">⭐ 年卡</span>
+                <span class="text-xs text-yellow-300">+365天</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-1">数量</p>
+            <input type="number" id="gen-count" value="1" min="1" max="50"
+              class="w-20 text-center py-2 bg-gray-700 border border-gray-600 rounded-xl font-mono text-sm" />
+          </div>
+          <button onclick="generateCards()" id="btn-generate"
+            class="bg-purple-600 hover:bg-purple-500 active:scale-95 px-6 py-2 rounded-xl font-bold text-sm transition-transform">
+            生成卡密
+          </button>
+        </div>
+        <p id="gen-result" class="text-sm mt-3 hidden"></p>
+      </div>
+
+      <!-- 统计 -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-blue-900/40 border border-blue-700 rounded-xl p-3 text-center">
+          <p class="text-xs text-blue-300 mb-1">月卡（未用）</p>
+          <p class="text-2xl font-bold text-blue-200" id="count-monthly">-</p>
+        </div>
+        <div class="bg-yellow-900/30 border border-yellow-700 rounded-xl p-3 text-center">
+          <p class="text-xs text-yellow-300 mb-1">年卡（未用）</p>
+          <p class="text-2xl font-bold text-yellow-200" id="count-yearly">-</p>
+        </div>
+        <div class="bg-gray-700/50 border border-gray-600 rounded-xl p-3 text-center">
+          <p class="text-xs text-gray-400 mb-1">合计未用</p>
+          <p class="text-2xl font-bold" id="count-total">-</p>
+        </div>
+      </div>
+
+      <!-- 卡密列表 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <!-- 月卡 -->
+        <div class="bg-gray-800 rounded-2xl overflow-hidden">
+          <div class="bg-blue-900/60 border-b border-blue-700/50 px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">🌙</span>
+              <span class="font-bold text-blue-200">月卡</span>
+              <span class="text-xs text-blue-400 bg-blue-900/80 px-2 py-0.5 rounded-full">+30天</span>
+            </div>
+            <span class="text-xs text-blue-400" id="monthly-label">共 0 张</span>
+          </div>
+          <div id="list-monthly" class="p-3 space-y-2 min-h-[60px]">
+            <p class="text-gray-500 text-xs text-center py-4">加载中...</p>
+          </div>
+        </div>
+
+        <!-- 年卡 -->
+        <div class="bg-gray-800 rounded-2xl overflow-hidden">
+          <div class="bg-yellow-900/40 border-b border-yellow-700/50 px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">⭐</span>
+              <span class="font-bold text-yellow-200">年卡</span>
+              <span class="text-xs text-yellow-400 bg-yellow-900/80 px-2 py-0.5 rounded-full">+365天</span>
+            </div>
+            <span class="text-xs text-yellow-400" id="yearly-label">共 0 张</span>
+          </div>
+          <div id="list-yearly" class="p-3 space-y-2 min-h-[60px]">
+            <p class="text-gray-500 text-xs text-center py-4">加载中...</p>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- 复制提示 -->
+  <div id="copy-toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-700 text-white text-sm px-4 py-2 rounded-full shadow-xl z-50 fade-in">
+    已复制
+  </div>
+
+  <script>
+    const API_BASE = (() => {
+      const saved = localStorage.getItem('lottery_api_base');
+      if (saved) return saved;
+      const h = location.hostname;
+      if (h === 'localhost' || h === '127.0.0.1') return '';
+      return 'https://api.casagrade.com';
+    })();
+
+    let _token = '';
+
+    function getHeaders() {
+      return { 'Content-Type': 'application/json', 'X-Admin-Token': _token };
+    }
+
+    function login() {
+      const t = document.getElementById('login-token').value.trim();
+      if (!t) { showLoginError('请输入管理员密钥'); return; }
+      _token = t;
+      // 用生成一张 monthly 试探权限（count=0 会被校验拒绝，直接调 cards 列表）
+      fetch(`${API_BASE}/api/admin/cards`, { headers: { 'X-Admin-Token': t } })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data.cards)) {
+            localStorage.setItem('cards_admin_token', t);
+            document.getElementById('page-login').classList.add('hidden');
+            document.getElementById('page-main').classList.remove('hidden');
+            renderCards(data.cards);
+          } else {
+            showLoginError('密钥错误或无权限');
+          }
+        })
+        .catch(() => showLoginError('连接失败，请检查网络'));
+    }
+
+    function showLoginError(msg) {
+      const el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function logout() {
+      localStorage.removeItem('cards_admin_token');
+      _token = '';
+      document.getElementById('page-main').classList.add('hidden');
+      document.getElementById('page-login').classList.remove('hidden');
+      document.getElementById('login-token').value = '';
+      document.getElementById('login-error').classList.add('hidden');
+    }
+
+    async function loadCards() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/cards`, { headers: getHeaders() });
+        const data = await res.json();
+        if (Array.isArray(data.cards)) renderCards(data.cards);
+      } catch (e) {}
+    }
+
+    function renderCards(cards) {
+      // 只显示未使用的卡密
+      const unused = cards.filter(c => !c.used);
+      const monthly = unused.filter(c => c.type === 'monthly');
+      const yearly  = unused.filter(c => c.type === 'yearly');
+
+      document.getElementById('count-monthly').textContent = monthly.length;
+      document.getElementById('count-yearly').textContent  = yearly.length;
+      document.getElementById('count-total').textContent   = unused.length;
+      document.getElementById('monthly-label').textContent = `共 ${monthly.length} 张`;
+      document.getElementById('yearly-label').textContent  = `共 ${yearly.length} 张`;
+
+      renderList('list-monthly', monthly, 'monthly');
+      renderList('list-yearly',  yearly,  'yearly');
+    }
+
+    function renderList(elId, cards, type) {
+      const el = document.getElementById(elId);
+      if (cards.length === 0) {
+        el.innerHTML = '<p class="text-gray-500 text-xs text-center py-6">暂无未使用卡密</p>';
+        return;
+      }
+      const isMonthly = type === 'monthly';
+      const codeCls = isMonthly
+        ? 'text-blue-200 bg-blue-950/60 border border-blue-800'
+        : 'text-yellow-200 bg-yellow-950/40 border border-yellow-800';
+      const btnCls = isMonthly
+        ? 'text-blue-400 hover:text-blue-200'
+        : 'text-yellow-400 hover:text-yellow-200';
+
+      el.innerHTML = cards.map(c => `
+        <div class="flex items-center justify-between ${codeCls} rounded-xl px-3 py-2 fade-in" data-code="${c.code}">
+          <span class="font-mono card-code text-sm tracking-widest">${c.code}</span>
+          <button onclick="copyCode('${c.code}')" class="${btnCls} text-xs ml-2 flex-shrink-0 transition-colors" title="复制">
+            📋
+          </button>
+        </div>
+      `).join('');
+    }
+
+    let _copyTimer = null;
+    function copyCode(code) {
+      navigator.clipboard?.writeText(code).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      });
+      const toast = document.getElementById('copy-toast');
+      toast.classList.remove('hidden');
+      clearTimeout(_copyTimer);
+      _copyTimer = setTimeout(() => toast.classList.add('hidden'), 1500);
+    }
+
+    async function generateCards() {
+      const type = document.querySelector('input[name="gen-type"]:checked')?.value || 'monthly';
+      const count = Math.min(Math.max(parseInt(document.getElementById('gen-count').value) || 1, 1), 50);
+      const btn = document.getElementById('btn-generate');
+      const resultEl = document.getElementById('gen-result');
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      resultEl.classList.add('hidden');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/generate-cards`, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ type, count }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          const label = type === 'monthly' ? '月卡' : '年卡';
+          resultEl.className = 'text-sm mt-3 text-green-400';
+          resultEl.textContent = `✓ 成功生成 ${data.codes.length} 张${label}`;
+          resultEl.classList.remove('hidden');
+          // 重新加载列表，新卡自动出现
+          await loadCards();
+        } else {
+          resultEl.className = 'text-sm mt-3 text-red-400';
+          resultEl.textContent = '生成失败：' + (data.message || data.error || '未知错误');
+          resultEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        resultEl.className = 'text-sm mt-3 text-red-400';
+        resultEl.textContent = '请求失败';
+        resultEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '生成卡密';
+      }
+    }
+
+    // 自动刷新：每 30 秒检测是否有新激活（已用卡密自动消失）
+    setInterval(() => {
+      if (!document.getElementById('page-main').classList.contains('hidden')) {
+        loadCards();
+      }
+    }, 30000);
+
+    // 自动登录（已保存密钥）
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('cards_admin_token');
+      if (saved) {
+        document.getElementById('login-token').value = saved;
+        login();
+      }
+    });
+  </script>
+</body>
+</html>

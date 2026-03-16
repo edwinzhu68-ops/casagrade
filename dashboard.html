@@ -57,13 +57,20 @@
           <p class="text-3xl font-bold" id="total-shops">0</p>
         </div>
         <div class="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-4 text-center">
-          <p class="text-sm opacity-80">今日订单</p>
+          <p class="text-sm opacity-80">当期订单数</p>
           <p class="text-3xl font-bold" id="total-orders">0</p>
         </div>
         <div class="bg-gradient-to-r from-yellow-600 to-yellow-500 rounded-2xl p-4 text-center">
-          <p class="text-sm opacity-80">今日销售额（已付）</p>
+          <p class="text-sm opacity-80">当期销售额（已付）</p>
           <p class="text-3xl font-bold" id="total-sales">$0</p>
         </div>
+      </div>
+
+      <!-- 历史期次总订单数 / 销售额 -->
+      <div class="flex justify-end mt-1">
+        <button onclick="openHistoryModal()" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg">
+          查看历史期次汇总
+        </button>
       </div>
 
       <!-- Firebase 拉取 + 手动开奖 -->
@@ -97,6 +104,12 @@
 
         <div class="border-t border-gray-600 pt-4 mt-2">
           <h3 class="font-bold mb-2 text-sm">🎰 手动开奖</h3>
+          <p id="confirmed-draw-status" class="text-xs text-gray-400 mb-2">系统记录：--（巴拿马时间）</p>
+          <!-- 回滚后警告横幅 -->
+          <div id="rollback-warning" class="hidden bg-red-900 border border-red-500 rounded-lg px-4 py-3 mb-3 flex items-center justify-between">
+            <span class="text-red-200 font-bold text-sm">⚠️ 已回滚！请立即修改开奖号码后重新发送</span>
+            <button onclick="document.getElementById('rollback-warning').classList.add('hidden')" class="text-red-400 hover:text-white text-lg ml-3">×</button>
+          </div>
           <p class="text-xs text-gray-400 mb-2">默认下次周三 15:00；节假日顺延时请修改日期/时间，轮询将按你填的日期时间执行。</p>
           <div class="grid grid-cols-4 gap-2 mb-3">
             <div>
@@ -124,18 +137,25 @@
                 class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
             </div>
           </div>
+          <button onclick="confirmManualDraw()" class="w-full bg-red-600 hover:bg-red-500 active:scale-95 py-5 rounded-2xl font-bold text-2xl tracking-wide shadow-lg shadow-red-900/50 transition-transform mb-3">
+            🔴 发送开奖结果
+          </button>
           <div class="flex flex-wrap gap-3">
             <button onclick="sendDrawTime()" class="flex-1 min-w-[140px] bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-bold text-sm">
               📅 发送开奖时间
             </button>
-            <button onclick="manualDraw()" class="flex-1 min-w-[140px] bg-red-600 hover:bg-red-500 py-2 rounded-lg font-bold text-sm">
-              🔴 发送开奖结果
+            <button onclick="rollbackDraw()" class="flex-1 min-w-[140px] bg-orange-700 hover:bg-orange-600 py-2 rounded-lg font-bold text-sm">
+              ↩️ 回滚开奖
             </button>
             <button onclick="clearSettlement()" class="flex-1 min-w-[140px] bg-amber-600 hover:bg-amber-500 py-2 rounded-lg font-bold text-sm" title="效果与开奖当天 15:00 前清除一致：当前期转入历史，结算页显示等待开奖。登录即可操作">
               🧹 清空开奖结算
             </button>
+            <button onclick="archiveMainShop()" class="flex-1 min-w-[140px] bg-teal-700 hover:bg-teal-600 py-2 rounded-lg font-bold text-sm" title="手动归档大庄管理中心数据，效果等同于开奖次日 09:00 自动归档">
+              🏬 归档大庄数据
+            </button>
           </div>
-          <p class="text-xs text-gray-400 mt-2">「清空开奖结算」：将当前期从结算页清除、转入历史，结算页会显示等待开奖，直到下次发送开奖结果。登录即可操作。</p>
+          <p id="archive-main-result" class="text-xs mt-2 hidden"></p>
+          <p class="text-xs text-gray-400 mt-1">「清空开奖结算」：将当前期从结算页清除、转入历史，结算页会显示等待开奖，直到下次发送开奖结果。登录即可操作。</p>
         </div>
       </div>
 
@@ -161,6 +181,41 @@
         <p id="assign-result" class="text-sm mt-2 hidden"></p>
       </div>
 
+      <!-- 店铺列表 -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-bold text-sm">🏪 店铺列表</h2>
+          <button onclick="loadShopList()" class="text-xs bg-gray-600 hover:bg-gray-500 px-3 py-1 rounded-lg">刷新</button>
+        </div>
+        <div id="shop-list-table" class="space-y-2 text-xs">
+          <p class="text-gray-500 text-center">加载中...</p>
+        </div>
+      </div>
+
+      <!-- 重置密码 + 生成卡密 -->
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div class="bg-gray-800 rounded-2xl p-4">
+          <h2 class="font-bold text-sm mb-3">🔑 重置商家密码</h2>
+          <div class="space-y-2">
+            <input type="text" id="reset-shop-number" placeholder="店号"
+              class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono text-sm" />
+            <input type="text" id="reset-new-password" placeholder="新密码（至少4位）"
+              class="w-full text-center py-2 bg-gray-700 rounded-lg text-sm" />
+            <button onclick="resetPassword()" class="w-full bg-yellow-600 hover:bg-yellow-500 py-2 rounded-lg font-bold text-sm">
+              重置密码
+            </button>
+            <p id="reset-result" class="text-xs text-center hidden"></p>
+          </div>
+        </div>
+        <div class="bg-gray-800 rounded-2xl p-4 flex flex-col items-center justify-center gap-3 text-center">
+          <div class="text-3xl">🎫</div>
+          <p class="text-sm font-bold">卡密管理</p>
+          <p class="text-xs text-gray-400">生成、查看、管理月卡/年卡</p>
+          <a href="cards.html" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm block">
+            进入卡密管理 →
+          </a>
+        </div>
+      </div>
 
       <!-- 按店铺号查看销售明细（和老板端样式一致） -->
       <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
@@ -222,50 +277,6 @@
         </div>
       </div>
 
-      <!-- 店铺对比：Top N 销售额 / 净利润 -->
-      <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
-        <div class="flex items-center justify-between mb-1">
-          <h2 class="font-bold text-sm">店铺对比</h2>
-          <span class="text-xs text-gray-400">选择时间段，对比 Top N 店铺</span>
-        </div>
-        <div class="grid grid-cols-5 gap-2 text-[11px] mb-2">
-          <div class="col-span-2">
-            <p class="text-gray-400 mb-1">开始日期</p>
-            <input type="date" id="compare-start" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
-          </div>
-          <div class="col-span-2">
-            <p class="text-gray-400 mb-1">结束日期</p>
-            <input type="date" id="compare-end" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
-          </div>
-          <div>
-            <p class="text-gray-400 mb-1">Top N</p>
-            <input type="number" id="compare-top" value="10" min="3" max="50"
-              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" />
-          </div>
-        </div>
-        <button onclick="loadShopCompare()" class="w-full bg-blue-600 py-2 rounded-lg font-bold text-sm mb-2">
-          载入店铺对比
-        </button>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <h3 class="font-bold text-xs">Top N 按销售额</h3>
-            </div>
-            <div id="chart-sales" class="space-y-1 min-h-[60px]">
-              <p class="text-gray-500 text-xs text-center">请选择时间段并点击载入</p>
-            </div>
-          </div>
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <h3 class="font-bold text-xs">Top N 按净利润</h3>
-            </div>
-            <div id="chart-profit" class="space-y-1 min-h-[60px]">
-              <p class="text-gray-500 text-xs text-center">请选择时间段并点击载入</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- 系统运行状态 -->
       <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
         <h3 class="font-bold text-sm">系统运行状态</h3>
@@ -274,6 +285,22 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- 历史期次汇总弹窗 -->
+  <div id="modal-history" class="hidden fixed inset-0 bg-black/70 z-50 overflow-y-auto">
+    <div class="min-h-screen p-4 flex items-center justify-center">
+      <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-2xl">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-lg font-bold">历史期次汇总（全部店铺）</h2>
+          <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white text-lg">✕</button>
+        </div>
+        <p class="text-xs text-gray-400 mb-2">每期总订单数与总销售额，数据归档后永久保留。</p>
+        <div id="history-table" class="text-xs">
+          <p class="text-gray-500 text-center py-4">加载中...</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 店铺详情弹窗 -->
@@ -316,8 +343,48 @@
   <script>
     const API_BASE = 'https://api.casagrade.com';
     const ADMIN_TOKEN_KEY = 'lottery_admin_token';
-    
+
     let authToken = localStorage.getItem('lottery_token') || null;
+
+    // ── 自定义 Toast 提示 ────────────────────────────────────
+    let _toastTimer = null;
+    function showToast(msg, type) {
+      let el = document.getElementById('_toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = '_toast';
+        el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;max-width:90vw;pointer-events:none;transition:opacity 0.3s';
+        document.body.appendChild(el);
+      }
+      const colors = { success: 'bg-green-700 border-green-500', error: 'bg-red-800 border-red-600', info: 'bg-gray-700 border-gray-500', warning: 'bg-yellow-800 border-yellow-600' };
+      const c = colors[type || 'info'] || colors.info;
+      el.innerHTML = '<div class="' + c + ' border text-white text-sm px-5 py-3 rounded-2xl shadow-2xl font-bold">' + msg + '</div>';
+      el.style.opacity = '1';
+      if (_toastTimer) clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(function () { el.style.opacity = '0'; }, 3000);
+    }
+
+    // ── 自定义 Confirm 弹窗 ──────────────────────────────────
+    function showConfirm(msg, onConfirm) {
+      let el = document.getElementById('_confirm');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = '_confirm';
+        el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px';
+        document.body.appendChild(el);
+      }
+      el.innerHTML = '<div class="bg-gray-800 border border-gray-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl">' +
+        '<p class="text-sm text-gray-200 mb-5 text-center leading-relaxed">' + msg + '</p>' +
+        '<div class="flex gap-3">' +
+        '<button id="_confirm-cancel" class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-xl font-bold text-sm">取消</button>' +
+        '<button id="_confirm-ok" class="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-sm">确认</button>' +
+        '</div></div>';
+      el.classList.remove('hidden');
+      el.style.display = 'flex';
+      document.getElementById('_confirm-cancel').onclick = function () { el.style.display = 'none'; };
+      document.getElementById('_confirm-ok').onclick = function () { el.style.display = 'none'; onConfirm(); };
+      el.onclick = function (e) { if (e.target === el) el.style.display = 'none'; };
+    }
 
     function getAdminHeaders(includeAuth) {
       const h = { 'Content-Type': 'application/json' };
@@ -407,16 +474,57 @@
       return null;
     }
 
-    // 初始化开奖日期/时间：优先用后端待开奖期（保证“设成几号就显示几号”），否则本地保存或“下次周三 15:00”
+    // 初始化开奖日期/时间：
+    // 1）优先用 /api/bet-status 返回的 confirmedDrawDay/confirmedDrawTime（系统真实认定的开奖时间，巴拿马时区）+ 本地最近一次你填的时间
+    // 2）其次用 /api/draw/pending 的 draw_date/draw_time
+    // 3）再其次用本地保存或 “下次周三 15:00”
     async function initDrawDefaults() {
       const dateInput = document.getElementById('draw-date');
       const timeInput = document.getElementById('draw-time');
       if (!dateInput || !timeInput) return;
+
+       // Step 1: 尝试用 bet-status 的 confirmedDrawDay / confirmedDrawTime
+      try {
+        let savedTime = null;
+        try {
+          const savedRaw = localStorage.getItem(NEXT_DRAW_DEFAULT_KEY);
+          if (savedRaw) {
+            const o = JSON.parse(savedRaw);
+            if (o && o.time) savedTime = String(o.time);
+          }
+        } catch (e) {}
+
+        const bsRes = await fetch(API_BASE + '/api/bet-status');
+        if (bsRes.ok) {
+          const bs = await bsRes.json();
+          const day = bs.confirmedDrawDay || bs.currentPeriodDate || null; // DD-MM-YYYY
+          // 时间优先顺序：接口里的 confirmedDrawTime > 本地保存的 time > 现有 input > 默认 15:00
+          let time = bs.confirmedDrawTime || savedTime || timeInput.value || '15:00'; // HH:mm
+          if (day) {
+            const parts = String(day).trim().split(/[-/]/);
+            if (parts.length === 3) {
+              const d = parts[0], m = parts[1], y = parts[2];
+              if (/^\d{4}$/.test(y) && /^\d{1,2}$/.test(m) && /^\d{1,2}$/.test(d)) {
+                dateInput.value = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+                timeInput.value = time && String(time).trim() ? String(time).slice(0,5) : '15:00';
+                try {
+                  localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: dateInput.value, time: timeInput.value }));
+                } catch (e) {}
+                return;
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Step 2: 退回到 /api/draw/pending
       try {
         const res = await fetch(API_BASE + '/api/draw/pending');
         const data = res.ok ? await res.json() : {};
         const draw = data.draw || data;
-        const dateStr = draw.drawDate || draw.draw_date || draw.drawTime || draw.date;
+        // 优先用标准化的 draw_date / drawDate，不再混用 drawTime 防止日期混乱
+        const rawDate = draw.draw_date || draw.drawDate || null;
+        const dateStr = rawDate ? String(rawDate) : null;
         const timeStr = draw.drawTime || draw.draw_time || draw.time;
         if (dateStr) {
           const ymd = normalizeDrawDateToYMD(dateStr);
@@ -465,10 +573,13 @@
     } else {
       document.getElementById('page-login').classList.add('hidden');
       document.getElementById('page-admin').classList.remove('hidden');
-      initDrawDefaults().then(function () { loadData(); });
+      initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); });
     }
     let allOrders = [];
     let allShops = [];
+    // 当期订单（基于待开奖期 draw_id，与老板端/结算页逻辑一致）
+    let currentPeriodOrders = [];
+    let historyCache = null;
 
     // 登录
     async function login() {
@@ -476,7 +587,7 @@
       const password = document.getElementById('admin-password').value;
       
       if (!account || !password) {
-        alert('请输入账号和密码');
+        showToast('请输入账号和密码', 'warning');
         return;
       }
 
@@ -497,9 +608,9 @@
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-admin').classList.remove('hidden');
         
-        initDrawDefaults().then(function () { loadData(); });
+        initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); });
       } catch (err) {
-        alert(err.message || '登录失败');
+        showToast(err.message || '登录失败', 'error');
       }
     }
 
@@ -514,7 +625,7 @@
     // 刷新数据
     async function refreshData() {
       await loadData();
-      alert('已刷新');
+      showToast('已刷新', 'success');
     }
 
     // 手动开奖（发送开奖结果）
@@ -526,91 +637,90 @@
       const terceras = document.getElementById('draw-3rd').value.trim();
       
       if (!drawDate) {
-        alert('请选择开奖日期');
+        showToast('请选择开奖日期', 'warning');
         return;
       }
 
       const drawTime = drawDate + 'T' + drawClock + ':00';
-      
+
       const dig = (s) => (s || '').replace(/\D/g, '');
       const b = dig(billete), s = dig(segundas), t = dig(terceras);
       if (!b || !s || !t) {
-        alert('请填写 1、2、3 奖号码（GORDITO 为 4+2+2 位，EXTRAORDINARIA 为 5+5+5 位，其余 4+4+4 位）');
+        showToast('请填写 1、2、3 奖号码', 'warning');
         return;
       }
       if (b.length < 1 || s.length < 1 || t.length < 1) {
-        alert('每个奖项至少 1 位数字');
+        showToast('每个奖项至少 1 位数字', 'warning');
         return;
       }
-      
+
       try {
         const res = await fetch(`${API_BASE}/api/draw/manual`, {
           method: 'POST',
           headers: getAdminHeaders(false),
           body: JSON.stringify({ billete: b, segundas: s, terceras: t, drawTime })
         });
-        
+
         const data = await res.json();
         if (data.success) {
-          alert("手动开奖成功！\n时间: " + drawTime + "\n1奖: " + b + "\n2奖: " + s + "\n3奖: " + t);
-          // 开奖后后端会创建下一期（如 3/18），从待开奖接口拉取并更新「开奖日期」
+          showToast('✅ 开奖成功！1奖: ' + b + '  2奖: ' + s + '  3奖: ' + t, 'success');
+          document.getElementById('rollback-warning').classList.add('hidden');
           initDrawDefaults().catch(function () {});
-          var refreshDateAfterSettlement = function () {
-            initDrawDefaults().catch(function () {});
-          };
-          // 自动结算：优先使用开奖响应中的 drawId，避免再次请求 draw/latest 时因时序问题拿到错误期次
-          const settledDrawId = (data.draw && (data.draw.drawId || data.draw.id)) || data.drawId || null;
-          function doSettle(drawId) {
-            fetch(`${API_BASE}/api/settlement/settle/${drawId}`, { method: 'POST', headers: getAdminHeaders(false) }).then(r=>r.json()).then(s=>{
-              if (s && s.data) {
-                alert("结算完成！\n销售额: $" + s.data.totalSales + "\n赔付: $" + s.data.totalPayout + "\n利润: $" + (s.data.totalSales - s.data.totalPayout));
-              } else {
-                alert('结算失败: ' + (s && (s.message || s.error) || '未知错误'));
-              }
-              loadData();
-              setTimeout(refreshDateAfterSettlement, 400);
-            }).catch(e=>{ console.error(e); loadData(); setTimeout(refreshDateAfterSettlement, 400); });
-          }
-          if (settledDrawId) {
-            doSettle(settledDrawId);
-          } else {
-            // 降级：从 draw/latest 获取刚完成的期次 ID
-            fetch(`${API_BASE}/api/draw/latest`).then(r=>r.json()).then(d=>{
-              if (d.draw && (d.draw.drawId || d.draw.id)) {
-                doSettle(d.draw.drawId || d.draw.id);
-              } else {
-                loadData();
-                setTimeout(refreshDateAfterSettlement, 400);
-              }
-            }).catch(e=>{ console.error(e); loadData(); setTimeout(refreshDateAfterSettlement, 400); });
-          }
+          loadData();
         } else {
-          alert(data.message || data.error || '开奖失败');
+          showToast(data.message || data.error || '开奖失败', 'error');
         }
       } catch (err) {
-        alert('开奖失败: ' + err.message);
+        showToast('开奖失败: ' + err.message, 'error');
       }
     }
 
     // 清空开奖结算：当前期转入历史，结算页显示等待开奖（效果与开奖当天 15:00 前清除一致）；登录即可操作，不需管理员密钥
-    async function clearSettlement() {
-      if (!confirm('确定要清空开奖结算吗？当前期将转入历史，结算页会显示「等待开奖」直到下次发送开奖结果。')) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/clear-settlement`, {
-          method: 'POST',
-          headers: getAdminHeaders(true)
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && (data.success === true || data.ok === true)) {
-          alert('已清空开奖结算，当前期已转入历史。结算页将显示等待开奖。');
-          initDrawDefaults().catch(function () {});
-          loadData();
-        } else {
-          alert(data.message || data.error || '清空失败');
+    function clearSettlement() {
+      showConfirm('确定要清空开奖结算吗？\n当前期将转入历史，结算页会显示「等待开奖」。', async function () {
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/clear-settlement`, {
+            method: 'POST',
+            headers: getAdminHeaders(true)
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && (data.success === true || data.ok === true)) {
+            showToast('✅ 已清空开奖结算，结算页将显示等待开奖', 'success');
+            initDrawDefaults().catch(function () {});
+            loadData();
+          } else {
+            showToast(data.message || data.error || '清空失败', 'error');
+          }
+        } catch (err) {
+          showToast('请求失败: ' + (err.message || err), 'error');
         }
-      } catch (err) {
-        alert('请求失败: ' + (err.message || err));
-      }
+      });
+    }
+
+    function archiveMainShop() {
+      const resultEl = document.getElementById('archive-main-result');
+      showConfirm('确定要归档大庄管理中心数据吗？\n大庄管理中心将切换到下一期显示。', async function () {
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/archive-main-shop`, {
+            method: 'POST',
+            headers: getAdminHeaders(true)
+          });
+          const data = await res.json().catch(() => ({}));
+          resultEl.classList.remove('hidden', 'text-green-400', 'text-red-400');
+          if (data.success) {
+            resultEl.classList.add('text-green-400');
+            resultEl.textContent = '✓ ' + data.message;
+          } else {
+            resultEl.classList.add('text-red-400');
+            resultEl.textContent = data.message || data.error || '归档失败';
+          }
+          resultEl.classList.remove('hidden');
+        } catch (err) {
+          resultEl.classList.remove('hidden');
+          resultEl.classList.add('text-red-400');
+          resultEl.textContent = '请求失败: ' + (err.message || err);
+        }
+      });
     }
 
     let lastFirebaseDraw = null;
@@ -701,7 +811,7 @@
         if (!json.success || !json.data) throw new Error('数据格式异常');
         applyFirebaseToUI(json.data, fillForm);
       } catch (err) {
-        if (fillForm) alert('拉取 Firebase 开奖失败: ' + err.message);
+        if (fillForm) showToast('拉取 Firebase 开奖失败: ' + err.message, 'error');
       }
     }
 
@@ -718,7 +828,7 @@
     function toggleFirebasePoll() {
       if (firebasePollTimer) { stopFirebasePoll(); return; }
       if (!isScheduledDrawTimePassed()) {
-        alert('当前未到下方填写的开奖日期时间，请确认或修改开奖日期/时间后再开始轮询。');
+        showToast('当前未到开奖日期时间，请先确认或修改后再开始轮询', 'warning');
         return;
       }
       firebasePollTimer = setInterval(function () {
@@ -739,7 +849,7 @@
     // 将 Firebase 拉取到的三组号码填入手动开奖（只填号码，不填日期）
     function fillFirebaseIntoManualDraw() {
       if (!lastFirebaseDraw) {
-        alert('请先拉取 Firebase 开奖数据');
+        showToast('请先拉取 Firebase 开奖数据', 'warning');
         return;
       }
       if (!isFirebaseDrawComplete(lastFirebaseDraw)) {
@@ -747,7 +857,7 @@
         const msg = type === 'GORDITO' ? 'GORDITO 需 1奖≥4 位、2/3奖≥2 位'
           : type === 'EXTRAORDINARIA' ? 'EXTRAORDINARIA 需三奖均≥5 位'
           : '需三奖均≥4 位（MIERCOLITO/DOMINICAL）';
-        alert('请先拉取到完整三组号码后再填入手动开奖。' + msg);
+        showToast('请先拉取到完整三组号码。' + msg, 'warning');
         return;
       }
       document.getElementById('draw-1st').value = rawDigits(lastFirebaseDraw.primer) || '';
@@ -759,9 +869,9 @@
     // 加载数据
     async function loadData() {
       try {
-        // 获取所有店铺
-        const shopsRes = await fetch(`${API_BASE}/api/merchant/shops`, {
-          headers: { 'Authorization': `Bearer ${authToken}` }
+        // 获取所有店铺（管理员接口，返回全部）
+        const shopsRes = await fetch(`${API_BASE}/api/admin/shops`, {
+          headers: getAdminHeaders(true)
         });
         const shopsData = await shopsRes.json();
         allShops = shopsData.shops || [];
@@ -775,11 +885,37 @@
           allOrdersData.push(...(data.orders || []));
         }
         allOrders = allOrdersData;
+
+        // 计算当期订单（按待开奖期 draw_id，逻辑与老板端一致）
+        try {
+          const pendingRes = await fetch(`${API_BASE}/api/draw/pending`);
+          const pendingData = pendingRes.ok ? await pendingRes.json() : {};
+          const pendingDrawId = pendingData.draw && (pendingData.draw.drawId != null || pendingData.draw.draw_id != null)
+            ? (pendingData.draw.drawId != null ? pendingData.draw.drawId : pendingData.draw.draw_id)
+            : null;
+          if (pendingDrawId != null) {
+            const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            currentPeriodOrders = allOrders.filter(function(o) {
+              if (o.draw_id == pendingDrawId) return true;
+              // draw_id 为空但 7 天内已付款的订单也算当期（与老板端逻辑一致）
+              const s = typeof o.status === 'string' ? o.status.toLowerCase() : o.status;
+              const isPaid = s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
+              const createdMs = o.created_at ? new Date(o.created_at).getTime() : 0;
+              return (o.draw_id == null || o.draw_id === '') && isPaid && createdMs >= sevenDaysAgo;
+            });
+          } else {
+            currentPeriodOrders = [];
+          }
+        } catch (e) {
+          console.error('load current period orders failed', e);
+          currentPeriodOrders = [];
+        }
         
         // 计算统计数据
         calculateStats();
         renderTotalSales();
         loadSystemHealth();
+        loadShopList();
         // 店铺对比图表不自动刷新，按按钮触发即可
         
       } catch (err) {
@@ -788,87 +924,6 @@
     }
 
     // 店铺对比：按时间段加载 Top N 店铺销售/利润
-    async function loadShopCompare() {
-      const startInput = document.getElementById('compare-start');
-      const endInput = document.getElementById('compare-end');
-      const topInput = document.getElementById('compare-top');
-      const chartSales = document.getElementById('chart-sales');
-      const chartProfit = document.getElementById('chart-profit');
-      if (!startInput || !endInput || !topInput || !chartSales || !chartProfit) return;
-
-      const start = startInput.value;
-      const end = endInput.value;
-      const topN = parseInt(topInput.value) || 10;
-      if (!start || !end) {
-        alert('请选择开始和结束日期');
-        return;
-      }
-
-      chartSales.innerHTML = '<p class="text-gray-500 text-xs text-center">加载中...</p>';
-      chartProfit.innerHTML = '<p class="text-gray-500 text-xs text-center">加载中...</p>';
-
-      try {
-        // 期望后端提供接口：
-        // GET /api/admin/shop-compare?from=YYYY-MM-DD&to=YYYY-MM-DD&top=10
-        // 返回 items: [{ shopNumber, shopName, totalSales, netProfit }]
-        const params = new URLSearchParams({
-          from: start,
-          to: end,
-          top: String(topN)
-        });
-        const res = await fetch(`${API_BASE}/api/admin/shop-compare?` + params.toString(), {
-          headers: getAdminHeaders(true)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || data.error || '加载失败');
-        const items = Array.isArray(data.items) ? data.items : [];
-        if (items.length === 0) {
-          chartSales.innerHTML = '<p class="text-gray-500 text-xs text-center">暂无数据</p>';
-          chartProfit.innerHTML = '<p class="text-gray-500 text-xs text-center">暂无数据</p>';
-          return;
-        }
-
-        const maxSales = Math.max(...items.map(i => Number(i.totalSales || 0)), 1);
-        const maxProfitAbs = Math.max(...items.map(i => Math.abs(Number(i.netProfit || 0))), 1);
-
-        chartSales.innerHTML = items.map(i => {
-          const shopLabel = i.shopNumber || i.shop_number || '未知';
-          const sales = Number(i.totalSales || 0);
-          const width = Math.max(5, (sales / maxSales) * 100);
-          return `
-            <div class="flex items-center gap-1">
-              <div class="w-10 text-right font-mono">${shopLabel}</div>
-              <div class="flex-1 bg-gray-700 rounded-full overflow-hidden">
-                <div class="bg-blue-500 h-2" style="width:${width}%;"></div>
-              </div>
-              <div class="w-16 text-right text-[10px] text-gray-300">$${sales.toFixed(2)}</div>
-            </div>
-          `;
-        }).join('');
-
-        chartProfit.innerHTML = items.map(i => {
-          const shopLabel = i.shopNumber || i.shop_number || '未知';
-          const profit = Number(i.netProfit || 0);
-          const scale = Math.abs(profit) / maxProfitAbs;
-          const width = Math.max(5, scale * 100);
-          const color = profit >= 0 ? 'bg-green-500' : 'bg-red-500';
-          return `
-            <div class="flex items-center gap-1">
-              <div class="w-10 text-right font-mono">${shopLabel}</div>
-              <div class="flex-1 bg-gray-700 rounded-full overflow-hidden">
-                <div class="${color} h-2" style="width:${width}%;"></div>
-              </div>
-              <div class="w-16 text-right text-[10px] ${profit >= 0 ? 'text-green-300' : 'text-red-300'}">$${profit.toFixed(2)}</div>
-            </div>
-          `;
-        }).join('');
-      } catch (e) {
-        console.error(e);
-        chartSales.innerHTML = '<p class="text-red-400 text-xs text-center">加载失败</p>';
-        chartProfit.innerHTML = '<p class="text-red-400 text-xs text-center">加载失败</p>';
-      }
-    }
-
     // 系统运行状态：简单检查 API / 数据库
     async function loadSystemHealth() {
       const el = document.getElementById('system-health');
@@ -921,11 +976,11 @@
 
     // 统计
     function calculateStats() {
-      const paidOrders = allOrders.filter(o => o.status >= 1);
+      // 当期订单基于 currentPeriodOrders；销售额只统计已付款订单
+      const paidCurrent = currentPeriodOrders.filter(o => o.status >= 1);
       document.getElementById('total-shops').textContent = allShops.length;
-      document.getElementById('total-orders').textContent = allOrders.length;
-      // 今日销售额只统计已付款订单
-      document.getElementById('total-sales').textContent = '$' + paidOrders.reduce((s, o) => s + o.amount, 0).toFixed(0);
+      document.getElementById('total-orders').textContent = currentPeriodOrders.length;
+      document.getElementById('total-sales').textContent = '$' + paidCurrent.reduce((s, o) => s + o.amount, 0).toFixed(0);
     }
 
     // 仅发送开奖时间（不强制要求填开奖号码）
@@ -933,7 +988,7 @@
       const drawDate = document.getElementById('draw-date').value;
       const drawClock = document.getElementById('draw-time').value || '15:00';
       if (!drawDate) {
-        alert('请选择开奖日期');
+        showToast('请选择开奖日期', 'warning');
         return;
       }
       const drawTime = drawDate + 'T' + drawClock + ':00';
@@ -945,12 +1000,50 @@
         });
         const data = await res.json();
         if (data.success) {
-          alert('已发送开奖时间：' + drawTime);
+          showToast('✅ 已发送开奖时间：' + drawTime, 'success');
+          // 把你刚填的日期/时间存到本地，刷新后保持一致
+          try {
+            localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: drawDate, time: drawClock }));
+          } catch (e) {}
+          // 发送成功后，短暂等待后台刷新 pending 期，再拉一次 bet-status 展示系统实际认定的时间
+          setTimeout(refreshConfirmedDrawStatus, 1500);
         } else {
-          alert(data.error || '发送开奖时间失败');
+          showToast(data.error || '发送开奖时间失败', 'error');
         }
       } catch (err) {
-        alert('发送开奖时间失败: ' + err.message);
+        showToast('发送开奖时间失败: ' + err.message, 'error');
+      }
+    }
+
+    // 从 /api/bet-status 获取系统当前认定的开奖日和时间（巴拿马时区），展示在手动开奖上方
+    async function refreshConfirmedDrawStatus() {
+      const el = document.getElementById('confirmed-draw-status');
+      if (!el) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/bet-status`);
+        if (!res.ok) {
+          el.textContent = '系统记录：--（巴拿马时间）';
+          return;
+        }
+        const d = await res.json();
+        const day = d.confirmedDrawDay || d.currentPeriodDate || null;
+        // 若后端暂未返回 confirmedDrawTime，则退回到当前输入框中的时间，至少让界面显示「几号几点」
+        let time = d.confirmedDrawTime || null;
+        if (!time) {
+          const timeInput = document.getElementById('draw-time');
+          if (timeInput && timeInput.value) {
+            time = String(timeInput.value).slice(0, 5);
+          }
+        }
+        if (day && time) {
+          el.textContent = `系统记录：${day} ${time}（巴拿马时间）`;
+        } else if (day) {
+          el.textContent = `系统记录：${day}（巴拿马时间）`;
+        } else {
+          el.textContent = '系统记录：--（巴拿马时间）';
+        }
+      } catch (e) {
+        el.textContent = '系统记录：--（巴拿马时间）';
       }
     }
 
@@ -962,13 +1055,16 @@
       const shopNumber = (input.value || '').trim();
 
       if (!shopNumber) {
-        alert('请输入店号');
+        showToast('请输入店号', 'warning');
         return;
       }
 
-      const shop = allShops.find(s => String(s.shop_number) === shopNumber);
+      const shop = allShops.find(s =>
+        String(s.shop_number) === shopNumber ||
+        (s.shop_aliases || []).includes(shopNumber)
+      );
       if (!shop) {
-        alert('未找到该店号的店铺');
+        showToast('未找到该店号的店铺', 'warning');
         chanceGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-10 text-center">未找到该店号</p>';
         billeteGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-4 text-center">未找到该店号</p>';
         return;
@@ -1170,10 +1266,250 @@
       document.getElementById('modal-shop').classList.add('hidden');
     }
 
+    // 历史期次弹窗：查看每期总订单数和销售额
+    async function openHistoryModal() {
+      const modal = document.getElementById('modal-history');
+      const table = document.getElementById('history-table');
+      if (!modal || !table) return;
+      modal.classList.remove('hidden');
+      table.innerHTML = '<p class="text-gray-500 text-center py-4">加载中...</p>';
+      try {
+        if (!historyCache) {
+          const res = await fetch(`${API_BASE}/api/admin/draw-history?limit=100`, {
+            headers: getAdminHeaders(true),
+          });
+          const data = await res.json();
+          historyCache = data.history || [];
+        }
+        if (!historyCache.length) {
+          table.innerHTML = '<p class="text-gray-500 text-center py-4">暂无历史数据</p>';
+          return;
+        }
+        const rows = historyCache.map((h) => {
+          const date = h.draw_date || '--';
+          const id = h.draw_id != null ? h.draw_id : '--';
+          const orders = h.order_count != null ? h.order_count : '--';
+          const sales = (h.total_sales != null ? Number(h.total_sales) : 0).toFixed(2);
+          const payout = h.total_payout != null ? Number(h.total_payout).toFixed(2) : '--';
+          const net = h.net_profit != null ? Number(h.net_profit).toFixed(2) : '--';
+          return `
+            <tr class="border-t border-gray-700">
+              <td class="px-2 py-1 text-center font-mono">${id}</td>
+              <td class="px-2 py-1 text-center font-mono">${date}</td>
+              <td class="px-2 py-1 text-center">${orders}</td>
+              <td class="px-2 py-1 text-right font-mono">$${sales}</td>
+              <td class="px-2 py-1 text-right font-mono text-emerald-300">$${payout}</td>
+              <td class="px-2 py-1 text-right font-mono ${Number(net) >= 0 ? 'text-green-300' : 'text-red-300'}">$${net}</td>
+            </tr>
+          `;
+        }).join('');
+        table.innerHTML = `
+          <div class="overflow-x-auto">
+            <table class="min-w-full border border-gray-700 rounded-lg overflow-hidden">
+              <thead class="bg-gray-900 text-gray-300">
+                <tr>
+                  <th class="px-2 py-1 text-center">期次ID</th>
+                  <th class="px-2 py-1 text-center">开奖日期</th>
+                  <th class="px-2 py-1 text-center">总订单数</th>
+                  <th class="px-2 py-1 text-right">总销售额</th>
+                  <th class="px-2 py-1 text-right">总返奖</th>
+                  <th class="px-2 py-1 text-right">净利润</th>
+                </tr>
+              </thead>
+              <tbody class="bg-gray-800">
+                ${rows}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (e) {
+        console.error(e);
+        table.innerHTML = '<p class="text-red-400 text-center py-4">加载失败，请稍后重试</p>';
+      }
+    }
+
+    function closeHistoryModal() {
+      const modal = document.getElementById('modal-history');
+      if (modal) modal.classList.add('hidden');
+    }
+
     // 定时刷新
     setInterval(() => {
       if (authToken) loadData();
     }, 30000);
+
+    // 店铺列表
+    async function loadShopList() {
+      const el = document.getElementById('shop-list-table');
+      el.innerHTML = '<p class="text-gray-500 text-center">加载中...</p>';
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/shops`, { headers: getAdminHeaders(true) });
+        const data = await res.json();
+        const shops = data.shops || [];
+        if (shops.length === 0) { el.innerHTML = '<p class="text-gray-500 text-center">暂无店铺</p>'; return; }
+        el.innerHTML = shops.map(s => {
+          const expires = s.subscription_expires_at ? new Date(s.subscription_expires_at) : null;
+          const expired = expires && expires < new Date();
+          const expiresText = expires
+            ? `<span class="${expired ? 'text-red-400' : 'text-green-400'}">${expires.toISOString().slice(0,10)}</span>`
+            : '<span class="text-gray-500">未激活</span>';
+          const isActive = s.status === 'active';
+          return `
+            <div class="flex items-center gap-2 bg-gray-700/50 rounded-lg px-3 py-2">
+              <div class="font-mono font-bold w-16 shrink-0">${s.shop_number}</div>
+              <div class="flex-1 truncate text-gray-300">${s.shop_name || '-'}</div>
+              <div class="shrink-0">${expiresText}</div>
+              <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold ${isActive ? 'bg-green-800 text-green-300' : 'bg-red-900 text-red-300'}">${isActive ? '启用' : '停用'}</span>
+              <button onclick="toggleShopStatus(${s.shop_id},'${isActive ? 'disabled' : 'active'}')"
+                class="shrink-0 px-2 py-0.5 rounded text-[10px] bg-gray-600 hover:bg-gray-500">
+                ${isActive ? '停用' : '启用'}
+              </button>
+            </div>`;
+        }).join('');
+      } catch (e) {
+        el.innerHTML = '<p class="text-red-400 text-center">加载失败</p>';
+      }
+    }
+
+    async function toggleShopStatus(shopId, newStatus) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/shops/${shopId}/status`, {
+          method: 'PATCH',
+          headers: getAdminHeaders(true),
+          body: JSON.stringify({ status: newStatus }),
+        });
+        const data = await res.json();
+        if (data.success) loadShopList();
+        else showToast(data.message || '操作失败', 'error');
+      } catch (e) { showToast('操作失败', 'error'); }
+    }
+
+    // 重置密码
+    async function resetPassword() {
+      const sn = document.getElementById('reset-shop-number').value.trim();
+      const pwd = document.getElementById('reset-new-password').value.trim();
+      const resultEl = document.getElementById('reset-result');
+      resultEl.classList.remove('hidden', 'text-green-400', 'text-red-400');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/reset-password`, {
+          method: 'POST',
+          headers: getAdminHeaders(true),
+          body: JSON.stringify({ shopNumber: sn, newPassword: pwd }),
+        });
+        const data = await res.json();
+        resultEl.classList.remove('hidden');
+        if (data.success) {
+          resultEl.classList.add('text-green-400');
+          resultEl.textContent = data.message;
+          document.getElementById('reset-new-password').value = '';
+        } else {
+          resultEl.classList.add('text-red-400');
+          resultEl.textContent = data.message || data.error || '重置失败';
+        }
+      } catch (e) {
+        resultEl.classList.remove('hidden');
+        resultEl.classList.add('text-red-400');
+        resultEl.textContent = '请求失败';
+      }
+    }
+
+    // 生成卡密
+    async function generateCards() {
+      const type = document.getElementById('card-type').value;
+      const count = parseInt(document.getElementById('card-count').value) || 1;
+      const resultEl = document.getElementById('card-result');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/generate-cards`, {
+          method: 'POST',
+          headers: getAdminHeaders(true),
+          body: JSON.stringify({ type, count }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          resultEl.classList.remove('hidden');
+          const label = type === 'monthly' ? '月卡' : '年卡';
+          resultEl.innerHTML = data.codes.map(c => `<div class="text-green-300">[${label}] ${c}</div>`).join('');
+        } else {
+          showToast(data.message || '生成失败', 'error');
+        }
+      } catch (e) { showToast('请求失败', 'error'); }
+    }
+
+    // 开奖结果确认弹窗
+    function confirmManualDraw() {
+      const drawDate = document.getElementById('draw-date').value;
+      const drawClock = document.getElementById('draw-time').value || '15:00';
+      const b = (document.getElementById('draw-1st').value || '').replace(/\D/g, '');
+      const s = (document.getElementById('draw-2nd').value || '').replace(/\D/g, '');
+      const t = (document.getElementById('draw-3rd').value || '').replace(/\D/g, '');
+      if (!drawDate) { showToast('请选择开奖日期', 'warning'); return; }
+      if (!b || !s || !t) { showToast('请填写 1、2、3 奖号码', 'warning'); return; }
+      document.getElementById('confirm-draw-date').textContent = drawDate + ' ' + drawClock;
+      document.getElementById('confirm-draw-1st').textContent = b;
+      document.getElementById('confirm-draw-2nd').textContent = s;
+      document.getElementById('confirm-draw-3rd').textContent = t;
+      document.getElementById('modal-draw-confirm').classList.remove('hidden');
+    }
+
+    document.getElementById('modal-draw-confirm').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.add('hidden');
+    });
+
+    // 回滚开奖
+    async function rollbackDraw() {
+      showConfirm('确定要回滚最近一次开奖吗？\n所有已结算订单将恢复为「已付款」，开奖号码清除。\n如已有订单完成兑奖则无法回滚。', async function () {
+        try {
+          const res = await fetch(`${API_BASE}/api/draw/rollback`, {
+            method: 'POST',
+            headers: getAdminHeaders(false),
+          });
+          const data = await res.json();
+          if (data.success) {
+            document.getElementById('rollback-warning').classList.remove('hidden');
+            document.getElementById('draw-1st').focus();
+            document.getElementById('draw-1st').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            initDrawDefaults().catch(function () {});
+            loadData();
+          } else {
+            showToast(data.error || '回滚失败', 'error');
+          }
+        } catch (err) {
+          showToast('回滚失败: ' + err.message, 'error');
+        }
+      });
+    }
   </script>
+
+  <!-- 发送开奖结果确认弹窗 -->
+  <div id="modal-draw-confirm" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+      <h2 class="text-lg font-bold text-center mb-1">确认开奖号码</h2>
+      <p class="text-xs text-gray-400 text-center mb-4">请再次核对，发送后将立即结算所有订单</p>
+      <div class="bg-gray-900 rounded-xl p-4 space-y-3 mb-5 font-mono">
+        <div class="flex justify-between items-center">
+          <span class="text-gray-400 text-sm">开奖时间</span>
+          <span id="confirm-draw-date" class="text-white text-sm"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-yellow-400 font-bold">🥇 头奖</span>
+          <span id="confirm-draw-1st" class="text-yellow-300 text-2xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-300 font-bold">🥈 二奖</span>
+          <span id="confirm-draw-2nd" class="text-gray-200 text-2xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-orange-400 font-bold">🥉 三奖</span>
+          <span id="confirm-draw-3rd" class="text-orange-300 text-2xl font-bold tracking-widest"></span>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('modal-draw-confirm').classList.add('hidden')"
+          class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-xl font-bold">取消</button>
+        <button onclick="document.getElementById('modal-draw-confirm').classList.add('hidden'); manualDraw();"
+          class="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold">确认发送</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

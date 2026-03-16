@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>门店收银工作台</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#111827">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lotería">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
@@ -107,10 +114,27 @@
         <div class="flex items-center justify-between mb-2">
           <button type="button" id="btn-lang-toggle" onclick="toggleMerchantLang()" class="w-14 h-10 flex items-center justify-center text-2xl rounded-lg hover:bg-gray-700" title="" data-i18n-title="lang_switch_title">🇵🇦</button>
           <h1 class="font-bold text-center flex-1">
-            <span class="text-xs text-gray-400 block leading-tight">🏪</span>
             <span id="shop-number" class="text-3xl font-black tracking-widest text-red-400">-----</span>
+            <div id="subscription-expires" class="text-xs text-gray-400 mt-0.5 hidden"></div>
+            <div class="flex justify-center mt-1">
+              <span id="draw-status-badge" class="hidden text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400"></span>
+            </div>
           </h1>
-          <button onclick="logout()" id="txt-logout" class="w-16 text-gray-400 text-sm text-right" data-i18n="logout">退出</button>
+          <div class="flex items-center gap-3 justify-end">
+            <button onclick="openSettings()" class="text-gray-400 hover:text-white text-sm flex items-center gap-1" data-i18n="settings_short">
+              ⚙️ <span data-i18n="settings_short_label">设置</span>
+            </button>
+            <button onclick="logout()" id="txt-logout" class="text-gray-400 text-sm" data-i18n="logout">退出</button>
+          </div>
+        </div>
+
+        <!-- 打印机未连接警告 -->
+        <div id="printer-warning" class="hidden bg-red-900/60 border border-red-500 rounded-lg p-2 flex items-center justify-between mt-1">
+          <span id="printer-warning-text" class="text-xs text-red-300">🖨️ 打印机未连接</span>
+          <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+            <button onclick="connectPrinter()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded-lg font-bold">重连</button>
+            <button onclick="document.getElementById('printer-warning').classList.add('hidden')" class="text-red-400 hover:text-white text-lg leading-none">×</button>
+          </div>
         </div>
 
         <div id="draw-countdown" class="hidden bg-orange-900/50 rounded-lg p-2 text-center">
@@ -201,7 +225,7 @@
 
       <!-- 销售限额设置 -->
       <div class="bg-gray-800 rounded-2xl p-4">
-        <h3 class="font-bold mb-3">⚙️ 销售限额</h3>
+        <h3 class="font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额与单价</h3>
         <div class="grid grid-cols-2 gap-4">
           <div>
             <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
@@ -223,8 +247,18 @@
         <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-3 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
       </div>
 
+      <!-- 大庄管理中心入口 -->
+      <a href="main-shop.html" class="block w-full bg-gradient-to-r from-purple-700 to-purple-600 hover:from-purple-600 hover:to-purple-500 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-3 transition">
+        <span class="text-2xl">🎰</span>
+        <span data-i18n="main_shop_entry">大庄管理中心</span>
+        <span id="binding-badge" class="hidden bg-red-500 text-white text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1">!</span>
+      </a>
+      <!-- 隐藏的绑定状态区（仍需保留供 JS 更新角标） -->
+      <div id="binding-status-area" class="hidden"></div>
+
     </main>
   </div>
+
 
   <!-- Chance详情弹窗 -->
   <div id="modal-chance" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeModal('modal-chance')">
@@ -337,6 +371,7 @@
 
       <div class="flex gap-3">
         <button onclick="closeModal('modal-order')" class="flex-1 bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="close">关闭</button>
+        <button id="modal-btn-print" onclick="printCurrentOrder()" class="hidden flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold">🖨️</button>
         <button id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 bg-red-700 text-white py-4 rounded-xl font-bold">🗑 删除</button>
         <button id="modal-btn-confirm-pay" onclick="confirmPayment()" class="hidden flex-1 bg-green-600 text-white py-4 rounded-xl font-bold">确认收款</button>
         <button id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 bg-amber-500 text-white py-4 rounded-xl font-bold">兑奖</button>
@@ -360,6 +395,9 @@
       <button type="button" onclick="closeModal('modal-period-orders')" class="mt-4 w-full bg-gray-600 text-white py-3 rounded-xl font-bold" data-i18n="close">关闭</button>
     </div>
   </div>
+
+  <!-- 绑定邀请弹窗 -->
+
 
   <!-- 删除订单确认弹窗 -->
   <div id="modal-delete-confirm" class="hidden fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4">
@@ -409,6 +447,16 @@
   <script>
     const API_BASE = 'https://api.casagrade.com';
     const DEBUG = false; // 上线设为 false，调试时可改为 true
+
+    /** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
     const MERCHANT_LANG_KEY = 'lottery_merchant_lang';
     const MERCHANT_T = {
@@ -532,7 +580,76 @@
         scan_aim_hint: '将顾客的付款/兑奖二维码对准框内',
         scan_close_camera: '关闭摄像头',
         alert_no_camera: '未检测到摄像头或浏览器不支持',
-        alert_camera_denied: '请允许使用摄像头以扫码'
+        alert_camera_denied: '请允许使用摄像头以扫码',
+        alert_forgot_email: '请输入邮箱',
+        alert_forgot_send_fail: '发送失败',
+        alert_forgot_sent: '新密码已发送到 {email}，请查收邮件后登录。',
+        alert_save_limits_fail: '保存限额失败',
+        alert_confirm_fail: '确认失败',
+        alert_delete_fail: '删除失败',
+        no_binding_info: '暂无绑定信息',
+        binding_load_fail: '绑定信息加载失败',
+        binding_invite_join: '邀请你加入 · 佣金',
+        btn_approve: '✓ 同意',
+        btn_reject: '✕ 拒绝',
+        order_short_label: '单号',
+        qty_unit: '张',
+        printer_not_enabled: '未启用',
+        printer_connected: '✅ 蓝牙已连接，付款后自动打印',
+        printer_not_connected: '⚠️ 未连接打印机，请点击连接',
+        printer_use_chrome: '\n请用 Chrome 或 Edge 打开此页面后再启用打印。',
+        printer_use_chrome_connect: '\n请用 Chrome 或 Edge 打开此页面后再使用打印。',
+        printer_searching: '正在搜索蓝牙打印机...',
+        printer_connecting: '正在连接 {name}...',
+        bt_device: '设备',
+        printer_no_char: '⚠️ 已连接但找不到打印特征，请确认是热敏打印机',
+        printer_connect_fail: '连接失败',
+        printer_warning_disconnected: '🖨️ 打印机未连接，点击重连',
+        printer_disconnected_warn: '🖨️ 打印机已断开，点击重连',
+        subscription_expired: '已过期 {date}',
+        subscription_expires: '到期 {date}',
+        alert_card_code_empty: '请输入卡密',
+        alert_activate_fail: '激活失败',
+        alert_request_fail: '请求失败',
+        alert_fill_pwd_fields: '请填写所有密码字段',
+        alert_new_pwd_mismatch: '两次新密码不一致',
+        alert_change_fail: '修改失败',
+        alert_save_fail: '保存失败',
+        alert_email_empty: '请输入邮箱',
+        fecha_sorteo: '开奖日期',
+        badge_in_progress: '进行中',
+        badge_drawing: '开奖中',
+        badge_done: '已开奖',
+        settings_panel_title: '⚙️ 设置',
+        settings_short: '⚙️ 设置',
+        settings_short_label: '设置',
+        print_section_title: '🖨️ 蓝牙热敏打印',
+        print_description: '启用后，所有已付款订单确认时将自动打印小票。需使用 Chrome 或 Edge 浏览器，并连接蓝牙热敏打印机。',
+        print_reconnect_title: '以下情况需要手动重连：',
+        print_reconnect_tips: '• 首次启用时\n• 打印机关机重启后\n• 清除浏览器数据后\n• 自动重连失败时（点击下方按钮）',
+        btn_connect_printer: '🔗 连接打印机',
+        card_section_title: '🎫 充值卡密',
+        card_code_placeholder: '输入卡密，如 ABCD-EFGH-IJKL',
+        btn_activate: '激活',
+        pwd_section_title: '🔑 修改密码',
+        pwd_current_placeholder: '当前密码',
+        pwd_new_placeholder: '新密码（含字母+数字，≥6位）',
+        pwd_confirm_placeholder: '确认新密码',
+        btn_change_pwd: '修改密码',
+        email_section_title: '📧 修改/绑定邮箱',
+        email_new_placeholder: '新邮箱地址',
+        btn_save_email: '保存邮箱',
+        binding_as_main_info: '此店铺为大庄，已绑定 {count} 家小庄。',
+        binding_bound_title: '✅ 已被大庄绑定',
+        binding_main_shop_label: '店号',
+        binding_commission_rate_label: '佣金率：',
+        binding_none: '暂无绑定关系。',
+        binding_unbind_btn: '解绑',
+        main_shop_entry: '大庄管理中心',
+        no_sales_data: '暂无销售数据',
+        confirm_unbind: '确认解绑大庄？解绑后数据不再汇总，需等待大庄重新邀请。',
+        alert_op_fail: '操作失败',
+        alert_unbind_fail: '解绑失败'
       },
       es: {
         lang_switch_title: 'Cambiar a español',
@@ -654,7 +771,76 @@
         scan_aim_hint: 'Apunta el QR de pago o premio del cliente al recuadro',
         scan_close_camera: 'Cerrar cámara',
         alert_no_camera: 'No hay cámara o el navegador no la admite',
-        alert_camera_denied: 'Permite el acceso a la cámara para escanear'
+        alert_camera_denied: 'Permite el acceso a la cámara para escanear',
+        alert_forgot_email: 'Ingresa tu correo electrónico',
+        alert_forgot_send_fail: 'Error al enviar',
+        alert_forgot_sent: 'Nueva contraseña enviada a {email}. Revisa tu correo e inicia sesión.',
+        alert_save_limits_fail: 'Error al guardar límites',
+        alert_confirm_fail: 'Error al confirmar',
+        alert_delete_fail: 'Error al eliminar',
+        no_binding_info: 'Sin información de vinculación',
+        binding_load_fail: 'Error al cargar vinculación',
+        binding_invite_join: 'Te invita · Comisión',
+        btn_approve: '✓ Aceptar',
+        btn_reject: '✕ Rechazar',
+        order_short_label: 'Ped.',
+        qty_unit: 'unid.',
+        printer_not_enabled: 'No habilitado',
+        printer_connected: '✅ Bluetooth conectado, se imprimirá tras el pago',
+        printer_not_connected: '⚠️ Impresora no conectada, toca para conectar',
+        printer_use_chrome: '\nUsa Chrome o Edge para habilitar la impresión.',
+        printer_use_chrome_connect: '\nUsa Chrome o Edge para usar la impresión.',
+        printer_searching: 'Buscando impresora Bluetooth...',
+        printer_connecting: 'Conectando a {name}...',
+        bt_device: 'dispositivo',
+        printer_no_char: '⚠️ Conectado pero sin característica de impresión. Confirma que es una impresora térmica.',
+        printer_connect_fail: 'Error de conexión',
+        printer_warning_disconnected: '🖨️ Impresora no conectada, toca Reconectar',
+        printer_disconnected_warn: '🖨️ Impresora desconectada, toca Reconectar',
+        subscription_expired: 'Vencido {date}',
+        subscription_expires: 'Vence {date}',
+        alert_card_code_empty: 'Ingresa el código de tarjeta',
+        alert_activate_fail: 'Error al activar',
+        alert_request_fail: 'Error en la solicitud',
+        alert_fill_pwd_fields: 'Completa todos los campos de contraseña',
+        alert_new_pwd_mismatch: 'Las contraseñas nuevas no coinciden',
+        alert_change_fail: 'Error al modificar',
+        alert_save_fail: 'Error al guardar',
+        alert_email_empty: 'Ingresa tu correo electrónico',
+        fecha_sorteo: 'Fecha del sorteo',
+        badge_in_progress: 'En curso',
+        badge_drawing: 'En sorteo',
+        badge_done: 'Sorteo realizado',
+        settings_panel_title: '⚙️ Ajustes',
+        settings_short: '⚙️ Ajustes',
+        settings_short_label: 'Ajustes',
+        print_section_title: '🖨️ Impresora térmica Bluetooth',
+        print_description: 'Al activar, se imprimirá un comprobante al confirmar cada pago. Necesitas Chrome o Edge y una impresora térmica Bluetooth.',
+        print_reconnect_title: 'Cuándo reconectar manualmente:',
+        print_reconnect_tips: '• Primera vez que activas\n• Tras apagar y encender la impresora\n• Tras borrar datos del navegador\n• Si la reconexión automática falla',
+        btn_connect_printer: '🔗 Conectar impresora',
+        card_section_title: '🎫 Código de recarga',
+        card_code_placeholder: 'Código, ej: ABCD-EFGH-IJKL',
+        btn_activate: 'Activar',
+        pwd_section_title: '🔑 Cambiar contraseña',
+        pwd_current_placeholder: 'Contraseña actual',
+        pwd_new_placeholder: 'Nueva contraseña (letras+números, ≥6 car.)',
+        pwd_confirm_placeholder: 'Confirmar contraseña nueva',
+        btn_change_pwd: 'Cambiar contraseña',
+        email_section_title: '📧 Correo electrónico',
+        email_new_placeholder: 'Tu correo electrónico',
+        binding_as_main_info: 'Esta tienda es principal y tiene {count} sub-tiendas vinculadas.',
+        binding_bound_title: '✅ Vinculado a principal',
+        binding_main_shop_label: 'Tienda',
+        binding_commission_rate_label: 'Comisión:',
+        binding_none: 'Sin relación de vinculación.',
+        binding_unbind_btn: 'Desvincular',
+        main_shop_entry: 'Centro del banquero',
+        btn_save_email: 'Guardar correo',
+        no_sales_data: 'Sin datos de ventas',
+        confirm_unbind: '¿Confirmar desvinculación? Los datos dejarán de consolidarse. Deberás esperar una nueva invitación del banquero principal.',
+        alert_op_fail: 'Operación fallida',
+        alert_unbind_fail: 'Error al desvincular'
       }
     };
 
@@ -706,6 +892,16 @@
       if (regEmail && MERCHANT_T[lang].reg_email_placeholder) regEmail.placeholder = MERCHANT_T[lang].reg_email_placeholder;
       var forgotEmail = document.getElementById('forgot-email');
       if (forgotEmail && MERCHANT_T[lang].forgot_email_placeholder) forgotEmail.placeholder = MERCHANT_T[lang].forgot_email_placeholder;
+      var cardCode = document.getElementById('settings-card-code');
+      if (cardCode && MERCHANT_T[lang].card_code_placeholder) cardCode.placeholder = MERCHANT_T[lang].card_code_placeholder;
+      var curPwd = document.getElementById('settings-cur-pwd');
+      if (curPwd && MERCHANT_T[lang].pwd_current_placeholder) curPwd.placeholder = MERCHANT_T[lang].pwd_current_placeholder;
+      var newPwd = document.getElementById('settings-new-pwd');
+      if (newPwd && MERCHANT_T[lang].pwd_new_placeholder) newPwd.placeholder = MERCHANT_T[lang].pwd_new_placeholder;
+      var newPwd2 = document.getElementById('settings-new-pwd2');
+      if (newPwd2 && MERCHANT_T[lang].pwd_confirm_placeholder) newPwd2.placeholder = MERCHANT_T[lang].pwd_confirm_placeholder;
+      var settingsEmail = document.getElementById('settings-email');
+      if (settingsEmail && MERCHANT_T[lang].email_new_placeholder) settingsEmail.placeholder = MERCHANT_T[lang].email_new_placeholder;
       var shopNumEl = document.getElementById('shop-number');
       if (shopNumEl && currentShop) shopNumEl.textContent = currentShop.shop_number;
       else if (shopNumEl && MERCHANT_T[lang].shop_not_set) shopNumEl.textContent = MERCHANT_T[lang].shop_not_set;
@@ -721,6 +917,7 @@
     let redeemInProgress = false;
     let paymentInProgress = false;
     let countdownInterval = null;
+    let merchantStopSellAt = null; // 后端配置的停售时间戳（ms）
     let allOrders = [];
     /** 当期（最近一期开奖）订单，与开奖结算页一致 */
     let ordersForCurrentDraw = [];
@@ -760,11 +957,36 @@
       // 有 token 就尝试用其拉取店铺并进入（从结算页返回时也能直接进收银台）
       if (savedToken) {
         authToken = savedToken;
+        const savedSessionToken = localStorage.getItem('lottery_session_token') || '';
         fetch(`${API_BASE}/api/merchant/shops`, {
-          headers: { 'Authorization': `Bearer ${savedToken}` }
-        }).then(r => r.json()).then(data => {
+          headers: {
+            'Authorization': `Bearer ${savedToken}`,
+            'X-Session-Token': savedSessionToken
+          }
+        }).then(r => {
+          if (r.status === 401) {
+            r.json().then(d => {
+              if (d.message === 'SESSION_EXPIRED') {
+                // 账号已在另一台设备登录，自动退出
+                currentShop = null;
+                authToken = null;
+                localStorage.removeItem('lottery_token');
+                localStorage.removeItem('lottery_session_token');
+                localStorage.removeItem('lottery_login_at');
+                localStorage.removeItem('lottery_login_ua');
+                alert('您的账号已在另一台设备登录，请重新登录。');
+              }
+            }).catch(() => {});
+            return null;
+          }
+          return r.json();
+        }).then(data => {
+          if (!data) return;
           if (data.shops && data.shops.length > 0) {
             currentShop = data.shops[0];
+            // 更新设备信息
+            if (data.last_login_at) localStorage.setItem('lottery_login_at', data.last_login_at);
+            if (data.last_login_ua) localStorage.setItem('lottery_login_ua', data.last_login_ua);
             if (DEBUG) console.log("Setting shop number:", currentShop);
             document.getElementById("shop-number").textContent = currentShop.shop_number || t('shop_not_set');
             limits.chance = currentShop.limit_chance != null ? Number(currentShop.limit_chance) : null;
@@ -776,6 +998,8 @@
             applyMerchantLang();
             loadDashboard();
             startCountdown();
+            loadBindingStatus();
+            checkPrinterOnLogin();
           }
         }).catch(() => {});
       }
@@ -804,7 +1028,7 @@
     }
     async function submitForgotPassword() {
       const email = (document.getElementById('forgot-email').value || '').trim();
-      if (!email) { alert('请输入邮箱'); return; }
+      if (!email) { alert(t('alert_forgot_email')); return; }
       try {
         const res = await fetch(`${API_BASE}/api/merchant/forgot-password`, {
           method: 'POST',
@@ -812,11 +1036,11 @@
           body: JSON.stringify({ email })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || '发送失败');
+        if (!res.ok) throw new Error(data.message || t('alert_forgot_send_fail'));
         closeForgotModal();
-        alert('新密码已发送到 ' + email + '，请查收邮件后登录。');
+        alert(t('alert_forgot_sent').replace('{email}', email));
       } catch (err) {
-        alert(err.message || '发送失败');
+        alert(err.message || t('alert_forgot_send_fail'));
       }
     }
 
@@ -876,13 +1100,15 @@
         msg += '店号（纯数字）：' + (data.shop_number || '') + '\n\n';
         msg += '两者均可登录，密码相同。请牢记。';
         alert(msg);
+        // 注册成功后提示添加到桌面
+        setTimeout(() => showPwaPrompt('register'), 400);
       } catch (err) {
         alert(err.message || (t('alert_register_fail') || '注册失败'));
       }
     }
 
-    // 登录
-    async function login() {
+    // 登录（支持强制登录，顶掉其他设备）
+    async function login(forceLogin) {
       const account = (document.getElementById('merchant-account').value || '').trim();
       const password = (document.getElementById('merchant-password').value || '').trim();
 
@@ -895,7 +1121,7 @@
         const res = await fetch(`${API_BASE}/api/merchant/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account: account, accountNumber: account, password: password })
+          body: JSON.stringify({ account: account, accountNumber: account, password: password, force_login: !!forceLogin })
         });
 
         const text = await res.text();
@@ -910,12 +1136,33 @@
         }
         if (!res.ok) throw new Error(data.message || data.error || t('alert_login_fail'));
 
+        // 另一台设备已登录，弹出确认框
+        if (data.has_active_session) {
+          const lastTime = data.last_login_at ? new Date(data.last_login_at).toLocaleString() : '未知';
+          const lastUa = data.last_login_ua || '未知设备';
+          const shortUa = lastUa.length > 60 ? lastUa.slice(0, 60) + '…' : lastUa;
+          document.getElementById('force-login-info').textContent = `上次登录：${lastTime}\n设备：${shortUa}`;
+          document.getElementById('modal-force-login').classList.remove('hidden');
+          return;
+        }
+
+        // 保存 session token（永久，除非主动退出）
+        if (data.session_token) {
+          localStorage.setItem('lottery_session_token', data.session_token);
+        }
+        // 保存设备信息用于设置面板展示
+        if (data.last_login_at) localStorage.setItem('lottery_login_at', data.last_login_at);
+        if (data.last_login_ua) localStorage.setItem('lottery_login_ua', data.last_login_ua);
+
         // 用登录返回的 userId 直接拉店铺列表，避免 token 解析问题
         const shopsUrl = data.userId != null
           ? `${API_BASE}/api/merchant/shops?userId=${data.userId}`
           : `${API_BASE}/api/merchant/shops`;
         const shopsRes = await fetch(shopsUrl, {
-          headers: { 'Authorization': `Bearer ${data.token}` }
+          headers: {
+            'Authorization': `Bearer ${data.token}`,
+            'X-Session-Token': data.session_token || ''
+          }
         });
         const shopsText = await shopsRes.text();
         let shopsData;
@@ -943,6 +1190,8 @@
 
         if (DEBUG) console.log("Setting shop number:", currentShop);
         document.getElementById("shop-number").textContent = currentShop.shop_number || t('shop_not_set');
+        window._currentShopId = currentShop.shop_id;
+        showSubscriptionExpiry(currentShop);
 
         // 加载限额（从店铺数据读取，null = 无限制）
         limits.chance = currentShop.limit_chance != null ? Number(currentShop.limit_chance) : null;
@@ -954,17 +1203,36 @@
 
         loadDashboard();
         startCountdown();
+        loadBindingStatus();
+        checkPrinterOnLogin();
       } catch (err) {
         alert(err.message || t('alert_login_fail'));
       }
     }
 
-    function logout() {
+    async function logout() {
+      // 通知后端清除 session token
+      const token = authToken || localStorage.getItem('lottery_token');
+      const sessionToken = localStorage.getItem('lottery_session_token');
+      if (token) {
+        try {
+          await fetch(`${API_BASE}/api/merchant/logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'X-Session-Token': sessionToken || ''
+            }
+          });
+        } catch (e) {}
+      }
       currentShop = null;
       authToken = null;
       localStorage.removeItem('lottery_token');
       localStorage.removeItem('merchant_remember');
       localStorage.removeItem('merchant_account');
+      localStorage.removeItem('lottery_session_token');
+      localStorage.removeItem('lottery_login_at');
+      localStorage.removeItem('lottery_login_ua');
       if (countdownInterval) clearInterval(countdownInterval);
       document.getElementById('merchant-account').value = '';
       document.getElementById('merchant-password').value = '';
@@ -1023,7 +1291,7 @@
         else localStorage.removeItem('limit_billete');
         alert(t('alert_limits_saved'));
       } catch (err) {
-        alert(err.message || '保存限额失败');
+        alert(err.message || t('alert_save_limits_fail'));
       }
     }
 
@@ -1268,39 +1536,11 @@
       if (countdownInterval) clearInterval(countdownInterval);
 
       function updateCountdown() {
-        // 巴拿马永远 UTC-5，无夏令时
-        const PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
-        const nowUTC = Date.now();
-        const panamaLocal = new Date(nowUTC + PANAMA_OFFSET_MS);
-        const panamaDay  = panamaLocal.getUTCDay();
-        const panamaHour = panamaLocal.getUTCHours();
-
-        // UTC 时刻对应巴拿马今日 00:00
-        const panamaMidnightUTC = nowUTC
-          - (panamaLocal.getUTCHours()   * 3600000
-           + panamaLocal.getUTCMinutes() *   60000
-           + panamaLocal.getUTCSeconds() *    1000
-           + panamaLocal.getUTCMilliseconds());
-
-        // 开奖日：周三(3)、周日(0)，15:00 巴拿马时间
-        let daysUntil;
-        if ((panamaDay === 0 || panamaDay === 3) && panamaHour < 15) { daysUntil = 0; }
-        else if (panamaDay === 0) { daysUntil = 3; } // 周日已过 → 下个周三
-        else if (panamaDay === 1) { daysUntil = 2; }
-        else if (panamaDay === 2) { daysUntil = 1; }
-        else if (panamaDay === 3) { daysUntil = 4; } // 周三已过 → 下个周日
-        else if (panamaDay === 4) { daysUntil = 3; }
-        else if (panamaDay === 5) { daysUntil = 2; }
-        else                      { daysUntil = 1; } // 周六 → 下个周日
-
-        const nextDrawUTC = panamaMidnightUTC + daysUntil * 86400000 + 15 * 3600000;
-        const stopSellUTC = nextDrawUTC - 5 * 60 * 1000;
-        const diffToStop  = stopSellUTC - nowUTC;
-
         const countdownBox = document.getElementById('draw-countdown');
         const timerEl = document.getElementById('countdown-timer');
-
-        // 仅当距离停止售卖时间 <= 10 分钟 且 > 0 时显示倒计时
+        if (!merchantStopSellAt) { countdownBox.classList.add('hidden'); return; }
+        const diffToStop = merchantStopSellAt - Date.now();
+        // 仅当距离停售 <= 10 分钟 且 > 0 时显示倒计时
         if (diffToStop > 0 && diffToStop <= 10 * 60 * 1000) {
           const m = Math.floor(diffToStop / 60000);
           const s = Math.floor((diffToStop % 60000) / 1000);
@@ -1315,53 +1555,83 @@
       countdownInterval = setInterval(updateCountdown, 1000);
     }
 
-    // 加载仪表盘（本期 = 待开奖期，16:00 开售～下次 14:55 停售；无待开奖期时数据清空）
+    // 加载仪表盘（本期 = 待开奖期；开奖日期展示与客户端 /api/bet-status 保持一致）
     async function loadDashboard() {
       if (!currentShop) return;
 
       try {
-        const [ordersRes, pendingRes, latestRes] = await Promise.all([
+        const [ordersRes, pendingRes, latestRes, statusRes] = await Promise.all([
           fetch(`${API_BASE}/api/shop/${currentShop.shop_id}/orders?limit=500`),
           fetch(`${API_BASE}/api/draw/pending`),
-          fetch(`${API_BASE}/api/draw/latest`)
+          fetch(`${API_BASE}/api/draw/latest`),
+          fetch(`${API_BASE}/api/bet-status`).catch(() => null)
         ]);
         const data = await ordersRes.json();
         const pendingData = await pendingRes.json().catch(() => ({}));
         const latestData = await latestRes.json().catch(() => ({}));
+        const statusData = statusRes ? await statusRes.json().catch(() => ({})) : {};
 
         allOrders = data.orders || [];
         const pendingDrawId = pendingData.draw && (pendingData.draw.drawId != null || pendingData.draw.draw_id != null)
           ? (pendingData.draw.drawId != null ? pendingData.draw.drawId : pendingData.draw.draw_id)
           : null;
+        // 从待开奖期拿开奖日期和时间，计算停售时间戳（开奖前 5 分钟）
+        const pendingDrawDate = pendingData.draw && (pendingData.draw.drawDate || pendingData.draw.draw_date);
+        const pendingDrawTime = pendingData.draw && (pendingData.draw.drawTime || pendingData.draw.draw_time);
+        if (pendingDrawDate) currentDrawDate = pendingDrawDate;
+        if (pendingDrawDate && pendingDrawTime) {
+          const drawMs = new Date(`${pendingDrawDate}T${pendingDrawTime}`).getTime();
+          if (!isNaN(drawMs)) merchantStopSellAt = drawMs - 5 * 60 * 1000;
+        }
         const latestDrawId = latestData.draw && latestData.draw.drawId != null ? latestData.draw.drawId : null;
+        const currentPeriodLabel = statusData && statusData.currentPeriodDate
+          ? statusData.currentPeriodDate
+          : (pendingDrawDate || '');
 
-        // 本期订单 = 属于待开奖期的订单；无待开奖期时则算 draw_id 为空的订单（刚确认的会先被归入待开奖期）
+        // 本期订单 = 属于「当前待开奖期」的订单。
+        // 兼容部分订单 draw_id 仍为 null 的情况：将最近 7 天内、draw_id 为空且已付款的订单也纳入本期，避免漏单。
+        // 若当前没有待开奖期（已发送开奖结果且未配置下一期开奖时间），则不再显示「本期订单」，等待下次待开奖期出现。
         if (pendingDrawId != null) {
-          periodOrders = allOrders.filter(function (o) { return o.draw_id == pendingDrawId; });
-        } else {
-          // 无待开奖期时：只取 draw_id 为空且 7 天内创建的订单，防止历史遗留数据混入本期统计
           const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
           periodOrders = allOrders.filter(function (o) {
-            if (o.draw_id != null && o.draw_id !== undefined && o.draw_id !== '') return false;
-            return new Date(o.created_at).getTime() >= sevenDaysAgo;
+            const createdMs = o.created_at ? new Date(o.created_at).getTime() : 0;
+            const s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
+            const isPaidLike = s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
+            if (o.draw_id == pendingDrawId) return true;
+            if ((o.draw_id == null || o.draw_id === '') && isPaidLike && createdMs && createdMs >= sevenDaysAgo) {
+              return true;
+            }
+            return false;
           });
+        } else {
+          // 无待开奖期：本期订单清空，避免在开奖后或空档期继续把旧单算作“本期”
+          periodOrders = [];
         }
-        // 本期已付款订单（用于本期销售额、已付款数、热门号码统计）
-        ordersForCurrentDraw = periodOrders.filter(function (o) { return o.status === 'paid' || o.status === 1; });
+        // 本期已确认订单（付款/结算/中奖，用于本期销售额、已付款数、热门号码统计），兼容多种 status 写法
+        ordersForCurrentDraw = periodOrders.filter(function (o) {
+          const s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
+          return s === 'paid' || s === 1 ||
+                 s === 2 || s === 'settled' ||
+                 s === 3 || s === 'won';
+        });
         drawCompleted = (latestDrawId != null);
 
-        const now = Date.now();
-        const THIRTY_MIN = 30 * 60 * 1000;
-        function parseCreatedAt(val) {
-          if (!val) return 0;
-          // SQLite 有时返回 "2026-03-15 20:00:00.000"（空格），需换成 T 才能兼容所有浏览器
-          var s = String(val).replace(' ', 'T');
-          var t = new Date(s).getTime();
-          return isNaN(t) ? 0 : t;
+        // 更新期次状态角标（与客户端一致：显示「开奖日期 · YYYY-MM-DD」）
+        const statusBadge = document.getElementById('draw-status-badge');
+        if (statusBadge) {
+          const labelDate = currentPeriodLabel;
+          if (labelDate) {
+            statusBadge.textContent = `${t('fecha_sorteo')} · ${labelDate}`;
+            statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
+            statusBadge.classList.remove('hidden');
+          } else {
+            statusBadge.classList.add('hidden');
+          }
         }
+
+        // 未付款订单：不再限制 30 分钟窗口，历史未付款也列出，方便对账
         const unpaidOrders = allOrders.filter(o =>
-          (o.status === 'pending' || o.status === 0) &&
-          (now - parseCreatedAt(o.created_at) < THIRTY_MIN)
+          (o.status === 'pending' || o.status === 0)
         );
         // 待兑奖订单（用于显示中奖金额，与结算页区分：这里只显示本店待兑付的金额）
         const redeemPendingOrders = allOrders.filter(function (o) { 
@@ -1374,7 +1644,10 @@
 
         const totalIncome = ordersForCurrentDraw.reduce((sum, o) => sum + Number(o.amount), 0);
 
-        var periodConfirmedCount = periodOrders.filter(function (o) { return o.status !== 0 && o.status !== 'pending'; }).length;
+        var periodConfirmedCount = periodOrders.filter(function (o) {
+          var s = o.status;
+          return s === 1 || s === 'paid' || s === 2 || s === 'settled' || s === 3 || s === 'won';
+        }).length;
         document.getElementById('today-total').textContent = periodConfirmedCount;
         document.getElementById('today-paid').textContent = ordersForCurrentDraw.length;
         document.getElementById('today-unpaid').textContent = unpaidOrders.length;
@@ -1444,7 +1717,7 @@
       var sorted = entries.sort(function (a, b) { return b[1] - a[1]; }).slice(0, 12);
 
       if (sorted.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm col-span-4">暂无数据</p>';
+        container.innerHTML = '<p class="text-gray-500 text-sm col-span-4">' + t('no_data') + '</p>';
         return;
       }
 
@@ -1457,7 +1730,7 @@
         else if (percent >= 0.8) colorClass = 'text-orange-400';
         return '<div class="bg-gray-700 rounded-lg px-2 py-1 text-center">' +
           '<div class="font-mono font-bold text-sm">' + num + '</div>' +
-          '<div class="' + colorClass + ' font-bold text-[11px] mt-0.5">' + qty + ' 张</div>' +
+          '<div class="' + colorClass + ' font-bold text-[11px] mt-0.5">' + qty + ' ' + t('qty_unit') + '</div>' +
           '</div>';
       }).join('');
     }
@@ -1470,7 +1743,7 @@
       var sorted = entries.sort(function (a, b) { return b[1] - a[1]; }).slice(0, 12);
 
       if (sorted.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm col-span-4">暂无数据</p>';
+        container.innerHTML = '<p class="text-gray-500 text-sm col-span-4">' + t('no_data') + '</p>';
         return;
       }
 
@@ -1483,7 +1756,7 @@
         else if (percent >= 0.8) colorClass = 'text-orange-400';
         return '<div class="bg-gray-700 rounded-lg px-2 py-1 text-center">' +
           '<div class="font-mono font-bold text-sm">' + num + '</div>' +
-          '<div class="' + colorClass + ' font-bold text-[11px] mt-0.5">' + qty + ' 张</div>' +
+          '<div class="' + colorClass + ' font-bold text-[11px] mt-0.5">' + qty + ' ' + t('qty_unit') + '</div>' +
           '</div>';
       }).join('');
     }
@@ -1579,7 +1852,7 @@
       container.className = 'grid grid-cols-4 gap-1 text-xs max-h-96 overflow-y-auto';
 
       if (!sorted || sorted.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4 col-span-4">暂无销售数据</p>';
+        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4 col-span-4">' + t('no_sales_data') + '</p>';
         document.getElementById('modal-billete').classList.remove('hidden');
         return;
       }
@@ -1688,8 +1961,8 @@
             var safeFull = String(fullNum || '').replace(/'/g, "\\'");
             var winAmt = getOrderWinAmount(order);
             return '<div class="bg-gray-700 rounded-lg px-3 py-2 flex justify-between items-center">' +
-              '<button type="button" onclick="viewOrder(\'' + safeFull + '\')" class="text-left flex-1 font-mono text-sm text-emerald-100 hover:underline">单号 ' + orderLast4(fullNum) + ' · $' + winAmt.toFixed(2) + '</button>' +
-              '<button type="button" onclick="redeemFromList(\'' + safeFull + '\', ' + winAmt + ')" class="ml-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold">兑奖</button>' +
+              '<button type="button" onclick="viewOrder(\'' + safeFull + '\')" class="text-left flex-1 font-mono text-sm text-emerald-100 hover:underline">' + t('order_short_label') + ' ' + orderLast4(fullNum) + ' · $' + winAmt.toFixed(2) + '</button>' +
+              '<button type="button" onclick="redeemFromList(\'' + safeFull + '\', ' + winAmt + ')" class="ml-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold">' + t('btn_redeem') + '</button>' +
               '</div>';
           }).join('');
         } else {
@@ -1710,14 +1983,19 @@
 
         if (res.ok) {
           showToast();
+          // 拉完整订单数据后打印（quickConfirm 入参只有订单号，需单独请求）
+          fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`)
+            .then(r => r.json())
+            .then(order => autoPrintOrder(order))
+            .catch(() => {});
           await loadDashboard();
         } else {
           var errData = await res.json().catch(function () { return {}; });
-          alert(errData.message || errData.error || '确认失败');
+          alert(errData.message || errData.error || t('alert_confirm_fail'));
         }
       } catch (err) {
         console.error(err);
-        alert(err.message || '确认失败');
+        alert(err.message || t('alert_confirm_fail'));
       }
     }
 
@@ -1770,7 +2048,7 @@
         }
         var rowClass = (isWon && winMap[String(numVal)] > 0) ? 'bg-emerald-900/30 rounded px-1' : '';
         return '<div class="flex justify-between items-center py-1 ' + rowClass + '">'
-          + '<span>' + typeLabel + '<span class="font-mono">' + numStr + '</span>'
+          + '<span>' + typeLabel + '<span class="font-mono">' + esc(numStr) + '</span>'
           + ' <span class="text-gray-400 text-xs">×' + qty + '</span></span>'
           + right
           + '</div>';
@@ -1787,7 +2065,7 @@
           var num = b.n != null ? String(b.n) : '';
           var qty = Number(b.q) || 0;
           var win = Number(b.win || 0).toFixed(2);
-          return '<div class="flex justify-between"><span class="font-mono">' + num.replace(/</g, '&lt;') + ' × ' + qty + '</span><span class="text-emerald-300">+$' + win + '</span></div>';
+          return '<div class="flex justify-between"><span class="font-mono">' + esc(num) + ' × ' + qty + '</span><span class="text-emerald-300">+$' + win + '</span></div>';
         }).join('');
         document.getElementById('detail-win-breakdown').innerHTML = breakdownHtml || '<span class="text-gray-500">—</span>';
       } else {
@@ -1799,6 +2077,7 @@
       var isWonNotRedeemed = isWon && !(order.redeemed_at && order.redeemed_at !== '' && order.redeemed_at !== 'null');
       document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
       document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
+      document.getElementById('modal-btn-print').classList.toggle('hidden', !_printerChar);
 
       document.getElementById('modal-order').classList.remove('hidden');
     }
@@ -1824,10 +2103,11 @@
       try {
         const res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(num), {
           method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + authToken }
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify({ shopId: currentShop ? currentShop.shop_id : 0 })
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || '删除失败');
+        if (!res.ok) throw new Error(data.message || t('alert_delete_fail'));
         closeModal('modal-order');
         // 本地同步移除
         allOrders = allOrders.filter(function(o) {
@@ -1839,17 +2119,17 @@
         renderPeriodOrderList(document.getElementById('period-order-filter') ? document.getElementById('period-order-filter').value : '');
         loadDashboard();
       } catch (err) {
-        alert(err.message || '删除失败');
+        alert(err.message || t('alert_delete_fail'));
       }
     }
 
     // 本期订单列表：本期全部订单（已付款、已开奖、已中奖），不包含未付款；点击整行或单号打开订单详情
     function periodOrderStatusText(o) {
       var s = o.status;
-      if (s === 'won' || s === 3) return t('status_order_3') || '已中奖';
-      if (s === 'settled' || s === 2) return t('status_order_2') || '已开奖';
-      if (s === 'paid' || s === 1) return t('status_order_1') || '已付款';
-      return t('status_order_0') || '未付款';
+      if (s === 'won' || s === 3) return t('status_order_3');
+      if (s === 'settled' || s === 2) return t('status_order_2');
+      if (s === 'paid' || s === 1) return t('status_order_1');
+      return t('status_order_0');
     }
     function renderPeriodOrderList(suffix) {
       var listEl = document.getElementById('period-order-list');
@@ -1879,7 +2159,7 @@
           var statusCls = isWon ? 'text-emerald-300 font-medium' : 'text-gray-400';
           var amtCls = isWon ? 'text-emerald-300' : 'text-green-400';
           return '<div class="period-order-row flex justify-between items-center ' + rowBg + ' rounded-lg px-3 py-2 cursor-pointer hover:opacity-90 active:opacity-80" data-order-number="' + safeAttr + '" role="button" tabindex="0">' +
-            '<span class="text-left flex-1 font-mono text-sm font-bold">单号 ' + orderLast4(num) + '</span>' +
+            '<span class="text-left flex-1 font-mono text-sm font-bold">' + t('order_short_label') + ' ' + orderLast4(num) + '</span>' +
             '<span class="text-xs mr-2 ' + statusCls + '">' + status + '</span>' +
             '<span class="font-bold ' + amtCls + '">$' + amt + '</span>' +
             '</div>';
@@ -1929,14 +2209,19 @@
 
         if (res.ok) {
           showToast();
+          // 用确认后最新数据打印，与 quickConfirm 保持一致
+          fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`)
+            .then(r => r.json())
+            .then(freshOrder => autoPrintOrder(freshOrder))
+            .catch(() => autoPrintOrder(currentOrder));
           closeModal('modal-order');
           loadDashboard();
         } else {
           const errData = await res.json().catch(() => ({}));
-          alert(errData.message || errData.error || '确认失败');
+          alert(errData.message || errData.error || t('alert_confirm_fail'));
         }
       } catch (err) {
-        alert(err.message || '确认失败');
+        alert(err.message || t('alert_confirm_fail'));
       } finally {
         paymentInProgress = false;
       }
@@ -1957,6 +2242,881 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && currentShop) loadDashboard();
     });
+
+    // ─── 分店铺绑定 ───
+    // 小庄侧：加载绑定状态 + 收到的大庄邀请
+    async function loadBindingStatus() {
+      if (!currentShop) return;
+      const areaEl = document.getElementById('binding-status-area');
+      const badgeEl = document.getElementById('binding-badge');
+      if (!areaEl) return;
+      try {
+        const [bindingRes, pendingRes, subShopsRes] = await Promise.all([
+          fetch(`${API_BASE}/api/merchant/binding/my-binding?shopId=${currentShop.shop_id}`),
+          fetch(`${API_BASE}/api/merchant/binding/pending?shopId=${currentShop.shop_id}`),
+          fetch(`${API_BASE}/api/merchant/binding/sub-shops?mainShopId=${currentShop.shop_id}`),
+        ]);
+        const { binding } = await bindingRes.json();
+        const { pending } = await pendingRes.json();
+        const subShopsData = await subShopsRes.json().catch(() => ({}));
+        const isMainShop = Array.isArray(subShopsData.sub_shops) && subShopsData.sub_shops.length > 0;
+
+        // 角标：有待确认的大庄邀请时显示
+        if (badgeEl) {
+          if (pending && pending.length > 0) { badgeEl.textContent = pending.length; badgeEl.classList.remove('hidden'); }
+          else { badgeEl.classList.add('hidden'); }
+        }
+
+        let html = '';
+
+        // 已是大庄（有绑定的小庄）→ 显示引导，不显示"尚未绑定大庄"
+        if (isMainShop) {
+          const info = t('binding_as_main_info').replace('{count}', subShopsData.sub_shops.length);
+          html += `<p class="text-xs text-gray-400">${info}</p>`;
+        } else if (binding && binding.status === 'active') {
+          html += `<div class="flex items-center justify-between mb-2">
+            <div class="text-xs">
+              <span class="text-green-400 font-semibold">${t('binding_bound_title')}</span>
+              <span class="text-gray-400 ml-2">${t('binding_main_shop_label')} <span class="font-mono font-bold text-white">${binding.main_shop_number}</span></span>
+            </div>
+            <button onclick="unbindSelf(${binding.binding_id})" class="text-xs text-red-400 hover:underline ml-2">${t('binding_unbind_btn')}</button>
+          </div>
+          <p class="text-xs text-gray-500">${t('binding_commission_rate_label')}<span class="text-white font-bold">${(binding.commission_rate * 100).toFixed(0)}%</span></p>`;
+        } else if (!binding || binding.status === 'rejected') {
+          html += `<p class="text-xs text-gray-400">${t('binding_none')}</p>`;
+        }
+
+        // 待确认邀请：内联显示，不弹窗
+        if (pending && pending.length > 0) {
+          html += `<div class="mt-3 space-y-2">`;
+          pending.forEach(inv => {
+            html += `<div class="bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm">
+                  <span class="text-gray-400 text-xs">店号 </span><span class="font-mono font-black text-yellow-300">${inv.main_shop_number}</span>
+                  <span class="text-gray-400 text-xs ml-2">${t('binding_invite_join')} <span class="text-white font-bold">${(inv.commission_rate * 100).toFixed(0)}%</span></span>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="respondInvite(${inv.binding_id}, true)" class="flex-1 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-sm font-bold transition">${t('btn_approve')}</button>
+                <button onclick="respondInvite(${inv.binding_id}, false)" class="flex-1 py-2 rounded-xl bg-red-900/60 hover:bg-red-800 text-sm font-bold transition text-red-300">${t('btn_reject')}</button>
+              </div>
+            </div>`;
+          });
+          html += `</div>`;
+        }
+
+        areaEl.innerHTML = html || '<p class="text-xs text-gray-500">' + t('no_binding_info') + '</p>';
+        areaEl.classList.remove('hidden');
+      } catch (e) {
+        areaEl.innerHTML = '<p class="text-xs text-gray-500">' + t('binding_load_fail') + '</p>';
+      }
+    }
+
+    async function respondInvite(bindingId, approve) {
+      try {
+        const token = authToken || localStorage.getItem('lottery_token') || '';
+        const sessionToken = localStorage.getItem('lottery_session_token') || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        if (sessionToken) headers['X-Session-Token'] = sessionToken;
+        const r = await fetch(`${API_BASE}/api/merchant/binding/${bindingId}/${approve ? 'approve' : 'reject'}`, {
+          method: 'POST', headers, body: '{}',
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.message || t('alert_op_fail'));
+        loadBindingStatus();
+      } catch (e) { alert(e.message); }
+    }
+
+    function unbindSelf(bindingId) {
+      if (!confirm(t('confirm_unbind'))) return;
+      (async () => {
+        try {
+          const token = authToken || localStorage.getItem('lottery_token') || '';
+          const sessionToken = localStorage.getItem('lottery_session_token') || '';
+          const headers = {};
+          if (token) headers['Authorization'] = 'Bearer ' + token;
+          if (sessionToken) headers['X-Session-Token'] = sessionToken;
+          const r = await fetch(`${API_BASE}/api/merchant/binding/${bindingId}`, { method: 'DELETE', headers });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.message || t('alert_unbind_fail'));
+          loadBindingStatus();
+        } catch (e) { alert(e.message); }
+      })();
+    }
+
+    // ── PWA 添加到桌面 ──────────────────────────────────────
+    let _pwaInstallPrompt = null; // beforeinstallprompt 事件，用于触发原生安装对话框
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      _pwaInstallPrompt = e;
+      // 如果设置面板里的按钮存在，显示它
+      const btn = document.getElementById('btn-add-homescreen');
+      if (btn) btn.classList.remove('hidden');
+    });
+
+    /** 显示"添加到桌面"提示弹窗
+     *  reason: 'register' | 'print' | 'manual'
+     */
+    function showPwaPrompt(reason) {
+      const titles = {
+        register: '📲 添加到桌面',
+        print:    '📲 添加到桌面，蓝牙才能自动重连',
+        manual:   '📲 添加到桌面',
+      };
+      const descs = {
+        register: '下次直接点桌面图标打开，无需输入网址，打开更快。',
+        print:    '从桌面图标打开时，打印机自动重连，无需每次手动配对。',
+        manual:   '桌面图标直接打开 · 打印机自动重连 · 无需输入网址',
+      };
+      document.getElementById('pwa-prompt-title').textContent = titles[reason] || titles.manual;
+      document.getElementById('pwa-prompt-desc').textContent  = descs[reason]  || descs.manual;
+
+      const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+      const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+      document.getElementById('pwa-prompt-ios').classList.toggle('hidden', !isIOS);
+      document.getElementById('pwa-prompt-manual').classList.toggle('hidden', isIOS || isInstalled || !!_pwaInstallPrompt);
+      document.getElementById('pwa-prompt-btn-install').classList.toggle('hidden', isIOS || isInstalled || !_pwaInstallPrompt);
+      document.getElementById('pwa-prompt-installed').classList.toggle('hidden', !isInstalled);
+
+      document.getElementById('modal-pwa-prompt').classList.remove('hidden');
+    }
+
+    function closePwaPrompt() {
+      document.getElementById('modal-pwa-prompt').classList.add('hidden');
+    }
+
+    async function triggerPwaInstall() {
+      if (!_pwaInstallPrompt) return;
+      _pwaInstallPrompt.prompt();
+      const { outcome } = await _pwaInstallPrompt.userChoice;
+      _pwaInstallPrompt = null;
+      closePwaPrompt();
+      if (outcome === 'accepted') {
+        const btn = document.getElementById('btn-add-homescreen');
+        if (btn) btn.classList.add('hidden');
+      }
+    }
+
+    // ── 蓝牙热敏打印 ──────────────────────────────────────
+    let _printerChar = null;      // Web Bluetooth 特征（Chrome/Edge）
+    let _printerDevice = null;    // 已授权的设备引用，用于断连后自动重连
+    let _printMode = 'none';      // 'ble' | 'rawbt' | 'none'
+    let _reconnectTimer = null;   // 断连重试定时器
+    let _keepAliveTimer = null;   // 心跳定时器（防 BLE 空闲超时断连）
+    let currentDrawDate = null;   // 当期开奖日期，加载数据时更新，用于打印小票
+
+    /** 每 25 秒发一次 ESC @ 心跳，保持 BLE 连接不断 */
+    function startPrinterKeepAlive() {
+      if (_keepAliveTimer) clearInterval(_keepAliveTimer);
+      _keepAliveTimer = setInterval(async () => {
+        if (!_printerChar) return;
+        try {
+          const ping = new Uint8Array([0x1B, 0x40]); // ESC @ 初始化（无害）
+          const canWithout = _printerChar.properties?.writeWithoutResponse;
+          if (canWithout) await _printerChar.writeValueWithoutResponse(ping);
+          else if (_printerChar.writeValueWithResponse) await _printerChar.writeValueWithResponse(ping);
+          else await _printerChar.writeValue(ping);
+        } catch {}
+      }, 25000);
+    }
+
+    function stopPrinterKeepAlive() {
+      if (_keepAliveTimer) { clearInterval(_keepAliveTimer); _keepAliveTimer = null; }
+    }
+
+    const PRINTER_PROFILES = [
+      { service: '000018f0-0000-1000-8000-00805f9b34fb', char: '00002af1-0000-1000-8000-00805f9b34fb' },
+      { service: 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', char: 'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f' },
+      { service: '49535343-fe7d-4ae5-8fa9-9fafd205e455', char: '49535343-8841-43f4-a8d4-ecbe34729bb3' },
+    ];
+
+    function hasBLE() { return !!(navigator.bluetooth); }
+    function isIOS() { return /iP(hone|ad|od)/i.test(navigator.userAgent); }
+    /** 返回打印不可用的原因，可用则返回 null */
+    function printUnsupportedReason() {
+      if (isIOS()) return '苹果设备（iPhone / iPad）不支持蓝牙打印功能。';
+      if (!hasBLE()) return '打印功能需要使用 Chrome 或 Edge 浏览器，当前浏览器不支持。';
+      return null;
+    }
+
+    function showPrinterWarning(msg) {
+      const el = document.getElementById('printer-warning');
+      const txt = document.getElementById('printer-warning-text');
+      if (txt) txt.textContent = msg;
+      el?.classList.remove('hidden');
+    }
+
+    /** 登录后检查打印状态：尝试静默重连，失败则显示警告 banner */
+    async function checkPrinterOnLogin() {
+      if (localStorage.getItem('lottery_print_enabled') !== '1') return;
+      const reason = printUnsupportedReason();
+      if (reason) {
+        showPrinterWarning('🖨️ ' + reason);
+        return;
+      }
+      // 尝试用 getDevices() 静默重连（无需用户手势，HTTPS + Chrome 85+）
+      if (navigator.bluetooth?.getDevices) {
+        try {
+          const savedName = localStorage.getItem('lottery_printer_name') || '';
+          const devices = await navigator.bluetooth.getDevices();
+          if (devices.length === 0) {
+            // getDevices() 返回空 → 权限未持久化（常见于非 HTTPS 或 Chrome 权限被清除）
+            showPrinterWarning('🖨️ 未找到已授权打印机，请点击重连');
+            return;
+          }
+          const sorted = savedName
+            ? [...devices].sort((a, b) => (a.name === savedName ? -1 : b.name === savedName ? 1 : 0))
+            : devices;
+          for (const device of sorted) {
+            // Android BLE 栈刷新后恢复慢，最多重试 3 次，间隔递增
+            const delays = [1500, 3000, 5000];
+            for (const delay of delays) {
+              try {
+                await new Promise(r => setTimeout(r, delay));
+                const ok = await _doConnect(device, false);
+                if (ok) return; // 成功，不再重试
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+      // 静默重连失败，显示顶部警告 + 重连按钮
+      showPrinterWarning(t('printer_warning_disconnected'));
+    }
+
+    function updatePrinterStatusUI() {
+      const enabled = localStorage.getItem('lottery_print_enabled') === '1';
+      const statusEl = document.getElementById('printer-status');
+      const btnConnect = document.getElementById('btn-connect-printer');
+      if (!statusEl) return;
+      if (!enabled) {
+        statusEl.textContent = t('printer_not_enabled');
+        statusEl.className = 'text-xs text-gray-400';
+        if (btnConnect) btnConnect.classList.add('hidden');
+        return;
+      }
+      const unsupported = printUnsupportedReason();
+      if (unsupported) {
+        statusEl.textContent = '⚠️ ' + unsupported;
+        statusEl.className = 'text-xs text-yellow-400';
+        if (btnConnect) btnConnect.classList.add('hidden');
+      } else if (_printerChar) {
+        statusEl.textContent = t('printer_connected');
+        statusEl.className = 'text-xs text-green-400';
+        if (btnConnect) btnConnect.classList.add('hidden');
+      } else {
+        statusEl.textContent = t('printer_not_connected');
+        statusEl.className = 'text-xs text-yellow-400';
+        if (btnConnect) btnConnect.classList.remove('hidden');
+      }
+    }
+
+    async function onPrintToggle(checked) {
+      localStorage.setItem('lottery_print_enabled', checked ? '1' : '0');
+      if (!checked) { _printerChar = null; stopPrinterKeepAlive(); }
+      const reason = printUnsupportedReason();
+      if (checked && reason) {
+        alert('⚠️ ' + reason + (isIOS() ? '' : t('printer_use_chrome')));
+        localStorage.setItem('lottery_print_enabled', '0');
+        document.getElementById('print-toggle').checked = false;
+        updatePrinterStatusUI();
+        return;
+      }
+      updatePrinterStatusUI();
+      if (checked && hasBLE()) {
+        await connectPrinter();
+        // 开启打印后提示添加到桌面（桌面模式才能自动重连）
+        setTimeout(() => showPwaPrompt('print'), 800);
+      }
+    }
+
+    /** 底层：拿到 device 对象后建立 GATT 连接并获取特征 */
+    async function _doConnect(device, printTest = false) {
+      const statusEl = document.getElementById('printer-status');
+      if (statusEl) { statusEl.textContent = t('printer_connecting').replace('{name}', device.name || t('bt_device')); statusEl.className = 'text-xs text-blue-400'; }
+      const server = await device.gatt.connect();
+      _printerDevice = device;
+      localStorage.setItem('lottery_printer_name', device.name || '');
+      device.addEventListener('gattserverdisconnected', () => {
+        _printerChar = null;
+        stopPrinterKeepAlive();
+        updatePrinterStatusUI();
+        if (_reconnectTimer) clearTimeout(_reconnectTimer);
+        _reconnectTimer = setTimeout(() => autoReconnectPrinter(), 500);
+      });
+      for (const profile of PRINTER_PROFILES) {
+        try {
+          const svc = await server.getPrimaryService(profile.service);
+          _printerChar = await svc.getCharacteristic(profile.char);
+          break;
+        } catch {}
+      }
+      updatePrinterStatusUI();
+      if (_printerChar) {
+        document.getElementById('printer-warning')?.classList.add('hidden');
+        startPrinterKeepAlive();
+        if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch {} }
+      } else if (statusEl) {
+        statusEl.textContent = t('printer_no_char');
+        statusEl.className = 'text-xs text-red-400';
+      }
+      return !!_printerChar;
+    }
+
+    async function connectPrinter() {
+      const reason = printUnsupportedReason();
+      if (reason) {
+        alert('⚠️ ' + reason + (isIOS() ? '' : t('printer_use_chrome_connect')));
+        return;
+      }
+      const statusEl = document.getElementById('printer-status');
+      if (statusEl) { statusEl.textContent = t('printer_searching'); statusEl.className = 'text-xs text-blue-400'; }
+
+      // 1. 先用 getDevices() 找之前授权过的设备，有则直接连，不弹选择框
+      if (navigator.bluetooth?.getDevices) {
+        try {
+          const savedName = localStorage.getItem('lottery_printer_name') || '';
+          const devices = await navigator.bluetooth.getDevices();
+          // 优先匹配上次用的打印机名
+          const sorted = savedName
+            ? [...devices].sort((a, b) => (a.name === savedName ? -1 : b.name === savedName ? 1 : 0))
+            : devices;
+          for (const device of sorted) {
+            try {
+              const ok = await _doConnect(device, true);
+              if (ok) return;  // 直接连上，不弹选择框
+            } catch {}
+          }
+        } catch {}
+      }
+
+      // 2. getDevices() 找不到 → 弹选择框；有保存的名称则只显示该设备（一键确认）
+      try {
+        const savedName = localStorage.getItem('lottery_printer_name') || '';
+        const requestOpts = savedName ? {
+          filters: [{ name: savedName }],
+          optionalServices: PRINTER_PROFILES.map(p => p.service),
+        } : {
+          acceptAllDevices: true,
+          optionalServices: PRINTER_PROFILES.map(p => p.service),
+        };
+        const device = await navigator.bluetooth.requestDevice(requestOpts);
+        await _doConnect(device, true);
+      } catch (e) {
+        if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
+      }
+    }
+
+    /** 断连后自动重试（用已保存的 _printerDevice 引用，无需用户操作） */
+    async function autoReconnectPrinter() {
+      if (!_printerDevice || localStorage.getItem('lottery_print_enabled') !== '1') return;
+      const delays = [500, 2000, 5000];
+      for (const delay of delays) {
+        try {
+          await new Promise(r => setTimeout(r, delay));
+          const ok = await _doConnect(_printerDevice, false);
+          if (ok) return;
+        } catch {}
+      }
+    }
+
+    // ── ESC/POS 构建 ─────────────────────────────────────
+    function encLatin1(s) {
+      const a = [];
+      for (let i = 0; i < s.length; i++) a.push(s.charCodeAt(i) < 256 ? s.charCodeAt(i) : 63);
+      return a;
+    }
+
+    /** 构建与客户端已付款页面一致的收据 */
+    function buildReceipt(order, shopNumber) {
+      const buf = [];
+      const push = (...b) => buf.push(...b);
+      const txt  = s  => push(...encLatin1(s));
+      const LF   = () => push(0x0A);
+      const W    = 32;
+      const row  = (l, r) => {                          // 左右对齐一行
+        const sp = Math.max(1, W - l.length - r.length);
+        txt(l + ' '.repeat(sp) + r); LF();
+      };
+
+      const INIT   = [0x1B,0x40];
+      const CENTER = [0x1B,0x61,0x01];
+      const LEFT   = [0x1B,0x61,0x00];
+      const BON    = [0x1B,0x45,0x01];
+      const BOFF   = [0x1B,0x45,0x00];
+      const BIG    = [0x1D,0x21,0x11];
+      const NORM   = [0x1D,0x21,0x00];
+      const CUT    = [0x1B,0x64,0x05, 0x1D,0x56,0x42,0x00];
+      const DIV    = '--------------------------------';
+
+      push(...INIT);
+
+      // ── 1. 状态文字（与 page-confirmed 顶部一致）──
+      push(...CENTER);
+      push(...BON);
+      txt('Esperando el sorteo'); LF();
+      push(...BOFF);
+      txt('Guarda el QR para cobrar si ganas.'); LF();
+      LF();
+
+      // ── 2. QR 码 ──
+      const orderNum = order.order_number || order.orderNumber || '';
+      const qrData = JSON.stringify({
+        orderNumber: orderNum,
+        orderHash:   order.order_hash || order.orderHash || '',
+        shopId:      currentShop ? currentShop.shop_id : 0,
+      });
+      const qrBytes = encLatin1(qrData);
+      const pL = (qrBytes.length + 3) & 0xFF;
+      const pH = ((qrBytes.length + 3) >> 8) & 0xFF;
+      push(...CENTER);
+      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x43,0x05);        // module size 5
+      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x45,0x31);        // 纠错 M
+      push(0x1D,0x28,0x6B,pL,pH,0x31,0x50,0x30,...qrBytes); // 存入数据
+      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x51,0x30);        // 打印
+      LF();
+
+      // ── 3. 日期（inline "标签: 值"）──
+      push(...CENTER);
+      let placedStr = '--';
+      if (order.created_at || order.paid_at) {
+        const d = new Date(order.paid_at || order.created_at);
+        if (!isNaN(d.getTime())) {
+          const dd = String(d.getDate()).padStart(2,'0');
+          const mm = String(d.getMonth()+1).padStart(2,'0');
+          const yy = d.getFullYear();
+          const hh = String(d.getHours()).padStart(2,'0');
+          const mi = String(d.getMinutes()).padStart(2,'0');
+          placedStr = `${dd}-${mm}-${yy} ${hh}:${mi}`;
+        }
+      }
+      const rawDate = currentDrawDate || '';
+      const drawDateStr = rawDate ? (function() {
+        const p = String(rawDate).slice(0,10).split('-');
+        return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : rawDate;
+      })() : '--';
+
+      txt('Fecha de compra: ' + placedStr); LF();
+      txt('Fecha del sorteo: ' + drawDateStr); LF();
+      LF();
+
+      // ── 4. 店号大字 ──
+      push(...BON,...BIG);
+      txt(String(shopNumber)); LF();
+      push(...NORM,...BOFF);
+      LF();
+
+      // ── 5. Pedido confirmado ──
+      push(...BON);
+      txt('Pedido confirmado'); LF();
+      push(...BOFF);
+      txt('Este QR es tu comprobante para'); LF();
+      txt('cobrar el premio en el punto'); LF();
+      txt('de venta.'); LF();
+      LF();
+
+      // ── 6. 明细表 ──
+      push(...LEFT);
+      const amount = Number(order.amount || 0).toFixed(2);
+      txt(DIV); LF();
+      row('Tienda',         String(shopNumber));
+      row('N.o de pedido',  orderNum);
+      row('Importe pagado', '$' + amount);
+      txt(DIV); LF();
+      txt('Numeros y cantidades'); LF();
+
+      let nums = order.numbers || order.bet_numbers || [];
+      if (typeof nums === 'string') { try { nums = JSON.parse(nums); } catch(e) { nums = []; } }
+      if (!Array.isArray(nums)) nums = [];
+      nums.forEach(n => {
+        const numStr = String(n.n != null ? n.n : (n.number != null ? n.number : '')).replace(/\D/g,'');
+        const qty    = Number(n.q != null ? n.q : (n.quantity != null ? n.quantity : 1)) || 1;
+        if (!numStr) return;
+        const isBil  = numStr.length >= 4;
+        const lineAmt = '$' + (qty * (isBil ? 1 : 0.25)).toFixed(2);
+        row(numStr + ' x' + qty, lineAmt);
+      });
+
+      txt(DIV); LF();
+      push(...BON);
+      row('Total', '$' + amount);
+      push(...BOFF);
+      LF(); LF(); LF(); LF(); LF();
+      push(...CUT);
+      return new Uint8Array(buf);
+    }
+
+    // ── 连接测试打印 ──────────────────────────────────────
+    function buildTestReceipt() {
+      const buf = [];
+      const push = (...b) => buf.push(...b);
+      const txt  = s => push(...encLatin1(s));
+      const LF   = () => push(0x0A);
+      const INIT   = [0x1B,0x40];
+      const CENTER = [0x1B,0x61,0x01];
+      const LEFT   = [0x1B,0x61,0x00];
+      const BON    = [0x1B,0x45,0x01];
+      const BOFF   = [0x1B,0x45,0x00];
+      const BIG    = [0x1D,0x21,0x11];
+      const NORM   = [0x1D,0x21,0x00];
+      const CUT    = [0x1D,0x56,0x00];
+      push(...INIT,...CENTER,...BON,...BIG);
+      txt('PRUEBA OK'); LF();
+      push(...NORM,...BOFF);
+      txt('Impresora conectada'); LF();
+      txt('Impresion automatica activada'); LF();
+      LF();
+      push(...LEFT);
+      const shopNum = currentShop ? String(currentShop.shop_number) : '-----';
+      txt('Tienda : ' + shopNum); LF();
+      txt('Hora   : ' + new Date().toLocaleTimeString()); LF();
+      LF();
+      push(...CENTER);
+      txt('--- Fin de prueba ---'); LF();
+      push(0x1B,0x64,0x08, 0x1D,0x56,0x42,0x00);
+      return new Uint8Array(buf);
+    }
+
+    // ── 发送打印 ──────────────────────────────────────────
+    async function sendToPrinter(data) {
+      const CHUNK = 100; // 缩小分块，减少打印机缓冲溢出
+      const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
+      for (let i = 0; i < data.length; i += CHUNK) {
+        const chunk = data.slice(i, i + CHUNK);
+        if (canWithout) {
+          await _printerChar.writeValueWithoutResponse(chunk);
+          // writeWithoutResponse 无确认机制，加小延迟让打印机处理当前包再发下一包
+          await new Promise(r => setTimeout(r, 30));
+        } else if (_printerChar.writeValueWithResponse) {
+          await _printerChar.writeValueWithResponse(chunk);
+        } else {
+          await _printerChar.writeValue(chunk);
+        }
+      }
+    }
+
+    async function autoPrintOrder(order) {
+      if (localStorage.getItem('lottery_print_enabled') !== '1') return;
+      // 连接已断开（空闲超时）→ 先尝试自动重连，再打印
+      if (!_printerChar) {
+        if (_printerDevice) {
+          try {
+            await _doConnect(_printerDevice, false);
+          } catch {}
+        }
+        if (!_printerChar) {
+          showPrinterWarning(t('printer_warning_disconnected'));
+          return;
+        }
+      }
+      let receipt;
+      try {
+        receipt = buildReceipt(order, currentShop?.shop_number || '');
+      } catch (e) {
+        console.warn('buildReceipt 失败:', e.message);
+        showPrinterWarning('🖨️ 构建小票失败：' + e.message);
+        return;
+      }
+      try {
+        await sendToPrinter(receipt);
+      } catch (e) {
+        console.warn('打印失败:', e.message);
+        showPrinterWarning('🖨️ 打印失败：' + e.message);
+      }
+    }
+    async function printCurrentOrder() {
+      if (!currentOrder) return;
+      const btn = document.getElementById('modal-btn-print');
+      if (btn) btn.disabled = true;
+      const orderNumber = currentOrder.order_number || currentOrder.orderNumber;
+      try {
+        const r = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`);
+        const freshOrder = await r.json();
+        await autoPrintOrder(freshOrder);
+      } catch {
+        await autoPrintOrder(currentOrder);
+      }
+      if (btn) btn.disabled = false;
+    }
+    // ── END 打印 ────────────────────────────────────────────
+
+    // 设置：显示到期日
+    function showSubscriptionExpiry(shop) {
+      const el = document.getElementById('subscription-expires');
+      if (!el) return;
+      const expires = shop && shop.subscription_expires_at ? new Date(shop.subscription_expires_at) : null;
+      if (!expires) { el.classList.add('hidden'); return; }
+      const expired = expires < new Date();
+      el.classList.remove('hidden');
+      const dateStr = expires.toISOString().slice(0, 10);
+      el.textContent = expired ? t('subscription_expired').replace('{date}', dateStr) : t('subscription_expires').replace('{date}', dateStr);
+      el.className = `text-xs mt-0.5 ${expired ? 'text-red-400' : 'text-gray-400'}`;
+    }
+
+    function openSettings() {
+      document.getElementById('modal-settings').classList.remove('hidden');
+      // 恢复打印开关状态
+      const enabled = localStorage.getItem('lottery_print_enabled') === '1';
+      document.getElementById('print-toggle').checked = enabled;
+      updatePrinterStatusUI();
+      // 展示当前登录设备信息
+      const loginAt = localStorage.getItem('lottery_login_at');
+      const loginUa = localStorage.getItem('lottery_login_ua');
+      document.getElementById('device-login-at').textContent = loginAt ? new Date(loginAt).toLocaleString() : '—';
+      const ua = loginUa || '—';
+      document.getElementById('device-ua').textContent = ua.length > 80 ? ua.slice(0, 80) + '…' : ua;
+    }
+
+    async function activateCard() {
+      const code = document.getElementById('settings-card-code').value.trim();
+      const shopId = window._currentShopId;
+      if (!code) { alert(t('alert_card_code_empty')); return; }
+      if (!shopId) { alert(t('alert_login_empty')); return; }
+      const btn = document.getElementById('btn-activate-card');
+      const resultEl = document.getElementById('activate-result');
+      btn.disabled = true;
+      try {
+        const token = localStorage.getItem('lottery_token') || '';
+        const res = await fetch((window.API_BASE || '') + '/api/merchant/activate-card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ shopId, code }),
+        });
+        const data = await res.json();
+        resultEl.classList.remove('hidden', 'text-green-400', 'text-red-400');
+        resultEl.classList.remove('hidden');
+        if (data.success) {
+          resultEl.classList.add('text-green-400');
+          resultEl.textContent = data.message;
+          document.getElementById('settings-card-code').value = '';
+          // 更新到期日显示
+          if (data.subscription_expires_at) {
+            showSubscriptionExpiry({ subscription_expires_at: data.subscription_expires_at });
+          }
+        } else {
+          resultEl.classList.add('text-red-400');
+          resultEl.textContent = data.message || data.error || t('alert_activate_fail');
+        }
+      } catch (e) {
+        resultEl.classList.remove('hidden');
+        resultEl.classList.add('text-red-400');
+        resultEl.textContent = t('alert_request_fail');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function showSettingsResult(elId, ok, msg) {
+      const el = document.getElementById(elId);
+      el.classList.remove('text-green-400', 'text-red-400', 'hidden');
+      el.classList.add(ok ? 'text-green-400' : 'text-red-400');
+      el.textContent = msg;
+    }
+
+    async function doChangePassword() {
+      const cur = document.getElementById('settings-cur-pwd').value;
+      const n1 = document.getElementById('settings-new-pwd').value;
+      const n2 = document.getElementById('settings-new-pwd2').value;
+      if (!cur || !n1 || !n2) { showSettingsResult('change-pwd-result', false, t('alert_fill_pwd_fields')); return; }
+      if (n1 !== n2) { showSettingsResult('change-pwd-result', false, t('alert_new_pwd_mismatch')); return; }
+      try {
+        const token = localStorage.getItem('lottery_token') || '';
+        const res = await fetch((window.API_BASE || '') + '/api/merchant/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ currentPassword: cur, newPassword: n1 }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showSettingsResult('change-pwd-result', true, '✓ ' + data.message);
+          document.getElementById('settings-cur-pwd').value = '';
+          document.getElementById('settings-new-pwd').value = '';
+          document.getElementById('settings-new-pwd2').value = '';
+        } else {
+          showSettingsResult('change-pwd-result', false, data.message || data.error || t('alert_change_fail'));
+        }
+      } catch (e) {
+        showSettingsResult('change-pwd-result', false, t('alert_request_fail'));
+      }
+    }
+
+    async function doChangeEmail() {
+      const email = document.getElementById('settings-email').value.trim();
+      const currentPassword = document.getElementById('settings-email-cur-pwd').value;
+      if (!email) { showSettingsResult('change-email-result', false, t('alert_email_empty')); return; }
+      if (!currentPassword) { showSettingsResult('change-email-result', false, '请输入当前密码'); return; }
+      try {
+        const token = localStorage.getItem('lottery_token') || '';
+        const sessionToken = localStorage.getItem('lottery_session_token') || '';
+        const res = await fetch((window.API_BASE || '') + '/api/merchant/change-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            'X-Session-Token': sessionToken
+          },
+          body: JSON.stringify({ email, currentPassword }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showSettingsResult('change-email-result', true, '✓ ' + data.message);
+          document.getElementById('settings-email').value = '';
+          document.getElementById('settings-email-cur-pwd').value = '';
+        } else {
+          showSettingsResult('change-email-result', false, data.message || data.error || t('alert_save_fail'));
+        }
+      } catch (e) {
+        showSettingsResult('change-email-result', false, t('alert_request_fail'));
+      }
+    }
+  </script>
+
+  <!-- 设置弹窗 -->
+  <div id="modal-settings" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
+        <h2 class="text-lg font-bold" data-i18n="settings_panel_title">⚙️ 设置</h2>
+        <button onclick="document.getElementById('modal-settings').classList.add('hidden')" class="text-gray-400 hover:text-white text-2xl leading-none">×</button>
+      </div>
+      <div class="space-y-4 overflow-y-auto px-6 pb-6">
+        <!-- 打印设置 -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm font-bold" data-i18n="print_section_title">🖨️ 蓝牙热敏打印</p>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="print-toggle" class="sr-only peer" onchange="onPrintToggle(this.checked)">
+              <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500 mb-2" data-i18n="print_description">启用后，所有已付款订单确认时将自动打印小票。需使用 Chrome 或 Edge 浏览器，并连接蓝牙热敏打印机。</p>
+          <div id="printer-status" class="text-xs text-gray-400">未启用</div>
+          <button id="btn-connect-printer" onclick="connectPrinter()" class="hidden mt-2 w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_connect_printer">
+            🔗 连接打印机
+          </button>
+          <div class="mt-3 bg-gray-700/50 rounded-lg p-2.5">
+            <p class="text-xs text-gray-400 font-semibold mb-1" data-i18n="print_reconnect_title">以下情况需要手动重连：</p>
+            <p class="text-xs text-gray-500 whitespace-pre-line leading-relaxed" data-i18n="print_reconnect_tips">• 首次启用时
+• 打印机关机重启后
+• 清除浏览器数据后
+• 自动重连失败时（点击上方按钮）</p>
+          </div>
+        </div>
+        <!-- 添加到桌面 -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <p class="text-sm font-bold mb-1">📲 桌面快捷方式</p>
+          <p class="text-xs text-gray-500 mb-3">添加后从桌面图标打开，打印机自动重连，无需每次手动配对。</p>
+          <button id="btn-add-homescreen" onclick="showPwaPrompt('manual')"
+            class="w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold">
+            📲 添加到桌面
+          </button>
+        </div>
+
+        <!-- 修改密码 -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <p class="text-sm font-bold mb-3" data-i18n="pwd_section_title">🔑 修改密码</p>
+          <input type="password" id="settings-cur-pwd" placeholder="当前密码"
+            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
+          <input type="password" id="settings-new-pwd" placeholder="新密码（含字母+数字，≥6位）"
+            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
+          <input type="password" id="settings-new-pwd2" placeholder="确认新密码"
+            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
+          <button onclick="doChangePassword()"
+            class="w-full bg-yellow-600 hover:bg-yellow-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_change_pwd">
+            修改密码
+          </button>
+          <p id="change-pwd-result" class="text-xs text-center mt-2 hidden"></p>
+        </div>
+
+        <!-- 当前登录设备 -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <p class="text-sm font-bold mb-2">📱 当前登录设备</p>
+          <div id="device-info-box" class="text-xs text-gray-400 space-y-1 leading-relaxed">
+            <p>登录时间：<span id="device-login-at">—</span></p>
+            <p class="break-all">设备：<span id="device-ua">—</span></p>
+          </div>
+        </div>
+
+        <!-- 修改邮箱 -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <p class="text-sm font-bold mb-3" data-i18n="email_section_title">📧 修改/绑定邮箱</p>
+          <input type="password" id="settings-email-cur-pwd" placeholder="当前密码（验证用）"
+            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
+          <input type="email" id="settings-email" placeholder="新邮箱地址"
+            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
+          <button onclick="doChangeEmail()"
+            class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_save_email">
+            保存邮箱
+          </button>
+          <p id="change-email-result" class="text-xs text-center mt-2 hidden"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 强制登录确认弹窗（顶掉其他设备） -->
+  <div id="modal-force-login" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-5">
+      <h3 class="text-base font-bold mb-3">⚠️ 已有设备在线</h3>
+      <p class="text-sm text-gray-300 mb-3">当前账号已在另一台设备登录：</p>
+      <pre id="force-login-info" class="text-xs text-gray-400 bg-gray-700/60 rounded-xl p-3 mb-4 whitespace-pre-wrap break-all leading-relaxed"></pre>
+      <p class="text-sm text-yellow-400 mb-4">继续登录将把对方踢下线，确定吗？</p>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('modal-force-login').classList.add('hidden'); login(true)"
+          class="flex-1 bg-red-600 hover:bg-red-500 py-3 rounded-xl font-bold text-sm">
+          确定，顶掉对方
+        </button>
+        <button onclick="document.getElementById('modal-force-login').classList.add('hidden')"
+          class="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold text-sm text-gray-300">
+          取消
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PWA 添加到桌面提示 -->
+  <div id="modal-pwa-prompt" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-5">
+      <h3 id="pwa-prompt-title" class="text-base font-bold mb-2">📲 添加到桌面</h3>
+      <p id="pwa-prompt-desc" class="text-sm text-gray-400 mb-4 leading-relaxed"></p>
+      <!-- iOS 手动指引 -->
+      <div id="pwa-prompt-ios" class="hidden mb-3 bg-gray-700/60 rounded-xl p-3 text-xs text-gray-300 leading-relaxed">
+        iOS 操作步骤：<br>
+        1. 点底部 <span class="font-bold text-white">分享</span> 按钮（方块向上箭头）<br>
+        2. 向下滚动，点 <span class="font-bold text-white">添加到主屏幕</span>
+      </div>
+      <!-- Android 手动操作指引（无原生安装提示时） -->
+      <div id="pwa-prompt-manual" class="hidden mb-3 bg-gray-700/60 rounded-xl p-3 text-xs text-gray-300 leading-relaxed">
+        操作步骤：<br>
+        1. 点浏览器右上角 <span class="font-bold text-white">⋮ 菜单</span><br>
+        2. 点击 <span class="font-bold text-white">添加到主屏幕</span>（或"安装应用"）
+      </div>
+      <!-- 已安装提示 -->
+      <div id="pwa-prompt-installed" class="hidden mb-3 bg-green-900/40 rounded-xl p-3 text-xs text-green-300">
+        ✅ 已安装到桌面，请从桌面图标打开。
+      </div>
+      <div class="flex gap-3">
+        <button id="pwa-prompt-btn-install" onclick="triggerPwaInstall()"
+          class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-sm">
+          立即添加
+        </button>
+        <button onclick="closePwaPrompt()"
+          class="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold text-sm text-gray-300">
+          以后再说
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 注册 Service Worker（PWA支持 → Chrome Android 持久化蓝牙权限）
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
   </script>
 </body>
 </html>

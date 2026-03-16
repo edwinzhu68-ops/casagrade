@@ -259,7 +259,24 @@
         recent_20: '📅 最近 20 期结算记录',
         paid_only: '仅统计已付款订单',
         period_detail_title: '期详情',
-        shop_short: '店'
+        shop_short: '店',
+        loading: '加载中...',
+        no_paid_orders: '暂无已付款订单',
+        no_history: '暂无历史记录',
+        history_load_fail: '历史记录加载失败',
+        load_fail: '加载失败',
+        status_won: '已中奖',
+        status_settled: '未中奖',
+        status_paid: '已付款',
+        period_label_pending: '待开奖',
+        period_label_current: '本期',
+        alert_order_id_missing: '订单号缺失',
+        alert_redeem_fail: '兑奖失败',
+        unknown_error: '未知错误',
+        orders_label: '订单',
+        sales_short: '销售额',
+        payout_short: '总赔付',
+        profit_short: '利润'
       },
       es: {
         result_title: '📊 Resultado y liquidación',
@@ -299,7 +316,25 @@
         recent_20: '📅 Últimos 20 sorteos',
         paid_only: 'Solo pedidos pagados',
         period_detail_title: 'Detalle del sorteo',
-        shop_short: 'Tienda'
+        shop_short: 'Tienda',
+        loading: 'Cargando...',
+        no_paid_orders: 'Sin pedidos pagados',
+        no_history: 'Sin historial',
+        history_load_fail: 'Error al cargar historial',
+        load_fail: 'Error al cargar',
+        status_won: 'Premiado',
+        status_settled: 'Sin premio',
+        status_paid: 'Pagado',
+        period_label_pending: 'Por sortear',
+        period_label_current: 'Período',
+        alert_order_id_missing: 'Falta el número de pedido',
+        alert_redeem_fail: 'Error al canjear',
+        unknown_error: 'Error desconocido',
+        orders_label: 'Pedidos',
+        sales_short: 'Ventas',
+        payout_short: 'Premios',
+        profit_short: 'Beneficio',
+        btn_confirm_redeem: 'Confirmar cobro'
       }
     };
     function t(key) { return (RESULT_T[getResultLang()] && RESULT_T[getResultLang()][key]) ? RESULT_T[getResultLang()][key] : (RESULT_T.zh[key] || ''); }
@@ -440,6 +475,16 @@
       chance: { last2: [14, 3, 2] }
     };
 
+    /** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     // 订单显示用中奖金额：优先用后端 win_amount；仅当 win_amount 为 0 时用 win_breakdown 之和兜底
     function getOrderWinAmount(order) {
       var w = Number(order && order.win_amount);
@@ -479,6 +524,38 @@
       return panamaLocal.getUTCHours() < 15; // 15:00 起视为已开奖
     }
 
+    // 本次会话是否已触发过自动归档（防止重复调用）
+    let _archiveCalledThisSession = false;
+
+    // 每天 09:00 后，若今天是开奖日且仍有未归档的结算数据，则自动归档
+    // 返回 true 表示本次调用发起了归档请求
+    async function checkAutoArchive(pendingDraw, drawResult) {
+      if (_archiveCalledThisSession) return false;
+      if (!drawResult || drawResult.drawId == null) return false;
+      if (!pendingDraw) return false;
+      const raw = pendingDraw.draw_date || pendingDraw.drawDate || pendingDraw.drawTime;
+      if (!raw) return false;
+      const drawDateStr = typeof raw === 'string' ? raw.slice(0, 10) : new Date(raw).toISOString().slice(0, 10);
+      const PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
+      const panamaLocal = new Date(Date.now() + PANAMA_OFFSET_MS);
+      const y = panamaLocal.getUTCFullYear();
+      const mo = String(panamaLocal.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(panamaLocal.getUTCDate()).padStart(2, '0');
+      const todayStr = `${y}-${mo}-${d}`;
+      if (drawDateStr !== todayStr) return false;   // 今天不是开奖日
+      if (panamaLocal.getUTCHours() < 9) return false; // 还没到 09:00
+      // 今天是开奖日且已过 09:00 → 归档
+      _archiveCalledThisSession = true;
+      try {
+        await fetch(`${API_BASE}/api/admin/clear-settlement`, { method: 'POST' });
+        if (DEBUG) console.log('result.html: 自动归档结算数据');
+        return true;
+      } catch (e) {
+        _archiveCalledThisSession = false; // 请求失败可下次重试
+        return false;
+      }
+    }
+
     // 加载数据
     async function loadData() {
       if (DEBUG) console.log("loadData called, currentShop:", currentShop);
@@ -511,6 +588,10 @@
         } else {
           drawResult = null;
         }
+        // 开奖当天 09:00 后自动归档（每天检测一次，当天是开奖日才触发）
+        const didArchive = await checkAutoArchive(pendingDraw, drawResult);
+        if (didArchive) { loadData(); return; } // 归档后立即重新加载
+
         // 开奖当天 15:00 前：当前期清空，只显示等待开奖
         const showWaitingForDraw = isDrawDayBefore1500(pendingDraw);
         const paidOrSettledOrWon = allOrders.filter(o => ['paid', 'settled', 'won', 1, 2, 3].includes(o.status));
@@ -531,11 +612,11 @@
           if (showWaitingForDraw && pendingDraw) {
             const raw = pendingDraw.draw_date || pendingDraw.drawDate || pendingDraw.drawTime;
             const str = typeof raw === 'string' ? raw.slice(0, 10) : (raw ? new Date(raw).toISOString().slice(0, 10) : '');
-            periodEl.textContent = str ? ' (待开奖 ' + str + ')' : '';
+            periodEl.textContent = str ? ' (' + t('period_label_pending') + ' ' + str + ')' : '';
           } else if (drawResult && (drawResult.drawDate || drawResult.drawTime)) {
             const raw = drawResult.drawDate || drawResult.drawTime;
             const str = typeof raw === 'string' ? raw.slice(0, 10) : (raw ? new Date(raw).toISOString().slice(0, 10) : '');
-            periodEl.textContent = str ? ' 本期 ' + str : '';
+            periodEl.textContent = str ? ' ' + t('period_label_current') + ' ' + str : '';
           } else {
             periodEl.textContent = '';
           }
@@ -577,11 +658,11 @@
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || '加载失败');
+        if (!res.ok) throw new Error(data.error || t('load_fail'));
         const items = Array.isArray(data.items) ? data.items : [];
         recentHistory = items;
         const newHtml = items.length === 0
-          ? '<div class="py-6 text-center text-gray-500">暂无历史记录</div>'
+          ? '<div class="py-6 text-center text-gray-500">' + t('no_history') + '</div>'
           : items.map((item, idx) => {
               const dateStr = item.date || item.drawDate || '';
               const drawId = item.drawId != null ? item.drawId : (item.draw_id != null ? item.draw_id : '');
@@ -593,7 +674,7 @@
               const profit = profitNum.toFixed(2);
               const profitColor = profitNum >= 0 ? 'text-emerald-400' : 'text-red-400';
               const orderCount = item.orderCount != null ? item.orderCount : (item.order_count != null ? item.order_count : '');
-              const orderLabel = orderCount !== '' ? orderCount + ' 单' : '';
+              const orderLabel = orderCount !== '' ? orderCount + ' ' + t('orders_label') : '';
               return `
                 <button type="button" class="history-row w-full py-3 flex justify-between items-center text-left hover:bg-gray-700/40 rounded-lg px-2 -mx-2 transition border-b border-gray-700/50 last:border-0" data-draw-id="${drawId}" data-date="${dateStr}" data-idx="${idx}">
                   <div class="text-gray-300 font-medium">${dateStr || ('期 ' + (idx + 1))}</div>
@@ -620,8 +701,8 @@
         });
       } catch (e) {
         console.error(e);
-        if (historyEl.innerHTML.indexOf('加载失败') === -1) {
-          historyEl.innerHTML = '<div class="py-6 text-center text-red-400 text-sm">历史记录加载失败</div>';
+        if (historyEl.innerHTML.indexOf(t('load_fail')) === -1) {
+          historyEl.innerHTML = '<div class="py-6 text-center text-red-400 text-sm">' + t('history_load_fail') + '</div>';
         }
       }
     }
@@ -706,7 +787,7 @@
     async function redeemFromResultDetail(order) {
       const orderNumber = order.order_number || order.orderNumber;
       if (!orderNumber) {
-        alert('订单号缺失');
+        alert(t('alert_order_id_missing'));
         return;
       }
       
@@ -721,11 +802,11 @@
           loadData();
         } else {
           const data = await res.json();
-          alert('兑奖失败: ' + (data.message || '未知错误'));
+          alert(t('alert_redeem_fail') + ': ' + (data.message || t('unknown_error')));
         }
       } catch (e) {
         console.error(e);
-        alert('兑奖失败');
+        alert(t('alert_redeem_fail'));
       }
     }
 
@@ -740,14 +821,14 @@
       const container = document.getElementById('result-paid-order-list');
       if (!container) return;
       if (!orders || orders.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">暂无已付款订单</p>';
+        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">' + t('no_paid_orders') + '</p>';
         return;
       }
       const statusText = (o) => {
         const s = o.status;
-        if (s === 'won' || s === 3) return '已中奖';
-        if (s === 'settled' || s === 2) return '未中奖';
-        return '已付款';
+        if (s === 'won' || s === 3) return t('status_won');
+        if (s === 'settled' || s === 2) return t('status_settled');
+        return t('status_paid');
       };
       const rowClass = (o) => {
         const s = o.status;
@@ -770,8 +851,8 @@
         const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const amtBlock = winAmt > 0
           ? `<span class="flex flex-col items-end leading-tight">
-               <span class="font-mono text-xs text-gray-300">售 $${amt}</span>
-               <span class="font-mono font-bold text-sm text-yellow-300">奖 $${winAmt.toFixed(2)}</span>
+               <span class="font-mono text-xs text-gray-300">${t('sales_short')} $${amt}</span>
+               <span class="font-mono font-bold text-sm text-yellow-300">${t('win_amount_label')} $${winAmt.toFixed(2)}</span>
              </span>`
           : `<span class="font-mono font-bold text-sm flex-shrink-0">$${amt}</span>`;
         return `<button type="button" class="result-order-btn w-full text-left rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 ${rowClass(o)}" data-order-number-full="${safeNum}">
@@ -817,11 +898,11 @@
       const profitColor = profitNum >= 0 ? 'text-emerald-400' : 'text-red-400';
       let ordersHtml = '';
       if (orders.length === 0 && (drawId === '' || drawId == null)) {
-        ordersHtml = '<p class="text-gray-500 text-sm py-4">该期订单列表需接口返回 drawId 后展示</p>';
+        ordersHtml = '<p class="text-gray-500 text-sm py-4">' + t('no_paid_orders') + '</p>';
       } else if (orders.length === 0) {
-        ordersHtml = '<p class="text-gray-500 text-sm py-4">暂无该期订单记录</p>';
+        ordersHtml = '<p class="text-gray-500 text-sm py-4">' + t('no_paid_orders') + '</p>';
       } else {
-        const statusText = (o) => { const s = o.status; if (s === 'won' || s === 3) return '已中奖'; if (s === 'settled' || s === 2) return '未中奖'; return '已付款'; };
+        const statusText = (o) => { const s = o.status; if (s === 'won' || s === 3) return t('status_won'); if (s === 'settled' || s === 2) return t('status_settled'); return t('status_paid'); };
         const rowClass = (o) => { const s = o.status; if (s === 'won' || s === 3) return 'order-row-won'; if (s === 'settled' || s === 2) return 'order-row-settled'; return 'order-row-paid'; };
         ordersHtml = orders.map(o => {
           const num = (o.order_number || o.orderNumber || '').toString();
@@ -841,12 +922,12 @@
         <div class="space-y-4">
           <div class="text-gray-400 text-sm">${dateStr || ('期 ' + (idx + 1))}</div>
           <div class="grid grid-cols-3 gap-2 text-center">
-            <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">销售额</p><p class="text-emerald-400 font-bold">$${salesNum.toFixed(2)}</p></div>
-            <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">总赔付</p><p class="text-red-400 font-bold">$${payoutNum.toFixed(2)}</p></div>
-            <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">利润</p><p class="${profitColor} font-bold">$${profitNum.toFixed(2)}</p></div>
+            <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">${t('sales_short')}</p><p class="text-emerald-400 font-bold">$${salesNum.toFixed(2)}</p></div>
+            <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">${t('payout_short')}</p><p class="text-red-400 font-bold">$${payoutNum.toFixed(2)}</p></div>
+            <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">${t('profit_short')}</p><p class="${profitColor} font-bold">$${profitNum.toFixed(2)}</p></div>
           </div>
           <div>
-            <h4 class="font-bold text-sm mb-2 text-gray-300">订单 (${orders.length})</h4>
+            <h4 class="font-bold text-sm mb-2 text-gray-300">${t('orders_label')} (${orders.length})</h4>
             <div class="space-y-2 max-h-64 overflow-y-auto">${ordersHtml}</div>
           </div>
         </div>
@@ -878,12 +959,12 @@
         const isRedeemed = data.redeemed_at && data.redeemed_at !== '' && data.redeemed_at !== 'null';
         
         if (isWon && !isRedeemed) {
-          statusRow.classList.remove('hidden'); statusEl.textContent = '已中奖';
+          statusRow.classList.remove('hidden'); statusEl.textContent = t('status_won');
           winRow.classList.remove('hidden'); winEl.textContent = getOrderWinAmount(data).toFixed(2);
           redeemBtn.classList.remove('hidden');
           redeemBtn.onclick = function() { redeemFromResultDetail(data); };
         } else if (s === 'settled' || s === 2) {
-          statusRow.classList.remove('hidden'); statusEl.textContent = t('no_lucky') || '未中奖';
+          statusRow.classList.remove('hidden'); statusEl.textContent = t('status_settled');
           winRow.classList.add('hidden');
           redeemBtn.classList.add('hidden');
         } else {
@@ -897,7 +978,7 @@
             const nn = (n.n != null ? n.n : '').toString();
             const qq = Number(n.q) || 0;
             const win = breakdown && breakdown[i] ? Number(breakdown[i].win) || 0 : 0;
-            return `<div class="flex justify-between"><span class="font-mono">${nn} × ${qq}</span>${win > 0 ? '<span class="text-amber-400">+$' + win.toFixed(2) + '</span>' : ''}</div>`;
+            return `<div class="flex justify-between"><span class="font-mono">${esc(nn)} × ${qq}</span>${win > 0 ? '<span class="text-amber-400">+$' + win.toFixed(2) + '</span>' : ''}</div>`;
           }).join('');
         } else {
           numbersEl.innerHTML = '<p class="text-gray-500">—</p>';

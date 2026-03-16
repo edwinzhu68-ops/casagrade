@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>大庄管理中心</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+
+<!-- ===== 未登录提示 ===== -->
+<div id="page-unauth" class="hidden flex items-center justify-center min-h-screen p-4">
+  <div class="bg-gray-800 rounded-3xl p-8 w-full max-w-sm text-center">
+    <div class="text-5xl mb-4">🔐</div>
+    <h2 class="text-lg font-bold mb-2" data-i18n="unauth_title">请先登录门店工作台</h2>
+    <p class="text-gray-400 text-sm mb-6" data-i18n="unauth_note">大庄管理中心使用与门店工作台相同的登录状态，无需重复登录。</p>
+    <a href="merchant.html" class="block w-full bg-green-600 hover:bg-green-500 py-3 rounded-xl font-bold transition text-center" data-i18n="unauth_btn">前往门店工作台登录</a>
+  </div>
+</div>
+
+<!-- ===== 主页面 ===== -->
+<div id="page-main" class="hidden min-h-screen pb-8">
+
+  <!-- 顶部栏 -->
+  <div class="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center gap-3">
+      <a href="merchant.html" class="text-gray-400 hover:text-white text-sm mr-1" data-i18n="back_link">← 工作台</a>
+      <div>
+        <div class="font-bold text-sm" data-i18n="page_title">🎰 大庄管理中心</div>
+        <div class="text-xs text-gray-400">
+          <span data-i18n="hdr_store">店号：</span><span id="hdr-shop-number" class="text-red-400 font-black font-mono tracking-widest"></span>
+          <span id="hdr-shop-name" class="text-gray-400 ml-1"></span>
+        </div>
+      </div>
+    </div>
+      <div class="flex items-center gap-2">
+      <button id="btn-lang-main" onclick="toggleMainLang()" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-gray-700 transition">🇨🇳 中文</button>
+      <div id="refresh-dot" class="w-2 h-2 rounded-full bg-gray-600"></div>
+      </div>
+  </div>
+
+  <div class="max-w-2xl mx-auto px-4 pt-4 space-y-5">
+
+    <!-- ===== 当期汇总 ===== -->
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <span class="font-bold text-base" data-i18n="section_summary">📊 当期汇总</span>
+          <span id="draw-status-badge" class="ml-2 text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400" data-i18n="badge_in_progress">进行中</span>
+        </div>
+      </div>
+
+      <!-- 3 张汇总卡片 -->
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="bg-gray-800 rounded-2xl p-3 border border-gray-700">
+          <div class="text-xs text-gray-400 mb-1" data-i18n="label_sales">总销售额</div>
+          <div id="s-sales" class="text-xl font-black text-green-400 font-mono">$0.00</div>
+        </div>
+        <div class="bg-gray-800 rounded-2xl p-3 border border-gray-700">
+          <div class="text-xs text-gray-400 mb-1" data-i18n="label_commission">需付佣金</div>
+          <div id="s-commission" class="text-xl font-black text-orange-400 font-mono">$0.00</div>
+        </div>
+        <div class="bg-gray-800 rounded-2xl p-3 border border-green-800">
+          <div class="text-xs text-gray-400 mb-1" data-i18n="label_net">大庄净收益</div>
+          <div id="s-net" class="text-xl font-black font-mono text-white">$0.00</div>
+        </div>
+      </div>
+
+      <!-- 小庄当期列表 -->
+      <div id="current-list" class="space-y-2">
+        <div class="text-center text-gray-500 text-sm py-6">加载中…</div>
+      </div>
+    </div>
+
+    <!-- ===== 号码汇总 ===== -->
+    <div class="bg-gray-800 rounded-2xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold" data-i18n="section_numbers">🔢 各小庄号码汇总</h3>
+        <span class="text-xs text-gray-500" data-i18n="numbers_subtitle">所有小庄当期已付款</span>
+      </div>
+      <div class="mb-4">
+        <div class="flex justify-between items-center mb-2">
+          <div class="text-xs text-gray-400 font-semibold">Chance</div>
+          <button onclick="showMainChanceDetail('number')" class="text-blue-400 text-sm" data-i18n="btn_view_all">查看全部 →</button>
+        </div>
+        <div id="main-chance-top" class="grid grid-cols-4 gap-2 text-xs">
+          <p class="text-gray-500 text-sm col-span-4">加载中…</p>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between items-center mb-2">
+          <div class="text-xs text-gray-400 font-semibold">Billete</div>
+          <button onclick="showMainBilleteDetail('number')" class="text-blue-400 text-sm" data-i18n="btn_view_all">查看全部 →</button>
+        </div>
+        <div id="main-billete-top" class="grid grid-cols-4 gap-2 text-xs">
+          <p class="text-gray-500 text-sm col-span-4">加载中…</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 绑定小庄（内联输入）===== -->
+    <div class="bg-gray-800 rounded-2xl border border-gray-700 px-4 py-3">
+      <p class="text-sm font-bold mb-2" data-i18n="section_bind">🔗 绑定小庄</p>
+      <div class="flex gap-2">
+        <input id="bind-sub-number" type="text" data-i18n-ph="bind_placeholder" placeholder="输入小庄店号"
+          class="flex-1 bg-gray-700 rounded-xl px-3 py-2 text-sm font-mono" />
+        <button onclick="bindSubShop()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-sm font-bold transition" data-i18n="btn_bind">绑定</button>
+      </div>
+      <p id="bind-sub-result" class="hidden text-xs mt-2"></p>
+    </div>
+
+    <!-- ===== 历史记录 ===== -->
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold" data-i18n="section_history">📋 历史记录</h3>
+        <button onclick="loadHistory()" class="text-gray-400 text-xs hover:text-white" data-i18n="btn_refresh">刷新</button>
+      </div>
+      <div id="history-list" class="space-y-2">
+        <div class="text-center text-gray-500 text-sm py-4">加载中…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== Chance 详情弹窗 ===== -->
+<div id="main-modal-chance" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('main-modal-chance').classList.add('hidden')">
+  <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="flex justify-between items-center mb-3">
+      <div>
+        <h2 class="text-xl font-bold" data-i18n="chance_modal_title">Chance 销售明细（汇总）</h2>
+        <div class="mt-1 flex gap-1 text-[11px]">
+          <button id="main-chance-sort-number" onclick="showMainChanceDetail('number')" class="px-2 py-0.5 rounded-full bg-blue-600 text-white" data-i18n="btn_by_number">按号码</button>
+          <button id="main-chance-sort-qty" onclick="showMainChanceDetail('qty')" class="px-2 py-0.5 rounded-full bg-gray-700 text-gray-200" data-i18n="btn_by_qty">按销量</button>
+        </div>
+      </div>
+      <button onclick="document.getElementById('main-modal-chance').classList.add('hidden')" class="text-gray-400">✕</button>
+    </div>
+    <div id="main-chance-grid" class="grid grid-cols-10 gap-1 text-xs"></div>
+  </div>
+</div>
+
+<!-- ===== Billete 详情弹窗 ===== -->
+<div id="main-modal-billete" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('main-modal-billete').classList.add('hidden')">
+  <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="flex justify-between items-center mb-3">
+      <div>
+        <h2 class="text-xl font-bold" data-i18n="billete_modal_title">Billete 销售明细（汇总）</h2>
+        <div class="mt-1 flex gap-1 text-[11px]">
+          <button id="main-billete-sort-number" onclick="showMainBilleteDetail('number')" class="px-2 py-0.5 rounded-full bg-blue-600 text-white" data-i18n="btn_by_number">按号码</button>
+          <button id="main-billete-sort-qty" onclick="showMainBilleteDetail('qty')" class="px-2 py-0.5 rounded-full bg-gray-700 text-gray-200" data-i18n="btn_by_qty">按销量</button>
+        </div>
+      </div>
+      <button onclick="document.getElementById('main-modal-billete').classList.add('hidden')" class="text-gray-400">✕</button>
+    </div>
+    <div id="main-billete-list" class="grid grid-cols-4 gap-1 text-xs max-h-96 overflow-y-auto"></div>
+  </div>
+</div>
+
+<!-- ===== 小庄号码详情弹窗 ===== -->
+<div id="main-modal-shop-detail" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('main-modal-shop-detail').classList.add('hidden')">
+  <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="flex justify-between items-center mb-3">
+      <div>
+        <h2 class="text-xl font-bold" id="shop-detail-title" data-i18n="shop_detail_default_title">号码明细</h2>
+        <div class="mt-1 flex gap-1 text-[11px]">
+          <button id="shop-detail-sort-number" onclick="renderShopDetail('number')" class="px-2 py-0.5 rounded-full bg-blue-600 text-white" data-i18n="btn_by_number">按号码</button>
+          <button id="shop-detail-sort-qty" onclick="renderShopDetail('qty')" class="px-2 py-0.5 rounded-full bg-gray-700 text-gray-200" data-i18n="btn_by_qty">按销量</button>
+        </div>
+      </div>
+      <button onclick="document.getElementById('main-modal-shop-detail').classList.add('hidden')" class="text-white bg-gray-600 hover:bg-gray-500 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold transition">✕</button>
+    </div>
+    <div class="text-xs text-gray-400 mb-2 font-semibold">Chance</div>
+    <div id="shop-detail-chance" class="grid grid-cols-10 gap-1 text-xs mb-4"></div>
+    <div class="text-xs text-gray-400 mb-2 font-semibold">Billete</div>
+    <div id="shop-detail-billete" class="grid grid-cols-4 gap-1 text-xs max-h-60 overflow-y-auto"></div>
+  </div>
+</div>
+
+<!-- ===== 修改佣金率弹窗 ===== -->
+<div id="modal-commission" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeCommissionModal()">
+  <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-bold" data-i18n="commission_modal_title">修改佣金率</h2>
+      <button onclick="closeCommissionModal()" class="text-gray-400 text-lg">✕</button>
+    </div>
+    <div class="text-sm text-gray-400 mb-3"><span data-i18n="commission_shop_label">小庄：</span><span id="commission-shop-name" class="text-white font-semibold"></span></div>
+    <div class="bg-gray-900 rounded-xl p-3 mb-4 text-xs text-gray-400">
+      <span data-i18n="commission_note">小庄固定拿 <strong>销售额 × 佣金率</strong>，不看输赢。</span><br>
+      <span data-i18n="commission_example">例：佣金率20%，销售$1000 → 小庄$200，大庄$800再扣赔付。</span>
+    </div>
+    <div class="flex items-center gap-3 mb-5">
+      <input type="number" id="commission-input" min="0" max="100" step="1"
+        class="flex-1 text-center text-2xl py-3 bg-gray-700 border border-gray-600 rounded-xl font-mono focus:outline-none focus:border-green-500" />
+      <span class="text-xl text-gray-400">%</span>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="closeCommissionModal()" class="flex-1 py-3 rounded-xl bg-gray-700 text-gray-300 font-semibold" data-i18n="btn_cancel">取消</button>
+      <button onclick="saveCommission()" class="flex-1 py-3 rounded-xl bg-green-600 font-bold hover:bg-green-500 transition" data-i18n="btn_save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 解绑确认弹窗 ===== -->
+<div id="modal-unbind" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeUnbindModal()">
+  <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center">
+    <div class="text-4xl mb-4">⚠️</div>
+    <h2 class="text-lg font-bold mb-2" data-i18n="unbind_title">确认解绑</h2>
+    <p class="text-gray-400 text-sm mb-4" data-i18n="unbind_note">解绑后该小庄数据不再汇总，可重新邀请绑定。</p>
+    <div class="text-white font-semibold mb-6"><span data-i18n="unbind_label">小庄：</span><span id="unbind-shop-name"></span></div>
+    <div class="flex gap-3">
+      <button onclick="closeUnbindModal()" class="flex-1 py-3 rounded-xl bg-gray-700 text-gray-300 font-semibold" data-i18n="btn_cancel">取消</button>
+      <button onclick="confirmUnbind()" class="flex-1 py-3 rounded-xl bg-red-600 font-bold hover:bg-red-500 transition" data-i18n="btn_unbind">解绑</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div id="modal-toast" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+  <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl">
+    <div id="toast-icon" class="text-4xl mb-3">✅</div>
+    <div id="toast-msg" class="text-white font-semibold text-lg"></div>
+  </div>
+</div>
+
+<script>
+// ── 双语系统 ──────────────────────────────────────────────
+const MAIN_LANG_KEY = 'lottery_main_lang';
+const MAIN_T = {
+  es: {
+    page_title: '🎰 Centro de gestión',
+    back_link: '← Panel',
+    hdr_store: 'Tienda:',
+    section_summary: '📊 Resumen del período',
+    badge_in_progress: 'En curso',
+    badge_draw_done: 'Sorteado',
+    badge_stop_sell: 'Suspendido',
+    label_sales: 'Ventas totales',
+    label_commission: 'Comisión',
+    label_net: 'Ganancia neta',
+    section_numbers: '🔢 Resumen de números',
+    numbers_subtitle: 'Sub-tiendas - período actual',
+    btn_view_all: 'Ver todo →',
+    section_bind: '🔗 Vincular sub-tienda',
+    bind_placeholder: 'Número de sub-tienda',
+    btn_bind: 'Vincular',
+    section_history: '📋 Historial',
+    btn_refresh: 'Actualizar',
+    loading: 'Cargando...',
+    chance_modal_title: 'Detalle de ventas Chance',
+    billete_modal_title: 'Detalle de ventas Billete',
+    shop_detail_default_title: 'Detalle de números',
+    btn_by_number: 'Por número',
+    btn_by_qty: 'Por cantidad',
+    commission_modal_title: 'Modificar comisión',
+    commission_shop_label: 'Sub-tienda:',
+    commission_note: 'La sub-tienda recibe <strong>ventas × comisión</strong> fija, sin importar resultado.',
+    commission_example: 'Ej.: 20%, ventas $1000 → sub $200, principal $800 menos pagos.',
+    btn_cancel: 'Cancelar',
+    btn_save: 'Guardar',
+    unbind_title: 'Confirmar desvinculación',
+    unbind_note: 'Los datos de esta sub-tienda ya no se consolidarán. Se puede volver a invitar.',
+    unbind_label: 'Sub-tienda:',
+    btn_unbind: 'Desvincular',
+    unauth_title: 'Inicia sesión primero',
+    unauth_note: 'El Centro de gestión usa el mismo inicio de sesión que el panel de cajero.',
+    unauth_btn: 'Ir al panel de cajero',
+    lang_toggle: '🇨🇳 中文',
+    refresh_fixed: 'Fijado',
+    history_no_data: 'Sin historial',
+    history_status_done: 'Liquidado',
+    history_label_sales: 'Ventas',
+    history_label_commission: 'Comisión',
+    history_label_net_main: 'Ganancia principal',
+    history_period_label: 'Sorteo',
+    badge_fixed_suffix: ' (datos fijos)',
+    refresh_time_suffix: ' Actualizado',
+  },
+  zh: {
+    page_title: '🎰 大庄管理中心',
+    back_link: '← 工作台',
+    hdr_store: '店号：',
+    section_summary: '📊 当期汇总',
+    badge_in_progress: '进行中',
+    badge_draw_done: '已开奖',
+    badge_stop_sell: '停售中',
+    label_sales: '总销售额',
+    label_commission: '需付佣金',
+    label_net: '大庄净收益',
+    section_numbers: '🔢 各小庄号码汇总',
+    numbers_subtitle: '所有小庄当期已付款',
+    btn_view_all: '查看全部 →',
+    section_bind: '🔗 绑定小庄',
+    bind_placeholder: '输入小庄店号',
+    btn_bind: '绑定',
+    section_history: '📋 历史记录',
+    btn_refresh: '刷新',
+    loading: '加载中…',
+    chance_modal_title: 'Chance 销售明细（汇总）',
+    billete_modal_title: 'Billete 销售明细（汇总）',
+    shop_detail_default_title: '号码明细',
+    btn_by_number: '按号码',
+    btn_by_qty: '按销量',
+    commission_modal_title: '修改佣金率',
+    commission_shop_label: '小庄：',
+    commission_note: '小庄固定拿 <strong>销售额 × 佣金率</strong>，不看输赢。',
+    commission_example: '例：佣金率20%，销售$1000 → 小庄$200，大庄$800再扣赔付。',
+    btn_cancel: '取消',
+    btn_save: '保存',
+    unbind_title: '确认解绑',
+    unbind_note: '解绑后该小庄数据不再汇总，可重新邀请绑定。',
+    unbind_label: '小庄：',
+    btn_unbind: '解绑',
+    unauth_title: '请先登录门店工作台',
+    unauth_note: '大庄管理中心使用与门店工作台相同的登录状态，无需重复登录。',
+    unauth_btn: '前往门店工作台登录',
+    lang_toggle: '🇵🇦 Español',
+    refresh_fixed: '已固定',
+    history_no_data: '暂无历史记录',
+    history_status_done: '已结算',
+    history_label_sales: '销售额',
+    history_label_commission: '需付佣金',
+    history_label_net_main: '大庄净得',
+    history_period_label: '第',
+    badge_fixed_suffix: '（数据已固定）',
+    refresh_time_suffix: ' 更新',
+  }
+};
+function getMainLang() { return localStorage.getItem(MAIN_LANG_KEY) || 'es'; }
+function toggleMainLang() {
+  localStorage.setItem(MAIN_LANG_KEY, getMainLang() === 'es' ? 'zh' : 'es');
+  applyMainLang();
+}
+function tm(key) { var l = getMainLang(); return (MAIN_T[l] && MAIN_T[l][key]) ? MAIN_T[l][key] : (MAIN_T['es'][key] || key); }
+function applyMainLang() {
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n');
+    var val = tm(key);
+    if (key === 'commission_note' || key === 'commission_example') el.innerHTML = val;
+    else el.textContent = val;
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
+    el.placeholder = tm(el.getAttribute('data-i18n-ph'));
+  });
+  var btn = document.getElementById('btn-lang-main');
+  if (btn) btn.textContent = tm('lang_toggle');
+}
+// ─────────────────────────────────────────────────────────
+
+const API = 'https://api.casagrade.com/api';
+
+function getMainHeaders(includeJson = false) {
+  const token = localStorage.getItem('lottery_token') || '';
+  const sessionToken = localStorage.getItem('lottery_session_token') || '';
+  const h = includeJson ? { 'Content-Type': 'application/json' } : {};
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  if (sessionToken) h['X-Session-Token'] = sessionToken;
+  return h;
+}
+
+function formatDateDDMM(raw) {
+  if (!raw) return '';
+  const s = String(raw).slice(0, 10);
+  const parts = s.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return parts[2] + '-' + parts[1] + '-' + parts[0];
+  }
+  return s;
+}
+
+async function safeJson(r) {
+  const text = await r.text();
+  try { return JSON.parse(text); } catch (e) { throw new Error(`服务器返回异常（${r.status}）`); }
+}
+
+let currentShopId = null;
+let currentShopNumber = '';
+let currentShopName = '';
+let editingBindingId = null;
+let unbindingBindingId = null;
+let refreshTimer = null;
+let mainChanceSales = {};
+let mainBilleteSales = {};
+let shopNumberData = {}; // { shopId: { chance: {}, billete: {}, name: '' } }
+let currentShopDetail = null; // 当前弹窗展示的店铺数据
+
+// ─── Toast ───
+function showToast(msg, icon = '✅', duration = 2000) {
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-msg').textContent = msg;
+  document.getElementById('modal-toast').classList.remove('hidden');
+  setTimeout(() => document.getElementById('modal-toast').classList.add('hidden'), duration);
+}
+
+// ─── 自动登录（复用 merchant.html 的登录状态与 session）───
+async function autoLogin() {
+  const token = localStorage.getItem('lottery_token');
+  const sessionToken = localStorage.getItem('lottery_session_token') || '';
+  if (!token) {
+    document.getElementById('page-unauth').classList.remove('hidden');
+    return;
+  }
+  try {
+    const sr = await fetch(`${API}/merchant/shops`, {
+      headers: getMainHeaders()
+    });
+    if (sr.status === 401) {
+      // 与老板端逻辑一致：SESSION_EXPIRED 时清理本地登录状态
+      let d = {};
+      try { d = await sr.json(); } catch (e) {}
+      if (d.message === 'SESSION_EXPIRED') {
+        localStorage.removeItem('lottery_token');
+        localStorage.removeItem('lottery_session_token');
+        localStorage.removeItem('lottery_login_at');
+        localStorage.removeItem('lottery_login_ua');
+      }
+      document.getElementById('page-unauth').classList.remove('hidden');
+      return;
+    }
+    const sd = await safeJson(sr);
+    if (!sd.shops || sd.shops.length === 0) throw new Error('无店铺');
+
+    const shop = sd.shops[0];
+    currentShopId = shop.shop_id;
+    currentShopNumber = shop.shop_number;
+    currentShopName = shop.shop_name || '';
+
+    document.getElementById('hdr-shop-number').textContent = currentShopNumber;
+    document.getElementById('hdr-shop-name').textContent = currentShopName;
+    document.getElementById('page-main').classList.remove('hidden');
+
+    loadCurrentData();
+    loadHistory();
+    startAutoRefresh();
+  } catch (e) {
+    document.getElementById('page-unauth').classList.remove('hidden');
+  }
+}
+
+// ─── 自动刷新：进行中 10s，已完成 60s（检测归档后自动切换新期次）───
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    loadCurrentData();
+  }, 10000);
+}
+
+let currentDrawStatus = 'pending';
+
+// ─── 当期数据 ───
+async function loadCurrentData() {
+  const dot = document.getElementById('refresh-dot');
+  if (dot) { dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse'; }
+
+  try {
+    const r = await fetch(`${API}/merchant/binding/sub-shop-data?mainShopId=${currentShopId}&drawId=0`, {
+      headers: getMainHeaders()
+    });
+    const d = await safeJson(r);
+    currentDrawStatus = d.draw_status || 'pending';
+    const currentDrawId = d.draw_id || 0;
+
+    // 状态角标 + 期次日期（统一 DD-MM-YYYY，支持中西文）
+    const badge = document.getElementById('draw-status-badge');
+    if (badge) {
+      const dateStr = d.draw_date ? formatDateDDMM(d.draw_date) : '';
+      const inProgress = currentDrawStatus === 'pending';
+      const baseText = tm(inProgress ? 'badge_in_progress' : 'badge_draw_done');
+      let text = baseText + (dateStr ? ' · ' + dateStr : '');
+      if (!inProgress) text += tm('badge_fixed_suffix');
+      badge.textContent = text;
+      badge.className = 'ml-2 text-xs px-2 py-0.5 rounded-full ' + (inProgress ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400');
+    }
+
+    // 汇总卡片
+    const summary = d.summary || {};
+    document.getElementById('s-sales').textContent = `$${(summary.total_sales || 0).toFixed(2)}`;
+    document.getElementById('s-commission').textContent = `$${(summary.total_commission_paid || 0).toFixed(2)}`;
+    const mainNet = summary.main_total_net || 0;
+    const netEl = document.getElementById('s-net');
+    netEl.textContent = `${mainNet < 0 ? '-' : ''}$${Math.abs(mainNet).toFixed(2)}`;
+    netEl.className = `text-xl font-black font-mono ${mainNet < 0 ? 'text-red-400' : 'text-green-400'}`;
+
+    // 小庄列表（提示文案暂保留中文，因为主要用户是中文大庄）
+    const listEl = document.getElementById('current-list');
+    if (!d.sub_shops || d.sub_shops.length === 0) {
+      listEl.innerHTML = '<div class="text-center text-gray-500 text-sm py-6">暂无绑定小庄</div>';
+    } else {
+      listEl.innerHTML = d.sub_shops.map(s => {
+        const mn = s.main_net_profit;
+        const drawn = currentDrawStatus !== 'pending';
+        const profitHtml = drawn
+          ? `<span class="${mn < 0 ? 'text-red-400' : 'text-green-400'}">${mn < 0 ? '-' : '+'}$${Math.abs(mn).toFixed(2)}</span>`
+          : `<span class="text-gray-500">$0.00</span>`;
+        const shopId = s.sub_shop_id || s.shopId || '';
+        return `<div class="bg-gray-800 rounded-xl border border-gray-700 px-4 py-3 cursor-pointer active:opacity-80" onclick="openShopDetail('${shopId}')">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="font-black text-red-400 font-mono tracking-widest">${s.sub_shop_number}</span>
+              <span class="text-xs bg-gray-700 px-1.5 py-0.5 rounded text-gray-400">${(s.commission_rate*100).toFixed(0)}%</span>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="event.stopPropagation(); openCommissionModal(${s.binding_id}, '${s.sub_shop_number}', ${s.commission_rate})"
+                class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg transition">⚙️</button>
+              <button onclick="event.stopPropagation(); openUnbindModal(${s.binding_id}, '${s.sub_shop_number}')"
+                class="text-xs px-2 py-1 bg-red-900/40 hover:bg-red-900/70 rounded-lg text-red-400 transition">解绑</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2">
+            <div class="text-green-400 font-mono font-bold text-sm">$${s.total_sales.toFixed(2)}</div>
+            <div class="text-xs text-gray-500">佣金 <span class="text-orange-400">$${s.sub_commission.toFixed(2)}</span> · 盈利 ${profitHtml}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // 刷新时间：目前设计不再在 UI 展示，仅用于内部调试时可开启
+
+    // 号码汇总（传入 draw_id 保证按当期过滤）
+    if (d.sub_shops && d.sub_shops.length > 0) {
+      loadNumberSummary(d.sub_shops, currentDrawId);
+    } else {
+      renderNumberTop('main-chance-top', {});
+      renderNumberTop('main-billete-top', {});
+    }
+
+    // 根据状态调整刷新频率：进行中 10s，已完成 60s（等待归档）
+    if (currentDrawStatus !== 'pending') {
+      // 已完成：降低到 60s 轮询，等管理员归档后自动切换
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(() => { loadCurrentData(); }, 60000);
+      if (dot) dot.className = 'w-2 h-2 rounded-full bg-yellow-500';
+      const lbl = document.getElementById('refresh-label');
+      if (lbl) lbl.textContent = tm('refresh_fixed');
+    } else {
+      // 进行中：确保 10s 高频刷新
+      if (!refreshTimer) startAutoRefresh();
+      if (dot) dot.className = 'w-2 h-2 rounded-full bg-green-400';
+      const lbl = document.getElementById('refresh-label');
+      if (lbl) lbl.textContent = '';
+    }
+
+  } catch (e) {
+    document.getElementById('current-list').innerHTML = `<div class="text-red-400 text-sm py-4 text-center">${e.message}</div>`;
+    if (dot) dot.className = 'w-2 h-2 rounded-full bg-red-400';
+  }
+}
+
+
+// ─── 号码汇总 ───
+async function loadNumberSummary(subShops, drawId) {
+  const chanceSales = {};
+  const billeteSales = {};
+  shopNumberData = {};
+  try {
+    await Promise.all(subShops.map(async s => {
+      const shopId = s.sub_shop_id || s.shopId;
+      if (!shopId) return;
+      const shopChance = {};
+      const shopBillete = {};
+      try {
+        const drawParam = drawId ? `&drawId=${drawId}` : '';
+        const r = await fetch(`${API}/shop/${shopId}/orders?limit=500${drawParam}`);
+        if (!r.ok) return;
+        const d = await safeJson(r);
+        const orders = d.orders || [];
+        orders.forEach(order => {
+          const isPaid = order.status === 1 || order.status === 'paid';
+          if (!isPaid) return;
+          const list = order.numbers || order.bet_numbers || [];
+          list.forEach(n => {
+            const q = Number(n.q != null ? n.q : n.quantity) || 0;
+            const numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
+            const str = String(numVal).replace(/\D/g, '');
+            if (str.length >= 4) {
+              const num = str.slice(-4).padStart(4, '0');
+              billeteSales[num] = (billeteSales[num] || 0) + q;
+              shopBillete[num] = (shopBillete[num] || 0) + q;
+            } else if (str.length >= 2) {
+              const num = str.slice(-2).padStart(2, '0');
+              chanceSales[num] = (chanceSales[num] || 0) + q;
+              shopChance[num] = (shopChance[num] || 0) + q;
+            }
+          });
+        });
+        shopNumberData[shopId] = { chance: shopChance, billete: shopBillete, name: s.sub_shop_number };
+      } catch (e) {}
+    }));
+  } catch (e) {}
+  mainChanceSales = chanceSales;
+  mainBilleteSales = billeteSales;
+  renderNumberTop('main-chance-top', chanceSales);
+  renderNumberTop('main-billete-top', billeteSales);
+}
+
+function openShopDetail(shopId) {
+  const data = shopNumberData[shopId];
+  if (!data) return;
+  currentShopDetail = data;
+  document.getElementById('shop-detail-title').textContent = data.name + ' 号码明细';
+  renderShopDetail('number');
+  document.getElementById('main-modal-shop-detail').classList.remove('hidden');
+}
+
+function renderShopDetail(mode = 'number') {
+  if (!currentShopDetail) return;
+  const btnN = document.getElementById('shop-detail-sort-number');
+  const btnQ = document.getElementById('shop-detail-sort-qty');
+  if (btnN && btnQ) {
+    btnN.className = `px-2 py-0.5 rounded-full ${mode === 'number' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`;
+    btnQ.className = `px-2 py-0.5 rounded-full ${mode === 'qty' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`;
+  }
+  // Chance
+  const chanceEntries = [];
+  for (let i = 0; i < 100; i++) {
+    const num = i.toString().padStart(2, '0');
+    chanceEntries.push([num, currentShopDetail.chance[num] || 0]);
+  }
+  const sortedByQty = chanceEntries.slice().sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]));
+  const sortedChance = mode === 'qty' ? sortedByQty.slice() : chanceEntries.slice().sort((a, b) => Number(a[0]) - Number(b[0]));
+  document.getElementById('shop-detail-chance').innerHTML = sortedChance.map(([num, qty]) => {
+    const rank = sortedByQty.findIndex(([n]) => n === num);
+    const cls = qty === 0 ? 'text-gray-500' : (rank < 20 ? 'text-red-400' : rank < 40 ? 'text-yellow-300' : 'text-green-300');
+    return `<div class="text-center py-2 rounded font-mono bg-gray-700/40"><div class="font-bold text-sm">${num}</div><div class="text-[11px] ${cls}">${qty}</div></div>`;
+  }).join('');
+  // Billete
+  const billeteEntries = Object.entries(currentShopDetail.billete).filter(([_, qty]) => qty > 0);
+  const sortedBillete = mode === 'qty'
+    ? billeteEntries.slice().sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]))
+    : billeteEntries.slice().sort((a, b) => Number(a[0]) - Number(b[0]));
+  const billeteEl = document.getElementById('shop-detail-billete');
+  if (sortedBillete.length === 0) {
+    billeteEl.innerHTML = '<p class="text-gray-500 text-sm py-2 col-span-4">暂无</p>';
+  } else {
+    billeteEl.innerHTML = sortedBillete.map(([num, qty], i) => {
+      const cls = i < 20 ? 'text-red-400' : i < 40 ? 'text-yellow-300' : 'text-green-300';
+      return `<div class="text-center py-2 rounded font-mono bg-gray-700/40"><div class="font-bold text-sm">${num}</div><div class="text-[11px] ${cls}">${qty}</div></div>`;
+    }).join('');
+  }
+}
+
+function showMainChanceDetail(mode = 'number') {
+  const entries = [];
+  for (let i = 0; i < 100; i++) {
+    const num = i.toString().padStart(2, '0');
+    entries.push([num, mainChanceSales[num] || 0]);
+  }
+  const sortedByQty = entries.slice().sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]));
+  const sorted = mode === 'qty' ? sortedByQty.slice() : entries.slice().sort((a, b) => Number(a[0]) - Number(b[0]));
+  const container = document.getElementById('main-chance-grid');
+  container.innerHTML = sorted.map(([num, qty]) => {
+    const rank = sortedByQty.findIndex(([n]) => n === num);
+    let cls = qty === 0 ? 'text-gray-500' : (rank < 20 ? 'text-red-400' : rank < 40 ? 'text-yellow-300' : 'text-green-300');
+    return `<div class="text-center py-2 rounded font-mono bg-gray-700/40"><div class="font-bold text-sm">${num}</div><div class="text-[11px] ${cls}">${qty}</div></div>`;
+  }).join('');
+  const btnN = document.getElementById('main-chance-sort-number');
+  const btnQ = document.getElementById('main-chance-sort-qty');
+  if (btnN && btnQ) {
+    btnN.className = `px-2 py-0.5 rounded-full ${mode === 'number' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`;
+    btnQ.className = `px-2 py-0.5 rounded-full ${mode === 'qty' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`;
+  }
+  document.getElementById('main-modal-chance').classList.remove('hidden');
+}
+
+function showMainBilleteDetail(mode = 'number') {
+  const entries = Object.entries(mainBilleteSales).filter(([_, qty]) => qty > 0);
+  const sorted = mode === 'qty'
+    ? entries.slice().sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]))
+    : entries.slice().sort((a, b) => Number(a[0]) - Number(b[0]));
+  const container = document.getElementById('main-billete-list');
+  if (sorted.length === 0) {
+    container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4 col-span-4">暂无销售数据</p>';
+    document.getElementById('main-modal-billete').classList.remove('hidden');
+    return;
+  }
+  container.innerHTML = sorted.map(([num, qty], i) => {
+    const cls = i < 20 ? 'text-red-400' : i < 40 ? 'text-yellow-300' : 'text-green-300';
+    return `<div class="text-center py-2 rounded font-mono bg-gray-700/40"><div class="font-bold text-sm">${num}</div><div class="text-[11px] ${cls}">${qty}</div></div>`;
+  }).join('');
+  const btnN = document.getElementById('main-billete-sort-number');
+  const btnQ = document.getElementById('main-billete-sort-qty');
+  if (btnN && btnQ) {
+    btnN.className = `px-2 py-0.5 rounded-full ${mode === 'number' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`;
+    btnQ.className = `px-2 py-0.5 rounded-full ${mode === 'qty' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`;
+  }
+  document.getElementById('main-modal-billete').classList.remove('hidden');
+}
+
+function renderNumberTop(containerId, sales) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const entries = Object.keys(sales).map(k => [k, sales[k]]);
+  const sorted = entries.sort((a, b) => b[1] - a[1]).slice(0, 12);
+  if (sorted.length === 0) {
+    container.innerHTML = '<p class="text-gray-500 text-sm col-span-4">暂无数据</p>';
+    return;
+  }
+  container.innerHTML = sorted.map(([num, qty]) =>
+    `<div class="bg-gray-700 rounded-lg px-2 py-1 text-center">
+      <div class="font-mono font-bold text-sm">${num}</div>
+      <div class="text-green-400 font-bold text-[11px] mt-0.5">${qty} 张</div>
+    </div>`
+  ).join('');
+}
+
+// ─── 历史记录 ───
+async function loadHistory() {
+  const listEl = document.getElementById('history-list');
+  try {
+    const r = await fetch(`${API}/merchant/binding/history?mainShopId=${currentShopId}&limit=20`, {
+      headers: getMainHeaders()
+    });
+    const d = await safeJson(r);
+    if (!d.history || d.history.length === 0) {
+      listEl.innerHTML = `<div class="text-center text-gray-500 text-sm py-4">${tm('history_no_data')}</div>`;
+      return;
+    }
+    listEl.innerHTML = d.history.map(h => {
+      const mn = h.main_net_profit;
+      const dateStr = h.draw_date ? formatDateDDMM(h.draw_date) : `#${h.draw_id}`;
+      const lang = getMainLang();
+      const periodText = lang === 'zh'
+        ? `第 ${h.draw_id} 期`
+        : `${tm('history_period_label')} ${h.draw_id}`;
+      return `<div class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm font-semibold text-gray-300">${periodText}</span>
+            <span class="text-xs text-gray-500 ml-2">${dateStr}</span>
+          </div>
+          <span class="text-xs text-gray-500">${tm('history_status_done')}</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 mt-2 text-xs">
+          <div><span class="text-gray-500">${tm('history_label_sales')}</span><div class="font-mono font-bold text-green-400">$${h.total_sales.toFixed(2)}</div></div>
+          <div><span class="text-gray-500">${tm('history_label_commission')}</span><div class="font-mono font-bold text-orange-400">$${h.total_commission.toFixed(2)}</div></div>
+          <div><span class="text-gray-500">${tm('history_label_net_main')}</span><div class="font-mono font-bold ${mn < 0 ? 'text-red-400' : 'text-green-400'}">${mn < 0 ? '-' : ''}$${Math.abs(mn).toFixed(2)}</div></div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="text-red-400 text-sm py-4 text-center">${e.message}</div>`;
+  }
+}
+
+// ─── 绑定小庄 ───
+async function bindSubShop() {
+  const inp = document.getElementById('bind-sub-number');
+  const resultEl = document.getElementById('bind-sub-result');
+  const subNum = inp ? inp.value.trim() : '';
+  if (resultEl) resultEl.classList.add('hidden');
+  if (!subNum) { showToast('请输入小庄店号', '❌'); return; }
+  try {
+    const r = await fetch(`${API}/merchant/binding/request`, {
+      method: 'POST',
+      headers: getMainHeaders(true),
+      body: JSON.stringify({ mainShopId: currentShopId, subShopNumber: subNum }),
+    });
+    const d = await safeJson(r);
+    if (!r.ok) throw new Error(d.message || '绑定失败');
+    if (inp) inp.value = '';
+    if (resultEl) { resultEl.textContent = '✅ ' + d.message; resultEl.className = 'text-xs mt-2 text-green-400'; resultEl.classList.remove('hidden'); }
+    loadCurrentData();
+  } catch (e) {
+    if (resultEl) { resultEl.textContent = '❌ ' + e.message; resultEl.className = 'text-xs mt-2 text-red-400'; resultEl.classList.remove('hidden'); }
+  }
+}
+
+// ─── 佣金率弹窗 ───
+function openCommissionModal(bindingId, shopLabel, currentRate) {
+  editingBindingId = bindingId;
+  document.getElementById('commission-shop-name').textContent = shopLabel;
+  document.getElementById('commission-input').value = Math.round(currentRate * 100);
+  document.getElementById('modal-commission').classList.remove('hidden');
+}
+function closeCommissionModal() { document.getElementById('modal-commission').classList.add('hidden'); }
+
+async function saveCommission() {
+  const val = parseFloat(document.getElementById('commission-input').value);
+  if (isNaN(val) || val < 0 || val > 100) { showToast('请输入 0~100 的数字', '❌'); return; }
+  try {
+    const r = await fetch(`${API}/merchant/binding/${editingBindingId}/commission`, {
+      method: 'PATCH',
+      headers: getMainHeaders(true),
+      body: JSON.stringify({ commission_rate: val / 100 }),
+    });
+    const d = await safeJson(r);
+    if (!r.ok) throw new Error(d.message || '保存失败');
+    closeCommissionModal();
+    showToast('佣金率已保存');
+    loadCurrentData();
+  } catch (e) { showToast(e.message, '❌'); }
+}
+
+// ─── 解绑弹窗 ───
+function openUnbindModal(bindingId, shopLabel) {
+  unbindingBindingId = bindingId;
+  document.getElementById('unbind-shop-name').textContent = shopLabel;
+  document.getElementById('modal-unbind').classList.remove('hidden');
+}
+function closeUnbindModal() { document.getElementById('modal-unbind').classList.add('hidden'); }
+
+async function confirmUnbind() {
+  try {
+    const r = await fetch(`${API}/merchant/binding/${unbindingBindingId}`, {
+      method: 'DELETE',
+      headers: getMainHeaders()
+    });
+    const d = await safeJson(r);
+    if (!r.ok) throw new Error(d.message || '解绑失败');
+    closeUnbindModal();
+    showToast('已解绑');
+    loadCurrentData();
+  } catch (e) { showToast(e.message, '❌'); }
+}
+
+// ─── 启动 ───
+applyMainLang();
+autoLogin();
+</script>
+</body>
+</html>
