@@ -2644,7 +2644,7 @@
       const push = (...b) => buf.push(...b);
       const txt  = s  => push(...encLatin1(s));
       const LF   = () => push(0x0A);
-      const W    = 32;  // 55mm纸宽（打印机实际32字符）
+      const W    = 28;  // 55mm纸宽
       const row  = (l, r) => {                          // 左右对齐一行
         const sp = Math.max(1, W - l.length - r.length);
         txt(l + ' '.repeat(sp) + r); LF();
@@ -2658,7 +2658,7 @@
       const BIG    = [0x1D,0x21,0x11];
       const NORM   = [0x1D,0x21,0x00];
       const CUT    = [0x1B,0x64,0x05, 0x1D,0x56,0x42,0x00];
-      const DIV    = '--------------------------------';
+      const DIV    = '----------------------------';
 
       push(...INIT);
 
