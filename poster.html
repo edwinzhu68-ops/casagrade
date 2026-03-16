@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cartel de tienda – Lotería</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+
+    /* ── 海报主体（A5 竖版，居中打印）─── */
+    #poster {
+      width: 148mm;
+      min-height: 210mm;
+      background: #fff;
+      color: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10mm 10mm 8mm;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    @media print {
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .no-print { display: none !important; }
+      #poster {
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0 auto;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-200 min-h-screen flex flex-col items-center justify-start py-6 gap-4">
+
+  <!-- 操作栏（打印时隐藏）-->
+  <div class="no-print flex gap-3 flex-wrap justify-center">
+    <button onclick="window.print()" class="bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
+      🖨️ 打印海报
+    </button>
+    <button onclick="history.back()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
+      ← 返回
+    </button>
+  </div>
+
+  <!-- 海报 -->
+  <div id="poster" class="shadow-2xl rounded-2xl border border-gray-200">
+
+    <!-- 顶部品牌栏 -->
+    <div class="w-full bg-green-600 rounded-xl py-3 px-4 text-center mb-6">
+      <p class="text-white font-black text-2xl tracking-widest">🎰 LOTERÍA</p>
+      <p class="text-green-100 text-xs mt-0.5 tracking-wide">PANAMA</p>
+    </div>
+
+    <!-- 主口号 -->
+    <p class="text-center font-black text-[22px] leading-tight text-gray-900 mb-1">
+      ¡Haga su apuesta
+    </p>
+    <p class="text-center font-black text-[22px] leading-tight text-green-600 mb-4">
+      desde su celular!
+    </p>
+
+    <!-- 三个卖点 -->
+    <div class="flex gap-3 mb-6 text-xs font-bold text-gray-700">
+      <span class="bg-green-50 border border-green-200 rounded-full px-3 py-1">✅ Sin filas</span>
+      <span class="bg-green-50 border border-green-200 rounded-full px-3 py-1">📱 Fácil</span>
+      <span class="bg-green-50 border border-green-200 rounded-full px-3 py-1">⚡ Rápido</span>
+    </div>
+
+    <!-- QR 码 -->
+    <div class="border-4 border-green-600 rounded-2xl p-3 mb-4 bg-white">
+      <div id="qr-container"></div>
+    </div>
+    <p class="text-xs text-gray-500 mb-5">Escanee con la cámara de su celular</p>
+
+    <!-- 分隔线 -->
+    <div class="w-full border-t border-dashed border-gray-300 mb-5"></div>
+
+    <!-- 店号 + 店名 -->
+    <div class="text-center mb-5">
+      <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Tienda</p>
+      <p class="font-black text-5xl text-gray-900 font-mono leading-none" id="display-shop-number">—</p>
+    </div>
+
+    <!-- 网址 -->
+    <div class="bg-gray-50 rounded-xl px-5 py-2.5 mb-5 text-center">
+      <p class="text-xs text-gray-400 mb-0.5">También puede entrar en</p>
+      <p class="font-bold text-gray-800 text-sm tracking-wide">www.casagrade.com</p>
+    </div>
+
+    <!-- 开奖时间 -->
+    <div class="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-5 text-center">
+      <p class="text-xs font-bold text-amber-700 uppercase tracking-wide mb-1">Horario de ventas</p>
+      <p class="text-xs text-amber-800">Apertura: 4:00 PM · Cierre: 2:55 PM</p>
+      <p class="text-xs text-amber-600 mt-0.5">Sorteo: 3:00 PM</p>
+    </div>
+
+    <!-- 底部免责小字 -->
+    <p class="text-center text-gray-300 text-[9px] leading-snug px-2 mt-auto">
+      Este sistema es únicamente una herramienta de registro de ventas y no participa en la emisión ni comercialización de lotería.
+    </p>
+
+  </div>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const shop   = (params.get('shop')  || '').trim();
+
+      if (shop) document.getElementById('display-shop-number').textContent = shop;
+
+      // 生成二维码（指向客户下单页，自动填入店号）
+      const url = shop
+        ? 'https://www.casagrade.com?shop=' + encodeURIComponent(shop)
+        : 'https://www.casagrade.com';
+
+      new QRCode(document.getElementById('qr-container'), {
+        text: url,
+        width: 200,
+        height: 200,
+        colorDark: '#16a34a',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1201,6 +1201,13 @@
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-cashier').classList.remove('hidden');
 
+        // 首次登录弹出宣传海报提示（只弹一次）
+        if (!localStorage.getItem('lottery_poster_shown')) {
+          setTimeout(function() {
+            document.getElementById('modal-poster-prompt').classList.remove('hidden');
+          }, 800);
+        }
+
         loadDashboard();
         startCountdown();
         loadBindingStatus();
@@ -1638,7 +1645,11 @@
           var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
           return (o.status === 3 || o.status === 'won') && !redeemed; 
         });
-        const totalWinsPending = redeemPendingOrders.reduce(function (sum, o) { return sum + getOrderWinAmount(o); }, 0);
+        // 中奖金额：只统计正数，显示为整数金额（不带小数）
+        const totalWinsPending = redeemPendingOrders.reduce(function (sum, o) {
+          const w = getOrderWinAmount(o);
+          return w > 0 ? sum + w : sum;
+        }, 0);
 
         if (DEBUG) console.log('Orders loaded:', allOrders.length, 'Period orders:', periodOrders.length);
 
@@ -1652,7 +1663,7 @@
         document.getElementById('today-paid').textContent = ordersForCurrentDraw.length;
         document.getElementById('today-unpaid').textContent = unpaidOrders.length;
         document.getElementById('today-income').textContent = '$' + totalIncome.toFixed(2);
-        document.getElementById('today-wins').textContent = '$' + totalWinsPending.toFixed(2);
+        document.getElementById('today-wins').textContent = '$' + Math.round(totalWinsPending).toString();
 
         // 计算销量（当期订单）
         calculateSales();
@@ -2032,9 +2043,6 @@
         var numStr = String(numVal).replace(/\D/g, '');
         var qty = Number(n.q != null ? n.q : (n.quantity != null ? n.quantity : 1)) || 1;
         var isBillete = numStr.length >= 4;
-        var typeLabel = isBillete
-          ? '<span class="text-yellow-400 text-xs font-bold mr-1">B</span>'
-          : '<span class="text-blue-400 text-xs font-bold mr-1">C</span>';
         var unitPrice = isBillete ? priceBillete : priceChance;
         var lineTotal = (qty * unitPrice).toFixed(2);
         var right;
@@ -2048,7 +2056,7 @@
         }
         var rowClass = (isWon && winMap[String(numVal)] > 0) ? 'bg-emerald-900/30 rounded px-1' : '';
         return '<div class="flex justify-between items-center py-1 ' + rowClass + '">'
-          + '<span>' + typeLabel + '<span class="font-mono">' + esc(numStr) + '</span>'
+          + '<span><span class="font-mono">' + esc(numStr) + '</span>'
           + ' <span class="text-gray-400 text-xs">×' + qty + '</span></span>'
           + right
           + '</div>';
@@ -2636,7 +2644,7 @@
       const push = (...b) => buf.push(...b);
       const txt  = s  => push(...encLatin1(s));
       const LF   = () => push(0x0A);
-      const W    = 32;
+      const W    = 28;  // 55mm纸宽
       const row  = (l, r) => {                          // 左右对齐一行
         const sp = Math.max(1, W - l.length - r.length);
         txt(l + ' '.repeat(sp) + r); LF();
@@ -2650,20 +2658,23 @@
       const BIG    = [0x1D,0x21,0x11];
       const NORM   = [0x1D,0x21,0x00];
       const CUT    = [0x1B,0x64,0x05, 0x1D,0x56,0x42,0x00];
-      const DIV    = '--------------------------------';
+      const DIV    = '----------------------------';
 
       push(...INIT);
+
+      // 提前定义orderNum供QR使用
+      const orderNum = order.order_number || order.orderNumber || '';
 
       // ── 1. 状态文字（与 page-confirmed 顶部一致）──
       push(...CENTER);
       push(...BON);
-      txt('Esperando el sorteo'); LF();
+      txt('Esperando el sorte'); LF();
       push(...BOFF);
-      txt('Guarda el QR para cobrar si ganas.'); LF();
+      txt('Guarda el QR para cobrar'); LF();
+      txt('si ganas.'); LF();
       LF();
 
-      // ── 2. QR 码 ──
-      const orderNum = order.order_number || order.orderNumber || '';
+      // ── QR 码（放在ganas和fecha中间）──
       const qrData = JSON.stringify({
         orderNumber: orderNum,
         orderHash:   order.order_hash || order.orderHash || '',
@@ -2673,13 +2684,14 @@
       const pL = (qrBytes.length + 3) & 0xFF;
       const pH = ((qrBytes.length + 3) >> 8) & 0xFF;
       push(...CENTER);
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x43,0x05);        // module size 5
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x45,0x31);        // 纠错 M
-      push(0x1D,0x28,0x6B,pL,pH,0x31,0x50,0x30,...qrBytes); // 存入数据
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x51,0x30);        // 打印
-      LF();
+      push(0x1D,0x28,0x6B,0x04,0x00,0x31,0x41,0x32,0x00);
+      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x43,0x04);
+      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x45,0x31);
+      push(0x1D,0x28,0x6B,pL,pH,0x31,0x50,0x30,...qrBytes);
+      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x51,0x30);
+      LF(); LF();
 
-      // ── 3. 日期（inline "标签: 值"）──
+      // ── 2. 日期（inline "标签: 值"）──
       push(...CENTER);
       let placedStr = '--';
       if (order.created_at || order.paid_at) {
@@ -2722,11 +2734,11 @@
       push(...LEFT);
       const amount = Number(order.amount || 0).toFixed(2);
       txt(DIV); LF();
-      row('Tienda',         String(shopNumber));
-      row('N.o de pedido',  orderNum);
-      row('Importe pagado', '$' + amount);
+      row('Tienda',     String(shopNumber));
+      row('Pedido',     orderNum);
+      row('Importe',    '$' + amount);
       txt(DIV); LF();
-      txt('Numeros y cantidades'); LF();
+      txt('Numeros'); LF();
 
       let nums = order.numbers || order.bet_numbers || [];
       if (typeof nums === 'string') { try { nums = JSON.parse(nums); } catch(e) { nums = []; } }
@@ -2744,7 +2756,7 @@
       push(...BON);
       row('Total', '$' + amount);
       push(...BOFF);
-      LF(); LF(); LF(); LF(); LF();
+      LF();
       push(...CUT);
       return new Uint8Array(buf);
     }
@@ -2784,8 +2796,12 @@
     async function sendToPrinter(data) {
       const CHUNK = 100; // 缩小分块，减少打印机缓冲溢出
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
-      for (let i = 0; i < data.length; i += CHUNK) {
-        const chunk = data.slice(i, i + CHUNK);
+      let i = 0;
+      while (i < data.length) {
+        let end = Math.min(i + CHUNK, data.length);
+        // 避免分块末尾是 0x00：某些 BLE 栈会把末尾 null 当作终止符截断数据
+        if (end < data.length && data[end - 1] === 0x00) end -= 1;
+        const chunk = data.slice(i, end);
         if (canWithout) {
           await _printerChar.writeValueWithoutResponse(chunk);
           // writeWithoutResponse 无确认机制，加小延迟让打印机处理当前包再发下一包
@@ -2795,6 +2811,7 @@
         } else {
           await _printerChar.writeValue(chunk);
         }
+        i = end;
       }
     }
 
@@ -2854,6 +2871,16 @@
       const dateStr = expires.toISOString().slice(0, 10);
       el.textContent = expired ? t('subscription_expired').replace('{date}', dateStr) : t('subscription_expires').replace('{date}', dateStr);
       el.className = `text-xs mt-0.5 ${expired ? 'text-red-400' : 'text-gray-400'}`;
+    }
+
+    function openPoster() {
+      const shop = currentShop ? String(currentShop.shop_number || '') : '';
+      window.open('/poster.html?shop=' + encodeURIComponent(shop), '_blank');
+    }
+
+    function closePosterPrompt() {
+      document.getElementById('modal-poster-prompt').classList.add('hidden');
+      localStorage.setItem('lottery_poster_shown', '1');
     }
 
     function openSettings() {
@@ -3030,6 +3057,16 @@
           <p id="change-pwd-result" class="text-xs text-center mt-2 hidden"></p>
         </div>
 
+        <!-- 宣传海报 -->
+        <div class="border border-green-700 rounded-xl p-3">
+          <p class="text-sm font-bold mb-1">📄 <span data-i18n="poster_title">店铺宣传海报</span></p>
+          <p class="text-xs text-gray-400 mb-3" data-i18n="poster_desc">客户扫码直接进入您的店铺下单，无需输入店号</p>
+          <button onclick="openPoster(); closeModal('modal-settings')"
+            class="w-full bg-green-700 hover:bg-green-600 py-2 rounded-xl text-sm font-bold">
+            🔗 查看 / 打印海报
+          </button>
+        </div>
+
         <!-- 当前登录设备 -->
         <div class="border border-gray-600 rounded-xl p-3">
           <p class="text-sm font-bold mb-2">📱 当前登录设备</p>
@@ -3052,6 +3089,26 @@
           </button>
           <p id="change-email-result" class="text-xs text-center mt-2 hidden"></p>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 宣传海报提示弹窗（首次登录出现一次） -->
+  <div id="modal-poster-prompt" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+      <div class="text-5xl mb-3">🎉</div>
+      <h3 class="text-lg font-bold mb-2">登录成功！</h3>
+      <p class="text-sm text-gray-300 mb-1">是否保存店铺宣传海报？</p>
+      <p class="text-xs text-gray-400 mb-5">客户扫码后直接进入您的店铺下单，无需输入店号</p>
+      <div class="flex gap-3">
+        <button onclick="openPoster(); closePosterPrompt();"
+          class="flex-1 bg-green-600 hover:bg-green-500 py-3 rounded-xl font-bold text-sm">
+          📄 是，查看海报
+        </button>
+        <button onclick="closePosterPrompt()"
+          class="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold text-sm text-gray-300">
+          以后再说
+        </button>
       </div>
     </div>
   </div>

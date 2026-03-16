@@ -43,7 +43,6 @@
           <h1 class="font-bold text-xl tracking-tight">📊 <span data-i18n="result_title">开奖结算</span><span id="result-period-label" class="text-sm font-normal text-gray-400 ml-1"></span></h1>
           <p class="text-xs text-gray-400 mt-0.5" id="shop-info">
             <span data-i18n="shop_label">店号</span>: <span id="shop-number" class="font-mono">-----</span>
-            <span id="shop-name" class="ml-1 hidden">加载中...</span>
           </p>
         </div>
         <a href="merchant.html" class="text-gray-400 hover:text-white text-sm transition px-3 py-2 rounded-lg hover:bg-gray-700/50" data-i18n="back">返回</a>
@@ -369,7 +368,7 @@
       const urlToken = urlParams.get('t');
       const urlShopId = urlParams.get('sid');
       const urlShopNumber = urlParams.get('sn');
-      const urlShopName = urlParams.get('sname');
+      const urlShopName = '';
 
       if (urlToken) {
         // 如果 URL 中带了 token，则优先使用并写回本地
@@ -395,7 +394,7 @@
           shop_name: decodedShopName
         };
         document.getElementById('shop-number').textContent = currentShop.shop_number || '';
-        document.getElementById('shop-name').textContent = currentShop.shop_name || '';
+        // shop-name removed
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-result').classList.remove('hidden');
         applyResultLang();
@@ -411,7 +410,7 @@
             if (match) {
               currentShop = match;
               document.getElementById('shop-number').textContent = match.shop_number || '';
-              document.getElementById('shop-name').textContent = match.shop_name || '';
+              // shop-name removed
             }
           }
         }).catch(() => {});
@@ -425,7 +424,7 @@
         if (data.shops && data.shops.length > 0) {
           currentShop = data.shops[0];
           document.getElementById('shop-number').textContent = currentShop.shop_number || '';
-          document.getElementById('shop-name').textContent = currentShop.shop_name || '';
+          // shop-name removed
           document.getElementById('page-login').classList.add('hidden');
           document.getElementById('page-result').classList.remove('hidden');
           applyResultLang();
@@ -452,10 +451,6 @@
         if (sn) {
           const snEl = document.getElementById('shop-number');
           if (snEl) snEl.textContent = sn;
-        }
-        if (sname) {
-          const nameEl = document.getElementById('shop-name');
-          if (nameEl) nameEl.textContent = decodeURIComponent(sname);
         }
       } catch (e) {
         // ignore

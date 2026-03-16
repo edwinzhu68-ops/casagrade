@@ -2762,6 +2762,21 @@
       try {
         lastOrder = localStorage.getItem(LAST_ORDER_KEY);
       } catch (e) {}
+      // URL 参数 ?shop=XXXXX 直接进店（扫宣传海报二维码时使用）
+      try {
+        var urlShop = new URLSearchParams(window.location.search).get('shop');
+        if (urlShop && /^\d{1,9}$/.test(urlShop.trim())) {
+          var urlInput = document.getElementById('store-input');
+          if (urlInput) urlInput.value = urlShop.trim();
+          enterShop(urlShop.trim()).then(function() {
+            showPage('page-shop');
+            startClientStopCountdown();
+            updateHeaderAccount();
+            show();
+          }).catch(function() { showPage('page-home'); show(); });
+          return;
+        }
+      } catch (e) {}
       try {
         if (localStorage.getItem(LAST_PAGE_KEY) === 'shop') {
           var sn = (localStorage.getItem('lastShopNumber') || '').trim();

@@ -894,15 +894,7 @@
             ? (pendingData.draw.drawId != null ? pendingData.draw.drawId : pendingData.draw.draw_id)
             : null;
           if (pendingDrawId != null) {
-            const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-            currentPeriodOrders = allOrders.filter(function(o) {
-              if (o.draw_id == pendingDrawId) return true;
-              // draw_id 为空但 7 天内已付款的订单也算当期（与老板端逻辑一致）
-              const s = typeof o.status === 'string' ? o.status.toLowerCase() : o.status;
-              const isPaid = s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
-              const createdMs = o.created_at ? new Date(o.created_at).getTime() : 0;
-              return (o.draw_id == null || o.draw_id === '') && isPaid && createdMs >= sevenDaysAgo;
-            });
+            currentPeriodOrders = allOrders.filter(o => o.draw_id == pendingDrawId);
           } else {
             currentPeriodOrders = [];
           }
@@ -976,11 +968,14 @@
 
     // 统计
     function calculateStats() {
-      // 当期订单基于 currentPeriodOrders；销售额只统计已付款订单
-      const paidCurrent = currentPeriodOrders.filter(o => o.status >= 1);
+      // 当期订单基于 currentPeriodOrders；销售额只统计已付款订单（兼容数字和字符串状态）
+      const paidCurrent = currentPeriodOrders.filter(function(o) {
+        const s = typeof o.status === 'string' ? o.status.toLowerCase() : o.status;
+        return s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
+      });
       document.getElementById('total-shops').textContent = allShops.length;
       document.getElementById('total-orders').textContent = currentPeriodOrders.length;
-      document.getElementById('total-sales').textContent = '$' + paidCurrent.reduce((s, o) => s + o.amount, 0).toFixed(0);
+      document.getElementById('total-sales').textContent = '$' + paidCurrent.reduce((s, o) => s + Number(o.amount || 0), 0).toFixed(0);
     }
 
     // 仅发送开奖时间（不强制要求填开奖号码）
@@ -1357,7 +1352,6 @@
           return `
             <div class="flex items-center gap-2 bg-gray-700/50 rounded-lg px-3 py-2">
               <div class="font-mono font-bold w-16 shrink-0">${s.shop_number}</div>
-              <div class="flex-1 truncate text-gray-300">${s.shop_name || '-'}</div>
               <div class="shrink-0">${expiresText}</div>
               <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold ${isActive ? 'bg-green-800 text-green-300' : 'bg-red-900 text-red-300'}">${isActive ? '启用' : '停用'}</span>
               <button onclick="toggleShopStatus(${s.shop_id},'${isActive ? 'disabled' : 'active'}')"
