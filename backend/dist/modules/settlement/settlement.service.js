@@ -57,6 +57,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
             await this.orderRepo.update(order.order_id, {
                 status: orderResult.payout > 0 ? 3 : 2,
                 win_amount: orderResult.payout,
+                win_breakdown: orderResult.wins,
                 settled_at: new Date(),
             });
         }
@@ -67,15 +68,15 @@ let SettlementService = SettlementService_1 = class SettlementService {
     settleOrder(order, winning) {
         const numbers = order.numbers;
         const gameType = order.game_type;
-        const amount = Number(order.amount);
-        let sales = 0;
+        const sales = Number(order.amount);
         let payout = 0;
         const wins = [];
         for (const num of numbers) {
             const numStr = num.n;
             const quantity = num.q;
-            if (gameType === 'BILLETE') {
-                const result = this.calculateBilletePayout(numStr, winning, amount * quantity);
+            const numLen = numStr.replace(/\D/g, '').length;
+            if (numLen >= 4) {
+                const result = this.calculateBilletePayout(numStr, winning, quantity);
                 if (result.totalPayout > 0) {
                     wins.push({
                         number: numStr,
@@ -84,10 +85,9 @@ let SettlementService = SettlementService_1 = class SettlementService {
                     });
                 }
                 payout += result.totalPayout;
-                sales += amount * quantity;
             }
-            else if (gameType === 'CHANCE') {
-                const result = this.calculateChancePayout(numStr, winning, amount * quantity);
+            else if (numLen >= 2) {
+                const result = this.calculateChancePayout(numStr, winning, quantity);
                 if (result.totalPayout > 0) {
                     wins.push({
                         number: numStr,
@@ -96,7 +96,6 @@ let SettlementService = SettlementService_1 = class SettlementService {
                     });
                 }
                 payout += result.totalPayout;
-                sales += amount * quantity;
             }
         }
         return {
@@ -107,67 +106,99 @@ let SettlementService = SettlementService_1 = class SettlementService {
             wins,
         };
     }
-    calculateBilletePayout(num, winning, betAmount) {
-        const paddedNum = num.padStart(4, '0');
-        const primer = winning.primer.padStart(4, '0');
-        const segundo = winning.segundo.padStart(4, '0');
-        const tercero = winning.tercero.padStart(4, '0');
+    calculateBilletePayout(num, winning, qty) {
+        const paddedNum = num.slice(-4).padStart(4, '0');
+        const p = winning.primer;
+        const s = winning.segundo;
+        const t = winning.tercero;
+        const primerNorm = p.length >= 4 ? p.slice(-4).padStart(4, '0') : null;
+        const segundoNorm = s.length >= 4 ? s.slice(-4).padStart(4, '0') : null;
+        const terceroNorm = t.length >= 4 ? t.slice(-4).padStart(4, '0') : null;
         const matches = [];
         let totalPayout = 0;
-        const primerHit = paddedNum === primer;
-        const segundoHit = paddedNum === segundo;
-        const terceroHit = paddedNum === tercero;
-        if (primerHit) {
-            matches.push(`头奖四位 ${paddedNum} x2000`);
-            totalPayout += 2000 * betAmount;
+        if (primerNorm) {
+            if (paddedNum === primerNorm) {
+                matches.push(`头奖四位 ${paddedNum} x2000`);
+                totalPayout += 2000 * qty;
+            }
+            else if (paddedNum.slice(0, 3) === primerNorm.slice(0, 3)) {
+                matches.push(`头奖前三位 x50`);
+                totalPayout += 50 * qty;
+            }
+            else if (paddedNum.slice(1, 4) === primerNorm.slice(1, 4)) {
+                matches.push(`头奖后三位 x50`);
+                totalPayout += 50 * qty;
+            }
+            else if (paddedNum.slice(0, 2) === primerNorm.slice(0, 2)) {
+                matches.push(`头奖前两位 x3`);
+                totalPayout += 3 * qty;
+            }
+            else if (paddedNum.slice(2, 4) === primerNorm.slice(2, 4)) {
+                matches.push(`头奖后两位 x3`);
+                totalPayout += 3 * qty;
+            }
+            else if (paddedNum.slice(-1) === primerNorm.slice(-1)) {
+                matches.push(`头奖最后一位 x1`);
+                totalPayout += 1 * qty;
+            }
         }
-        if (segundoHit) {
-            matches.push(`二奖四位 ${paddedNum} x600`);
-            totalPayout += 600 * betAmount;
+        else {
+            if (paddedNum.slice(-2) === p.slice(-2).padStart(2, '0')) {
+                matches.push(`头奖后两位 ${p} x3`);
+                totalPayout += 3 * qty;
+            }
         }
-        if (terceroHit) {
-            matches.push(`三奖四位 ${paddedNum} x300`);
-            totalPayout += 300 * betAmount;
+        if (segundoNorm) {
+            if (paddedNum === segundoNorm) {
+                matches.push(`二奖四位 ${paddedNum} x600`);
+                totalPayout += 600 * qty;
+            }
+            else if (paddedNum.slice(0, 3) === segundoNorm.slice(0, 3)) {
+                matches.push(`二奖前三位 x20`);
+                totalPayout += 20 * qty;
+            }
+            else if (paddedNum.slice(1, 4) === segundoNorm.slice(1, 4)) {
+                matches.push(`二奖后三位 x20`);
+                totalPayout += 20 * qty;
+            }
+            else if (paddedNum.slice(2, 4) === segundoNorm.slice(2, 4)) {
+                matches.push(`二奖后两位 x2`);
+                totalPayout += 2 * qty;
+            }
         }
-        if (!primerHit && paddedNum.slice(0, 3) === primer.slice(0, 3)) {
-            matches.push(`头奖前三位 ${paddedNum.slice(0, 3)} x50`);
-            totalPayout += 50 * betAmount;
+        else {
+            if (paddedNum.slice(-2) === s.slice(-2).padStart(2, '0')) {
+                matches.push(`二奖后两位 ${s} x2`);
+                totalPayout += 2 * qty;
+            }
         }
-        if (!primerHit && paddedNum.slice(1, 4) === primer.slice(1, 4)) {
-            matches.push(`头奖后三位 ${paddedNum.slice(1, 4)} x50`);
-            totalPayout += 50 * betAmount;
+        if (terceroNorm) {
+            if (paddedNum === terceroNorm) {
+                matches.push(`三奖四位 ${paddedNum} x300`);
+                totalPayout += 300 * qty;
+            }
+            else if (paddedNum.slice(0, 3) === terceroNorm.slice(0, 3)) {
+                matches.push(`三奖前三位 x10`);
+                totalPayout += 10 * qty;
+            }
+            else if (paddedNum.slice(1, 4) === terceroNorm.slice(1, 4)) {
+                matches.push(`三奖后三位 x10`);
+                totalPayout += 10 * qty;
+            }
+            else if (paddedNum.slice(2, 4) === terceroNorm.slice(2, 4)) {
+                matches.push(`三奖后两位 x1`);
+                totalPayout += 1 * qty;
+            }
         }
-        if (!segundoHit && paddedNum.slice(1, 4) === segundo.slice(1, 4)) {
-            matches.push(`二奖后三位 ${paddedNum.slice(1, 4)} x20`);
-            totalPayout += 20 * betAmount;
-        }
-        if (!terceroHit && paddedNum.slice(1, 4) === tercero.slice(1, 4)) {
-            matches.push(`三奖后三位 ${paddedNum.slice(1, 4)} x10`);
-            totalPayout += 10 * betAmount;
-        }
-        if (!primerHit && paddedNum.slice(0, 2) === primer.slice(0, 2)) {
-            matches.push(`头奖前两位 ${paddedNum.slice(0, 2)} x3`);
-            totalPayout += 3 * betAmount;
-        }
-        if (!primerHit && paddedNum.slice(2, 4) === primer.slice(2, 4)) {
-            matches.push(`头奖后两位 ${paddedNum.slice(2, 4)} x3`);
-            totalPayout += 3 * betAmount;
-        }
-        if (!segundoHit && paddedNum.slice(2, 4) === segundo.slice(2, 4)) {
-            matches.push(`二奖后两位 ${paddedNum.slice(2, 4)} x2`);
-            totalPayout += 2 * betAmount;
-        }
-        if (!terceroHit && paddedNum.slice(2, 4) === tercero.slice(2, 4)) {
-            matches.push(`三奖后两位 ${paddedNum.slice(2, 4)} x1`);
-            totalPayout += 1 * betAmount;
-        }
-        if (totalPayout > 0 && !primerHit && paddedNum.slice(-1) === primer.slice(-1)) {
-            matches.push(`头奖最后一位 +$1`);
-            totalPayout += 1 * betAmount;
+        else {
+            if (paddedNum.slice(-2) === t.slice(-2).padStart(2, '0')) {
+                matches.push(`三奖后两位 ${t} x1`);
+                totalPayout += 1 * qty;
+            }
         }
         return { matches, totalPayout };
     }
-    calculateChancePayout(num, winning, betAmount) {
+    calculateChancePayout(num, winning, quantity) {
         const paddedNum = num.padStart(2, '0');
         const primerLast2 = winning.primer.slice(-2);
         const segundoLast2 = winning.segundo.slice(-2);
@@ -176,15 +207,15 @@ let SettlementService = SettlementService_1 = class SettlementService {
         let totalPayout = 0;
         if (paddedNum === primerLast2) {
             matches.push(`头奖后两位 ${paddedNum} x14`);
-            totalPayout += 14 * betAmount;
+            totalPayout += 14 * quantity;
         }
         if (paddedNum === segundoLast2) {
             matches.push(`二奖后两位 ${paddedNum} x3`);
-            totalPayout += 3 * betAmount;
+            totalPayout += 3 * quantity;
         }
         if (paddedNum === terceroLast2) {
             matches.push(`三奖后两位 ${paddedNum} x2`);
-            totalPayout += 2 * betAmount;
+            totalPayout += 2 * quantity;
         }
         return { matches, totalPayout };
     }
@@ -198,16 +229,18 @@ let SettlementService = SettlementService_1 = class SettlementService {
             catch {
                 const parts = raw.split(/[-\s,]/).map((v) => v.trim()).filter((v) => v.length > 0);
                 return {
-                    primer: (parts[0] || '0000').padStart(4, '0'),
-                    segundo: (parts[1] || '0000').padStart(4, '0'),
-                    tercero: (parts[2] || '0000').padStart(4, '0'),
+                    primer: (parts[0] || '').replace(/\D/g, '') || '0',
+                    segundo: (parts[1] || '').replace(/\D/g, '') || '0',
+                    tercero: (parts[2] || '').replace(/\D/g, '') || '0',
                 };
             }
         }
-        const primer = (obj?.primer || obj?.billete || '').toString().padStart(4, '0');
-        const segundo = (obj?.segundo || '').toString().padStart(4, '0');
-        const tercero = (obj?.tercero || '').toString().padStart(4, '0');
-        return { primer, segundo, tercero };
+        const toDigits = (v) => (v != null ? String(v).replace(/\D/g, '') : '') || '0';
+        return {
+            primer: toDigits(obj?.primer ?? obj?.billete),
+            segundo: toDigits(obj?.segundo),
+            tercero: toDigits(obj?.tercero),
+        };
     }
     async getSettlementStats(shopId, startDate, endDate) {
         const query = this.orderRepo.createQueryBuilder('order');
@@ -238,6 +271,50 @@ let SettlementService = SettlementService_1 = class SettlementService {
             winCount,
             profit: totalSales - totalPayout,
         };
+    }
+    async getHistoryForShop(shopId, limit = 7) {
+        const draws = await this.drawRepo.find({
+            where: [{ status: 'completed' }, { status: 'COMPLETED' }],
+            order: { draw_id: 'DESC' },
+            take: Math.max(limit * 2, 20),
+        });
+        const result = [];
+        for (const draw of draws) {
+            const orders = await this.orderRepo.find({
+                where: {
+                    shop_id: shopId,
+                    draw_id: draw.draw_id,
+                    status: (0, typeorm_2.In)([1, 2, 3]),
+                },
+            });
+            if (orders.length === 0)
+                continue;
+            let totalSales = 0;
+            let totalPayout = 0;
+            for (const order of orders) {
+                totalSales += Number(order.amount);
+                totalPayout += Number(order.win_amount || 0);
+            }
+            const rawDate = draw.draw_date ?? draw.draw_time ?? draw.created_at ?? new Date();
+            const d = typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rawDate)
+                ? new Date(rawDate.slice(0, 10) + 'T12:00:00Z')
+                : new Date(rawDate);
+            const dd = d.getUTCDate();
+            const mm = d.getUTCMonth() + 1;
+            const yy = d.getUTCFullYear();
+            const dateStr = `${String(dd).padStart(2, '0')}-${String(mm).padStart(2, '0')}-${yy}`;
+            result.push({
+                drawId: draw.draw_id,
+                date: dateStr,
+                drawDate: dateStr,
+                totalSales,
+                totalPayout,
+                netProfit: totalSales - totalPayout,
+            });
+            if (result.length >= limit)
+                break;
+        }
+        return result;
     }
 };
 exports.SettlementService = SettlementService;

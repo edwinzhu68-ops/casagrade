@@ -22,6 +22,10 @@ export class Shop {
   @Column({ type: 'decimal', precision: 5, scale: 2, default: 0.10 })
   commission_rate: number;
 
+  /** 额外店号别名，登录/下单时也可用这些号码找到本店 */
+  @Column({ type: 'simple-json', nullable: true })
+  shop_aliases: string[] | null;
+
   @Column({ length: 20, default: 'active' })
   status: string; // active / disabled
 
@@ -30,6 +34,18 @@ export class Shop {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   daily_bet_limit: number;
+
+  /** 每期每号 Chance 最多卖出张数（null = 不限） */
+  @Column({ type: 'int', nullable: true })
+  limit_chance: number | null;
+
+  /** 每期每号 Billete 最多卖出张数（null = 不限） */
+  @Column({ type: 'int', nullable: true })
+  limit_billete: number | null;
+
+  /** 订阅到期时间（null = 未激活或永久） */
+  @Column({ type: 'datetime', nullable: true })
+  subscription_expires_at: Date | null;
 
   @CreateDateColumn()
   created_at: Date;

@@ -18,4 +18,5 @@ __exportStar(require("./order.entity"), exports);
 __exportStar(require("./shop.entity"), exports);
 __exportStar(require("./draw.entity"), exports);
 __exportStar(require("./user.entity"), exports);
+__exportStar(require("./shop-binding.entity"), exports);
 //# sourceMappingURL=index.js.map

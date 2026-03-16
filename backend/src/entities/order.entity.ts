@@ -45,6 +45,10 @@ export class Order {
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   win_amount: number;
 
+  /** 每注中奖金额，与 numbers 一一对应：[{ n, q, win }]，未中奖的 win 为 0 */
+  @Column({ type: 'simple-json', nullable: true })
+  win_breakdown: { n: string; q: number; win: number }[] | null;
+
   @Column({ length: 45, nullable: true })
   ip_address: string;
 

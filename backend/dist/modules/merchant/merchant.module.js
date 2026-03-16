@@ -12,12 +12,13 @@ const typeorm_1 = require("@nestjs/typeorm");
 const merchant_controller_1 = require("./merchant.controller");
 const user_entity_1 = require("../../entities/user.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
+const shop_binding_entity_1 = require("../../entities/shop-binding.entity");
 let MerchantModule = class MerchantModule {
 };
 exports.MerchantModule = MerchantModule;
 exports.MerchantModule = MerchantModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, shop_entity_1.Shop])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, shop_entity_1.Shop, shop_binding_entity_1.ShopBinding])],
         controllers: [merchant_controller_1.MerchantController],
     })
 ], MerchantModule);

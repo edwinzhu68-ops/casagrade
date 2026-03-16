@@ -20,4 +20,12 @@ export declare class SettlementService {
     private calculateChancePayout;
     private parseDrawResult;
     getSettlementStats(shopId?: number, startDate?: Date, endDate?: Date): Promise<any>;
+    getHistoryForShop(shopId: number, limit?: number): Promise<{
+        drawId?: number;
+        date: string;
+        drawDate: string;
+        totalSales: number;
+        totalPayout: number;
+        netProfit: number;
+    }[]>;
 }

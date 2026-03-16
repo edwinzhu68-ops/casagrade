@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SettlementController = void 0;
 const common_1 = require("@nestjs/common");
 const settlement_service_1 = require("./settlement.service");
+const admin_token_guard_1 = require("../../guards/admin-token.guard");
 let SettlementController = class SettlementController {
     constructor(settlementService) {
         this.settlementService = settlementService;
@@ -34,10 +35,18 @@ let SettlementController = class SettlementController {
             data: result,
         };
     }
+    async getHistory(shopId, limit = '7') {
+        const result = await this.settlementService.getHistoryForShop(Number(shopId), Number(limit) || 7);
+        return {
+            success: true,
+            items: result,
+        };
+    }
 };
 exports.SettlementController = SettlementController;
 __decorate([
     (0, common_1.Post)('settle/:drawId'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
     __param(0, (0, common_1.Param)('drawId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number]),
@@ -52,6 +61,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], SettlementController.prototype, "getStats", null);
+__decorate([
+    (0, common_1.Get)('history'),
+    __param(0, (0, common_1.Query)('shopId')),
+    __param(1, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], SettlementController.prototype, "getHistory", null);
 exports.SettlementController = SettlementController = __decorate([
     (0, common_1.Controller)('settlement'),
     __metadata("design:paramtypes", [settlement_service_1.SettlementService])

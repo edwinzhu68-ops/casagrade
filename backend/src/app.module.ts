@@ -9,13 +9,15 @@ import { Order } from './entities/order.entity';
 import { Shop } from './entities/shop.entity';
 import { Draw } from './entities/draw.entity';
 import { User } from './entities/user.entity';
+import { ShopBinding } from './entities/shop-binding.entity';
+import { CardCode } from './entities/card-code.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: process.env.DATABASE_PATH || 'lottery.db',
-      entities: [Order, Shop, Draw, User],
+      entities: [Order, Shop, Draw, User, ShopBinding, CardCode],
       synchronize: process.env.NODE_ENV !== 'production',
       logging: false,
     }),

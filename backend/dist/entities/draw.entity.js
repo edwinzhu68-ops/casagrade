@@ -35,6 +35,14 @@ __decorate([
     __metadata("design:type", String)
 ], Draw.prototype, "status", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'datetime', nullable: true }),
+    __metadata("design:type", Date)
+], Draw.prototype, "archived_at", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false, nullable: true }),
+    __metadata("design:type", Boolean)
+], Draw.prototype, "main_shop_archived", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)
 ], Draw.prototype, "created_at", void 0);

@@ -13,10 +13,13 @@ const order_module_1 = require("./modules/order/order.module");
 const draw_module_1 = require("./modules/draw/draw.module");
 const merchant_module_1 = require("./modules/merchant/merchant.module");
 const settlement_module_1 = require("./modules/settlement/settlement.module");
+const admin_module_1 = require("./modules/admin/admin.module");
 const order_entity_1 = require("./entities/order.entity");
 const shop_entity_1 = require("./entities/shop.entity");
 const draw_entity_1 = require("./entities/draw.entity");
 const user_entity_1 = require("./entities/user.entity");
+const shop_binding_entity_1 = require("./entities/shop-binding.entity");
+const card_code_entity_1 = require("./entities/card-code.entity");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -25,15 +28,16 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             typeorm_1.TypeOrmModule.forRoot({
                 type: 'sqlite',
-                database: 'lottery.db',
-                entities: [order_entity_1.Order, shop_entity_1.Shop, draw_entity_1.Draw, user_entity_1.User],
-                synchronize: true,
+                database: process.env.DATABASE_PATH || 'lottery.db',
+                entities: [order_entity_1.Order, shop_entity_1.Shop, draw_entity_1.Draw, user_entity_1.User, shop_binding_entity_1.ShopBinding, card_code_entity_1.CardCode],
+                synchronize: process.env.NODE_ENV !== 'production',
                 logging: false,
             }),
             order_module_1.OrderModule,
             draw_module_1.DrawModule,
             merchant_module_1.MerchantModule,
             settlement_module_1.SettlementModule,
+            admin_module_1.AdminModule,
         ],
     })
 ], AppModule);

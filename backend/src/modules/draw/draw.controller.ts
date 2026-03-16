@@ -1,10 +1,223 @@
-import { Controller, Get, Post, Body, Inject, Logger, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Inject, Logger, UseGuards, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { IsNull, In } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
+import { Order } from '../../entities/order.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
 
+/**
+ * 中奖规则以你说的为准，不做其它查询。
+ *
+ * Billete（每奖只取最高档，三奖金额相加）：
+ * - 四位全中：[一等奖 2000, 二等奖 600, 三等奖 300] 每张
+ * - 前三位中：[50, 20, 10]
+ * - 后三位中：[50, 20, 10]
+ * - 前两位中：仅一等奖 3，二三等奖 0 → [3, 0, 0]
+ * - 后两位中：[3, 2, 1]
+ * - 最后一位中：仅一等奖 1 → [1, 0, 0]
+ */
+const BILLETE_RATE: Record<string, [number, number, number]> = {
+  exact: [2000, 600, 300],
+  first3: [50, 20, 10],
+  last3: [50, 20, 10],
+  first2: [3, 0, 0],
+  last2: [3, 2, 1],
+  last1: [1, 0, 0],
+};
+
+/**
+ * Chance（你说的为准）：
+ * - 0.25 一张；只看一二三奖的「后两位」，无论开奖号几位数。
+ * - 头奖后两位中：14 元/张；二奖后两位中：3 元/张；三奖后两位中：2 元/张；三奖可叠加。
+ */
+const CHANCE_RATE: [number, number, number] = [14, 3, 2];
+
+/**
+ * 单个奖级计算：从高到低只取最高匹配档，返回 该档对应奖级的赔率×数量。
+ * prizeIndex: 0=一等奖 1=二等奖 2=三等奖
+ * 匹配顺序：4位 → 前3 → 后3 → 前2 → 后2 → 后1。
+ */
+function calcBilletePrizeForOneDraw(betNum: string, winRaw: string, qty: number, prizeIndex: 0 | 1 | 2): number {
+  const originalLen = winRaw.replace(/\D/g, '').length;
+  if (qty <= 0 || originalLen < 2) return 0;
+  const b = betNum.slice(-4).padStart(4, '0');
+  const w = winRaw.replace(/\D/g, '').padStart(4, '0');
+  // 奖号不足4位（如2位数）：只比后两位，不做精确/前三/后三等高档比较
+  if (originalLen < 4) {
+    if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE.last2[prizeIndex] * qty;
+    return 0;
+  }
+  if (b === w) return BILLETE_RATE.exact[prizeIndex] * qty;
+  if (b.substring(0, 3) === w.substring(0, 3)) return BILLETE_RATE.first3[prizeIndex] * qty;
+  if (b.substring(1, 4) === w.substring(1, 4)) return BILLETE_RATE.last3[prizeIndex] * qty;
+  if (b.substring(0, 2) === w.substring(0, 2)) return BILLETE_RATE.first2[prizeIndex] * qty;
+  if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE.last2[prizeIndex] * qty;
+  if (b.substring(3, 4) === w.substring(3, 4)) return BILLETE_RATE.last1[prizeIndex] * qty;
+  return 0;
+}
+
+/**
+ * 开奖完成后结算「本期的已付款订单」：订单创建时已带 draw_id = 待开奖期 id，这里按 draw_id = 当前完成期 筛选并结算
+ * Billete：对头奖/二奖/三奖分别算一次（每个奖只取最高档），三者相加。
+ */
+async function settleOrdersForDraw(
+  dataSource: DataSource,
+  drawId: number,
+  primer: string,
+  segundo: string,
+  tercero: string,
+): Promise<void> {
+  const orderRepo = dataSource.getRepository(Order);
+  const win1 = String(primer ?? '').replace(/\D/g, '');
+  const win2 = String(segundo ?? '').replace(/\D/g, '');
+  const win3 = String(tercero ?? '').replace(/\D/g, '');
+  const ch1 = win1.slice(-2).padStart(2, '0');
+  const ch2 = win2.slice(-2).padStart(2, '0');
+  const ch3 = win3.slice(-2).padStart(2, '0');
+
+  const orders = await orderRepo.find({
+    where: { status: 1, draw_id: drawId },
+  });
+
+  for (const order of orders) {
+    let totalWin = 0;
+    const numbers = (order.numbers as { n: string; q: number }[]) || [];
+    const gameType = (order.game_type || '').toUpperCase();
+    const winBreakdown: { n: string; q: number; win: number; match?: string }[] = [];
+
+    for (const bet of numbers) {
+      const num = String(bet.n ?? '');
+      const qty = Number(bet.q) || 0;
+      let lineWin = 0;
+      let matchInfo = '';
+      
+      // 按号码位数区分规则：4位是Billete，2位是Chance（不再按game_type字段区分）
+      const numLen = num.replace(/\D/g, '').length;
+      if (numLen >= 4) {
+        // Billete：取后4位，与1/2/3奖分别比对
+        const betNum = num.slice(-4).padStart(4, '0');
+        const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
+        const win2Val = calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
+        const win3Val = calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
+        lineWin = win1Val + win2Val + win3Val;
+        // 记录匹配档位
+        const matches: string[] = [];
+        if (win1Val > 0) matches.push('头奖');
+        if (win2Val > 0) matches.push('二奖');
+        if (win3Val > 0) matches.push('三奖');
+        if (matches.length > 0) matchInfo = matches.join('+');
+      } else if (numLen >= 2) {
+        // Chance：取后2位 [14,3,2]，三奖叠加
+        const betCh = num.slice(-2).padStart(2, '0');
+        let winVal = 0;
+        if (betCh === ch1) { winVal += CHANCE_RATE[0] * qty; matchInfo += (matchInfo ? '+' : '') + '头奖'; }
+        if (betCh === ch2) { winVal += CHANCE_RATE[1] * qty; matchInfo += (matchInfo ? '+' : '') + '二奖'; }
+        if (betCh === ch3) { winVal += CHANCE_RATE[2] * qty; matchInfo += (matchInfo ? '+' : '') + '三奖'; }
+        lineWin = winVal;
+        if (matchInfo) matchInfo += '(14+3+2)';
+      }
+      totalWin += lineWin;
+      winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });
+    }
+
+    const newStatus = totalWin > 0 ? 3 : 2; // 3=已中奖 2=已开奖
+    await orderRepo.update(order.order_id, {
+      draw_id: drawId,
+      win_amount: totalWin,
+      win_breakdown: winBreakdown,
+      status: newStatus,
+      settled_at: new Date(),
+    } as any);
+  }
+}
+
+/** 巴拿马下一开奖日：周三-周日-周三-周日循环。
+ *  from: 基准日期（通常是刚完成的开奖日）；不传则用今天巴拿马时间。 */
+function getNextDrawDatePanama(from?: Date): Date {
+  let base: Date;
+  if (from) {
+    base = from;
+  } else {
+    const now = new Date();
+    base = new Date(now.toLocaleString('en-US', { timeZone: 'America/Panama' }));
+  }
+  const day = base.getDay(); // 0=Sun, 3=Wed
+  let days: number;
+  if (day === 0) days = 3;       // Sun -> 下周三
+  else if (day === 3) days = 4;  // Wed -> 下周日
+  else if (day === 1 || day === 2) days = 3 - day; // Mon->2, Tue->1
+  else days = 7 - day + 3;      // Thu~Sat -> 下周三
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  next.setHours(15, 0, 0, 0);
+  return next;
+}
+
+/** Date 转 DD-MM-YYYY（用于一般日期，本地时区） */
+function dateToDDMMYYYY(d: Date): string {
+  const dd = d.getDate();
+  const mm = d.getMonth() + 1;
+  const yy = d.getFullYear();
+  return `${String(dd).padStart(2, '0')}-${String(mm).padStart(2, '0')}-${yy}`;
+}
+
+/**
+ * 开奖日 display：从 DB 读出的 draw_date 转为 DD-MM-YYYY，不做时区转换，保证“设成几号就显示几号”。
+ * 支持 Date 或 YYYY-MM-DD 字符串（SQLite/TypeORM 可能返回任一种）。
+ */
+function drawDateToDisplayString(val: Date | string | null | undefined): string | null {
+  if (val == null) return null;
+  let yyyyMmDd: string;
+  if (typeof val === 'string') {
+    const s = val.trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    yyyyMmDd = s;
+  } else {
+    const d = new Date(val as any);
+    if (isNaN(d.getTime())) return null;
+    yyyyMmDd = d.toISOString().slice(0, 10);
+  }
+  const [y, m, d] = [yyyyMmDd.slice(0, 4), yyyyMmDd.slice(5, 7), yyyyMmDd.slice(8, 10)];
+  return `${d}-${m}-${y}`;
+}
+
+/** 解析 DD-MM-YYYY 或 D-M-YYYY 为 Date */
+function parseDDMMYYYY(s: string): Date | null {
+  const parts = String(s).trim().split(/[-/]/);
+  if (parts.length !== 3) return null;
+  const d = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const y = parseInt(parts[2], 10);
+  if (isNaN(d) || isNaN(m) || isNaN(y) || m < 0 || m > 11) return null;
+  const date = new Date(y, m, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) return null;
+  return date;
+}
+
+/** 解析 YYYY-MM-DD 为 Date（UTC 当日 0 点），保证入库后任意时区读回仍是同一天 */
+function parseYYYYMMDD(s: string): Date | null {
+  const m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10) - 1;
+  const d = parseInt(m[3], 10);
+  if (mo < 0 || mo > 11 || d < 1 || d > 31) return null;
+  const date = new Date(Date.UTC(y, mo, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo || date.getUTCDate() !== d) return null;
+  return date;
+}
+
+/** 手动开奖用：Date 转 YYYY-MM-DD */
+function dateToYYYYMMDD(d: Date): string {
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 interface SetDrawTimeDto {
-  drawTime: string; // HH:mm:ss
+  drawTime?: string; // HH:mm:ss
+  drawDate?: string; // 手动开奖用 YYYY-MM-DD；也支持 DD-MM-YYYY
 }
 
 interface ManualDrawDto {
@@ -21,12 +234,72 @@ export class DrawController {
   constructor(private readonly dataSource: DataSource) {}
 
   /**
-   * GET /api/draw/latest - 获取最近开奖
+   * GET /api/draw/fetch-firebase - 从 Firebase 拉取巴拿马官方开奖数据（需管理员密钥）
+   * 数据源: https://loteria-panama.firebaseio.com/.json
+   * 按 Tipo de Sorteo 解析位数：
+   * - MIERCOLITO / DOMINICAL：三奖均为 4 位
+   * - GORDITO：头奖 4 位，二奖三奖 2 位
+   * - EXTRAORDINARIA：三奖均为 5 位（写入时取后 4 位与现有结算一致）
+   */
+  @Get('fetch-firebase')
+  @UseGuards(AdminTokenGuard)
+  async fetchFirebase() {
+    const url = 'https://loteria-panama.firebaseio.com/.json';
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Firebase 请求失败: ${res.status}`);
+    }
+    const raw = (await res.json()) as Record<string, unknown>;
+    const get = (key: string) => {
+      const v = raw[key];
+      return v != null ? String(v).trim() : '';
+    };
+    const drawType = get('Tipo de Sorteo').toUpperCase();
+    const digits = (s: string) => s.replace(/\D/g, '');
+
+    const pRaw = digits(get('Primer Premio'));
+    const sRaw = digits(get('Segundo Premio'));
+    const tRaw = digits(get('Tercer Premio'));
+
+    let primer: string;
+    let segundo: string;
+    let tercero: string;
+
+    if (drawType === 'GORDITO') {
+      primer = pRaw.slice(-4).padStart(4, '0');
+      segundo = sRaw.slice(-2).padStart(2, '0');
+      tercero = tRaw.slice(-2).padStart(2, '0');
+    } else if (drawType === 'EXTRAORDINARIA') {
+      primer = pRaw.slice(-5).padStart(5, '0');
+      segundo = sRaw.slice(-5).padStart(5, '0');
+      tercero = tRaw.slice(-5).padStart(5, '0');
+    } else {
+      // MIERCOLITO, DOMINICAL 或未知：三奖均 4 位
+      primer = pRaw.slice(-4).padStart(4, '0');
+      segundo = sRaw.slice(-4).padStart(4, '0');
+      tercero = tRaw.slice(-4).padStart(4, '0');
+    }
+
+    // 只返回号码，供填入手动开奖表单；不返回日期，日期由手动开奖处单独填（YYYY-MM-DD）
+    return {
+      success: true,
+      data: {
+        drawType: get('Tipo de Sorteo'),
+        primer,
+        segundo,
+        tercero,
+        letras: get('Letras'),
+      },
+    };
+  }
+
+  /**
+   * GET /api/draw/latest - 获取最近开奖（未归档的最近一期；归档后结算页显示等待开奖）
    */
   @Get('latest')
   async getLatestDraw() {
     const draw = await this.dataSource.getRepository(Draw).findOne({
-      where: { status: 'completed' },
+      where: { status: In(['COMPLETED', 'completed']), archived_at: IsNull() },
       order: { draw_id: 'DESC' },
     });
 
@@ -45,6 +318,21 @@ export class DrawController {
       winning = { primer: draw.winning_numbers };
     }
 
+    // 原样返回开奖日期：以数据库里的 draw_date 字段为准，不做时区换算
+    let drawDate: string | null = null;
+    if ((draw as any).draw_date) {
+      const raw = (draw as any).draw_date;
+      if (typeof raw === 'string') {
+        drawDate = raw.slice(0, 10);
+      } else {
+        const d = new Date(raw as any);
+        const y = d.getFullYear();
+        const m = (d.getMonth() + 1).toString().padStart(2, '0');
+        const dd = d.getDate().toString().padStart(2, '0');
+        drawDate = `${y}-${m}-${dd}`;
+      }
+    }
+
     return {
       draw: {
         drawId: draw.draw_id,
@@ -52,10 +340,46 @@ export class DrawController {
         segundo: winning.segundo || winning.segundas || '',
         tercero: winning.tercero || winning.terceras || winning.ultimas || '',
         drawTime: draw.draw_time,
-        drawDate: draw.draw_date,
+        drawDate,
         status: draw.status,
       },
     };
+  }
+
+  /**
+   * GET /api/draw/pending - 获取待开奖期（本期：16:00 开售到下次 14:55 停售）
+   * 老板端用本期 drawId 筛订单，统计本期销售额/订单数
+   */
+  @Get('pending')
+  async getPendingDraw() {
+    const draw = await this.dataSource.getRepository(Draw).findOne({
+      where: { status: 'pending' },
+      order: { draw_id: 'DESC' },
+    });
+    if (!draw) {
+      return { draw: null, message: '暂无待开奖期' };
+    }
+    const drawDateStr = drawDateToDisplayString(draw.draw_date);
+    return {
+      draw: {
+        drawId: draw.draw_id,
+        drawTime: draw.draw_time,
+        drawDate: drawDateStr,
+        status: draw.status,
+      },
+    };
+  }
+
+  /**
+   * GET /api/draw/next-date - 返回服务器计算的下次开奖日期（巴拿马时间）
+   */
+  @Get('next-date')
+  getNextDate() {
+    const next = getNextDrawDatePanama();
+    const y = next.getFullYear();
+    const m = String(next.getMonth() + 1).padStart(2, '0');
+    const d = String(next.getDate()).padStart(2, '0');
+    return { date: `${y}-${m}-${d}`, time: '15:00' };
   }
 
   /**
@@ -64,38 +388,50 @@ export class DrawController {
   @Post('time')
   @UseGuards(AdminTokenGuard)
   async setDrawTime(@Body() dto: SetDrawTimeDto) {
-    // 创建新的开奖期次（待开奖）
     const drawRepo = this.dataSource.getRepository(Draw);
-    
-    // 检查是否已有待开奖期次
     let draw = await drawRepo.findOne({
       where: { status: 'pending' },
       order: { draw_id: 'DESC' },
     });
 
+    const updatePayload: Partial<Draw> = {};
+    if (dto.drawTime != null && dto.drawTime !== '') {
+      updatePayload.draw_time = dto.drawTime;
+      // ISO 格式（如 2026-03-16T15:00:00）时同步更新 draw_date，避免下一期日期基于旧 draw_date 计算
+      if (typeof dto.drawTime === 'string' && dto.drawTime.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(dto.drawTime)) {
+        const dateOnly = dto.drawTime.slice(0, 10);
+        const parsed = parseYYYYMMDD(dateOnly);
+        if (parsed) updatePayload.draw_date = parsed;
+      }
+    }
+    if (dto.drawDate != null && dto.drawDate !== '') {
+      const parsed = parseYYYYMMDD(dto.drawDate) || parseDDMMYYYY(dto.drawDate);
+      if (parsed) updatePayload.draw_date = parsed;
+    }
+
     if (draw) {
-      // 更新已有期次的时间
-      await drawRepo.update(draw.draw_id, {
-        draw_time: dto.drawTime,
-      });
-      draw.draw_time = dto.drawTime;
+      if (Object.keys(updatePayload).length > 0) {
+        await drawRepo.update(draw.draw_id, updatePayload);
+        if (updatePayload.draw_time) draw.draw_time = updatePayload.draw_time as string;
+        if (updatePayload.draw_date) draw.draw_date = updatePayload.draw_date as Date;
+      }
     } else {
-      // 创建新期次
       draw = drawRepo.create({
-        draw_date: new Date(),
-        draw_time: dto.drawTime,
+        draw_date: (updatePayload.draw_date as Date) || new Date(),
+        draw_time: (updatePayload.draw_time as string) || '15:00:00',
         status: 'pending',
         winning_numbers: '',
       });
       await drawRepo.save(draw);
     }
 
-    this.logger.log(`开奖时间设置: ${(draw as any).draw_time}, 期次: ${draw.draw_id}`);
+    this.logger.log(`开奖时间设置: draw_time=${(draw as any).draw_time}, draw_date=${(draw as any).draw_date}, 期次: ${draw.draw_id}`);
 
     return {
       success: true,
       drawId: draw.draw_id,
       drawTime: draw.draw_time,
+      drawDate: draw.draw_date ? (typeof draw.draw_date === 'string' ? draw.draw_date : draw.draw_date.toISOString().slice(0, 10)) : null,
     };
   }
 
@@ -110,35 +446,79 @@ export class DrawController {
     const segundo = (dto.segundo ?? dto.segundas ?? '').toString().trim();
     const tercero = (dto.tercero ?? dto.terceras ?? '').toString().trim();
 
+    const digits = (s: string) => s.replace(/\D/g, '');
+    const winningNumbers = {
+      primer: digits(primer),
+      segundo: digits(segundo),
+      tercero: digits(tercero),
+    };
+    const drawRepo = this.dataSource.getRepository(Draw);
+
     // 找到待开奖期次
-    let draw = await this.dataSource.getRepository(Draw).findOne({
+    let draw = await drawRepo.findOne({
       where: { status: 'pending' },
       order: { draw_id: 'DESC' },
     });
 
-    if (!draw) {
-      // 如果没有待开奖期次，创建新的
-      draw = this.dataSource.getRepository(Draw).create({
+    const hasValidPending = draw != null && Number.isFinite((draw as any).draw_id);
+    if (hasValidPending) {
+      const updateFields: Partial<Draw> = {
+        winning_numbers: JSON.stringify(winningNumbers),
+        status: 'completed',
+        draw_time: dto.drawTime || (draw as any).draw_time,
+      };
+      // ISO 格式 drawTime（如 2026-03-16T15:00:00）时同步更新 draw_date
+      if (dto.drawTime && typeof dto.drawTime === 'string' && dto.drawTime.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(dto.drawTime)) {
+        const parsed = parseYYYYMMDD(dto.drawTime.slice(0, 10));
+        if (parsed) updateFields.draw_date = parsed;
+      }
+      await drawRepo.update((draw as any).draw_id, updateFields);
+      if (updateFields.draw_date) (draw as any).draw_date = updateFields.draw_date;
+    } else {
+      // 无待开奖期次或 draw_id 无效时，新建一条已开奖记录并保存（避免 update(undefined) 报 Empty criteria）
+      draw = drawRepo.create({
         draw_date: new Date(),
         draw_time: dto.drawTime || new Date().toTimeString().split(' ')[0],
         status: 'completed',
+        winning_numbers: JSON.stringify(winningNumbers),
       });
+      await drawRepo.save(draw);
     }
 
-    // 写入开奖号码（2位/4位/5位取后4或后2）
-    const winningNumbers = {
-      primer: primer.slice(-4).padStart(4, '0'),
-      segundo: segundo.slice(-4).padStart(4, '0'),
-      tercero: tercero.slice(-4).padStart(4, '0'),
-    };
-
-    await this.dataSource.getRepository(Draw).update(draw.draw_id, {
-      winning_numbers: JSON.stringify(winningNumbers),
-      status: 'completed',
-      draw_time: dto.drawTime || (draw as any).draw_time,
-    });
-
     this.logger.log(`开奖完成: ${JSON.stringify(winningNumbers)}`);
+
+    await settleOrdersForDraw(
+      this.dataSource,
+      draw.draw_id,
+      winningNumbers.primer,
+      winningNumbers.segundo,
+      winningNumbers.tercero,
+    );
+
+    // 开奖后自动创建下一期：以本期开奖日为基准算下一期，避免用"今天"导致日期不推进
+    const completedDateRaw = (draw as any).draw_date;
+    const completedDate = completedDateRaw ? new Date(typeof completedDateRaw === 'string' ? completedDateRaw + 'T12:00:00' : completedDateRaw) : new Date();
+    const nextDraw = getNextDrawDatePanama(completedDate);
+    const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+    // 清理孤立 pending（draw_id 小于本次开奖的旧 pending，防止多 pending 导致全系统期次不同步）
+    await drawRepo
+      .createQueryBuilder()
+      .update(Draw)
+      .set({ status: 'canceled' } as any)
+      .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
+      .execute();
+
+    const existingPending = await drawRepo.findOne({ where: { status: 'pending' }, order: { draw_id: 'DESC' } });
+    if (!existingPending) {
+      const next = drawRepo.create({
+        draw_date: nextDateStr as any,
+        draw_time: '15:00:00',
+        status: 'pending',
+        winning_numbers: '',
+      });
+      await drawRepo.save(next);
+      this.logger.log(`已创建下一期待开奖: draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+    }
 
     return {
       success: true,
@@ -146,6 +526,71 @@ export class DrawController {
       primer: winningNumbers.primer,
       segundo: winningNumbers.segundo,
       tercero: winningNumbers.tercero,
+    };
+  }
+
+  /**
+   * POST /api/draw/rollback - 回滚最近一次开奖（需管理员密钥）
+   * 将最新 completed 期恢复为 pending，重置所有已结算订单
+   */
+  @Post('rollback')
+  @UseGuards(AdminTokenGuard)
+  async rollbackDraw() {
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const orderRepo = this.dataSource.getRepository(Order);
+
+    // 找最近一期已完成的开奖
+    const completed = await drawRepo.findOne({
+      where: { status: In(['COMPLETED', 'completed']) },
+      order: { draw_id: 'DESC' },
+    });
+    if (!completed) {
+      return { success: false, error: '没有可回滚的已完成开奖' };
+    }
+
+    // 检查是否有已兑奖订单（redeemed_at 不为 null），有则拒绝回滚
+    const redeemed = await orderRepo
+      .createQueryBuilder('o')
+      .where('o.draw_id = :did', { did: completed.draw_id })
+      .andWhere('o.redeemed_at IS NOT NULL')
+      .getCount();
+    if (redeemed > 0) {
+      return { success: false, error: `已有 ${redeemed} 笔订单完成兑奖，无法回滚` };
+    }
+
+    // 先找出自动创建的下一期 pending（draw_id 比 completed 大），稍后删除
+    const nextPending = await drawRepo.findOne({
+      where: { status: 'pending' },
+      order: { draw_id: 'DESC' },
+    });
+    const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
+
+    // 重置已结算订单（status 2/3）回 status=1，清除结算字段
+    await orderRepo
+      .createQueryBuilder()
+      .update(Order)
+      .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null } as any)
+      .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
+      .execute();
+
+    // 恢复 draw 到 pending
+    await drawRepo.update(completed.draw_id, {
+      status: 'pending',
+      winning_numbers: '',
+      archived_at: null,
+    } as any);
+
+    // 删除自动创建的下一期 pending（避免出现两个 pending）
+    if (shouldDeleteNext) {
+      await drawRepo.delete(nextPending!.draw_id);
+    }
+
+    this.logger.log(`回滚开奖: draw_id=${completed.draw_id}`);
+    return {
+      success: true,
+      drawId: completed.draw_id,
+      drawDate: completed.draw_date,
+      drawTime: completed.draw_time,
     };
   }
 }
@@ -161,64 +606,47 @@ export class AdminController {
   constructor(private readonly dataSource: DataSource) {}
 
   /**
-   * POST /admin/draw - 开奖（兼容旧前端）
+   * POST /api/admin/clear-settlement - 清空开奖结算（当前期转入历史，结算页显示等待开奖）；登录即可，不需管理员密钥
    */
-  @Post('draw')
-  async adminDraw(@Body() body: { primer?: string; segundo?: string; tercero?: string; drawTime?: string }) {
-    const { primer, segundo, tercero, drawTime } = body;
-
-    // 找到待开奖期次
-    let draw = await this.dataSource.getRepository(Draw).findOne({
-      where: { status: 'pending' },
+  @Post('clear-settlement')
+  async clearSettlement() {
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const draw = await drawRepo.findOne({
+      where: { 
+        status: In(['COMPLETED', 'completed']),
+        archived_at: IsNull(),
+      },
       order: { draw_id: 'DESC' },
     });
-
-    const drawRepo = this.dataSource.getRepository(Draw);
-
     if (!draw) {
-      // 如果没有待开奖期次，创建新的并直接完成
-      const winningNumbers = {
-        primer: (primer || '').padStart(4, '0'),
-        segundo: (segundo || '').padStart(4, '0'),
-        tercero: (tercero || '').padStart(4, '0'),
-      };
-
-      draw = drawRepo.create({
-        draw_date: new Date(),
-        draw_time: drawTime || new Date().toTimeString().split(' ')[0],
-        status: 'completed',
-        winning_numbers: JSON.stringify(winningNumbers),
-      });
-      await drawRepo.save(draw);
-
-      this.logger.log(`管理员开奖(新期次): ${JSON.stringify(winningNumbers)}`);
-
-      return {
-        success: true,
-        drawId: draw.draw_id,
-        ...winningNumbers,
-      };
+      throw new NotFoundException('暂无已开奖期，无需清空');
     }
-
-    // 写入开奖号码
-    const winningNumbers = {
-      primer: (primer || '').padStart(4, '0'),
-      segundo: (segundo || '').padStart(4, '0'),
-      tercero: (tercero || '').padStart(4, '0'),
-    };
-
-    await drawRepo.update(draw.draw_id, {
-      winning_numbers: JSON.stringify(winningNumbers),
-      status: 'completed',
-      draw_time: drawTime || (draw as any).draw_time,
-    });
-
-    this.logger.log(`管理员开奖: ${JSON.stringify(winningNumbers)}`);
-
+    await drawRepo.update(draw.draw_id, { archived_at: new Date() });
     return {
       success: true,
+      message: '已清空开奖结算，当前期已转入历史',
       drawId: draw.draw_id,
-      ...winningNumbers,
     };
   }
+
+  /**
+   * 删除所有 draw_id 为空的历史订单（危险操作，仅用于清理旧脏数据）
+   * POST /api/admin/cleanup-null-draw-orders
+   * 需要管理员密钥（AdminTokenGuard）
+   */
+  @Post('cleanup-null-draw-orders')
+  async cleanupNullDrawOrders() {
+    const orderRepo = this.dataSource.getRepository(Order);
+    const result = await orderRepo
+      .createQueryBuilder()
+      .delete()
+      .from(Order)
+      .where('draw_id IS NULL')
+      .execute();
+
+    const affected = result.affected ?? 0;
+    this.logger.warn(`cleanup-null-draw-orders: deleted ${affected} orders with draw_id IS NULL`);
+    return { success: true, deleted: affected };
+  }
+
 }

@@ -71,6 +71,10 @@ __decorate([
     __metadata("design:type", Number)
 ], Order.prototype, "win_amount", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'simple-json', nullable: true }),
+    __metadata("design:type", Array)
+], Order.prototype, "win_breakdown", void 0);
+__decorate([
     (0, typeorm_1.Column)({ length: 45, nullable: true }),
     __metadata("design:type", String)
 ], Order.prototype, "ip_address", void 0);
@@ -102,6 +106,10 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'datetime', nullable: true }),
     __metadata("design:type", Date)
 ], Order.prototype, "settled_at", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'datetime', nullable: true }),
+    __metadata("design:type", Date)
+], Order.prototype, "redeemed_at", void 0);
 exports.Order = Order = __decorate([
     (0, typeorm_1.Entity)('orders')
 ], Order);

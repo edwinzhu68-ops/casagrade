@@ -1,4 +1,6 @@
+import { Request } from 'express';
 import { DataSource } from 'typeorm';
+import { DrawDayService } from '../draw/draw-day.service';
 interface CreateOrderDto {
     shopId?: number;
     shop_id?: number;
@@ -16,13 +18,20 @@ export declare class OrderController {
     private readonly dataSource;
     private readonly logger;
     constructor(dataSource: DataSource);
-    createOrder(dto: CreateOrderDto): Promise<{
+    createOrder(dto: CreateOrderDto, req: Request): Promise<{
         order_id: number;
         order_number: string;
         order_hash: string;
         verification_code: string;
         amount: number;
         status: number;
+        created_at: Date;
+    }>;
+    deleteOrder(orderNumber: string, body: {
+        shopId?: number;
+    }, req: Request): Promise<{
+        success: boolean;
+        message: string;
     }>;
     getOrder(orderNumber: string): Promise<{
         order_id: number;
@@ -33,11 +42,14 @@ export declare class OrderController {
             n: string;
             q: number;
         }[];
+        game_type: string;
         status: string;
         verification_code: string;
         shopId: number;
         shopNumber: string;
         win_amount: number;
+        win_breakdown: any;
+        redeemed_at: any;
         created_at: Date;
         paid_at: Date;
     }>;
@@ -45,9 +57,24 @@ export declare class OrderController {
         shopId: number;
     }): Promise<{
         success: boolean;
+        message: string;
+        order_id?: undefined;
+        order_number?: undefined;
+        status?: undefined;
+    } | {
+        success: boolean;
         order_id: number;
         order_number: string;
         status: string;
+        message?: undefined;
+    }>;
+    redeemOrder(orderNumber: string, body: {
+        shopId: number;
+    }): Promise<{
+        success: boolean;
+        order_number: string;
+        win_amount: number;
+        message: string;
     }>;
     private generateOrderNumber;
     private generateVerificationCode;
@@ -63,9 +90,19 @@ export declare class ShopController {
             shop_name: string;
             status: string;
             commission_rate: number;
+            limit_chance: any;
+            limit_billete: any;
         };
     }>;
-    getShopOrders(shopId: string, limit?: string, status?: string): Promise<{
+    updateShopLimits(shopId: string, body: {
+        limitChance?: number | null;
+        limitBillete?: number | null;
+    }): Promise<{
+        success: boolean;
+        limit_chance: any;
+        limit_billete: any;
+    }>;
+    getShopOrders(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string): Promise<{
         shopId: number;
         shopNumber: string;
         shopName: string;
@@ -80,7 +117,10 @@ export declare class ShopController {
             amount: number;
             game_type: string;
             status: string;
+            draw_id: number;
             win_amount: number;
+            win_breakdown: any;
+            redeemed_at: any;
             verification_code: string;
             created_at: Date;
             paid_at: Date;
@@ -89,19 +129,19 @@ export declare class ShopController {
 }
 export declare class BetStatusController {
     private readonly dataSource;
+    private readonly drawDayService;
     private readonly logger;
-    constructor(dataSource: DataSource);
+    constructor(dataSource: DataSource, drawDayService: DrawDayService);
+    private static formatDrawPeriodDate;
     getBetStatus(shopId: string): Promise<{
-        status: string;
+        status: "ok";
         canBet: boolean;
         minutesUntilDraw: number;
-        shopId?: undefined;
-        orderCount?: undefined;
-        orders?: undefined;
+        currentPeriodDate: string;
+        isDrawWindow: boolean;
+        confirmedDrawDay: string;
+        confirmedDrawTime: string;
     } | {
-        status: string;
-        canBet: boolean;
-        minutesUntilDraw: number;
         shopId: number;
         orderCount: number;
         orders: {
@@ -110,6 +150,13 @@ export declare class BetStatusController {
             status: number;
             amount: number;
         }[];
+        status: "ok";
+        canBet: boolean;
+        minutesUntilDraw: number;
+        currentPeriodDate: string;
+        isDrawWindow: boolean;
+        confirmedDrawDay: string;
+        confirmedDrawTime: string;
     }>;
 }
 export {};

@@ -41,6 +41,10 @@ __decorate([
     __metadata("design:type", Number)
 ], Shop.prototype, "commission_rate", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'simple-json', nullable: true }),
+    __metadata("design:type", Array)
+], Shop.prototype, "shop_aliases", void 0);
+__decorate([
     (0, typeorm_1.Column)({ length: 20, default: 'active' }),
     __metadata("design:type", String)
 ], Shop.prototype, "status", void 0);
@@ -52,6 +56,18 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 2, nullable: true }),
     __metadata("design:type", Number)
 ], Shop.prototype, "daily_bet_limit", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "limit_chance", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "limit_billete", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'datetime', nullable: true }),
+    __metadata("design:type", Date)
+], Shop.prototype, "subscription_expires_at", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

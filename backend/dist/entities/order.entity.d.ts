@@ -21,6 +21,11 @@ export declare class Order {
     draw_id: number;
     draw: Draw;
     win_amount: number;
+    win_breakdown: {
+        n: string;
+        q: number;
+        win: number;
+    }[] | null;
     ip_address: string;
     device_fingerprint: string;
     verification_code: string;
@@ -29,4 +34,5 @@ export declare class Order {
     paid_at: Date;
     canceled_at: Date;
     settled_at: Date;
+    redeemed_at: Date;
 }

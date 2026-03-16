@@ -27,6 +27,10 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "phone", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ length: 255, nullable: true }),
+    __metadata("design:type", String)
+], User.prototype, "email", void 0);
+__decorate([
     (0, typeorm_1.Column)({ length: 255 }),
     __metadata("design:type", String)
 ], User.prototype, "password_hash", void 0);
@@ -34,6 +38,18 @@ __decorate([
     (0, typeorm_1.Column)({ length: 20, default: 'merchant' }),
     __metadata("design:type", String)
 ], User.prototype, "role", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 64, nullable: true, default: null }),
+    __metadata("design:type", String)
+], User.prototype, "session_token", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, default: null }),
+    __metadata("design:type", Date)
+], User.prototype, "last_login_at", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 512, nullable: true, default: null }),
+    __metadata("design:type", String)
+], User.prototype, "last_login_ua", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

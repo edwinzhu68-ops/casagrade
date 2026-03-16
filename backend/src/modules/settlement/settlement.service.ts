@@ -4,7 +4,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { Draw } from '../../entities/draw.entity';
@@ -87,12 +87,13 @@ export class SettlementService {
         results.wins++;
       }
 
-      // 更新订单状态
+      // 更新订单状态（含 win_breakdown，供前端回退逻辑使用）
       await this.orderRepo.update(order.order_id, {
         status: orderResult.payout > 0 ? 3 : 2, // 3=已中奖 2=已开奖
         win_amount: orderResult.payout,
+        win_breakdown: orderResult.wins,
         settled_at: new Date(),
-      });
+      } as any);
     }
 
     // 更新开奖期次状态
@@ -117,9 +118,9 @@ export class SettlementService {
   } {
     const numbers = order.numbers as { n: string; q: number }[];
     const gameType = order.game_type;
-    const amount = Number(order.amount);
+    // sales 直接使用订单总金额，不按号码行重复累加
+    const sales = Number(order.amount);
 
-    let sales = 0;
     let payout = 0;
     const wins: any[] = [];
 
@@ -127,9 +128,11 @@ export class SettlementService {
       const numStr = num.n;
       const quantity = num.q;
 
-      if (gameType === 'BILLETE') {
-        // Billete: 4位数字
-        const result = this.calculateBilletePayout(numStr, winning, amount * quantity);
+      // 按号码位数区分规则：4位是Billete，2位是Chance（不再按game_type字段区分）
+      const numLen = numStr.replace(/\D/g, '').length;
+      if (numLen >= 4) {
+        // Billete: 4位数字；赔付 = 赔率 × 张数（$1/张），与订单总金额无关
+        const result = this.calculateBilletePayout(numStr, winning, quantity);
         if (result.totalPayout > 0) {
           wins.push({
             number: numStr,
@@ -138,10 +141,9 @@ export class SettlementService {
           });
         }
         payout += result.totalPayout;
-        sales += amount * quantity;
-      } else if (gameType === 'CHANCE') {
-        // Chance: 2位数字
-        const result = this.calculateChancePayout(numStr, winning, amount * quantity);
+      } else if (numLen >= 2) {
+        // Chance: 2位数字，按「张数×赔率」计算，不是「金额×张数」
+        const result = this.calculateChancePayout(numStr, winning, quantity);
         if (result.totalPayout > 0) {
           wins.push({
             number: numStr,
@@ -150,7 +152,6 @@ export class SettlementService {
           });
         }
         payout += result.totalPayout;
-        sales += amount * quantity;
       }
     }
 
@@ -164,107 +165,111 @@ export class SettlementService {
   }
 
   /**
-   * Billete 赔付计算 (正确规则)
-   * - 头奖四位: 2000x (全中)
-   * - 二奖四位: 600x
-   * - 三奖四位: 300x
-   * - 头奖前三位: 50x (仅当未中头奖四位)
-   * - 头奖后三位: 50x (仅当未中头奖四位)
-   * - 二奖后三位: 20x (仅当未中二奖四位)
-   * - 三奖后三位: 10x (仅当未中三奖四位)
-   * - 头奖前两位: 3x (仅当未中头奖四位)
-   * - 头奖后两位: 3x (仅当未中头奖四位)
-   * - 二奖后两位: 2x (仅当未中二奖四位)
-   * - 三奖后两位: 1x (仅当未中三奖四位)
+   * Billete 赔付计算（4 位数一注）
+   * 每个奖（头/二/三）只取该奖内中的最高一档，三个奖之间叠加。
+   * 档位从高到低：四位 > 前/后三位 > 前/后两位 > 最后一位
+   * qty: 张数（Billete $1/张，赔付 = 赔率 × qty）
    */
   private calculateBilletePayout(
     num: string,
     winning: DrawResult,
-    betAmount: number,
+    qty: number,
   ): BilleteResult {
-    const paddedNum = num.padStart(4, '0');
-    const primer = winning.primer.padStart(4, '0');
-    const segundo = winning.segundo.padStart(4, '0');
-    const tercero = winning.tercero.padStart(4, '0');
+    const paddedNum = num.slice(-4).padStart(4, '0');
+    const p = winning.primer;
+    const s = winning.segundo;
+    const t = winning.tercero;
+    const primerNorm = p.length >= 4 ? p.slice(-4).padStart(4, '0') : null;
+    const segundoNorm = s.length >= 4 ? s.slice(-4).padStart(4, '0') : null;
+    const terceroNorm = t.length >= 4 ? t.slice(-4).padStart(4, '0') : null;
 
     const matches: string[] = [];
     let totalPayout = 0;
 
-    // 是否命中四位
-    const primerHit = paddedNum === primer;
-    const segundoHit = paddedNum === segundo;
-    const terceroHit = paddedNum === tercero;
-
-    // 1. 四位数 (如果中了几奖就叠加)
-    if (primerHit) {
-      matches.push(`头奖四位 ${paddedNum} x2000`);
-      totalPayout += 2000 * betAmount;
-    }
-    if (segundoHit) {
-      matches.push(`二奖四位 ${paddedNum} x600`);
-      totalPayout += 600 * betAmount;
-    }
-    if (terceroHit) {
-      matches.push(`三奖四位 ${paddedNum} x300`);
-      totalPayout += 300 * betAmount;
-    }
-
-    // 2. 三位数 (仅当未中对应奖项的四位)
-    if (!primerHit && paddedNum.slice(0, 3) === primer.slice(0, 3)) {
-      matches.push(`头奖前三位 ${paddedNum.slice(0, 3)} x50`);
-      totalPayout += 50 * betAmount;
-    }
-    if (!primerHit && paddedNum.slice(1, 4) === primer.slice(1, 4)) {
-      matches.push(`头奖后三位 ${paddedNum.slice(1, 4)} x50`);
-      totalPayout += 50 * betAmount;
-    }
-    if (!segundoHit && paddedNum.slice(1, 4) === segundo.slice(1, 4)) {
-      matches.push(`二奖后三位 ${paddedNum.slice(1, 4)} x20`);
-      totalPayout += 20 * betAmount;
-    }
-    if (!terceroHit && paddedNum.slice(1, 4) === tercero.slice(1, 4)) {
-      matches.push(`三奖后三位 ${paddedNum.slice(1, 4)} x10`);
-      totalPayout += 10 * betAmount;
+    // 头奖：只取最高一档
+    if (primerNorm) {
+      if (paddedNum === primerNorm) {
+        matches.push(`头奖四位 ${paddedNum} x2000`);
+        totalPayout += 2000 * qty;
+      } else if (paddedNum.slice(0, 3) === primerNorm.slice(0, 3)) {
+        matches.push(`头奖前三位 x50`);
+        totalPayout += 50 * qty;
+      } else if (paddedNum.slice(1, 4) === primerNorm.slice(1, 4)) {
+        matches.push(`头奖后三位 x50`);
+        totalPayout += 50 * qty;
+      } else if (paddedNum.slice(0, 2) === primerNorm.slice(0, 2)) {
+        matches.push(`头奖前两位 x3`);
+        totalPayout += 3 * qty;
+      } else if (paddedNum.slice(2, 4) === primerNorm.slice(2, 4)) {
+        matches.push(`头奖后两位 x3`);
+        totalPayout += 3 * qty;
+      } else if (paddedNum.slice(-1) === primerNorm.slice(-1)) {
+        matches.push(`头奖最后一位 x1`);
+        totalPayout += 1 * qty;
+      }
+    } else {
+      // 头奖号不足4位（如GORDITO 2位）：只比后两位
+      if (paddedNum.slice(-2) === p.slice(-2).padStart(2, '0')) {
+        matches.push(`头奖后两位 ${p} x3`);
+        totalPayout += 3 * qty;
+      }
     }
 
-    // 3. 两位数 (仅当未中对应奖项的四位)
-    if (!primerHit && paddedNum.slice(0, 2) === primer.slice(0, 2)) {
-      matches.push(`头奖前两位 ${paddedNum.slice(0, 2)} x3`);
-      totalPayout += 3 * betAmount;
-    }
-    if (!primerHit && paddedNum.slice(2, 4) === primer.slice(2, 4)) {
-      matches.push(`头奖后两位 ${paddedNum.slice(2, 4)} x3`);
-      totalPayout += 3 * betAmount;
-    }
-    if (!segundoHit && paddedNum.slice(2, 4) === segundo.slice(2, 4)) {
-      matches.push(`二奖后两位 ${paddedNum.slice(2, 4)} x2`);
-      totalPayout += 2 * betAmount;
-    }
-    if (!terceroHit && paddedNum.slice(2, 4) === tercero.slice(2, 4)) {
-      matches.push(`三奖后两位 ${paddedNum.slice(2, 4)} x1`);
-      totalPayout += 1 * betAmount;
+    // 二奖：只取最高一档
+    if (segundoNorm) {
+      if (paddedNum === segundoNorm) {
+        matches.push(`二奖四位 ${paddedNum} x600`);
+        totalPayout += 600 * qty;
+      } else if (paddedNum.slice(0, 3) === segundoNorm.slice(0, 3)) {
+        matches.push(`二奖前三位 x20`);
+        totalPayout += 20 * qty;
+      } else if (paddedNum.slice(1, 4) === segundoNorm.slice(1, 4)) {
+        matches.push(`二奖后三位 x20`);
+        totalPayout += 20 * qty;
+      } else if (paddedNum.slice(2, 4) === segundoNorm.slice(2, 4)) {
+        matches.push(`二奖后两位 x2`);
+        totalPayout += 2 * qty;
+      }
+    } else {
+      if (paddedNum.slice(-2) === s.slice(-2).padStart(2, '0')) {
+        matches.push(`二奖后两位 ${s} x2`);
+        totalPayout += 2 * qty;
+      }
     }
 
-    // 4. 头奖最后一位奖励：如果中了非头奖的奖项，且最后一位等于头奖最后一位，额外加1美元
-    // (中头奖四位时不叠加)
-    if (totalPayout > 0 && !primerHit && paddedNum.slice(-1) === primer.slice(-1)) {
-      matches.push(`头奖最后一位 +$1`);
-      totalPayout += 1 * betAmount;
+    // 三奖：只取最高一档
+    if (terceroNorm) {
+      if (paddedNum === terceroNorm) {
+        matches.push(`三奖四位 ${paddedNum} x300`);
+        totalPayout += 300 * qty;
+      } else if (paddedNum.slice(0, 3) === terceroNorm.slice(0, 3)) {
+        matches.push(`三奖前三位 x10`);
+        totalPayout += 10 * qty;
+      } else if (paddedNum.slice(1, 4) === terceroNorm.slice(1, 4)) {
+        matches.push(`三奖后三位 x10`);
+        totalPayout += 10 * qty;
+      } else if (paddedNum.slice(2, 4) === terceroNorm.slice(2, 4)) {
+        matches.push(`三奖后两位 x1`);
+        totalPayout += 1 * qty;
+      }
+    } else {
+      if (paddedNum.slice(-2) === t.slice(-2).padStart(2, '0')) {
+        matches.push(`三奖后两位 ${t} x1`);
+        totalPayout += 1 * qty;
+      }
     }
 
     return { matches, totalPayout };
   }
 
   /**
-   * Chance 赔付计算 (正确规则)
-   * - 头奖后两位: 14x
-   * - 二奖后两位: 3x
-   * - 三奖后两位: 2x
+   * Chance 赔付计算：只比一二三奖的后两位（奖号 2 位就对 2 位）
+   * 头奖 14x、二奖 3x、三奖 2x
    */
   private calculateChancePayout(
     num: string,
     winning: DrawResult,
-    betAmount: number,
+    quantity: number,
   ): ChanceResult {
     const paddedNum = num.padStart(2, '0');
     const primerLast2 = winning.primer.slice(-2);
@@ -276,22 +281,22 @@ export class SettlementService {
 
     if (paddedNum === primerLast2) {
       matches.push(`头奖后两位 ${paddedNum} x14`);
-      totalPayout += 14 * betAmount;
+      totalPayout += 14 * quantity;
     }
     if (paddedNum === segundoLast2) {
       matches.push(`二奖后两位 ${paddedNum} x3`);
-      totalPayout += 3 * betAmount;
+      totalPayout += 3 * quantity;
     }
     if (paddedNum === terceroLast2) {
       matches.push(`三奖后两位 ${paddedNum} x2`);
-      totalPayout += 2 * betAmount;
+      totalPayout += 2 * quantity;
     }
 
     return { matches, totalPayout };
   }
 
   /**
-   * 解析 Draw 中的开奖结果
+   * 解析 Draw 中的开奖结果（原样返回，不补 0；可能为 2/4/5 位）
    */
   private parseDrawResult(draw: Draw): DrawResult {
     const raw: any = (draw as any).winning_numbers;
@@ -301,21 +306,21 @@ export class SettlementService {
       try {
         obj = JSON.parse(raw);
       } catch {
-        // 非 JSON，用分隔符拆分
         const parts = raw.split(/[-\s,]/).map((v: string) => v.trim()).filter((v: string) => v.length > 0);
         return {
-          primer: (parts[0] || '0000').padStart(4, '0'),
-          segundo: (parts[1] || '0000').padStart(4, '0'),
-          tercero: (parts[2] || '0000').padStart(4, '0'),
+          primer: (parts[0] || '').replace(/\D/g, '') || '0',
+          segundo: (parts[1] || '').replace(/\D/g, '') || '0',
+          tercero: (parts[2] || '').replace(/\D/g, '') || '0',
         };
       }
     }
 
-    const primer = (obj?.primer || obj?.billete || '').toString().padStart(4, '0');
-    const segundo = (obj?.segundo || '').toString().padStart(4, '0');
-    const tercero = (obj?.tercero || '').toString().padStart(4, '0');
-
-    return { primer, segundo, tercero };
+    const toDigits = (v: unknown) => (v != null ? String(v).replace(/\D/g, '') : '') || '0';
+    return {
+      primer: toDigits(obj?.primer ?? obj?.billete),
+      segundo: toDigits(obj?.segundo),
+      tercero: toDigits(obj?.tercero),
+    };
   }
 
   /**
@@ -360,59 +365,63 @@ export class SettlementService {
   }
 
   /**
-   * 最近 N 期历史结算记录（按开奖期次聚合）
-   * 仅统计已付款订单
+   * 最近 N 期历史结算记录（按开奖期次聚合，仅含本店有订单的期次）
+   * 只统计已完成开奖的期次；订单含已付款/已开奖/已中奖（1,2,3）
+   * 日期统一为 DD-MM-YYYY；若某期本店无订单则跳过该期（不占条数）
    */
   async getHistoryForShop(shopId: number, limit: number = 7) {
-    // 找最近 N 期已完成或已开奖的 Draw
     const draws = await this.drawRepo.find({
+      where: [{ status: 'completed' }, { status: 'COMPLETED' }],
       order: { draw_id: 'DESC' },
-      take: limit,
+      take: Math.max(limit * 2, 20), // 多取一些，过滤掉本店无订单的期次后仍能凑满 limit 条（含已归档期）
     });
 
     const result: {
+      drawId?: number;
       date: string;
-      primer: string;
-      segundo: string;
-      tercero: string;
+      drawDate: string;
       totalSales: number;
       totalPayout: number;
       netProfit: number;
     }[] = [];
 
     for (const draw of draws) {
-      // 解析开奖号码，兼容 { primer, segundo, tercero } 结构
-      const winning = this.parseDrawResult(draw);
-
       const orders = await this.orderRepo.find({
         where: {
           shop_id: shopId,
           draw_id: draw.draw_id,
-          status: 1 as any, // 已付款
+          status: In([1, 2, 3]),
         },
       });
 
+      if (orders.length === 0) continue; // 本店该期无订单，不展示
+
       let totalSales = 0;
       let totalPayout = 0;
-
       for (const order of orders) {
         totalSales += Number(order.amount);
-        if (order.win_amount) {
-          totalPayout += Number(order.win_amount);
-        }
+        totalPayout += Number(order.win_amount || 0);
       }
 
-      const rawDate = draw.draw_time ?? draw.created_at ?? new Date();
-      const dateStr = typeof rawDate === 'string' ? rawDate.slice(0, 10) : new Date(rawDate).toISOString().slice(0, 10);
+      const rawDate = draw.draw_date ?? draw.draw_time ?? draw.created_at ?? new Date();
+      const d = typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rawDate)
+        ? new Date(rawDate.slice(0, 10) + 'T12:00:00Z')
+        : new Date(rawDate as any);
+      const dd = d.getUTCDate();
+      const mm = d.getUTCMonth() + 1;
+      const yy = d.getUTCFullYear();
+      const dateStr = `${String(dd).padStart(2, '0')}-${String(mm).padStart(2, '0')}-${yy}`;
+
       result.push({
+        drawId: draw.draw_id,
         date: dateStr,
-        primer: winning.primer,
-        segundo: winning.segundo,
-        tercero: winning.tercero,
+        drawDate: dateStr,
         totalSales,
         totalPayout,
         netProfit: totalSales - totalPayout,
       });
+
+      if (result.length >= limit) break;
     }
 
     return result;

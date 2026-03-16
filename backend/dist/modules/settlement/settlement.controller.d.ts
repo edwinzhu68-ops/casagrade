@@ -17,4 +17,15 @@ export declare class SettlementController {
         success: boolean;
         data: any;
     }>;
+    getHistory(shopId: string, limit?: string): Promise<{
+        success: boolean;
+        items: {
+            drawId?: number;
+            date: string;
+            drawDate: string;
+            totalSales: number;
+            totalPayout: number;
+            netProfit: number;
+        }[];
+    }>;
 }
