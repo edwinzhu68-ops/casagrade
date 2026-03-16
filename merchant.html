@@ -2791,14 +2791,16 @@
 
     // ── 发送打印 ──────────────────────────────────────────
     async function sendToPrinter(data) {
-      const CHUNK = 100; // 缩小分块，减少打印机缓冲溢出
+      const CHUNK = 50; // 进一步缩小
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
       for (let i = 0; i < data.length; i += CHUNK) {
         const chunk = data.slice(i, i + CHUNK);
+        // 检测是否是 QR 指令 (以 0x1D 开头)
+        const isQR = chunk[0] === 0x1D;
+        const extraDelay = isQR ? 50 : 10;
         if (canWithout) {
           await _printerChar.writeValueWithoutResponse(chunk);
-          // writeWithoutResponse 无确认机制，加小延迟让打印机处理当前包再发下一包
-          await new Promise(r => setTimeout(r, 30));
+          await new Promise(r => setTimeout(r, extraDelay));
         } else if (_printerChar.writeValueWithResponse) {
           await _printerChar.writeValueWithResponse(chunk);
         } else {
