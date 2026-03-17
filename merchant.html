@@ -2691,8 +2691,11 @@
       // ── 2. 日期（inline "标签: 值"）──
       push(...CENTER);
       let placedStr = '--';
-      if (order.created_at || order.paid_at) {
-        const d = new Date(order.paid_at || order.created_at);
+      // 尝试多种字段名
+      const createdAt = order.created_at || order.createdAt || order.created || null;
+      const paidAt = order.paid_at || order.paidAt || order.paid || null;
+      if (createdAt || paidAt) {
+        const d = new Date(paidAt || createdAt);
         if (!isNaN(d.getTime())) {
           const dd = String(d.getDate()).padStart(2,'0');
           const mm = String(d.getMonth()+1).padStart(2,'0');
