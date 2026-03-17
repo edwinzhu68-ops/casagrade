@@ -291,9 +291,9 @@ export class OrderController implements OnModuleInit {
       throw new BadRequestException('无权删除其他店铺的订单');
     }
 
-    // 已付款/已结算/已中奖订单不允许删除，防止规避账目
-    if (order.status === 1 || order.status === 2 || order.status === 3) {
-      throw new BadRequestException('已付款或已结算的订单不允许删除');
+    // 已结算/已中奖订单不允许删除（防止规避账目），已付款可以删除
+    if (order.status === 2 || order.status === 3) {
+      throw new BadRequestException('已结算或已中奖的订单不允许删除');
     }
 
     this.logger.log(`订单删除: #${order.order_number}, 店铺: ${shopId}, 状态: ${order.status}`);
