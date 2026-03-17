@@ -26,6 +26,10 @@ export class Shop {
   @Column({ type: 'simple-json', nullable: true })
   shop_aliases: string[] | null;
 
+  /** 别名添加时间戳，key=别名店号，value=ISO时间字符串 */
+  @Column({ type: 'simple-json', nullable: true })
+  shop_alias_timestamps: Record<string, string> | null;
+
   @Column({ length: 20, default: 'active' })
   status: string; // active / disabled
 

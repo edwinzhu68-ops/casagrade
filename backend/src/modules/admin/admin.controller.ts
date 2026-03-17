@@ -286,11 +286,15 @@ export class AdminController {
     if (userShop) {
       // 已有店铺：新号升为主号，旧主号降为别名
       const aliases = userShop.shop_aliases || [];
-      if (!aliases.includes(userShop.shop_number)) aliases.push(userShop.shop_number);
-      await this.shopRepo.update(userShop.shop_id, { shop_number: sn, shop_aliases: aliases });
+      const timestamps: Record<string, string> = userShop.shop_alias_timestamps || {};
+      if (!aliases.includes(userShop.shop_number)) {
+        aliases.push(userShop.shop_number);
+        timestamps[userShop.shop_number] = new Date().toISOString();
+      }
+      await this.shopRepo.update(userShop.shop_id, { shop_number: sn, shop_aliases: aliases, shop_alias_timestamps: timestamps });
       return {
         success: true,
-        message: `已将店号 ${sn} 设为主号，旧号 ${userShop.shop_number} 保留为别名`,
+        message: `已将店号 ${sn} 设为主号，旧号 ${userShop.shop_number} 保留为别名（1个月后自动删除）`,
         shop_id: userShop.shop_id,
         shop_number: sn,
         shop_aliases: aliases,

@@ -79,12 +79,22 @@ export class OrderController {
       throw new BadRequestException('店铺已停业');
     }
 
-    // 2. 获取当前待开奖期次
+    // 2. 获取当前待开奖期次，如果没有则自动创建
     const drawRepo = this.dataSource.getRepository(Draw);
-    const currentDraw = await drawRepo.findOne({
+    let currentDraw = await drawRepo.findOne({
       where: { status: 'pending' },
       order: { draw_id: 'DESC' },
     });
+
+    // 如果没有待开奖期，自动创建第一期
+    if (!currentDraw) {
+      currentDraw = drawRepo.create({
+        status: 'pending',
+        draw_date: new Date().toISOString().split('T')[0],
+        draw_time: '15:00:00',
+      });
+      await drawRepo.save(currentDraw);
+    }
 
     // 2b. 每号限额校验（仅当限额已设置且有当期）
     const limitChance = (shop as any).limit_chance as number | null;
