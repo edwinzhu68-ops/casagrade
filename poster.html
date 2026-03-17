@@ -6,6 +6,7 @@
   <title>Cartel de tienda – Lotería</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
     body { font-family: 'Inter', sans-serif; }
@@ -38,10 +39,10 @@
 </head>
 <body class="bg-gray-200 min-h-screen flex flex-col items-center justify-start py-6 gap-4">
 
-  <!-- 操作栏（打印时隐藏）-->
+  <!-- 操作栏 -->
   <div class="no-print flex gap-3 flex-wrap justify-center">
-    <button onclick="window.print()" class="bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
-      🖨️ 打印海报
+    <button onclick="saveScreenshot()" id="btn-save" class="bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
+      📸 保存截图
     </button>
     <button onclick="history.back()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
       ← 返回
@@ -96,8 +97,8 @@
     <!-- 开奖时间 -->
     <div class="w-full bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-5 text-center">
       <p class="text-xs font-bold text-amber-700 uppercase tracking-wide mb-1">Horario de ventas</p>
-      <p class="text-xs text-amber-800">Apertura: 4:00 PM · Cierre: 2:55 PM</p>
-      <p class="text-xs text-amber-600 mt-0.5">Sorteo: 3:00 PM</p>
+      <p class="text-xs text-amber-800">Las ventas cierran a las 2:55 PM</p>
+      <p class="text-xs text-amber-600 mt-0.5">el día del sorteo</p>
     </div>
 
     <!-- 底部免责小字 -->
@@ -128,6 +129,25 @@
         correctLevel: QRCode.CorrectLevel.M
       });
     })();
+
+    function saveScreenshot() {
+      const btn = document.getElementById('btn-save');
+      btn.textContent = '⏳ 生成中...';
+      btn.disabled = true;
+      const poster = document.getElementById('poster');
+      html2canvas(poster, { scale: 2, useCORS: true, backgroundColor: '#ffffff' }).then(function(canvas) {
+        const link = document.createElement('a');
+        const shop = document.getElementById('display-shop-number').textContent.trim();
+        link.download = 'poster' + (shop && shop !== '—' ? '-' + shop : '') + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        btn.textContent = '📸 保存截图';
+        btn.disabled = false;
+      }).catch(function() {
+        btn.textContent = '📸 保存截图';
+        btn.disabled = false;
+      });
+    }
   </script>
 </body>
 </html>

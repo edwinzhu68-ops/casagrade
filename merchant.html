@@ -458,6 +458,17 @@
         .replace(/'/g, '&#39;');
     }
 
+    // 日期格式化：DD-MM-YYYY
+    function fmtDate(d) {
+      if (!d) return '--';
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return String(d).slice(0, 10);
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yy = date.getFullYear();
+      return `${dd}-${mm}-${yy}`;
+    }
+
     const MERCHANT_LANG_KEY = 'lottery_merchant_lang';
     const MERCHANT_T = {
       zh: {
@@ -2865,7 +2876,7 @@
       if (!expires) { el.classList.add('hidden'); return; }
       const expired = expires < new Date();
       el.classList.remove('hidden');
-      const dateStr = expires.toISOString().slice(0, 10);
+      const dateStr = fmtDate(expires);
       el.textContent = expired ? t('subscription_expired').replace('{date}', dateStr) : t('subscription_expires').replace('{date}', dateStr);
       el.className = `text-xs mt-0.5 ${expired ? 'text-red-400' : 'text-gray-400'}`;
     }
