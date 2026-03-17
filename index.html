@@ -517,7 +517,7 @@
         menu_exit: 'Salir',
         menu_lang: '🇨🇳 中文',
         // 开奖中提示（不再带具体时间段，只提示暂停销售）
-        draw_window_banner: 'Sorteo en curso · Ventas suspendidas',
+        draw_window_banner: 'Sorteo en curso · Ventas suspendidas hasta las 7:00 am del día siguiente',
         countdown_label: 'Cierre de ventas en',
         fecha_sorteo: 'Fecha del sorteo',
         label_number: 'Número',
@@ -597,7 +597,7 @@
         menu_other_store: '换门店',
         menu_exit: '退出',
         menu_lang: '🇵🇦 Español',
-        draw_window_banner: '开奖中 · 暂停销售',
+        draw_window_banner: '开奖中 · 暂停销售，次日 07:00 恢复',
         countdown_label: '距停售',
         fecha_sorteo: '开奖日期',
         label_number: '号码',
@@ -1715,7 +1715,9 @@
           hint.textContent = '';
         } else if (lastBetStatus.isDrawWindow) {
           hint.classList.remove('hidden');
-          hint.textContent = 'Sorteo en curso (15:00-16:00). Ventas suspendidas.';
+          hint.textContent = getClientLang() === 'zh'
+            ? '开奖中 · 暂停销售，次日 07:00 恢复'
+            : 'Sorteo en curso · Ventas suspendidas hasta las 7:00 am del día siguiente';
         } else if (!lastBetStatus.canBet) {
           hint.classList.remove('hidden');
           hint.textContent = 'Ventas suspendidas hasta el próximo sorteo (cierre 14:55).';
@@ -1795,7 +1797,9 @@
         return;
       }
       if (!lastBetStatus.canBet || lastBetStatus.isDrawWindow) {
-        alert('Ventas suspendidas. Sorteo en curso o cerrado (14:55-16:00 hora de Panamá).');
+        alert(getClientLang() === 'zh'
+          ? '暂停销售，次日 07:00 恢复'
+          : 'Ventas suspendidas. Se reanudan a las 7:00 am del día siguiente.');
         return;
       }
       var pendingList = [];

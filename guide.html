@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>casagrade · Guía</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+    body { font-family: 'Noto Sans SC', sans-serif; background: #f3f4f6; }
+    .mock { background: #111827; border-radius: 14px; overflow: hidden; font-size: 12px; }
+    .mock-bar { background: #1f2937; padding: 6px 10px; border-bottom: 1px solid #374151; display: flex; align-items: center; gap: 6px; }
+    .mock-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .step-wrap { position: relative; padding-bottom: 8px; }
+    .step-wrap:not(:last-child)::after {
+      content: ''; position: absolute; left: 22px; top: 52px; bottom: -8px;
+      width: 2px; background: linear-gradient(to bottom, #16a34a60, transparent);
+    }
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; padding: 2px 10px; border-radius: 999px;
+      display: inline-block; margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶栏 -->
+  <div class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200 flex items-center h-12 px-4 no-print">
+    <button onclick="toggleLang()" id="lang-btn"
+      class="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 rounded-full px-3 py-1.5 text-sm font-bold text-gray-700 transition-colors">
+      <span id="lang-flag">🇵🇦</span><span id="lang-label">Español</span>
+    </button>
+    <span class="absolute left-1/2 -translate-x-1/2 font-black text-gray-800 text-sm tracking-wide">casagrade</span>
+    <a href="merchant.html" class="ml-auto text-gray-400 hover:text-gray-700 text-sm" data-zh="← 老板端" data-es="← Panel">← 老板端</a>
+  </div>
+
+  <div class="pt-12">
+
+  <!-- Hero -->
+  <div class="bg-gradient-to-br from-green-700 to-green-500 text-white px-5 py-8 text-center">
+    <div class="text-3xl mb-2">🏆</div>
+    <h1 class="text-2xl font-black" data-zh="使用流程" data-es="Guía de uso">使用流程</h1>
+    <p class="text-green-100 text-sm mt-1" data-zh="一部手机管理全店彩票销售 · 零成本 · 全自动" data-es="Gestiona tu tienda desde el móvil · Gratis · Automático">一部手机管理全店彩票销售 · 零成本 · 全自动</p>
+  </div>
+
+  <!-- 网址入口 -->
+  <div class="max-w-2xl mx-auto px-4 mt-5">
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-white border-2 border-blue-200 rounded-2xl p-4 text-center shadow-sm">
+        <div class="text-3xl mb-2">📱</div>
+        <p class="font-bold text-gray-800 text-sm mb-1" data-zh="客人下单页" data-es="Página de pedidos">客人下单页</p>
+        <a href="https://www.casagrade.com/" target="_blank" class="block text-blue-600 font-mono text-xs break-all bg-blue-50 rounded-lg px-2 py-1.5 hover:bg-blue-100">www.casagrade.com</a>
+        <p class="text-gray-400 text-xs mt-2" data-zh="客人扫码或输入网址" data-es="El cliente escanea o escribe la URL">客人扫码或输入网址</p>
+      </div>
+      <div class="bg-white border-2 border-green-200 rounded-2xl p-4 text-center shadow-sm">
+        <div class="text-3xl mb-2">🧾</div>
+        <p class="font-bold text-gray-800 text-sm mb-1" data-zh="老板端" data-es="Panel del comerciante">老板端</p>
+        <a href="https://www.casagrade.com/merchant.html" target="_blank" class="block text-green-600 font-mono text-xs break-all bg-green-50 rounded-lg px-2 py-1.5 hover:bg-green-100">www.casagrade.com/merchant</a>
+        <p class="text-gray-400 text-xs mt-2" data-zh="老板专用，需要登录" data-es="Solo para comerciantes, requiere login">老板专用，需要登录</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 以前 vs 现在 -->
+  <div class="max-w-2xl mx-auto px-4 mt-5">
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="bg-gray-100 px-4 py-2 text-xs font-bold text-gray-500 uppercase tracking-widest" data-zh="以前 vs 现在" data-es="Antes vs Ahora">以前 vs 现在</div>
+      <div class="divide-y divide-gray-100">
+        <div class="grid grid-cols-2 text-xs">
+          <div class="px-4 py-3 bg-red-50 text-red-700 flex items-center gap-2"><span>😓</span><span data-zh="手写单，写错重来" data-es="Escribir tickets a mano, errores costosos">手写单，写错重来</span></div>
+          <div class="px-4 py-3 bg-green-50 text-green-700 flex items-center gap-2"><span>✅</span><span data-zh="客人扫码自动下单" data-es="El cliente hace su pedido solo">客人扫码自动下单</span></div>
+        </div>
+        <div class="grid grid-cols-2 text-xs">
+          <div class="px-4 py-3 bg-red-50 text-red-700 flex items-center gap-2"><span>😓</span><span data-zh="写单收钱排长队" data-es="Larga fila para anotar y cobrar">写单收钱排长队</span></div>
+          <div class="px-4 py-3 bg-green-50 text-green-700 flex items-center gap-2"><span>✅</span><span data-zh="扫码付款5秒完成" data-es="Cobro con QR en 5 segundos">扫码付款5秒完成</span></div>
+        </div>
+        <div class="grid grid-cols-2 text-xs">
+          <div class="px-4 py-3 bg-red-50 text-red-700 flex items-center gap-2"><span>😓</span><span data-zh="中奖要自己算金额" data-es="Calcular premios a mano">中奖要自己算金额</span></div>
+          <div class="px-4 py-3 bg-green-50 text-green-700 flex items-center gap-2"><span>✅</span><span data-zh="扫码即知中奖金额" data-es="Premio calculado automáticamente">扫码即知中奖金额</span></div>
+        </div>
+        <div class="grid grid-cols-2 text-xs">
+          <div class="px-4 py-3 bg-red-50 text-red-700 flex items-center gap-2"><span>😓</span><span data-zh="一桌单据容易被查" data-es="Papeles en la mesa, riesgo de inspección">一桌单据容易被查</span></div>
+          <div class="px-4 py-3 bg-green-50 text-green-700 flex items-center gap-2"><span>✅</span><span data-zh="无纸化，联网管理" data-es="Sin papeles, gestión en línea">无纸化，联网管理</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       BLOQUE 1 · 开始使用
+  ═══════════════════════════════════════ -->
+  <div class="max-w-2xl mx-auto px-4 mt-8">
+    <span class="section-label bg-green-100 text-green-700" data-zh="① 开始使用" data-es="① Primeros pasos">① 开始使用</span>
+
+    <div class="space-y-7">
+
+      <!-- 注册账号 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-green-600 flex items-center justify-center text-white text-lg shadow font-black">1</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="注册账号 · 系统自动分配店号" data-es="Registrarse · el sistema asigna tu N° de tienda">注册账号 · 系统自动分配店号</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="打开老板端点「注册新账号」，填入账号和密码，系统自动分配一个专属店号。店号是你店铺唯一标识，客人靠它找到你。" data-es="Abre el panel, toca «Registrar nueva cuenta», ingresa usuario y contraseña. El sistema asigna automáticamente tu número de tienda único.">打开老板端点「注册新账号」，填入账号和密码，系统自动分配一个专属店号。店号是你店铺唯一标识，客人靠它找到你。</p>
+          <!-- MOCK: 注册表单 -->
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar">
+              <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+              <span class="text-gray-400 text-[10px] ml-1" data-zh="注册新账号" data-es="Registrar cuenta">注册新账号</span>
+            </div>
+            <div class="p-3 space-y-2">
+              <div class="bg-gray-700 rounded-lg px-3 py-2 text-gray-300 text-xs flex justify-between"><span data-zh="账号" data-es="Usuario">账号</span><span class="text-white font-mono">maria88</span></div>
+              <div class="bg-gray-700 rounded-lg px-3 py-2 text-gray-300 text-xs flex justify-between"><span data-zh="密码" data-es="Contraseña">密码</span><span class="text-white">••••••</span></div>
+              <div class="bg-green-600 rounded-lg py-2 text-center text-white font-bold text-xs" data-zh="注 册" data-es="Registrar">注 册</div>
+              <div class="bg-green-900/60 border border-green-600/50 rounded-lg px-3 py-2 text-green-400 text-xs text-center">
+                ✅ <span data-zh="注册成功！你的店号：" data-es="¡Registro exitoso! Tu N° tienda:">注册成功！你的店号：</span><span class="font-black text-green-300 text-sm ml-1">83741</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 宣传海报 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-green-500 flex items-center justify-center text-white text-lg shadow font-black">2</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="打印宣传海报 · 放在店里让客人扫码" data-es="Imprime el póster · pon en tu tienda para que escaneen">打印宣传海报 · 放在店里让客人扫码</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="登录后可以获取你的专属海报，海报上包含你的店号和下单二维码。把海报贴在柜台旁边，客人扫一扫就进入你的下单页面，或把海报发到 WhatsApp 群，客人在家下单也行。" data-es="Después de entrar obtén tu póster exclusivo con tu número de tienda y QR. Ponlo en el mostrador o compártelo por WhatsApp para que los clientes hagan pedidos desde casa.">登录后可以获取你的专属海报，海报上包含你的店号和下单二维码。把海报贴在柜台旁边，客人扫一扫就进入你的下单页面，或把海报发到 WhatsApp 群，客人在家下单也行。</p>
+          <!-- MOCK: 海报小预览 -->
+          <div class="mt-3 max-w-[160px] rounded-2xl overflow-hidden shadow-lg border border-green-300">
+            <div class="bg-gradient-to-b from-green-700 to-green-500 p-3 text-center text-white">
+              <div class="font-black text-base">casagrade</div>
+              <div class="text-green-200 text-[10px]" data-zh="下单彩票" data-es="Compra tus billetes">下单彩票</div>
+              <!-- QR placeholder -->
+              <div class="bg-white rounded-xl p-2 my-2 mx-auto w-16 h-16 flex items-center justify-center">
+                <svg viewBox="0 0 40 40" class="w-full h-full">
+                  <rect x="2" y="2" width="15" height="15" fill="none" stroke="#111" stroke-width="2"/>
+                  <rect x="5" y="5" width="9" height="9" fill="#111"/>
+                  <rect x="23" y="2" width="15" height="15" fill="none" stroke="#111" stroke-width="2"/>
+                  <rect x="26" y="5" width="9" height="9" fill="#111"/>
+                  <rect x="2" y="23" width="15" height="15" fill="none" stroke="#111" stroke-width="2"/>
+                  <rect x="5" y="26" width="9" height="9" fill="#111"/>
+                  <rect x="23" y="23" width="4" height="4" fill="#111"/>
+                  <rect x="30" y="23" width="4" height="4" fill="#111"/>
+                  <rect x="23" y="30" width="4" height="4" fill="#111"/>
+                  <rect x="30" y="30" width="4" height="4" fill="#111"/>
+                </svg>
+              </div>
+              <div class="bg-white/20 rounded-full px-2 py-0.5 text-[10px] font-black">
+                <span data-zh="店号：" data-es="Tienda:">店号：</span>83741
+              </div>
+              <div class="text-[9px] text-green-200 mt-1">www.casagrade.com</div>
+            </div>
+          </div>
+          <!-- 立刻保存海报按钮 -->
+          <button onclick="openPoster()" id="btn-poster"
+            class="mt-3 flex items-center gap-2 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow transition-colors">
+            <span>🖼️</span>
+            <span data-zh="立刻保存我的宣传海报" data-es="Guardar mi póster ahora">立刻保存我的宣传海报</span>
+          </button>
+          <p id="poster-hint" class="text-xs mt-1.5 text-gray-400 hidden" data-zh="请先登录老板端再获取海报" data-es="Inicia sesión primero para obtener tu póster">请先登录老板端再获取海报</p>
+          <p class="text-green-700 text-xs font-bold mt-3" data-zh="💡 一开始两套系统一起用：海报放旁边，同时自己也可以帮客人下单" data-es="💡 Al principio usa ambos sistemas: el póster en el mostrador y tú mismo haciendo pedidos a los clientes">💡 一开始两套系统一起用：海报放旁边，同时自己也可以帮客人下单</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       BLOQUE 2 · 日常销售
+  ═══════════════════════════════════════ -->
+  <div class="max-w-2xl mx-auto px-4 mt-10">
+    <span class="section-label bg-blue-100 text-blue-700" data-zh="② 日常销售" data-es="② Ventas diarias">② 日常销售</span>
+
+    <div class="space-y-7">
+
+      <!-- 客人下单 → 实时同步 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-blue-500 flex items-center justify-center text-white text-lg shadow font-black">3</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="客人下单 → 你实时收到订单" data-es="El cliente hace su pedido → tú lo ves al instante">客人下单 → 你实时收到订单</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="客人扫海报二维码，进入下单页自己选号码下单；你的老板端页面同时会出现这张订单，无需刷新，实时同步。" data-es="El cliente escanea el QR, elige sus números y hace el pedido. Tu panel lo recibe en tiempo real sin necesidad de actualizar.">客人扫海报二维码，进入下单页自己选号码下单；你的老板端页面同时会出现这张订单，无需刷新，实时同步。</p>
+          <!-- MOCK: 待收款列表 -->
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar">
+              <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+              <span class="text-gray-400 text-[10px] ml-1" data-zh="收款台 · 待收款 2 单" data-es="Caja · 2 pedidos pendientes">收款台 · 待收款 2 单</span>
+            </div>
+            <div class="p-2 space-y-1.5">
+              <div class="bg-gray-800 border-l-2 border-orange-400 rounded-r-xl px-3 py-2 flex justify-between items-center">
+                <div><p class="font-mono font-bold text-white text-xs">#I7A19</p><p class="text-gray-400 text-[10px]">Billete × 3 &nbsp;|&nbsp; 1234</p></div>
+                <div class="text-right"><p class="text-orange-400 font-bold text-xs">$3.00</p><div class="bg-green-600 text-white text-[9px] px-2 py-0.5 rounded-full mt-1 cursor-pointer" data-zh="确认收款" data-es="Confirmar">确认收款</div></div>
+              </div>
+              <div class="bg-gray-800 border-l-2 border-orange-400 rounded-r-xl px-3 py-2 flex justify-between items-center opacity-70">
+                <div><p class="font-mono font-bold text-white text-xs">#K2B34</p><p class="text-gray-400 text-[10px]">Chance × 8 &nbsp;|&nbsp; 56, 78</p></div>
+                <div class="text-right"><p class="text-orange-400 font-bold text-xs">$2.00</p></div>
+              </div>
+              <div class="text-center text-gray-600 text-[9px] py-1 animate-pulse" data-zh="⟳ 实时同步中..." data-es="⟳ Sincronizando...">⟳ 实时同步中...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4种订单颜色状态 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-blue-400 flex items-center justify-center text-white text-lg shadow font-black">4</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="4 种订单颜色 · 一眼看清状态" data-es="4 estados de pedido · identifícalos al instante">4 种订单颜色 · 一眼看清状态</h3>
+          <p class="text-gray-500 text-xs mt-1" data-zh="颜色代表订单当前状态，无需逐单核对。" data-es="Cada color indica el estado del pedido, sin necesidad de revisar uno por uno.">颜色代表订单当前状态，无需逐单核对。</p>
+          <!-- MOCK: 4种状态 -->
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar">
+              <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+              <span class="text-gray-400 text-[10px] ml-1" data-zh="本期全部订单" data-es="Todos los pedidos">本期全部订单</span>
+            </div>
+            <div class="p-2 space-y-1.5">
+              <!-- 未付款 橙 -->
+              <div class="bg-gray-800 border-l-4 border-orange-400 rounded-r-xl px-3 py-2 flex justify-between items-center">
+                <div><p class="font-mono font-bold text-white text-xs">#A1001</p><p class="text-gray-400 text-[10px]">Billete × 2</p></div>
+                <span class="text-orange-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-orange-400/50" data-zh="待收款" data-es="Sin pagar">待收款</span>
+              </div>
+              <!-- 已付款 绿 -->
+              <div class="bg-gray-800 border-l-4 border-green-400 rounded-r-xl px-3 py-2 flex justify-between items-center">
+                <div><p class="font-mono font-bold text-white text-xs">#A1002</p><p class="text-gray-400 text-[10px]">Chance × 5</p></div>
+                <span class="text-green-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-green-400/50" data-zh="已收款" data-es="Pagado">已收款</span>
+              </div>
+              <!-- 未中奖 蓝 -->
+              <div class="bg-gray-800 border-l-4 border-blue-400 rounded-r-xl px-3 py-2 flex justify-between items-center">
+                <div><p class="font-mono font-bold text-white text-xs">#A1003</p><p class="text-gray-400 text-[10px]">Billete × 1</p></div>
+                <span class="text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-400/50" data-zh="未中奖" data-es="Sin premio">未中奖</span>
+              </div>
+              <!-- 已中奖 翠绿/金 -->
+              <div class="bg-emerald-900/40 border-l-4 border-emerald-400 rounded-r-xl px-3 py-2 flex justify-between items-center">
+                <div><p class="font-mono font-bold text-white text-xs">#A1004</p><p class="text-gray-400 text-[10px]">Billete × 3</p></div>
+                <span class="text-amber-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-400/50">🏆 $600</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2 grid grid-cols-2 gap-1 text-[10px]">
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-orange-400 shrink-0"></span><span class="text-gray-600" data-zh="橙色 = 等待收款" data-es="Naranja = Sin pagar">橙色 = 等待收款</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-green-400 shrink-0"></span><span class="text-gray-600" data-zh="绿色 = 已确认收款" data-es="Verde = Pagado">绿色 = 已确认收款</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-400 shrink-0"></span><span class="text-gray-600" data-zh="蓝色 = 开奖后未中" data-es="Azul = Sin premio">蓝色 = 开奖后未中</span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400 shrink-0"></span><span class="text-gray-600" data-zh="翠绿 = 🏆 中奖" data-es="Verde esmeralda = 🏆 Premio">翠绿 = 🏆 中奖</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 重复投注 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-indigo-500 flex items-center justify-center text-white text-lg shadow font-black">5</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="一键重新投注之前的订单" data-es="Volver a apostar un pedido anterior con un toque">一键重新投注之前的订单</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="结算页里找到历史订单，点「再次投注」，号码和数量原样复制到新一期，无需重新选号。" data-es="Encuentra el pedido en el historial, toca «Apostar de nuevo» y los números y cantidades se copian automáticamente a la nueva ronda.">结算页里找到历史订单，点「再次投注」，号码和数量原样复制到新一期，无需重新选号。</p>
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar">
+              <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+              <span class="text-gray-400 text-[10px] ml-1" data-zh="结算 · 上期订单" data-es="Liquidación · Período anterior">结算 · 上期订单</span>
+            </div>
+            <div class="p-2">
+              <div class="bg-gray-800 rounded-xl px-3 py-2">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <p class="font-mono font-bold text-white text-xs">#A1003</p>
+                    <p class="text-gray-400 text-[10px] mt-0.5">Billete · 1234 × 2 &nbsp;·&nbsp; 5678 × 1</p>
+                    <p class="text-blue-400 text-[9px] mt-0.5" data-zh="未中奖" data-es="Sin premio">未中奖</p>
+                  </div>
+                  <button class="bg-indigo-600 text-white text-[9px] font-bold px-2 py-1 rounded-lg" data-zh="再次投注" data-es="Apostar de nuevo">再次投注</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       BLOQUE 3 · 收款流程
+  ═══════════════════════════════════════ -->
+  <div class="max-w-2xl mx-auto px-4 mt-10">
+    <span class="section-label bg-yellow-100 text-yellow-700" data-zh="③ 收款流程" data-es="③ Cobros">③ 收款流程</span>
+
+    <div class="space-y-7">
+
+      <!-- 两种支付方式 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-yellow-500 flex items-center justify-center text-white text-lg shadow font-black">6</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="两种支付方式 · 随客人选" data-es="Dos formas de pago · el cliente elige">两种支付方式 · 随客人选</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="客人选完号码点「投注」后，弹出付款页。可以选线上转账（弹出二维码，下方有 WhatsApp 分享按钮），也可以到店付现金。" data-es="Al confirmar el pedido, aparece la pantalla de pago. El cliente puede transferir en línea (QR con opción de compartir por WhatsApp) o pagar en efectivo en tienda.">客人选完号码点「投注」后，弹出付款页。可以选线上转账（弹出二维码，下方有 WhatsApp 分享按钮），也可以到店付现金。</p>
+          <div class="grid grid-cols-2 gap-3 mt-3">
+            <!-- QR码支付 -->
+            <div class="mock">
+              <div class="mock-bar justify-center"><span class="text-gray-300 text-[10px] font-bold" data-zh="线上付款" data-es="Pago en línea">线上付款</span></div>
+              <div class="p-3 flex flex-col items-center gap-2">
+                <p class="text-gray-300 text-[9px]" data-zh="扫码转账" data-es="Escanea para transferir">扫码转账</p>
+                <div class="bg-white rounded-lg p-1.5 w-14 h-14">
+                  <svg viewBox="0 0 40 40" class="w-full h-full">
+                    <rect x="2" y="2" width="15" height="15" fill="none" stroke="#111" stroke-width="2.5"/>
+                    <rect x="5" y="5" width="9" height="9" fill="#111"/>
+                    <rect x="23" y="2" width="15" height="15" fill="none" stroke="#111" stroke-width="2.5"/>
+                    <rect x="26" y="5" width="9" height="9" fill="#111"/>
+                    <rect x="2" y="23" width="15" height="15" fill="none" stroke="#111" stroke-width="2.5"/>
+                    <rect x="5" y="26" width="9" height="9" fill="#111"/>
+                    <rect x="25" y="25" width="5" height="5" fill="#111"/>
+                    <rect x="32" y="25" width="5" height="5" fill="#111"/>
+                    <rect x="25" y="32" width="5" height="5" fill="#111"/>
+                    <rect x="32" y="32" width="5" height="5" fill="#111"/>
+                  </svg>
+                </div>
+                <div class="w-full bg-green-600 rounded-lg py-1.5 text-center text-white text-[9px] font-bold flex items-center justify-center gap-1">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.555 4.116 1.529 5.845L.057 23.428a.75.75 0 00.918.919l5.701-1.495A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+                  WhatsApp
+                </div>
+              </div>
+            </div>
+            <!-- 现金 -->
+            <div class="mock">
+              <div class="mock-bar justify-center"><span class="text-gray-300 text-[10px] font-bold" data-zh="现金到店" data-es="Efectivo en tienda">现金到店</span></div>
+              <div class="p-3">
+                <div class="text-center mb-2">
+                  <p class="text-gray-400 text-[9px]" data-zh="客人来店付现，你确认" data-es="Cliente paga en tienda">客人来店付现，你确认</p>
+                  <p class="text-white font-black text-lg mt-1">$3.00</p>
+                  <p class="font-mono text-gray-400 text-[9px]">#I7A19</p>
+                </div>
+                <div class="bg-green-600 rounded-lg py-2 text-center text-white font-bold text-[10px]" data-zh="✅ 确认收款" data-es="✅ Confirmar pago">✅ 确认收款</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 找订单：两种方式 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-amber-500 flex items-center justify-center text-white text-lg shadow font-black">7</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="找订单 · 扫码 或 搜后四位" data-es="Buscar pedido · escanear QR o buscar por últimos 4 dígitos">找订单 · 扫码 或 搜后四位</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="客人来兑奖时，可以扫他手机上的二维码，也可以让他报订单号后四位搜索，两种方式都能直接定位到订单详情。" data-es="Cuando un cliente viene a cobrar, escanea el QR de su móvil o pídele los últimos 4 dígitos del pedido para localizarlo directamente.">客人来兑奖时，可以扫他手机上的二维码，也可以让他报订单号后四位搜索，两种方式都能直接定位到订单详情。</p>
+          <div class="grid grid-cols-2 gap-3 mt-3">
+            <div class="mock">
+              <div class="mock-bar justify-center"><span class="text-gray-300 text-[10px]" data-zh="扫码" data-es="Escanear QR">扫码</span></div>
+              <div class="p-3 flex flex-col items-center gap-2">
+                <div class="relative w-16 h-16 bg-black rounded-lg flex items-center justify-center">
+                  <div class="absolute inset-0 rounded-lg" style="border:2px solid #22c55e; margin:12%"></div>
+                  <svg viewBox="0 0 24 24" class="w-6 h-6 text-gray-600 fill-current opacity-40"><path d="M2 2h7v7H2V2zm1 1v5h5V3H3zm1 1h3v3H4V4zM15 2h7v7h-7V2zm1 1v5h5V3h-5zm1 1h3v3h-3V4zM2 15h7v7H2v-7zm1 1v5h5v-5H3zm1 1h3v3H4v-3z"/></svg>
+                </div>
+                <p class="text-gray-400 text-[9px] text-center" data-zh="扫客人手机上的二维码" data-es="Escanea el QR del cliente">扫客人手机上的二维码</p>
+              </div>
+            </div>
+            <div class="mock">
+              <div class="mock-bar justify-center"><span class="text-gray-300 text-[10px]" data-zh="搜后四位" data-es="Buscar 4 dígitos">搜后四位</span></div>
+              <div class="p-3 flex flex-col gap-2">
+                <div class="bg-gray-700 rounded-lg px-2 py-1.5 text-center font-mono text-white text-sm tracking-widest">7A19</div>
+                <div class="bg-blue-600 rounded-lg py-1 text-center text-white text-[9px] font-bold" data-zh="搜索订单" data-es="Buscar pedido">搜索订单</div>
+                <div class="bg-gray-800 rounded-lg px-2 py-1.5 border border-amber-400/40">
+                  <p class="font-mono text-white text-[9px]">#I7A19 · $3.00</p>
+                  <p class="text-amber-400 text-[9px]">🏆 <span data-zh="已中奖" data-es="Premio">已中奖</span> $600</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 订单详情 mock -->
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar">
+              <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+              <span class="text-gray-400 text-[10px] ml-1" data-zh="订单详情" data-es="Detalle del pedido">订单详情</span>
+            </div>
+            <div class="p-3 space-y-2">
+              <div class="flex justify-between text-xs"><span class="text-gray-400" data-zh="订单号" data-es="N° pedido">订单号</span><span class="font-mono text-white">#I7A19</span></div>
+              <div class="flex justify-between text-xs"><span class="text-gray-400" data-zh="号码" data-es="Números">号码</span><span class="text-white">1234 × 2 &nbsp; 5678 × 1</span></div>
+              <div class="flex justify-between text-xs"><span class="text-gray-400" data-zh="金额" data-es="Monto">金额</span><span class="text-white">$3.00</span></div>
+              <div class="flex justify-between text-xs"><span class="text-gray-400" data-zh="中奖金额" data-es="Premio">中奖金额</span><span class="text-amber-400 font-black">$600.00</span></div>
+              <div class="bg-amber-600 rounded-lg py-2 text-center text-white font-bold text-xs" data-zh="🏆 确认兑奖" data-es="🏆 Pagar premio">🏆 确认兑奖</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 打印功能 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-gray-600 flex items-center justify-center text-white text-lg shadow font-black">8</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="打印小票（可选）· 小票 QR 可直接扫码兑奖" data-es="Impresión de recibos (opcional) · el QR del recibo también sirve para cobrar premios">打印小票（可选）· 小票 QR 可直接扫码兑奖</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="启用蓝牙打印机后，每张完成付款的订单自动打印小票。小票上的二维码客人可以直接扫码来兑奖，等客人习惯不需要小票后可以随时关掉。" data-es="Al activar la impresora Bluetooth, cada pedido pagado se imprime automáticamente. El QR del recibo sirve directamente para cobrar premios. Puedes desactivarla en cualquier momento.">启用蓝牙打印机后，每张完成付款的订单自动打印小票。小票上的二维码客人可以直接扫码来兑奖，等客人习惯不需要小票后可以随时关掉。</p>
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar">
+              <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+              <span class="text-gray-400 text-[10px] ml-1" data-zh="打印设置" data-es="Configurar impresora">打印设置</span>
+            </div>
+            <div class="p-3 flex items-center justify-between">
+              <div>
+                <p class="text-white text-xs font-bold" data-zh="蓝牙热敏打印机" data-es="Impresora Bluetooth térmica">蓝牙热敏打印机</p>
+                <p class="text-green-400 text-[10px]" data-zh="✅ 已连接 · 自动打印中" data-es="✅ Conectado · imprimiendo auto">✅ 已连接 · 自动打印中</p>
+              </div>
+              <!-- toggle on -->
+              <div class="w-10 h-6 bg-green-500 rounded-full flex items-center px-0.5 justify-end">
+                <div class="w-5 h-5 bg-white rounded-full shadow"></div>
+              </div>
+            </div>
+            <!-- mini receipt -->
+            <div class="mx-3 mb-3 bg-white rounded-lg p-2 text-gray-900 text-[9px] font-mono shadow">
+              <p class="text-center font-black text-[10px]">casagrade</p>
+              <p class="text-center text-gray-500">#I7A19 · 2026-03-19</p>
+              <div class="border-t border-dashed border-gray-300 my-1"></div>
+              <p>Billete 1234 × 2 = $2.00</p>
+              <p>Billete 5678 × 1 = $1.00</p>
+              <div class="border-t border-dashed border-gray-300 my-1"></div>
+              <p class="text-right font-black">Total $3.00</p>
+              <div class="flex justify-center mt-1">
+                <svg viewBox="0 0 40 20" class="w-16 h-8">
+                  <rect x="2" y="2" width="8" height="8" fill="none" stroke="#333" stroke-width="1.5"/>
+                  <rect x="4" y="4" width="4" height="4" fill="#333"/>
+                  <rect x="15" y="2" width="8" height="8" fill="none" stroke="#333" stroke-width="1.5"/>
+                  <rect x="17" y="4" width="4" height="4" fill="#333"/>
+                  <rect x="2" y="13" width="8" height="8" fill="none" stroke="#333" stroke-width="1.5"/>
+                  <rect x="4" y="15" width="4" height="4" fill="#333"/>
+                  <rect x="15" y="13" width="4" height="4" fill="#333"/>
+                  <rect x="21" y="13" width="4" height="4" fill="#333"/>
+                  <rect x="28" y="2" width="4" height="4" fill="#333"/>
+                  <rect x="34" y="2" width="4" height="4" fill="#333"/>
+                  <rect x="28" y="9" width="4" height="4" fill="#333"/>
+                  <rect x="28" y="16" width="4" height="4" fill="#333"/>
+                  <rect x="34" y="16" width="4" height="4" fill="#333"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       BLOQUE 4 · 进阶功能
+  ═══════════════════════════════════════ -->
+  <div class="max-w-2xl mx-auto px-4 mt-10">
+    <span class="section-label bg-purple-100 text-purple-700" data-zh="④ 进阶功能" data-es="④ Funciones avanzadas">④ 进阶功能</span>
+
+    <div class="space-y-7">
+
+      <!-- 热门号码 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-purple-500 flex items-center justify-center text-white text-lg shadow font-black">9</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="查看最热卖的 12 个号码 · 随时掌握销售动态" data-es="Ver los 12 números más vendidos · controla las ventas en tiempo real">查看最热卖的 12 个号码 · 随时掌握销售动态</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="老板端首页实时显示本期卖得最多的 12 个号码，点「查看全部」可以看到所有卖出号码的销量排名。" data-es="El panel muestra en tiempo real los 12 números más vendidos del período. Toca «Ver todos» para ver el ranking completo.">老板端首页实时显示本期卖得最多的 12 个号码，点「查看全部」可以看到所有卖出号码的销量排名。</p>
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+                <span class="text-gray-400 text-[10px] ml-0.5" data-zh="热门号码 TOP 12" data-es="TOP 12 más vendidos">热门号码 TOP 12</span>
+              </div>
+              <span class="text-blue-400 text-[9px]" data-zh="查看全部 →" data-es="Ver todos →">查看全部 →</span>
+            </div>
+            <div class="p-2 grid grid-cols-4 gap-1">
+              <div class="bg-red-900/60 border border-red-500/50 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">1234</p><p class="text-red-400 text-[9px]">87<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-orange-900/50 border border-orange-500/40 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">0000</p><p class="text-orange-400 text-[9px]">71<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-yellow-900/40 border border-yellow-600/40 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">1111</p><p class="text-yellow-400 text-[9px]">65<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">5678</p><p class="text-gray-400 text-[9px]">52<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">2580</p><p class="text-gray-400 text-[9px]">48<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">0808</p><p class="text-gray-400 text-[9px]">43<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">3456</p><p class="text-gray-400 text-[9px]">38<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center"><p class="font-mono font-black text-white text-xs">9999</p><p class="text-gray-400 text-[9px]">34<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center opacity-60"><p class="font-mono text-white text-xs">7788</p><p class="text-gray-500 text-[9px]">29<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center opacity-60"><p class="font-mono text-white text-xs">1357</p><p class="text-gray-500 text-[9px]">24<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center opacity-60"><p class="font-mono text-white text-xs">2468</p><p class="text-gray-500 text-[9px]">19<span data-zh="张" data-es="unds">张</span></p></div>
+              <div class="bg-gray-700 border border-gray-600 rounded-lg p-1.5 text-center opacity-60"><p class="font-mono text-white text-xs">6666</p><p class="text-gray-500 text-[9px]">15<span data-zh="张" data-es="unds">张</span></p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 销售限额 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-rose-500 flex items-center justify-center text-white text-lg shadow font-black">10</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="销售限额 · 自动控制风险" data-es="Límite de ventas · control de riesgo automático">销售限额 · 自动控制风险</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="自己设定每个号码最多卖多少张。比如设 100 张，已经卖了 90 张，当客人想再买 20 张时，系统会告诉他只剩 10 张，确认后直接购买 10 张，不会超出。" data-es="Define cuántas unidades máximas se venden de cada número. Si el límite es 100 y ya se vendieron 90, cuando un cliente quiera comprar 20, el sistema le avisa que solo quedan 10 y le permite comprarlas.">自己设定每个号码最多卖多少张。比如设 100 张，已经卖了 90 张，当客人想再买 20 张时，系统会告诉他只剩 10 张，确认后直接购买 10 张，不会超出。</p>
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar">
+              <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+              <span class="text-gray-400 text-[10px] ml-1" data-zh="销售限额设置" data-es="Configurar límites">销售限额设置</span>
+            </div>
+            <div class="p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-gray-300 text-xs" data-zh="Billete 每号限额" data-es="Límite por número Billete">Billete 每号限额</span>
+                <div class="flex items-center gap-2">
+                  <div class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-white text-xs font-mono w-16 text-center">100</div>
+                  <span class="text-gray-400 text-[10px]" data-zh="张" data-es="unds">张</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-300 text-xs" data-zh="Chance 每号限额" data-es="Límite por número Chance">Chance 每号限额</span>
+                <div class="flex items-center gap-2">
+                  <div class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-white text-xs font-mono w-16 text-center">200</div>
+                  <span class="text-gray-400 text-[10px]" data-zh="张" data-es="unds">张</span>
+                </div>
+              </div>
+              <div class="border-t border-gray-700 pt-2">
+                <p class="text-[10px] text-gray-400 mb-1" data-zh="超限时系统自动提示客人（示例）：" data-es="Aviso automático al superar el límite (ejemplo):">超限时系统自动提示客人（示例）：</p>
+                <div class="bg-yellow-900/40 border border-yellow-600/50 rounded-lg px-2 py-1.5 text-yellow-300 text-[9px]">
+                  ⚠️ <span data-zh="1234 只剩 10 张，是否购买 10 张？" data-es="Solo quedan 10 unidades de 1234, ¿comprar 10?">1234 只剩 10 张，是否购买 10 张？</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 大庄管理中心 -->
+      <div class="step-wrap flex gap-4">
+        <div class="shrink-0 w-11 h-11 rounded-2xl bg-teal-600 flex items-center justify-center text-white text-lg shadow font-black">11</div>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 text-sm" data-zh="大庄管理中心 · 团队销售全自动" data-es="Centro principal · ventas en equipo totalmente automáticas">大庄管理中心 · 团队销售全自动</h3>
+          <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="如果你手下有人帮你写单，绑定他们的店号，即可同步查看所有人的销售额。佣金自己设定，系统每期自动结算，无需手动分钱。" data-es="Si tienes vendedores, vincula sus números de tienda para ver las ventas de todo el equipo. Configura la comisión y el sistema la liquida automáticamente cada período.">如果你手下有人帮你写单，绑定他们的店号，即可同步查看所有人的销售额。佣金自己设定，系统每期自动结算，无需手动分钱。</p>
+          <div class="mock mt-3 max-w-xs">
+            <div class="mock-bar justify-between">
+              <div class="flex items-center gap-1.5">
+                <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+                <span class="text-gray-400 text-[10px]" data-zh="大庄管理中心" data-es="Centro principal">大庄管理中心</span>
+              </div>
+              <span class="text-teal-400 text-[9px]" data-zh="+ 绑定" data-es="+ Vincular">+ 绑定</span>
+            </div>
+            <div class="p-2 space-y-1">
+              <!-- 主店汇总 -->
+              <div class="bg-teal-900/40 border border-teal-600/40 rounded-xl px-3 py-2">
+                <div class="flex justify-between items-center">
+                  <span class="text-teal-300 text-[10px] font-bold" data-zh="本店（主）" data-es="Mi tienda (principal)">本店（主）</span>
+                  <span class="text-white text-xs font-black">$1,240</span>
+                </div>
+              </div>
+              <!-- 子店 -->
+              <div class="bg-gray-800 rounded-xl px-3 py-2">
+                <div class="flex justify-between items-center">
+                  <div><p class="text-gray-300 text-[10px]" data-zh="子店" data-es="Subtienda">子店</p><p class="font-mono text-white text-xs">83741</p></div>
+                  <div class="text-right">
+                    <p class="text-white text-xs font-bold">$380</p>
+                    <p class="text-gray-400 text-[9px]"><span data-zh="佣金" data-es="Comisión">佣金</span> 20% = <span class="text-green-400">$76</span></p>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-gray-800 rounded-xl px-3 py-2">
+                <div class="flex justify-between items-center">
+                  <div><p class="text-gray-300 text-[10px]" data-zh="子店" data-es="Subtienda">子店</p><p class="font-mono text-white text-xs">29504</p></div>
+                  <div class="text-right">
+                    <p class="text-white text-xs font-bold">$215</p>
+                    <p class="text-gray-400 text-[9px]"><span data-zh="佣金" data-es="Comisión">佣金</span> 15% = <span class="text-green-400">$32</span></p>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-gray-700/50 rounded-xl px-3 py-2 flex justify-between items-center">
+                <span class="text-gray-400 text-[10px] font-bold" data-zh="团队总销售额" data-es="Total equipo">团队总销售额</span>
+                <span class="text-white font-black text-sm">$1,835</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       BLOQUE 5 · 开奖结算
+  ═══════════════════════════════════════ -->
+  <div class="max-w-2xl mx-auto px-4 mt-10">
+    <span class="section-label bg-amber-100 text-amber-700" data-zh="⑤ 开奖结算" data-es="⑤ Sorteo y liquidación">⑤ 开奖结算</span>
+
+    <div class="step-wrap flex gap-4">
+      <div class="shrink-0 w-11 h-11 rounded-2xl bg-amber-500 flex items-center justify-center text-white text-lg shadow font-black">12</div>
+      <div class="flex-1">
+        <h3 class="font-bold text-gray-800 text-sm" data-zh="开奖后全自动结算 · 一眼看清利润" data-es="Liquidación automática tras el sorteo · ve tus ganancias de un vistazo">开奖后全自动结算 · 一眼看清利润</h3>
+        <p class="text-gray-500 text-xs mt-1 leading-relaxed" data-zh="每期开奖后，系统自动核对所有订单，每张订单哪个号码中了、中了多少钱全部自动算好。结算页一眼看清：本期销售额、总赔付、净利润、近期20期历史。完全无需手动计算。" data-es="Después del sorteo, el sistema revisa todos los pedidos automáticamente: qué número ganó, cuánto ganó cada pedido. En la página de liquidación ves de un vistazo: ventas del período, pagos de premios, ganancia neta y el historial de los últimos 20 sorteos. Sin calcular a mano.">每期开奖后，系统自动核对所有订单，每张订单哪个号码中了、中了多少钱全部自动算好。结算页一眼看清：本期销售额、总赔付、净利润、近期20期历史。完全无需手动计算。</p>
+        <div class="mock mt-3 max-w-xs">
+          <div class="mock-bar">
+            <div class="mock-dot bg-red-500"></div><div class="mock-dot bg-yellow-400"></div><div class="mock-dot bg-green-400"></div>
+            <span class="text-gray-400 text-[10px] ml-1" data-zh="本期结算报告" data-es="Informe del período">本期结算报告</span>
+          </div>
+          <div class="p-3 space-y-2">
+            <!-- 开奖号码 -->
+            <div class="bg-amber-900/40 border border-amber-500/40 rounded-xl px-3 py-2 text-center">
+              <p class="text-amber-400 text-[9px]" data-zh="本期中奖号码" data-es="Números ganadores">本期中奖号码</p>
+              <div class="flex gap-2 justify-center mt-1">
+                <span class="bg-amber-500 text-white font-black text-xs px-2 py-0.5 rounded-lg">1234</span>
+                <span class="bg-gray-600 text-white text-xs px-2 py-0.5 rounded-lg">5678</span>
+                <span class="bg-gray-600 text-white text-xs px-2 py-0.5 rounded-lg">9012</span>
+              </div>
+            </div>
+            <!-- 汇总数字 -->
+            <div class="grid grid-cols-3 gap-1.5">
+              <div class="bg-green-900/40 rounded-xl p-2 text-center">
+                <p class="text-green-400 text-[9px]" data-zh="销售额" data-es="Ventas">销售额</p>
+                <p class="text-white font-black text-sm">$850</p>
+              </div>
+              <div class="bg-red-900/40 rounded-xl p-2 text-center">
+                <p class="text-red-400 text-[9px]" data-zh="赔付" data-es="Premios">赔付</p>
+                <p class="text-white font-black text-sm">$200</p>
+              </div>
+              <div class="bg-blue-900/40 rounded-xl p-2 text-center">
+                <p class="text-blue-400 text-[9px]" data-zh="净利润" data-es="Ganancia">净利润</p>
+                <p class="text-white font-black text-sm">$650</p>
+              </div>
+            </div>
+            <!-- 中奖订单高亮 -->
+            <div class="bg-emerald-900/50 border border-emerald-500/40 rounded-xl px-3 py-2 flex justify-between items-center">
+              <div><p class="font-mono text-white text-xs">#I7A19</p><p class="text-gray-400 text-[9px]">1234 × 2</p></div>
+              <div class="text-right"><p class="text-amber-400 font-black text-sm">+$4000</p><p class="text-emerald-400 text-[9px]">🏆 <span data-zh="一等奖" data-es="1er Premio">一等奖</span></p></div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+          <p class="text-green-700 text-xs font-bold" data-zh="✅ 全程自动 · 无需手动核单 · 历史20期随时查" data-es="✅ Todo automático · sin revisión manual · historial de 20 períodos disponible">✅ 全程自动 · 无需手动核单 · 历史20期随时查</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示卡 -->
+  <div class="max-w-2xl mx-auto px-4 mt-10">
+    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+      <h3 class="font-bold text-blue-800 text-sm mb-2" data-zh="💡 小贴士" data-es="💡 Consejos">💡 小贴士</h3>
+      <ul class="space-y-1.5 text-xs text-blue-700">
+        <li class="flex gap-2 items-start"><span class="shrink-0 mt-0.5">•</span><span data-zh="每周三、周日 15:00 开奖，14:55 停止下单，次日 07:00 重新开售" data-es="Sorteos miércoles y domingos a las 3 pm; ventas cierran a las 2:55 pm y reabren al día siguiente a las 7 am">每周三、周日 15:00 开奖，14:55 停止下单，次日 07:00 重新开售</span></li>
+        <li class="flex gap-2 items-start"><span class="shrink-0 mt-0.5">•</span><span data-zh="客人下单后 30 分钟内未付款，订单自动取消" data-es="Si el cliente no paga en 30 minutos, el pedido se cancela automáticamente">客人下单后 30 分钟内未付款，订单自动取消</span></li>
+        <li class="flex gap-2 items-start"><span class="shrink-0 mt-0.5">•</span><span data-zh="不认识的订单，先让客人出示二维码核对再确认收款" data-es="Si no reconoces un pedido, pide al cliente el QR antes de confirmar el pago">不认识的订单，先让客人出示二维码核对再确认收款</span></li>
+        <li class="flex gap-2 items-start"><span class="shrink-0 mt-0.5 text-green-600">•</span><span class="text-green-700 font-bold" data-zh="永久免费，零成本，平台靠广告维持运营" data-es="Gratis para siempre, sin costo, la plataforma se mantiene con publicidad">永久免费，零成本，平台靠广告维持运营</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 客服 -->
+  <div class="max-w-2xl mx-auto px-4 mt-6">
+    <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm text-center">
+      <h3 class="font-bold text-gray-800 text-sm mb-1" data-zh="💬 问题反馈 · 客服支持" data-es="💬 Soporte y comentarios">💬 问题反馈 · 客服支持</h3>
+      <p class="text-gray-500 text-xs mb-4" data-zh="遇到问题或有建议？加入 WhatsApp 群联系我们" data-es="¿Problemas o sugerencias? Únete al grupo de WhatsApp">遇到问题或有建议？加入 WhatsApp 群联系我们</p>
+      <a href="https://chat.whatsapp.com/Gug1qVxK8aR6k17VRUuTA9?mode=gi_t" target="_blank">
+        <img src="whatsapp-group-qr.jpg" alt="WhatsApp群二维码" class="w-44 mx-auto rounded-2xl shadow-md hover:opacity-90 transition-opacity" />
+      </a>
+      <a href="https://chat.whatsapp.com/Gug1qVxK8aR6k17VRUuTA9?mode=gi_t" target="_blank"
+        class="inline-flex items-center gap-2 mt-3 bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-5 py-2 rounded-full shadow transition-colors">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.555 4.116 1.529 5.845L.057 23.428a.75.75 0 00.918.919l5.701-1.495A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+        <span data-zh="点击加入 WhatsApp 群" data-es="Unirse al grupo de WhatsApp">点击加入 WhatsApp 群</span>
+      </a>
+      <p class="text-gray-400 text-xs mt-2" data-zh="扫码或点击按钮加入 · casagrade 客服群" data-es="Escanea o toca el botón · Grupo casagrade">扫码或点击按钮加入 · casagrade 客服群</p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="max-w-2xl mx-auto px-4 mt-6 mb-12 text-center">
+    <div class="bg-gradient-to-r from-green-700 to-green-500 rounded-2xl p-5 text-white">
+      <p class="font-black text-xl">casagrade</p>
+      <p class="text-green-100 text-xs mt-1" data-zh="让彩票生意更简单、更安全、更赚钱" data-es="Tu negocio de lotería: más simple, más seguro, más rentable">让彩票生意更简单、更安全、更赚钱</p>
+    </div>
+    <button onclick="window.print()" class="no-print mt-4 px-6 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl text-gray-600 text-sm font-medium" data-zh="🖨️ 打印 / 保存 PDF" data-es="🖨️ Imprimir / Guardar PDF">🖨️ 打印 / 保存 PDF</button>
+  </div>
+
+  </div><!-- end pt-12 wrapper -->
+
+  <script>
+    let lang = localStorage.getItem('guide_lang') || 'zh';
+
+    function applyLang() {
+      const isZh = lang === 'zh';
+      document.getElementById('lang-flag').textContent = isZh ? '🇵🇦' : '🇨🇳';
+      document.getElementById('lang-label').textContent = isZh ? 'Español' : '中文';
+      document.documentElement.lang = isZh ? 'zh-CN' : 'es';
+      document.querySelectorAll('[data-zh]').forEach(el => {
+        el.innerHTML = isZh ? el.dataset.zh : el.dataset.es;
+      });
+    }
+
+    function openPoster() {
+      const token = localStorage.getItem('lottery_token');
+      const shopNumber = localStorage.getItem('lottery_shop_number');
+      if (!token || !shopNumber) {
+        // 未登录：提示并跳转
+        const hint = document.getElementById('poster-hint');
+        if (hint) { hint.classList.remove('hidden'); }
+        setTimeout(() => { window.location.href = 'merchant.html'; }, 1200);
+        return;
+      }
+      window.open('poster.html?shop=' + encodeURIComponent(shopNumber), '_blank');
+    }
+
+    function toggleLang() {
+      lang = lang === 'zh' ? 'es' : 'zh';
+      localStorage.setItem('guide_lang', lang);
+      applyLang();
+    }
+
+    applyLang();
+  </script>
+</body>
+</html>

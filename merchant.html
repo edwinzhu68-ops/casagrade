@@ -47,7 +47,7 @@
         <button onclick="openForgotModal()" class="w-full text-gray-400 text-sm py-1" data-i18n="btn_forgot">忘记密码？</button>
       </div>
       <div class="mt-6 text-center">
-        <a href="guide-merchant.html" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm">📖 使用说明</a>
+        <a href="guide.html" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm">📖 使用说明</a>
       </div>
     </div>
   </div>
@@ -999,6 +999,7 @@
           if (!data) return;
           if (data.shops && data.shops.length > 0) {
             currentShop = data.shops[0];
+            if (currentShop && currentShop.shop_number) localStorage.setItem('lottery_shop_number', currentShop.shop_number);
             // 更新设备信息
             if (data.last_login_at) localStorage.setItem('lottery_login_at', data.last_login_at);
             if (data.last_login_ua) localStorage.setItem('lottery_login_ua', data.last_login_ua);
@@ -1195,6 +1196,7 @@
         }
 
         currentShop = shopsData.shops[0];
+        if (currentShop && currentShop.shop_number) localStorage.setItem('lottery_shop_number', currentShop.shop_number);
         localStorage.setItem('lottery_token', data.token);
         localStorage.setItem('merchant_account', account);
         authToken = data.token;

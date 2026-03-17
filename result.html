@@ -132,7 +132,12 @@
 
       <!-- 已付款订单（按订单号后四位排序；已中奖黄色、未中奖灰色，与客户端一致） -->
       <div class="card-result rounded-2xl p-5 shadow-xl">
-        <h3 class="font-bold text-lg mb-1" data-i18n="paid_orders_title">📋 已付款订单</h3>
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <h3 class="font-bold text-lg" data-i18n="paid_orders_title">📋 已付款订单</h3>
+          <input type="text" id="paid-order-filter-input" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
+            class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-green-500 focus:outline-none"
+            oninput="filterPaidOrdersBySuffix(this.value)" title="输入订单号后4位筛选" />
+        </div>
         <p class="text-xs text-gray-400 mb-3" data-i18n="paid_orders_hint">点击订单查看详情 · 按订单号后四位排序</p>
         <div id="result-paid-order-list" class="space-y-2 max-h-80 overflow-y-auto text-sm font-mono">
           <p class="text-gray-500 text-sm text-center py-6">暂无已付款订单</p>
@@ -211,8 +216,11 @@
   <!-- 某期详情弹窗（历史期点击进入） -->
   <div id="modal-period-detail" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="card-result rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-      <div class="p-5 border-b border-gray-700 flex-shrink-0 flex justify-between items-center">
+      <div class="p-5 border-b border-gray-700 flex-shrink-0 flex justify-between items-center gap-2">
         <h3 class="font-bold text-lg" data-i18n="period_detail_title">期详情</h3>
+        <input type="text" id="period-detail-filter-input" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
+          class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-green-500 focus:outline-none"
+          oninput="filterPeriodDetailBySuffix(this.value)" title="输入订单号后4位筛选" />
         <button type="button" onclick="closePeriodDetailModal()" class="text-gray-400 hover:text-white text-2xl leading-none w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-700">&times;</button>
       </div>
       <div id="period-detail-body" class="p-5 overflow-y-auto flex-1 space-y-4">
@@ -373,6 +381,8 @@
     let allOrders = [];
     let drawResult = null;
     let lastRedeemOrders = [];
+    let lastPaidOrders = [];
+    let lastPeriodOrders = [];
     /** 当期（最近一期开奖）参与统计的订单，与老板端一致 */
     let ordersForCurrentDraw = [];
     let resultPollInterval = null;
@@ -813,6 +823,55 @@
       renderResultRedeemList(lastRedeemOrders, suffix);
     }
 
+    function filterPaidOrdersBySuffix(value) {
+      var suffix = (value || '').trim().replace(/\D/g, '');
+      var inputEl = document.getElementById('paid-order-filter-input');
+      if (inputEl) inputEl.value = suffix;
+      renderResultPaidOrderList(lastPaidOrders, suffix);
+    }
+
+    function filterPeriodDetailBySuffix(value) {
+      var suffix = (value || '').trim().replace(/\D/g, '');
+      var inputEl = document.getElementById('period-detail-filter-input');
+      if (inputEl) inputEl.value = suffix;
+      renderPeriodDetailOrderList(lastPeriodOrders, suffix);
+    }
+
+    function renderPeriodDetailOrderList(orders, suffixFilter) {
+      const container = document.getElementById('period-detail-orders-list');
+      if (!container) return;
+      var suf = suffixFilter !== undefined && suffixFilter !== '' ? String(suffixFilter).replace(/\D/g, '') : '';
+      var filtered = suf.length > 0
+        ? orders.filter(function(o) { return String(o.order_number || o.orderNumber || '').slice(-suf.length) === suf; })
+        : orders;
+      const shopLabel = (currentShop && (currentShop.shop_number || currentShop.shop_id)) ? (currentShop.shop_number || '#' + currentShop.shop_id) : '';
+      if (filtered.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-sm py-4">' + (suf ? '无匹配订单' : t('no_paid_orders')) + '</p>';
+        return;
+      }
+      const statusText = (o) => { const s = o.status; if (s === 'won' || s === 3) return t('status_won'); if (s === 'settled' || s === 2) return t('status_settled'); return t('status_paid'); };
+      const rowClass = (o) => { const s = o.status; if (s === 'won' || s === 3) return 'order-row-won'; if (s === 'settled' || s === 2) return 'order-row-settled'; return 'order-row-paid'; };
+      container.innerHTML = filtered.map(o => {
+        const num = (o.order_number || o.orderNumber || '').toString();
+        const short = num.length <= 4 ? num : num.slice(-4);
+        const winAmt = getOrderWinAmount(o);
+        const disp = winAmt > 0 ? winAmt.toFixed(2) : Number(o.amount || 0).toFixed(2);
+        const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        return `<button type="button" class="period-detail-order-btn w-full text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${rowClass(o)}" data-order-number="${safeNum}">
+          <span class="font-mono text-sm">#${short}</span>
+          ${shopLabel ? '<span class="text-xs text-gray-400">' + (t('shop_short') || '店') + ' ' + shopLabel + '</span>' : ''}
+          <span class="font-mono text-xs opacity-90">${statusText(o)}</span>
+          <span class="font-mono font-bold text-sm">${disp}</span>
+        </button>`;
+      }).join('');
+      container.querySelectorAll('.period-detail-order-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+          const orderNumber = this.getAttribute('data-order-number');
+          if (orderNumber) { closePeriodDetailModal(); openResultOrderDetail(orderNumber); }
+        });
+      });
+    }
+
     // 从结算页详情弹窗兑奖
     async function redeemFromResultDetail(order) {
       const orderNumber = order.order_number || order.orderNumber;
@@ -847,13 +906,19 @@
     }
 
     // 渲染已付款订单列表：按订单号后四位排序；已中奖黄色、未中奖灰色（与客户端一致）；带店铺
-    function renderResultPaidOrderList(orders) {
+    function renderResultPaidOrderList(orders, suffixFilter) {
+      lastPaidOrders = orders || [];
       const container = document.getElementById('result-paid-order-list');
       if (!container) return;
-      if (!orders || orders.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">' + t('no_paid_orders') + '</p>';
+      var suf = suffixFilter !== undefined && suffixFilter !== '' ? String(suffixFilter).replace(/\D/g, '') : '';
+      var filtered = suf.length > 0
+        ? lastPaidOrders.filter(function(o) { return String(o.order_number || o.orderNumber || '').slice(-suf.length) === suf; })
+        : lastPaidOrders;
+      if (!filtered || filtered.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-6">' + (suf ? '无匹配订单' : t('no_paid_orders')) + '</p>';
         return;
       }
+      orders = filtered;
       const statusText = (o) => {
         const s = o.status;
         if (s === 'won' || s === 3) return t('status_won');
@@ -929,30 +994,11 @@
           return na.localeCompare(nb, undefined, { numeric: true });
         });
       }
-      const shopLabel = (currentShop && (currentShop.shop_number || currentShop.shop_id)) ? (currentShop.shop_number || '#' + currentShop.shop_id) : '';
       const profitColor = profitNum >= 0 ? 'text-emerald-400' : 'text-red-400';
-      let ordersHtml = '';
-      if (orders.length === 0 && (drawId === '' || drawId == null)) {
-        ordersHtml = '<p class="text-gray-500 text-sm py-4">' + t('no_paid_orders') + '</p>';
-      } else if (orders.length === 0) {
-        ordersHtml = '<p class="text-gray-500 text-sm py-4">' + t('no_paid_orders') + '</p>';
-      } else {
-        const statusText = (o) => { const s = o.status; if (s === 'won' || s === 3) return t('status_won'); if (s === 'settled' || s === 2) return t('status_settled'); return t('status_paid'); };
-        const rowClass = (o) => { const s = o.status; if (s === 'won' || s === 3) return 'order-row-won'; if (s === 'settled' || s === 2) return 'order-row-settled'; return 'order-row-paid'; };
-        ordersHtml = orders.map(o => {
-          const num = (o.order_number || o.orderNumber || '').toString();
-          const short = num.length <= 4 ? num : num.slice(-4);
-          const winAmt = getOrderWinAmount(o);
-          const disp = winAmt > 0 ? winAmt.toFixed(2) : Number(o.amount || 0).toFixed(2);
-          const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-          return `<button type="button" class="period-detail-order-btn w-full text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${rowClass(o)}" data-order-number="${safeNum}">
-            <span class="font-mono text-sm">#${short}</span>
-            ${shopLabel ? '<span class="text-xs text-gray-400">' + (t('shop_short') || '店') + ' ' + shopLabel + '</span>' : ''}
-            <span class="font-mono text-xs opacity-90">${statusText(o)}</span>
-            <span class="font-mono font-bold text-sm">${disp}</span>
-          </button>`;
-        }).join('');
-      }
+      lastPeriodOrders = orders;
+      // 清空搜索框
+      const filterInput = document.getElementById('period-detail-filter-input');
+      if (filterInput) filterInput.value = '';
       body.innerHTML = `
         <div class="space-y-4">
           <div class="text-gray-400 text-sm">${dateStr || ('期 ' + (idx + 1))}</div>
@@ -963,16 +1009,11 @@
           </div>
           <div>
             <h4 class="font-bold text-sm mb-2 text-gray-300">${t('orders_label')} (${orders.length})</h4>
-            <div class="space-y-2 max-h-64 overflow-y-auto">${ordersHtml}</div>
+            <div id="period-detail-orders-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
           </div>
         </div>
       `;
-      body.querySelectorAll('.period-detail-order-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-          const orderNumber = this.getAttribute('data-order-number');
-          if (orderNumber) { closePeriodDetailModal(); openResultOrderDetail(orderNumber); }
-        });
-      });
+      renderPeriodDetailOrderList(orders, '');
       document.getElementById('modal-period-detail').classList.remove('hidden');
     }
 

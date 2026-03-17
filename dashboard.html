@@ -707,12 +707,13 @@
       return `${d}-${m}-${y}`;
     }
 
-    function setConfirmedDrawRecord(date, time) {
+    function setConfirmedDrawRecord(date, time, drawId) {
       try {
-        localStorage.setItem(CONFIRMED_DRAW_RECORD_KEY, JSON.stringify({ date, time }));
+        localStorage.setItem(CONFIRMED_DRAW_RECORD_KEY, JSON.stringify({ date, time, drawId: drawId || null }));
       } catch (e) {}
       const el = document.getElementById('confirmed-draw-status');
-      if (el) el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）`;
+      const periodStr = drawId ? ` · 第 ${drawId} 期` : '';
+      if (el) el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）${periodStr}`;
     }
     let firebasePollTimer = null;
 
@@ -1276,7 +1277,7 @@
             localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: drawDate, time: drawClock }));
           } catch (e) {}
           // 时机1：发送开奖时间 → 更新系统记录
-          setConfirmedDrawRecord(drawDate, drawClock);
+          setConfirmedDrawRecord(drawDate, drawClock, data.drawId || null);
           // 显示手动覆盖 badge
           const badge = document.getElementById('manual-override-badge');
           if (badge) badge.classList.remove('hidden');
@@ -1301,7 +1302,7 @@
           showToast(`✅ 期次已重建：${data.drawDate} ${data.drawTime}`, 'success');
           const badge = document.getElementById('manual-override-badge');
           if (badge) badge.classList.add('hidden');
-          if (data.drawDate && data.drawTime) setConfirmedDrawRecord(data.drawDate, data.drawTime);
+          if (data.drawDate && data.drawTime) setConfirmedDrawRecord(data.drawDate, data.drawTime, data.drawId || null);
           await initDrawDefaults();
         } else {
           showToast(data.error || '重建失败', 'error');
@@ -1319,8 +1320,12 @@
       try {
         const raw = localStorage.getItem(CONFIRMED_DRAW_RECORD_KEY);
         if (raw) {
-          const { date, time } = JSON.parse(raw);
-          if (date && time) { el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）`; return; }
+          const { date, time, drawId } = JSON.parse(raw);
+          if (date && time) {
+            const periodStr = drawId ? ` · 第 ${drawId} 期` : '';
+            el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）${periodStr}`;
+            return;
+          }
         }
       } catch (e) {}
       // localStorage 为空时，从 API 兜底
@@ -1330,12 +1335,12 @@
         const draw = data.draw || {};
         const rawDate = draw.drawDate || draw.draw_date || null;
         const rawTime = draw.drawTime || draw.draw_time || null;
+        const rawDrawId = draw.drawId || draw.draw_id || null;
         if (rawDate && rawTime) {
           // drawDate 是 DD-MM-YYYY，time 取前5位 HH:mm
           const timeStr = String(rawTime).slice(0, 5);
-          el.textContent = `系统开奖时间：${rawDate} ${timeStr}（巴拿马时间）`;
           // 同步写入 localStorage，下次不需要再请求
-          setConfirmedDrawRecord(rawDate, timeStr);
+          setConfirmedDrawRecord(rawDate, timeStr, rawDrawId);
           return;
         }
       } catch (e) {}
