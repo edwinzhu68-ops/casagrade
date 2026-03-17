@@ -128,19 +128,54 @@ export class AdminController {
     const users = ownerIds.length
       ? await this.userRepo.find({ where: { user_id: In(ownerIds) } })
       : [];
-    const userMap = new Map(users.map(u => [u.user_id, u.account_number]));
+    const userMap = new Map(users.map(u => [u.user_id, u]));
+
+    // 所有已完成的期次（按 draw_id 升序），用于计算连续未下单期数
+    const completedDraws = await this.drawRepo.find({
+      where: { status: 'completed' },
+      order: { draw_id: 'ASC' },
+      select: ['draw_id'],
+    });
+    const completedDrawIds: number[] = completedDraws.map(d => d.draw_id);
+    const totalCompleted = completedDrawIds.length;
+
+    // 每个店铺最后一次有效订单的 draw_id（status 1/2/3）
+    const shopIds = shops.map(s => s.shop_id).filter(Boolean);
+    type LastOrderRow = { shop_id: number; last_draw_id: number };
+    let lastOrderMap = new Map<number, number>();
+    if (shopIds.length) {
+      const rows: LastOrderRow[] = await this.orderRepo
+        .createQueryBuilder('o')
+        .select('o.shop_id', 'shop_id')
+        .addSelect('MAX(o.draw_id)', 'last_draw_id')
+        .where('o.shop_id IN (:...ids)', { ids: shopIds })
+        .andWhere('o.status IN (:...statuses)', { statuses: [1, 2, 3] })
+        .groupBy('o.shop_id')
+        .getRawMany();
+      rows.forEach(r => lastOrderMap.set(Number(r.shop_id), Number(r.last_draw_id)));
+    }
+
     return {
-      shops: shops.map(s => ({
-        shop_id: s.shop_id,
-        shop_number: s.shop_number,
-        shop_name: s.shop_name,
-        shop_aliases: s.shop_aliases || [],
-        status: s.status,
-        commission_rate: s.commission_rate,
-        owner_id: s.owner_id,
-        account_number: s.owner_id ? (userMap.get(s.owner_id) || null) : null,
-        subscription_expires_at: (s as any).subscription_expires_at ?? null,
-      })),
+      shops: shops.map(s => {
+        const user = s.owner_id ? userMap.get(s.owner_id) : null;
+        const lastDrawId = lastOrderMap.get(s.shop_id);
+        const inactive_periods = lastDrawId != null
+          ? completedDrawIds.filter(id => id > lastDrawId).length
+          : totalCompleted;
+        return {
+          shop_id: s.shop_id,
+          shop_number: s.shop_number,
+          shop_name: s.shop_name,
+          shop_aliases: s.shop_aliases || [],
+          status: s.status,
+          commission_rate: s.commission_rate,
+          owner_id: s.owner_id,
+          account_number: user ? user.account_number : null,
+          registered_at: user ? user.created_at : null,
+          inactive_periods,
+          subscription_expires_at: (s as any).subscription_expires_at ?? null,
+        };
+      }),
     };
   }
 

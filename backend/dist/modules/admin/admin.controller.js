@@ -50,6 +50,8 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const bcrypt = __importStar(require("bcrypt"));
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
 const user_entity_1 = require("../../entities/user.entity");
@@ -137,19 +139,48 @@ let AdminController = class AdminController {
         const users = ownerIds.length
             ? await this.userRepo.find({ where: { user_id: (0, typeorm_2.In)(ownerIds) } })
             : [];
-        const userMap = new Map(users.map(u => [u.user_id, u.account_number]));
+        const userMap = new Map(users.map(u => [u.user_id, u]));
+        const completedDraws = await this.drawRepo.find({
+            where: { status: 'completed' },
+            order: { draw_id: 'ASC' },
+            select: ['draw_id'],
+        });
+        const completedDrawIds = completedDraws.map(d => d.draw_id);
+        const totalCompleted = completedDrawIds.length;
+        const shopIds = shops.map(s => s.shop_id).filter(Boolean);
+        let lastOrderMap = new Map();
+        if (shopIds.length) {
+            const rows = await this.orderRepo
+                .createQueryBuilder('o')
+                .select('o.shop_id', 'shop_id')
+                .addSelect('MAX(o.draw_id)', 'last_draw_id')
+                .where('o.shop_id IN (:...ids)', { ids: shopIds })
+                .andWhere('o.status IN (:...statuses)', { statuses: [1, 2, 3] })
+                .groupBy('o.shop_id')
+                .getRawMany();
+            rows.forEach(r => lastOrderMap.set(Number(r.shop_id), Number(r.last_draw_id)));
+        }
         return {
-            shops: shops.map(s => ({
-                shop_id: s.shop_id,
-                shop_number: s.shop_number,
-                shop_name: s.shop_name,
-                shop_aliases: s.shop_aliases || [],
-                status: s.status,
-                commission_rate: s.commission_rate,
-                owner_id: s.owner_id,
-                account_number: s.owner_id ? (userMap.get(s.owner_id) || null) : null,
-                subscription_expires_at: s.subscription_expires_at ?? null,
-            })),
+            shops: shops.map(s => {
+                const user = s.owner_id ? userMap.get(s.owner_id) : null;
+                const lastDrawId = lastOrderMap.get(s.shop_id);
+                const inactive_periods = lastDrawId != null
+                    ? completedDrawIds.filter(id => id > lastDrawId).length
+                    : totalCompleted;
+                return {
+                    shop_id: s.shop_id,
+                    shop_number: s.shop_number,
+                    shop_name: s.shop_name,
+                    shop_aliases: s.shop_aliases || [],
+                    status: s.status,
+                    commission_rate: s.commission_rate,
+                    owner_id: s.owner_id,
+                    account_number: user ? user.account_number : null,
+                    registered_at: user ? user.created_at : null,
+                    inactive_periods,
+                    subscription_expires_at: s.subscription_expires_at ?? null,
+                };
+            }),
         };
     }
     async deleteAccount(accountNumber) {
@@ -351,6 +382,24 @@ let AdminController = class AdminController {
         });
         return { success: true, message: `已归档第 ${completed.draw_id} 期大庄数据` };
     }
+    async getLogs(lines = '100') {
+        const logDir = path.join(__dirname, '..', '..', 'logs');
+        const today = new Date().toISOString().split('T')[0];
+        const logFile = path.join(logDir, `error-${today}.log`);
+        let content = '';
+        try {
+            if (fs.existsSync(logFile)) {
+                const fileContent = fs.readFileSync(logFile, 'utf-8');
+                const allLines = fileContent.split('\n');
+                const maxLines = Math.min(parseInt(lines, 10) || 100, 500);
+                content = allLines.slice(-maxLines).join('\n');
+            }
+        }
+        catch (e) {
+            return { success: false, error: '读取日志失败: ' + e.message };
+        }
+        return { success: true, logs: content, date: today };
+    }
 };
 exports.AdminController = AdminController;
 __decorate([
@@ -433,6 +482,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "archiveMainShop", null);
+__decorate([
+    (0, common_1.Get)('logs'),
+    __param(0, (0, common_1.Query)('lines')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getLogs", null);
 exports.AdminController = AdminController = __decorate([
     (0, common_1.Controller)('admin'),
     (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),

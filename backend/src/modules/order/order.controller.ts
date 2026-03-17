@@ -596,10 +596,17 @@ export class BetStatusController {
   @Get()
   async getBetStatus(@Query('shopId') shopId: string) {
     const drawRepo = this.dataSource.getRepository(Draw);
-    const draw = await drawRepo.findOne({
+    // 优先查 pending，没有则查最新的 completed（用于显示最近开奖时间）
+    let draw = await drawRepo.findOne({
       where: { status: 'pending' },
       order: { draw_id: 'DESC' },
     });
+    if (!draw) {
+      draw = await drawRepo.findOne({
+        where: { status: 'completed' },
+        order: { draw_id: 'DESC' },
+      });
+    }
 
     let canBet = true;
     let minutesUntilDraw: number | undefined;

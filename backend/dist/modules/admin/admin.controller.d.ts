@@ -31,6 +31,8 @@ export declare class AdminController {
             commission_rate: number;
             owner_id: number;
             account_number: string;
+            registered_at: Date;
+            inactive_periods: number;
             subscription_expires_at: any;
         }[];
     }>;
@@ -88,5 +90,16 @@ export declare class AdminController {
     archiveMainShop(): Promise<{
         success: boolean;
         message: string;
+    }>;
+    getLogs(lines?: string): Promise<{
+        success: boolean;
+        error: string;
+        logs?: undefined;
+        date?: undefined;
+    } | {
+        success: boolean;
+        logs: string;
+        date: string;
+        error?: undefined;
     }>;
 }
