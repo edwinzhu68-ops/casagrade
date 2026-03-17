@@ -42,10 +42,10 @@
   <!-- 操作栏 -->
   <div class="no-print flex gap-3 flex-wrap justify-center">
     <button onclick="saveScreenshot()" id="btn-save" class="bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
-      📸 保存截图
+      📸 Guardar imagen
     </button>
-    <button onclick="history.back()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
-      ← 返回
+    <button onclick="window.close()" class="bg-gray-600 hover:bg-gray-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow">
+      ← Volver
     </button>
   </div>
 
@@ -132,19 +132,19 @@
 
     function saveScreenshot() {
       const btn = document.getElementById('btn-save');
-      btn.textContent = '⏳ 生成中...';
+      btn.textContent = '⏳ Generando...';
       btn.disabled = true;
       const poster = document.getElementById('poster');
-      html2canvas(poster, { scale: 2, useCORS: true, backgroundColor: '#ffffff' }).then(function(canvas) {
+      html2canvas(poster, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' }).then(function(canvas) {
         const link = document.createElement('a');
         const shop = document.getElementById('display-shop-number').textContent.trim();
         link.download = 'poster' + (shop && shop !== '—' ? '-' + shop : '') + '.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
-        btn.textContent = '📸 保存截图';
+        btn.textContent = '📸 Guardar imagen';
         btn.disabled = false;
       }).catch(function() {
-        btn.textContent = '📸 保存截图';
+        btn.textContent = '📸 Guardar imagen';
         btn.disabled = false;
       });
     }

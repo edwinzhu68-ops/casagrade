@@ -162,7 +162,7 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-xs text-gray-400" data-i18n="period_sales">本期销售额</p>
-            <p class="text-3xl font-bold text-green-400" id="today-income">$0.00</p>
+            <p class="text-3xl font-bold text-green-400" id="today-income">0.00</p>
           </div>
           <div class="text-right text-xs text-gray-400 space-y-1">
             <div><span data-i18n="paid_label">已付款</span>：<span id="today-paid" class="font-bold text-green-300">0</span> <span data-i18n="orders_unit">单</span></div>
@@ -176,7 +176,7 @@
           </button>
           <div class="bg-gray-900/60 rounded-xl p-3 text-center">
             <p class="text-xs text-gray-400 mb-1" data-i18n="wins_amount">中奖金额</p>
-            <p class="text-2xl font-bold text-purple-300" id="today-wins">$0</p>
+            <p class="text-2xl font-bold text-purple-300" id="today-wins">0</p>
           </div>
           <div class="bg-gray-900/60 rounded-xl p-3 text-center">
             <p class="text-xs text-gray-400 mb-1" data-i18n="pending_confirm">待确认订单</p>
@@ -352,7 +352,7 @@
         </div>
         <div class="flex justify-between mb-2">
           <span class="text-gray-400" data-i18n="amount_label">金额</span>
-          <span class="text-3xl font-bold text-green-400">$<span id="detail-amount">0</span></span>
+          <span class="text-3xl font-bold text-green-400"><span id="detail-amount">0</span></span>
         </div>
         <div class="border-t border-gray-600 pt-2 mt-2">
           <p class="text-gray-400 text-sm mb-2" data-i18n="numbers_label">号码</p>
@@ -360,7 +360,7 @@
         </div>
         <div id="detail-win-section" class="hidden mt-2 pt-2 border-t border-gray-600">
           <p class="text-gray-400 text-sm mb-1" data-i18n="win_amount_label">中奖金额</p>
-          <p class="text-2xl font-bold text-emerald-400">$<span id="detail-win-amount">0</span></p>
+          <p class="text-2xl font-bold text-emerald-400"><span id="detail-win-amount">0</span></p>
           <p class="text-gray-400 text-xs mt-2 mb-1" data-i18n="win_numbers_label">中奖号码</p>
           <div id="detail-win-breakdown" class="font-mono text-sm space-y-0.5 text-emerald-200"></div>
         </div>
@@ -433,7 +433,7 @@
         </div>
         <div class="flex justify-between items-center">
           <span class="text-gray-400" data-i18n="win_amount_label">中奖金额</span>
-          <span class="text-3xl font-bold text-green-400">$<span id="redeem-win-amount">0</span></span>
+          <span class="text-3xl font-bold text-green-400"><span id="redeem-win-amount">0</span></span>
         </div>
       </div>
       <div class="flex gap-3">
@@ -1673,8 +1673,8 @@
         document.getElementById('today-total').textContent = periodConfirmedCount;
         document.getElementById('today-paid').textContent = ordersForCurrentDraw.length;
         document.getElementById('today-unpaid').textContent = unpaidOrders.length;
-        document.getElementById('today-income').textContent = '$' + totalIncome.toFixed(2);
-        document.getElementById('today-wins').textContent = '$' + Math.round(totalWinsPending).toString();
+        document.getElementById('today-income').textContent = totalIncome.toFixed(2);
+        document.getElementById('today-wins').textContent = Math.round(totalWinsPending).toString();
 
         // 计算销量（当期订单）
         calculateSales();
@@ -1968,7 +1968,7 @@
               '<span class="font-mono font-bold">单号 ' + orderLast4(fullNum) + '</span>' +
               '<span class="text-gray-400 ml-2">' + numLen + '个号</span></div>' +
               '<div class="text-right">' +
-              '<span class="text-xl font-bold text-orange-400">$' + Number(order.amount || 0).toFixed(2) + '</span>' +
+              '<span class="text-xl font-bold text-orange-400">' + Number(order.amount || 0).toFixed(2) + '</span>' +
               '<button onclick="quickConfirm(\'' + safeFull + '\')" class="ml-2 bg-orange-500 hover:bg-orange-600 px-4 py-1.5 rounded-lg text-sm font-bold">确认</button>' +
               '</div></div>';
           }).join('');
@@ -1983,7 +1983,7 @@
             var safeFull = String(fullNum || '').replace(/'/g, "\\'");
             var winAmt = getOrderWinAmount(order);
             return '<div class="bg-gray-700 rounded-lg px-3 py-2 flex justify-between items-center">' +
-              '<button type="button" onclick="viewOrder(\'' + safeFull + '\')" class="text-left flex-1 font-mono text-sm text-emerald-100 hover:underline">' + t('order_short_label') + ' ' + orderLast4(fullNum) + ' · $' + winAmt.toFixed(2) + '</button>' +
+              '<button type="button" onclick="viewOrder(\'' + safeFull + '\')" class="text-left flex-1 font-mono text-sm text-emerald-100 hover:underline">' + t('order_short_label') + ' ' + orderLast4(fullNum) + ' · ' + winAmt.toFixed(2) + '</button>' +
               '<button type="button" onclick="redeemFromList(\'' + safeFull + '\', ' + winAmt + ')" class="ml-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold">' + t('btn_redeem') + '</button>' +
               '</div>';
           }).join('');
@@ -2060,10 +2060,10 @@
         if (isWon) {
           var winAmt = winMap[String(numVal)];
           right = (winAmt > 0)
-            ? '<span class="text-emerald-400 font-bold">+$' + winAmt.toFixed(2) + '</span>'
+            ? '<span class="text-emerald-400 font-bold">+' + winAmt.toFixed(2) + '</span>'
             : '<span class="text-gray-500">—</span>';
         } else {
-          right = '<span class="text-green-400">$' + lineTotal + '</span>';
+          right = '<span class="text-green-400">' + lineTotal + '</span>';
         }
         var rowClass = (isWon && winMap[String(numVal)] > 0) ? 'bg-emerald-900/30 rounded px-1' : '';
         return '<div class="flex justify-between items-center py-1 ' + rowClass + '">'

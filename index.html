@@ -714,7 +714,7 @@
     const CLIENT_LAST_PAID_KEY = 'lottery_client_last_paid_order';
     const CLIENT_PAID_ORDERS_KEY = 'lottery_client_paid_orders';
     const CLIENT_PENDING_ORDERS_KEY = 'lottery_client_pending_orders';
-    const PAID_ORDERS_KEEP_DAYS_AFTER_DRAW = 14;
+    const PAID_ORDERS_KEEP_DAYS_AFTER_DRAW = 7;
     const AUTH_CURRENT_KEY = 'lottery_auth_current';
     const AUTH_USERS_KEY = 'lottery_auth_users';
     const SESSION_DISPLAY_NAME_KEY = 'lottery_session_display_name';
@@ -845,7 +845,7 @@
             status: data.status,
             win_amount: data.win_amount,
             redeemed_at: data.redeemed_at,
-            created_at: data.created_at || null
+            created_at: new Date().toISOString()
           };
           var paidRaw = localStorage.getItem(CLIENT_PAID_ORDERS_KEY);
           var paidList = paidRaw ? JSON.parse(paidRaw) : [];
@@ -1871,8 +1871,8 @@
         renderPaymentQR(qrInfo, 'pay-qr');
         var payShopEl = document.getElementById('pay-shop-number');
         if (payShopEl) payShopEl.textContent = currentShop.shop_number || '-';
-        // 保存后端返回的真实下单时间（固定在订单上，不随页面刷新变化）
-        const orderCreatedAt = data.created_at || new Date().toISOString();
+        // 下单瞬间的本地时间（永久固定，不依赖后端 created_at）
+        const orderCreatedAt = new Date().toISOString();
 
         // 在付款页显示下单时间和开奖时间（展示用统一 DD-MM-YYYY）
         try {
@@ -2259,7 +2259,8 @@
           var safeNum = (num + '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           var lineThrough = past ? '<span class="absolute inset-y-0 left-0 right-0 flex items-center pointer-events-none" aria-hidden="true"><span class="w-full h-px bg-gray-400"></span></span>' : '';
           var rawNum = (num + '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-          return '<button type="button" onclick="openClientOrderDetail(\'' + rawNum + '\')" class="client-order-btn client-paid-item w-full border-2 rounded-xl px-3 py-2 flex justify-between items-center text-left ' + btnClass + '" data-order-number="' + safeNum + '">' + lineThrough + '<span class="' + (past ? 'relative z-10 ' : '') + 'font-mono text-sm">' + shop + ' · #' + shortNum + '</span><span class="' + (past ? 'relative z-10 ' : '') + 'font-mono font-bold text-sm">' + amt + '</span></button>';
+          var reorderBtn = past ? '<span onclick="event.stopPropagation();reorderFromHistory(\'' + rawNum + '\')" class="relative z-10 ml-1.5 px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 text-xs font-bold shrink-0 cursor-pointer hover:bg-amber-200 active:bg-amber-300">↩ Repetir</span>' : '';
+          return '<button type="button" onclick="openClientOrderDetail(\'' + rawNum + '\')" class="client-order-btn client-paid-item w-full border-2 rounded-xl px-3 py-2 flex justify-between items-center text-left ' + btnClass + '" data-order-number="' + safeNum + '">' + lineThrough + '<span class="' + (past ? 'relative z-10 ' : '') + 'flex items-center gap-0 font-mono text-sm"><span>' + shop + ' · #' + shortNum + '</span>' + reorderBtn + '</span><span class="' + (past ? 'relative z-10 ' : '') + 'font-mono font-bold text-sm">' + amt + '</span></button>';
         }).join('');
 
         // 限制并发请求数量，避免 ERR_INSUFFICIENT_RESOURCES
@@ -2303,6 +2304,39 @@
         });
       } catch (e) {
         wrap.classList.add('hidden');
+      }
+    }
+
+    // 重新下单：从历史订单复制号码到 betList，切回下单页
+    async function reorderFromHistory(orderNumber) {
+      try {
+        const res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)));
+        if (!res.ok) { alert('获取订单失败'); return; }
+        const data = await res.json();
+        const numbers = data.numbers;
+        if (!Array.isArray(numbers) || numbers.length === 0) { alert('订单无号码'); return; }
+
+        // 清空当前 betList，填入历史号码
+        betList = [];
+        numbers.forEach(function (item) {
+          var n = String(item.n != null ? item.n : (item.number || '')).replace(/\D/g, '');
+          var q = Math.max(1, parseInt(item.q != null ? item.q : (item.quantity || 1), 10) || 1);
+          var type = n.length >= 4 ? 'BILLETE' : 'CHANCE';
+          var unitPrice = type === 'BILLETE' ? priceBillete : priceChance;
+          var existing = betList.find(function (b) { return b.number === n; });
+          if (existing) { existing.quantity += q; }
+          else { betList.push({ number: n, quantity: q, unitPrice: unitPrice, gameType: type }); }
+        });
+
+        // 切换到与第一条号码匹配的游戏类型
+        var firstType = betList.length > 0 ? betList[0].gameType : 'BILLETE';
+        setGameType(firstType);
+        currentNumber = '';
+        currentQuantity = '';
+        updateUI();
+        showPage('page-shop');
+      } catch (e) {
+        alert('重新下单失败');
       }
     }
 

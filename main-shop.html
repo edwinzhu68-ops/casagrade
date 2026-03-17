@@ -59,15 +59,15 @@
       <div class="grid grid-cols-3 gap-3 mb-4">
         <div class="bg-gray-800 rounded-2xl p-3 border border-gray-700">
           <div class="text-xs text-gray-400 mb-1" data-i18n="label_sales">总销售额</div>
-          <div id="s-sales" class="text-xl font-black text-green-400 font-mono">$0.00</div>
+          <div id="s-sales" class="text-sm font-black text-green-400 font-mono break-all">0.00</div>
         </div>
         <div class="bg-gray-800 rounded-2xl p-3 border border-gray-700">
           <div class="text-xs text-gray-400 mb-1" data-i18n="label_commission">需付佣金</div>
-          <div id="s-commission" class="text-xl font-black text-orange-400 font-mono">$0.00</div>
+          <div id="s-commission" class="text-sm font-black text-orange-400 font-mono break-all">0.00</div>
         </div>
         <div class="bg-gray-800 rounded-2xl p-3 border border-green-800">
           <div class="text-xs text-gray-400 mb-1" data-i18n="label_net">大庄净收益</div>
-          <div id="s-net" class="text-xl font-black font-mono text-white">$0.00</div>
+          <div id="s-net" class="text-sm font-black font-mono text-white break-all">0.00</div>
         </div>
       </div>
 
@@ -479,12 +479,12 @@ async function loadCurrentData() {
 
     // 汇总卡片
     const summary = d.summary || {};
-    document.getElementById('s-sales').textContent = `$${(summary.total_sales || 0).toFixed(2)}`;
-    document.getElementById('s-commission').textContent = `$${(summary.total_commission_paid || 0).toFixed(2)}`;
+    document.getElementById('s-sales').textContent = (summary.total_sales || 0).toFixed(2);
+    document.getElementById('s-commission').textContent = (summary.total_commission_paid || 0).toFixed(2);
     const mainNet = summary.main_total_net || 0;
     const netEl = document.getElementById('s-net');
-    netEl.textContent = `${mainNet < 0 ? '-' : ''}$${Math.abs(mainNet).toFixed(2)}`;
-    netEl.className = `text-xl font-black font-mono ${mainNet < 0 ? 'text-red-400' : 'text-green-400'}`;
+    netEl.textContent = `${mainNet < 0 ? '-' : ''}${Math.abs(mainNet).toFixed(2)}`;
+    netEl.className = `text-sm font-black font-mono break-all ${mainNet < 0 ? 'text-red-400' : 'text-green-400'}`;
 
     // 小庄列表（提示文案暂保留中文，因为主要用户是中文大庄）
     const listEl = document.getElementById('current-list');
@@ -495,16 +495,18 @@ async function loadCurrentData() {
         const mn = s.main_net_profit;
         const drawn = currentDrawStatus !== 'pending';
         const profitHtml = drawn
-          ? `<span class="${mn < 0 ? 'text-red-400' : 'text-green-400'}">${mn < 0 ? '-' : '+'}$${Math.abs(mn).toFixed(2)}</span>`
-          : `<span class="text-gray-500">$0.00</span>`;
+          ? `<span class="${mn < 0 ? 'text-red-400' : 'text-green-400'}">${mn < 0 ? '-' : '+'}${Math.abs(mn).toFixed(2)}</span>`
+          : `<span class="text-gray-500">0</span>`;
         const shopId = s.sub_shop_id || s.shopId || '';
+        const payoutVal = (s.total_payout || 0).toFixed(2);
         return `<div class="bg-gray-800 rounded-xl border border-gray-700 px-4 py-3 cursor-pointer active:opacity-80" onclick="openShopDetail('${shopId}')">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="font-black text-red-400 font-mono tracking-widest">${s.sub_shop_number}</span>
               <span class="text-xs bg-gray-700 px-1.5 py-0.5 rounded text-gray-400">${(s.commission_rate*100).toFixed(0)}%</span>
             </div>
-            <div class="flex gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400">佣金 <span class="text-orange-400 font-mono">${s.sub_commission.toFixed(2)}</span></span>
               <button onclick="event.stopPropagation(); openCommissionModal(${s.binding_id}, '${s.sub_shop_number}', ${s.commission_rate})"
                 class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg transition">⚙️</button>
               <button onclick="event.stopPropagation(); openUnbindModal(${s.binding_id}, '${s.sub_shop_number}')"
@@ -512,8 +514,8 @@ async function loadCurrentData() {
             </div>
           </div>
           <div class="flex items-center justify-between mt-2">
-            <div class="text-green-400 font-mono font-bold text-sm">$${s.total_sales.toFixed(2)}</div>
-            <div class="text-xs text-gray-500">佣金 <span class="text-orange-400">$${s.sub_commission.toFixed(2)}</span> · 盈利 ${profitHtml}</div>
+            <div class="text-green-400 font-mono font-bold text-sm">${s.total_sales.toFixed(2)}</div>
+            <div class="text-xs text-gray-500">赔付 <span class="text-red-300 font-mono">${payoutVal}</span> · 盈利 ${profitHtml}</div>
           </div>
         </div>`;
       }).join('');
@@ -736,9 +738,9 @@ async function loadHistory() {
           <span class="text-xs text-gray-500">${tm('history_status_done')}</span>
         </div>
         <div class="grid grid-cols-3 gap-2 mt-2 text-xs">
-          <div><span class="text-gray-500">${tm('history_label_sales')}</span><div class="font-mono font-bold text-green-400">$${h.total_sales.toFixed(2)}</div></div>
-          <div><span class="text-gray-500">${tm('history_label_commission')}</span><div class="font-mono font-bold text-orange-400">$${h.total_commission.toFixed(2)}</div></div>
-          <div><span class="text-gray-500">${tm('history_label_net_main')}</span><div class="font-mono font-bold ${mn < 0 ? 'text-red-400' : 'text-green-400'}">${mn < 0 ? '-' : ''}$${Math.abs(mn).toFixed(2)}</div></div>
+          <div><span class="text-gray-500">${tm('history_label_sales')}</span><div class="font-mono font-bold text-green-400">${h.total_sales.toFixed(2)}</div></div>
+          <div><span class="text-gray-500">${tm('history_label_commission')}</span><div class="font-mono font-bold text-orange-400">${h.total_commission.toFixed(2)}</div></div>
+          <div><span class="text-gray-500">${tm('history_label_net_main')}</span><div class="font-mono font-bold ${mn < 0 ? 'text-red-400' : 'text-green-400'}">${mn < 0 ? '-' : ''}${Math.abs(mn).toFixed(2)}</div></div>
         </div>
       </div>`;
     }).join('');
