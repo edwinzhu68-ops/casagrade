@@ -114,7 +114,7 @@ export class MerchantController implements OnModuleInit {
   }
 
   /**
-   * POST /merchant/register - 注册新门店账号（创建用户+店铺，店号随机5位）
+   * POST /merchant/register - 注册新门店账号（创建用户+店铺，店号从3位起自动分配）
    */
   @Post('register')
   async register(@Body() dto: RegisterDto) {
@@ -162,9 +162,9 @@ export class MerchantController implements OnModuleInit {
     } as User);
     await userRepo.save(user);
 
-    // 随机店号：必须先把 3 位（100–999）分配满，才会分配 4 位；4 位满了再 5 位 … 直至 9 位。一次查全库空位后从当前长度空位中随机。
-    const allShops = await shopRepo.find({ select: ['shop_number'] });
-    const taken = new Set(allShops.map((s) => s.shop_number));
+    // 随机店号：3位（100–999）分配满才分配4位，4位满了再5位 … 直至9位。跳过全重复号（如111）保留给管理员手动分配。
+    const allShops = await shopRepo.find({ select: ['shop_number'] as any });
+    const taken = new Set(allShops.map(s => s.shop_number));
 
     let shopNumber: string | null = null;
     for (const len of [3, 4, 5, 6, 7, 8, 9]) {
@@ -173,27 +173,26 @@ export class MerchantController implements OnModuleInit {
       const available: number[] = [];
       for (let n = min; n <= max; n++) {
         const sn = String(n);
-        // 跳过全部数字相同的号码（如 111、2222、33333），保留给管理员手动分配
-        if (/^(.)\1+$/.test(sn)) continue;
+        if (/^(.)\1+$/.test(sn)) continue; // 跳过111、2222等全重复号
         if (!taken.has(sn)) available.push(n);
       }
       if (available.length > 0) {
-        const pick = available[Math.floor(Math.random() * available.length)];
-        shopNumber = String(pick);
+        shopNumber = String(available[Math.floor(Math.random() * available.length)]);
         break;
       }
     }
     if (!shopNumber) {
       throw new BadRequestException('暂无可用的随机店号，请稍后再试或联系管理员分配');
     }
-    const shop = shopRepo.create({
+
+    const newShop = shopRepo.create({
       shop_number: shopNumber,
       owner_id: user.user_id,
       shop_name: shopName || `店铺${shopNumber}`,
       status: 'active',
       commission_rate: 0.1,
     });
-    await shopRepo.save(shop);
+    await shopRepo.save(newShop);
 
     this.logger.log(`注册: 账号=${account}, 店号=${shopNumber}`);
 
@@ -201,8 +200,7 @@ export class MerchantController implements OnModuleInit {
       success: true,
       message: '注册成功。可用账号或店号登录，密码相同。',
       accountNumber: account,
-      shop_number: shopNumber,
-      shop_id: shop.shop_id,
+      shopNumber,
     };
   }
 
@@ -396,17 +394,12 @@ export class MerchantController implements OnModuleInit {
       currentUser = await userRepo.findOne({ where: { user_id: userIdNum } });
     }
 
-    // 登录用的是店号时：优先按店号查店铺，确保能返回（不依赖 owner_id 是否一致）
+    // 登录用的是店号时：优先按店号查店铺（仅当该店铺已属于本用户时才走此快捷路径，禁止自动改写 owner_id）
     if (accountNumber && /^\d{1,9}$/.test(accountNumber)) {
       const shopByNumber = await shopRepo.findOne({
         where: { shop_number: accountNumber },
       });
-      if (shopByNumber) {
-        if (shopByNumber.owner_id !== userIdNum) {
-          shopByNumber.owner_id = userIdNum;
-          await shopRepo.save(shopByNumber);
-          this.logger.log(`店铺 ${accountNumber} 已关联到用户 ${userIdNum}`);
-        }
+      if (shopByNumber && shopByNumber.owner_id === userIdNum) {
         return {
           shops: [{
             shop_id: shopByNumber.shop_id,
@@ -474,10 +467,10 @@ export class MerchantController implements OnModuleInit {
   /**
    * POST /merchant/binding/request
    * 大庄主动邀请小庄绑定
-   * body: { mainShopId, subShopNumber }
+   * body: { mainShopId, subShopNumber, commissionRate? }
    */
   @Post('binding/request')
-  async bindingRequest(@Body() body: { mainShopId: number; subShopNumber: string }, @Req() req: any) {
+  async bindingRequest(@Body() body: { mainShopId: number; subShopNumber: string; commissionRate?: number }, @Req() req: any) {
     const { mainShopId, subShopNumber } = body;
     if (!mainShopId || !subShopNumber) {
       throw new BadRequestException('缺少参数');
@@ -506,20 +499,26 @@ export class MerchantController implements OnModuleInit {
     // 检查小庄是否已有绑定（unique 约束在 sub_shop_id）
     const existing = await bindingRepo.findOne({ where: { sub_shop_id: subShop.shop_id } });
     if (existing) {
-      if (existing.status === 'active') throw new BadRequestException('该小庄已绑定其他大庄，请先解绑');
+      const newRate = (body.commissionRate !== undefined && body.commissionRate >= 0 && body.commissionRate <= 100)
+        ? body.commissionRate / 100
+        : existing.commission_rate ?? 0.20;
+      if (existing.status === 'active') throw new BadRequestException('此店号已被绑定');
       if (existing.status === 'pending') throw new BadRequestException('该小庄已有待确认的绑定邀请');
       // rejected 状态允许重新邀请
       existing.main_shop_id = mainShop.shop_id;
       existing.status = 'pending';
-      existing.commission_rate = 0.20;
+      existing.commission_rate = newRate;
       await bindingRepo.save(existing);
       return { success: true, message: '绑定邀请已重新发送，等待小庄确认' };
     }
 
+    const rate = (body.commissionRate !== undefined && body.commissionRate >= 0 && body.commissionRate <= 100)
+      ? body.commissionRate / 100
+      : 0.20;
     const binding = bindingRepo.create({
       main_shop_id: mainShop.shop_id,
       sub_shop_id: subShop.shop_id,
-      commission_rate: 0.20,
+      commission_rate: rate,
       status: 'pending',
     });
     await bindingRepo.save(binding);

@@ -508,6 +508,17 @@ export class DrawController {
 
     this.logger.log(`开奖完成: ${JSON.stringify(winningNumbers)}`);
 
+    // 开奖前取消所有未付款订单（兜底：tick 已处理过的本次为 0 条）
+    const cancelResult = await this.dataSource.getRepository(Order)
+      .createQueryBuilder()
+      .update(Order)
+      .set({ status: -1 } as any)
+      .where('draw_id = :drawId AND status = 0', { drawId: draw.draw_id })
+      .execute();
+    if (cancelResult.affected && cancelResult.affected > 0) {
+      this.logger.log(`开奖时取消未付款订单 ${cancelResult.affected} 条`);
+    }
+
     await settleOrdersForDraw(
       this.dataSource,
       draw.draw_id,

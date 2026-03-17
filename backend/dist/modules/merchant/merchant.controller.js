@@ -179,44 +179,11 @@ let MerchantController = MerchantController_1 = class MerchantController {
             email,
         });
         await userRepo.save(user);
-        const allShops = await shopRepo.find({ select: ['shop_number'] });
-        const taken = new Set(allShops.map((s) => s.shop_number));
-        let shopNumber = null;
-        for (const len of [3, 4, 5, 6, 7, 8, 9]) {
-            const min = Math.pow(10, len - 1);
-            const max = Math.pow(10, len) - 1;
-            const available = [];
-            for (let n = min; n <= max; n++) {
-                const sn = String(n);
-                if (/^(.)\1+$/.test(sn))
-                    continue;
-                if (!taken.has(sn))
-                    available.push(n);
-            }
-            if (available.length > 0) {
-                const pick = available[Math.floor(Math.random() * available.length)];
-                shopNumber = String(pick);
-                break;
-            }
-        }
-        if (!shopNumber) {
-            throw new common_1.BadRequestException('暂无可用的随机店号，请稍后再试或联系管理员分配');
-        }
-        const shop = shopRepo.create({
-            shop_number: shopNumber,
-            owner_id: user.user_id,
-            shop_name: shopName || `店铺${shopNumber}`,
-            status: 'active',
-            commission_rate: 0.1,
-        });
-        await shopRepo.save(shop);
-        this.logger.log(`注册: 账号=${account}, 店号=${shopNumber}`);
+        this.logger.log(`注册: 账号=${account}，等待管理员分配店号`);
         return {
             success: true,
-            message: '注册成功。可用账号或店号登录，密码相同。',
+            message: '注册成功，请联系管理员分配店号后方可使用。',
             accountNumber: account,
-            shop_number: shopNumber,
-            shop_id: shop.shop_id,
         };
     }
     async forgotPassword(body) {

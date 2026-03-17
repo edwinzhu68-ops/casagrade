@@ -7,6 +7,7 @@ import { Shop } from '../../entities/shop.entity';
 import { User } from '../../entities/user.entity';
 import { Draw } from '../../entities/draw.entity';
 import { CardCode } from '../../entities/card-code.entity';
+import { ShopBinding } from '../../entities/shop-binding.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
 
 /** 生成卡密：XXXX-XXXX-XXXX，去掉易混淆字符 */
@@ -33,6 +34,8 @@ export class AdminController {
     private readonly drawRepo: Repository<Draw>,
     @InjectRepository(CardCode)
     private readonly cardCodeRepo: Repository<CardCode>,
+    @InjectRepository(ShopBinding)
+    private readonly shopBindingRepo: Repository<ShopBinding>,
   ) {}
 
   /**
@@ -151,6 +154,9 @@ export class AdminController {
     const shops = await this.shopRepo.find({ where: { owner_id: user.user_id } });
     const shopNumbers = shops.map(s => s.shop_number);
     for (const shop of shops) {
+      // 先删除该店铺相关的所有 binding 记录（主店或子店），防止 shop_id 被复用后残留数据污染新账号
+      await this.shopBindingRepo.delete({ main_shop_id: shop.shop_id });
+      await this.shopBindingRepo.delete({ sub_shop_id: shop.shop_id });
       await this.shopRepo.delete(shop.shop_id);
     }
     await this.userRepo.delete(user.user_id);

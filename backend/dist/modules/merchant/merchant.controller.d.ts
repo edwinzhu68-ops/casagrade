@@ -24,8 +24,6 @@ export declare class MerchantController implements OnModuleInit {
         success: boolean;
         message: string;
         accountNumber: string;
-        shop_number: string;
-        shop_id: number;
     }>;
     forgotPassword(body: {
         email: string;

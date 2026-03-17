@@ -16,13 +16,14 @@ const shop_entity_1 = require("../../entities/shop.entity");
 const user_entity_1 = require("../../entities/user.entity");
 const draw_entity_1 = require("../../entities/draw.entity");
 const card_code_entity_1 = require("../../entities/card-code.entity");
+const shop_binding_entity_1 = require("../../entities/shop-binding.entity");
 let AdminModule = class AdminModule {
 };
 exports.AdminModule = AdminModule;
 exports.AdminModule = AdminModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([order_entity_1.Order, shop_entity_1.Shop, user_entity_1.User, draw_entity_1.Draw, card_code_entity_1.CardCode]),
+            typeorm_1.TypeOrmModule.forFeature([order_entity_1.Order, shop_entity_1.Shop, user_entity_1.User, draw_entity_1.Draw, card_code_entity_1.CardCode, shop_binding_entity_1.ShopBinding]),
         ],
         controllers: [admin_controller_1.AdminController],
         providers: [alias_cleanup_service_1.AliasCleanupService],

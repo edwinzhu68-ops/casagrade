@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { DataSource, IsNull, In } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
+import { Order } from '../../entities/order.entity';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -154,11 +155,30 @@ export class DrawDayService implements OnModuleInit {
       this.logger.log(`开奖日更新: ${dateStr} ${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
     }
 
-    // 自动归档：开奖日当天，当前时间 >= draw_time，且本日还未归档过
+    // 自动归档 + 取消未付款订单：开奖日当天，当前时间 >= draw_time，且本日还未处理过
     if (dateStr === todayStr && nowMins >= drawMins && this.autoArchivedForDate !== todayStr) {
       this.autoArchivedForDate = todayStr;
       this.save();
+      await this.cancelUnpaidOrders(pending.draw_id);
       await this.autoArchiveLastCompleted();
+    }
+  }
+
+  /** 开奖时间到：将当期所有未付款订单（status=0）标记为已取消（status=-1） */
+  private async cancelUnpaidOrders(drawId: number) {
+    try {
+      const orderRepo = this.dataSource.getRepository(Order);
+      const result = await orderRepo
+        .createQueryBuilder()
+        .update(Order)
+        .set({ status: -1 } as any)
+        .where('draw_id = :drawId AND status = 0', { drawId })
+        .execute();
+      if (result.affected && result.affected > 0) {
+        this.logger.log(`开奖时间到，取消未付款订单 ${result.affected} 条（draw_id=${drawId}）`);
+      }
+    } catch (e) {
+      this.logger.warn('取消未付款订单失败: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 

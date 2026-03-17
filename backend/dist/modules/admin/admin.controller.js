@@ -55,6 +55,7 @@ const shop_entity_1 = require("../../entities/shop.entity");
 const user_entity_1 = require("../../entities/user.entity");
 const draw_entity_1 = require("../../entities/draw.entity");
 const card_code_entity_1 = require("../../entities/card-code.entity");
+const shop_binding_entity_1 = require("../../entities/shop-binding.entity");
 const admin_token_guard_1 = require("../../guards/admin-token.guard");
 function generateCardCode(type) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -64,12 +65,13 @@ function generateCardCode(type) {
     return `${prefix}${rand2()}-${seg4()}-${seg4()}`;
 }
 let AdminController = class AdminController {
-    constructor(orderRepo, shopRepo, userRepo, drawRepo, cardCodeRepo) {
+    constructor(orderRepo, shopRepo, userRepo, drawRepo, cardCodeRepo, shopBindingRepo) {
         this.orderRepo = orderRepo;
         this.shopRepo = shopRepo;
         this.userRepo = userRepo;
         this.drawRepo = drawRepo;
         this.cardCodeRepo = cardCodeRepo;
+        this.shopBindingRepo = shopBindingRepo;
     }
     async shopCompare(from, to, top = '10') {
         const topN = Number(top) || 10;
@@ -160,6 +162,8 @@ let AdminController = class AdminController {
         const shops = await this.shopRepo.find({ where: { owner_id: user.user_id } });
         const shopNumbers = shops.map(s => s.shop_number);
         for (const shop of shops) {
+            await this.shopBindingRepo.delete({ main_shop_id: shop.shop_id });
+            await this.shopBindingRepo.delete({ sub_shop_id: shop.shop_id });
             await this.shopRepo.delete(shop.shop_id);
         }
         await this.userRepo.delete(user.user_id);
@@ -437,7 +441,9 @@ exports.AdminController = AdminController = __decorate([
     __param(2, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(3, (0, typeorm_1.InjectRepository)(draw_entity_1.Draw)),
     __param(4, (0, typeorm_1.InjectRepository)(card_code_entity_1.CardCode)),
+    __param(5, (0, typeorm_1.InjectRepository)(shop_binding_entity_1.ShopBinding)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,

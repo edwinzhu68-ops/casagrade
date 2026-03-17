@@ -96,6 +96,35 @@ export class OrderController {
       await drawRepo.save(currentDraw);
     }
 
+    // 2a. 服务端停售窗口验证（开奖前5分钟 到 开奖后60分钟，拒绝下单）
+    if (currentDraw) {
+      const timeStr = String(currentDraw.draw_time || '').trim();
+      let drawHour = -1, drawMin = 0;
+      let dy: number, dm: number, dd: number;
+      if (timeStr.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+        const iso = timeStr.substring(0, 10);
+        dy = parseInt(iso.slice(0, 4), 10);
+        dm = parseInt(iso.slice(5, 7), 10);
+        dd = parseInt(iso.slice(8, 10), 10);
+        const dt = new Date(timeStr);
+        if (!isNaN(dt.getTime())) { drawHour = dt.getHours(); drawMin = dt.getMinutes(); }
+      }
+      if (drawHour >= 0) {
+        const panama = getPanamaNow();
+        const todayStr = `${String(panama.d).padStart(2,'0')}-${String(panama.m).padStart(2,'0')}-${panama.y}`;
+        const confirmedDrawDay = `${String(dd).padStart(2,'0')}-${String(dm).padStart(2,'0')}-${dy}`;
+        if (confirmedDrawDay === todayStr) {
+          const totalMins = panama.h * 60 + panama.min;
+          const confirmedDrawMins = drawHour * 60 + drawMin;
+          const stopSaleStart = confirmedDrawMins - 5;
+          const drawEndMins = confirmedDrawMins + 60;
+          if (totalMins >= stopSaleStart && totalMins < drawEndMins) {
+            throw new BadRequestException('当前处于开奖窗口期，暂停下单');
+          }
+        }
+      }
+    }
+
     // 2b. 每号限额校验（仅当限额已设置且有当期）
     const limitChance = (shop as any).limit_chance as number | null;
     const limitBillete = (shop as any).limit_billete as number | null;
@@ -485,6 +514,7 @@ export class ShopController {
       shopName: shop.shop_name,
       orders: orders.map(order => ({
         order_id: order.order_id,
+        shop_id: order.shop_id,
         order_number: order.order_number,
         order_hash: order.order_hash,
         numbers: order.numbers,

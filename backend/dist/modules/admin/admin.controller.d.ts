@@ -4,13 +4,15 @@ import { Shop } from '../../entities/shop.entity';
 import { User } from '../../entities/user.entity';
 import { Draw } from '../../entities/draw.entity';
 import { CardCode } from '../../entities/card-code.entity';
+import { ShopBinding } from '../../entities/shop-binding.entity';
 export declare class AdminController {
     private readonly orderRepo;
     private readonly shopRepo;
     private readonly userRepo;
     private readonly drawRepo;
     private readonly cardCodeRepo;
-    constructor(orderRepo: Repository<Order>, shopRepo: Repository<Shop>, userRepo: Repository<User>, drawRepo: Repository<Draw>, cardCodeRepo: Repository<CardCode>);
+    private readonly shopBindingRepo;
+    constructor(orderRepo: Repository<Order>, shopRepo: Repository<Shop>, userRepo: Repository<User>, drawRepo: Repository<Draw>, cardCodeRepo: Repository<CardCode>, shopBindingRepo: Repository<ShopBinding>);
     shopCompare(from: string, to: string, top?: string): Promise<{
         items: {
             shopNumber: string;

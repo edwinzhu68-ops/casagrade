@@ -8,10 +8,11 @@ import { Shop } from '../../entities/shop.entity';
 import { User } from '../../entities/user.entity';
 import { Draw } from '../../entities/draw.entity';
 import { CardCode } from '../../entities/card-code.entity';
+import { ShopBinding } from '../../entities/shop-binding.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, Shop, User, Draw, CardCode]),
+    TypeOrmModule.forFeature([Order, Shop, User, Draw, CardCode, ShopBinding]),
     // ScheduleModule.forRoot(),
   ],
   controllers: [AdminController],
