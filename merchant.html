@@ -2053,6 +2053,8 @@
       var winMap = {};
       breakdown.forEach(function (b) { if (b.n != null) winMap[String(b.n)] = Number(b.win) || 0; });
       var priceBillete = 1, priceChance = 0.25;
+      try { var _pb = parseFloat(localStorage.getItem('price_billete')); if (!isNaN(_pb) && _pb > 0) priceBillete = _pb; } catch(e) {}
+      try { var _pc = parseFloat(localStorage.getItem('price_chance')); if (!isNaN(_pc) && _pc > 0) priceChance = _pc; } catch(e) {}
       var numbersHtml = (order.numbers || []).map(function (n) {
         var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
         var numStr = String(numVal).replace(/\D/g, '');

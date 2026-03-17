@@ -109,8 +109,14 @@
       <div class="flex gap-2">
         <input id="bind-sub-number" type="text" data-i18n-ph="bind_placeholder" placeholder="输入小庄店号"
           class="flex-1 bg-gray-700 rounded-xl px-3 py-2 text-sm font-mono" />
+        <div class="flex items-center bg-gray-700 rounded-xl px-3 py-2 gap-1 shrink-0">
+          <input id="bind-commission" type="number" min="0" max="100" step="1" value="20"
+            class="w-10 bg-transparent text-sm text-center font-bold text-white focus:outline-none" />
+          <span class="text-gray-400 text-sm">%</span>
+        </div>
         <button onclick="bindSubShop()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-xl text-sm font-bold transition" data-i18n="btn_bind">绑定</button>
       </div>
+      <p class="text-xs text-gray-500 mt-1" data-i18n="bind_commission_hint">小庄固定拿销售额 × 佣金率，不看输赢</p>
       <p id="bind-sub-result" class="hidden text-xs mt-2"></p>
     </div>
 
@@ -249,6 +255,7 @@ const MAIN_T = {
     section_bind: '🔗 Vincular sub-tienda',
     bind_placeholder: 'Número de sub-tienda',
     btn_bind: 'Vincular',
+    bind_commission_hint: 'La sub-tienda recibe ventas × comisión fija, sin importar resultado.',
     section_history: '📋 Historial',
     btn_refresh: 'Actualizar',
     loading: 'Cargando...',
@@ -298,6 +305,7 @@ const MAIN_T = {
     section_bind: '🔗 绑定小庄',
     bind_placeholder: '输入小庄店号',
     btn_bind: '绑定',
+    bind_commission_hint: '小庄固定拿销售额 × 佣金率，不看输赢',
     section_history: '📋 历史记录',
     btn_refresh: '刷新',
     loading: '加载中…',
@@ -752,15 +760,18 @@ async function loadHistory() {
 // ─── 绑定小庄 ───
 async function bindSubShop() {
   const inp = document.getElementById('bind-sub-number');
+  const commInp = document.getElementById('bind-commission');
   const resultEl = document.getElementById('bind-sub-result');
   const subNum = inp ? inp.value.trim() : '';
+  const commVal = commInp ? parseFloat(commInp.value) : NaN;
   if (resultEl) resultEl.classList.add('hidden');
   if (!subNum) { showToast('请输入小庄店号', '❌'); return; }
+  if (isNaN(commVal) || commVal < 0 || commVal > 100) { showToast('佣金率请输入 0~100 的数字', '❌'); return; }
   try {
     const r = await fetch(`${API}/merchant/binding/request`, {
       method: 'POST',
       headers: getMainHeaders(true),
-      body: JSON.stringify({ mainShopId: currentShopId, subShopNumber: subNum }),
+      body: JSON.stringify({ mainShopId: currentShopId, subShopNumber: subNum, commissionRate: commVal }),
     });
     const d = await safeJson(r);
     if (!r.ok) throw new Error(d.message || '绑定失败');
