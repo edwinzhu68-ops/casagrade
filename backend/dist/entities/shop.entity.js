@@ -45,6 +45,10 @@ __decorate([
     __metadata("design:type", Array)
 ], Shop.prototype, "shop_aliases", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'simple-json', nullable: true }),
+    __metadata("design:type", Object)
+], Shop.prototype, "shop_alias_timestamps", void 0);
+__decorate([
     (0, typeorm_1.Column)({ length: 20, default: 'active' }),
     __metadata("design:type", String)
 ], Shop.prototype, "status", void 0);

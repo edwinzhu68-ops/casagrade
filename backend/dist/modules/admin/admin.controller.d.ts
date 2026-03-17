@@ -28,7 +28,13 @@ export declare class AdminController {
             status: string;
             commission_rate: number;
             owner_id: number;
+            account_number: string;
+            subscription_expires_at: any;
         }[];
+    }>;
+    deleteAccount(accountNumber: string): Promise<{
+        success: boolean;
+        message: string;
     }>;
     setShopStatus(shopId: string, status: string): Promise<{
         success: boolean;

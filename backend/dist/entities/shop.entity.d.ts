@@ -7,6 +7,7 @@ export declare class Shop {
     shop_name: string;
     commission_rate: number;
     shop_aliases: string[] | null;
+    shop_alias_timestamps: Record<string, string> | null;
     status: string;
     single_bet_limit: number;
     daily_bet_limit: number;

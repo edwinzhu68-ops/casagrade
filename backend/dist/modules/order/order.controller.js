@@ -104,10 +104,18 @@ let OrderController = OrderController_1 = class OrderController {
             throw new common_1.BadRequestException('店铺已停业');
         }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const currentDraw = await drawRepo.findOne({
+        let currentDraw = await drawRepo.findOne({
             where: { status: 'pending' },
             order: { draw_id: 'DESC' },
         });
+        if (!currentDraw) {
+            currentDraw = drawRepo.create({
+                status: 'pending',
+                draw_date: new Date().toISOString().split('T')[0],
+                draw_time: '15:00:00',
+            });
+            await drawRepo.save(currentDraw);
+        }
         const limitChance = shop.limit_chance;
         const limitBillete = shop.limit_billete;
         if (currentDraw && (limitChance != null || limitBillete != null)) {

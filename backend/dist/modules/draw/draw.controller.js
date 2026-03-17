@@ -79,16 +79,10 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
             if (numLen >= 4) {
                 const betNum = num.slice(-4).padStart(4, '0');
                 const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
-                const win2Val = calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
-                const win3Val = calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
-                lineWin = win1Val + win2Val + win3Val;
+                lineWin = win1Val;
                 const matches = [];
                 if (win1Val > 0)
                     matches.push('头奖');
-                if (win2Val > 0)
-                    matches.push('二奖');
-                if (win3Val > 0)
-                    matches.push('三奖');
                 if (matches.length > 0)
                     matchInfo = matches.join('+');
             }
@@ -415,6 +409,12 @@ let DrawController = DrawController_1 = class DrawController {
         }
         this.logger.log(`开奖完成: ${JSON.stringify(winningNumbers)}`);
         await settleOrdersForDraw(this.dataSource, draw.draw_id, winningNumbers.primer, winningNumbers.segundo, winningNumbers.tercero);
+        await drawRepo
+            .createQueryBuilder()
+            .update(draw_entity_1.Draw)
+            .set({ archived_at: new Date() })
+            .where('status = :s AND archived_at IS NULL AND draw_id < :id', { s: 'completed', id: draw.draw_id })
+            .execute();
         const completedDateRaw = draw.draw_date;
         const completedDate = completedDateRaw ? new Date(typeof completedDateRaw === 'string' ? completedDateRaw + 'T12:00:00' : completedDateRaw) : new Date();
         const nextDraw = getNextDrawDatePanama(completedDate);

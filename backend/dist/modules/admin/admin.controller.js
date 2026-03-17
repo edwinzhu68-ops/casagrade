@@ -131,6 +131,11 @@ let AdminController = class AdminController {
     }
     async getAllShops() {
         const shops = await this.shopRepo.find({ order: { shop_id: 'ASC' } });
+        const ownerIds = shops.map(s => s.owner_id).filter(Boolean);
+        const users = ownerIds.length
+            ? await this.userRepo.find({ where: { user_id: (0, typeorm_2.In)(ownerIds) } })
+            : [];
+        const userMap = new Map(users.map(u => [u.user_id, u.account_number]));
         return {
             shops: shops.map(s => ({
                 shop_id: s.shop_id,
@@ -140,8 +145,25 @@ let AdminController = class AdminController {
                 status: s.status,
                 commission_rate: s.commission_rate,
                 owner_id: s.owner_id,
+                account_number: s.owner_id ? (userMap.get(s.owner_id) || null) : null,
+                subscription_expires_at: s.subscription_expires_at ?? null,
             })),
         };
+    }
+    async deleteAccount(accountNumber) {
+        const account = (accountNumber || '').trim();
+        if (!account)
+            throw new common_1.BadRequestException('请提供账号');
+        const user = await this.userRepo.findOne({ where: { account_number: account } });
+        if (!user)
+            throw new common_1.NotFoundException(`账号 ${account} 不存在`);
+        const shops = await this.shopRepo.find({ where: { owner_id: user.user_id } });
+        const shopNumbers = shops.map(s => s.shop_number);
+        for (const shop of shops) {
+            await this.shopRepo.delete(shop.shop_id);
+        }
+        await this.userRepo.delete(user.user_id);
+        return { success: true, message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}` };
     }
     async setShopStatus(shopId, status) {
         const shop = await this.shopRepo.findOne({ where: { shop_id: parseInt(shopId) } });
@@ -232,12 +254,15 @@ let AdminController = class AdminController {
         const userShop = await this.shopRepo.findOne({ where: { owner_id: user.user_id } });
         if (userShop) {
             const aliases = userShop.shop_aliases || [];
-            if (!aliases.includes(userShop.shop_number))
+            const timestamps = userShop.shop_alias_timestamps || {};
+            if (!aliases.includes(userShop.shop_number)) {
                 aliases.push(userShop.shop_number);
-            await this.shopRepo.update(userShop.shop_id, { shop_number: sn, shop_aliases: aliases });
+                timestamps[userShop.shop_number] = new Date().toISOString();
+            }
+            await this.shopRepo.update(userShop.shop_id, { shop_number: sn, shop_aliases: aliases, shop_alias_timestamps: timestamps });
             return {
                 success: true,
-                message: `已将店号 ${sn} 设为主号，旧号 ${userShop.shop_number} 保留为别名`,
+                message: `已将店号 ${sn} 设为主号，旧号 ${userShop.shop_number} 保留为别名（1个月后自动删除）`,
                 shop_id: userShop.shop_id,
                 shop_number: sn,
                 shop_aliases: aliases,
@@ -339,6 +364,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getAllShops", null);
+__decorate([
+    (0, common_1.Delete)('accounts/:accountNumber'),
+    __param(0, (0, common_1.Param)('accountNumber')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "deleteAccount", null);
 __decorate([
     (0, common_1.Patch)('shops/:shopId/status'),
     __param(0, (0, common_1.Param)('shopId')),
