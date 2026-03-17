@@ -4,6 +4,7 @@ import { IsNull, In } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
+import { DrawDayService } from './draw-day.service';
 
 /**
  * 中奖规则以你说的为准，不做其它查询。
@@ -127,7 +128,7 @@ async function settleOrdersForDraw(
   }
 }
 
-/** 巴拿马下一开奖日：周三-周日-周三-周日循环。
+/** 巴拿马下一开奖日：取最近的下一个周三或周日（哪个近用哪个）。
  *  from: 基准日期（通常是刚完成的开奖日）；不传则用今天巴拿马时间。 */
 function getNextDrawDatePanama(from?: Date): Date {
   let base: Date;
@@ -138,11 +139,10 @@ function getNextDrawDatePanama(from?: Date): Date {
     base = new Date(now.toLocaleString('en-US', { timeZone: 'America/Panama' }));
   }
   const day = base.getDay(); // 0=Sun, 3=Wed
-  let days: number;
-  if (day === 0) days = 3;       // Sun -> 下周三
-  else if (day === 3) days = 4;  // Wed -> 下周日
-  else if (day === 1 || day === 2) days = 3 - day; // Mon->2, Tue->1
-  else days = 7 - day + 3;      // Thu~Sat -> 下周三
+  // 距下一个周三/周日的天数，当天本身不算（用 || 7 处理 0 的情况）
+  const daysToWed = ((3 - day + 7) % 7) || 7;
+  const daysToSun = ((0 - day + 7) % 7) || 7;
+  const days = Math.min(daysToWed, daysToSun);
   const next = new Date(base);
   next.setDate(next.getDate() + days);
   next.setHours(15, 0, 0, 0);
@@ -227,7 +227,10 @@ interface ManualDrawDto {
 export class DrawController {
   private readonly logger = new Logger(DrawController.name);
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly drawDayService: DrawDayService,
+  ) {}
 
   /**
    * GET /api/draw/fetch-firebase - 从 Firebase 拉取巴拿马官方开奖数据（需管理员密钥）
@@ -362,6 +365,7 @@ export class DrawController {
         drawTime: draw.draw_time,
         drawDate: drawDateStr,
         status: draw.status,
+        isManualOverride: draw.is_manual_override || false,
       },
     };
   }
@@ -405,8 +409,28 @@ export class DrawController {
       if (parsed) updatePayload.draw_date = parsed;
     }
 
+    // ✅ 校验：开奖时间不能是过去（防止 tick() 立即触发错误归档）
+    // 用 draw_date + draw_time 组合出目标时间，与巴拿马当前时间比较
+    if (updatePayload.draw_date || updatePayload.draw_time) {
+      const dateForCheck: Date | null = (updatePayload.draw_date as Date) || null;
+      const timeForCheck: string = (updatePayload.draw_time as string) || '15:00:00';
+      if (dateForCheck) {
+        const dateStr = typeof dateForCheck === 'string'
+          ? (dateForCheck as string).slice(0, 10)
+          : (dateForCheck as Date).toISOString().slice(0, 10);
+        const timePart = timeForCheck.includes('T') ? timeForCheck.slice(11, 16) : timeForCheck.slice(0, 5);
+        const [hh, mm] = timePart.split(':').map(Number);
+        // 构造巴拿马本地时刻（UTC-5），与当前 UTC 对比
+        const targetUtcMs = new Date(`${dateStr}T${String(hh).padStart(2,'0')}:${String(mm || 0).padStart(2,'0')}:00-05:00`).getTime();
+        if (!isNaN(targetUtcMs) && targetUtcMs <= Date.now()) {
+          return { success: false, error: '开奖时间必须晚于当前巴拿马时间，请重新填写' };
+        }
+      }
+    }
+
     if (draw) {
       if (Object.keys(updatePayload).length > 0) {
+        updatePayload.is_manual_override = true;
         await drawRepo.update(draw.draw_id, updatePayload);
         if (updatePayload.draw_time) draw.draw_time = updatePayload.draw_time as string;
         if (updatePayload.draw_date) draw.draw_date = updatePayload.draw_date as Date;
@@ -417,6 +441,7 @@ export class DrawController {
         draw_time: (updatePayload.draw_time as string) || '15:00:00',
         status: 'pending',
         winning_numbers: '',
+        is_manual_override: true,
       });
       await drawRepo.save(draw);
     }
@@ -531,6 +556,106 @@ export class DrawController {
       segundo: winningNumbers.segundo,
       tercero: winningNumbers.tercero,
     };
+  }
+
+  /**
+   * POST /api/draw/reset-time - 恢复默认开奖时间（将手动覆盖重置为系统计算的下次周三/周日 15:00）
+   * 以最近已完成的开奖日为基准重新计算，is_manual_override 置 false
+   */
+  @Post('reset-time')
+  @UseGuards(AdminTokenGuard)
+  async resetDrawTime() {
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const pending = await drawRepo.findOne({
+      where: { status: 'pending' },
+      order: { draw_id: 'DESC' },
+    });
+
+    // 以最近已完成开奖日为基准计算下次正常开奖日
+    const lastCompleted = await drawRepo.findOne({
+      where: { status: In(['COMPLETED', 'completed']) },
+      order: { draw_id: 'DESC' },
+    });
+
+    let nextDraw: Date;
+    if (lastCompleted && lastCompleted.draw_date) {
+      const base = new Date(
+        typeof lastCompleted.draw_date === 'string'
+          ? (lastCompleted.draw_date as string) + 'T12:00:00'
+          : (lastCompleted.draw_date as any),
+      );
+      nextDraw = getNextDrawDatePanama(base);
+    } else {
+      nextDraw = getNextDrawDatePanama();
+    }
+
+    const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+
+    // DD-MM-YYYY 格式供 DrawDayService 使用
+    const nextDateDisplay = drawDateToDisplayString(nextDateStr); // returns DD-MM-YYYY
+
+    if (pending) {
+      await drawRepo.update(pending.draw_id, {
+        draw_date: nextDateStr as any,
+        draw_time: '15:00:00',
+        is_manual_override: false,
+      });
+      // 立即同步 DrawDayService 内存状态（不等下一次 tick），15:00 = 900 分钟
+      this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+      this.logger.log(`恢复默认开奖时间: draw_id=${pending.draw_id}, draw_date=${nextDateStr}`);
+      return { success: true, drawId: pending.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
+    } else {
+      // 不存在 pending 期时，新建一期
+      const next = drawRepo.create({
+        draw_date: nextDateStr as any,
+        draw_time: '15:00:00',
+        status: 'pending',
+        winning_numbers: '',
+        is_manual_override: false,
+      });
+      await drawRepo.save(next);
+      this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+      this.logger.log(`新建默认待开奖期: draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+      return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
+    }
+  }
+
+  /**
+   * POST /api/draw/reset-pending - 兜底恢复：取消当前 pending 期，按服务器当前巴拿马时间重建正确的下一期
+   */
+  @Post('reset-pending')
+  @UseGuards(AdminTokenGuard)
+  async resetPendingDraw() {
+    const drawRepo = this.dataSource.getRepository(Draw);
+
+    // 取消所有 pending
+    await drawRepo
+      .createQueryBuilder()
+      .update(Draw)
+      .set({ status: 'canceled' } as any)
+      .where('status = :s', { s: 'pending' })
+      .execute();
+
+    // 以服务器当前巴拿马时间为基准计算下次正常开奖日
+    const nextDraw = getNextDrawDatePanama();
+
+    const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+
+    const next = drawRepo.create({
+      draw_date: nextDateStr as any,
+      draw_time: '15:00:00',
+      status: 'pending',
+      winning_numbers: '',
+      is_manual_override: false,
+    });
+    await drawRepo.save(next);
+    const nextDateDisplay = drawDateToDisplayString(nextDateStr);
+    // 立即同步 DrawDayService 内存状态，并清除 autoArchivedForDate 标志
+    // （测试开奖可能已触发归档标志，重置后需要确保下次真正开奖时能正常归档）
+    this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+    this.drawDayService.clearAutoArchiveFlag();
+    this.logger.log(`重置待开奖期: 新 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+    return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
   }
 
   /**

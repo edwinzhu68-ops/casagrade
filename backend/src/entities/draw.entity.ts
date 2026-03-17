@@ -25,6 +25,10 @@ export class Draw {
   @Column({ type: 'boolean', default: false, nullable: true })
   main_shop_archived: boolean;
 
+  /** 是否手动覆盖开奖时间（节假日等情况）：true=人工指定，false=系统自动按周三/周日规则 */
+  @Column({ type: 'boolean', default: false, nullable: true })
+  is_manual_override: boolean;
+
   @CreateDateColumn()
   created_at: Date;
 }

@@ -118,6 +118,12 @@ export class DrawDayService implements OnModuleInit {
     this.save();
   }
 
+  /** 重置自动归档标志，使当天（或下一期开奖日）的自动归档可以再次触发 */
+  clearAutoArchiveFlag() {
+    this.autoArchivedForDate = null;
+    this.save();
+  }
+
   private async tick() {
     const panama = getPanamaNow();
     const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;
