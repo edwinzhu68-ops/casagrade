@@ -175,15 +175,15 @@
         <div>
           <p class="text-sm font-semibold text-gray-300 mb-2">账户</p>
           <div class="flex flex-wrap gap-2 items-end">
+            <div class="flex-1 min-w-[80px]">
+              <p class="text-xs text-gray-400 mb-1">店号（数字）</p>
+              <input type="text" id="reg-shop-number" placeholder="如 1 或 88888" maxlength="9" inputmode="numeric"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+            </div>
             <div class="flex-1 min-w-[100px]">
               <p class="text-xs text-gray-400 mb-1">账号（字母+数字）</p>
               <input type="text" id="reg-account" placeholder="如 tienda1" maxlength="32"
                 class="w-full text-center py-2 bg-gray-700 rounded-lg" />
-            </div>
-            <div class="flex-1 min-w-[80px]">
-              <p class="text-xs text-gray-400 mb-1">店号（数字）</p>
-              <input type="text" id="reg-shop-number" placeholder="如 88888" maxlength="9" inputmode="numeric"
-                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
             </div>
             <button onclick="adminRegister()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-sm">
               注册
@@ -197,15 +197,15 @@
           <p class="text-sm font-semibold text-gray-300 mb-2">分配店号</p>
           <p class="text-xs text-gray-400 mb-2">给已有账号更换主店号。</p>
           <div class="flex flex-wrap gap-2 items-end">
-            <div class="flex-1 min-w-[100px]">
-              <p class="text-xs text-gray-400 mb-1">店号</p>
-              <input type="text" id="assign-shop-number" placeholder="如 1 或 88888" maxlength="9"
-                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
-            </div>
             <div class="flex-1 min-w-[120px]">
               <p class="text-xs text-gray-400 mb-1">账号</p>
               <input type="text" id="assign-account" placeholder="已注册的账号"
                 class="w-full text-center py-2 bg-gray-700 rounded-lg" />
+            </div>
+            <div class="flex-1 min-w-[100px]">
+              <p class="text-xs text-gray-400 mb-1">店号</p>
+              <input type="text" id="assign-shop-number" placeholder="如 1 或 88888" maxlength="9"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
             </div>
             <button onclick="assignShop()" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-sm">
               分配
