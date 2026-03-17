@@ -107,7 +107,8 @@
           <button onclick="submitRegister()" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold" data-i18n="reg_submit">提交注册</button>
         </div>
 
-        <p class="text-[11px] text-gray-500 mt-3" data-i18n="reg_footer">注册成功后系统随机分配店号，账号与店号均可登录。</p>
+        <p class="text-[11px] text-gray-500 mt-3">注册成功后系统随机分配店号，账号与店号均可登录。</p>
+        <p class="text-[11px] text-yellow-400 mt-1">⚠️ 一台设备仅限注册一个账号</p>
       </div>
     </div>
   </div>
@@ -1045,6 +1046,18 @@
     })();
 
     const REGISTERED_ACCOUNT_KEY = 'lottery_registered_account';
+    const DEVICE_ID_KEY = 'lottery_device_id';
+
+    function getDeviceId() {
+      let id = localStorage.getItem(DEVICE_ID_KEY);
+      if (!id) {
+        id = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem(DEVICE_ID_KEY, id);
+      }
+      return id;
+    }
 
     // 打开/关闭注册弹窗
     function openRegisterModal() {
@@ -1136,7 +1149,8 @@
             password: password,
             passwordConfirm: password2,
             shop_name: '',
-            email: email || undefined
+            email: email || undefined,
+            device_id: getDeviceId()
           })
         });
         const data = await res.json().catch(function () { return {}; });

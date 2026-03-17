@@ -1676,13 +1676,20 @@
       });
       el.innerHTML = sorted.map(s => {
         const acct = s.account_number || '—';
+        const regDate = s.registered_at ? new Date(s.registered_at).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '—';
+        const inactive = s.inactive_periods ?? 0;
+        const inactiveTag = inactive >= 3
+          ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${inactive >= 10 ? 'bg-red-900/60 text-red-300' : 'bg-yellow-900/60 text-yellow-300'}">${inactive}期未下单</span>`
+          : '';
         return `
           <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="font-mono font-bold text-white w-16 shrink-0">${s.shop_number}</span>
-              <span class="text-gray-400 flex-1 truncate">${acct}</span>
+              <span class="text-gray-300 truncate">${acct}</span>
+              <span class="text-gray-500 text-[11px] shrink-0">${regDate}</span>
+              ${inactiveTag}
               <button onclick="confirmDeleteAccount('${acct}','${s.shop_number}')"
-                class="px-2 py-0.5 rounded text-[10px] bg-red-900/50 hover:bg-red-800 text-red-300">删除</button>
+                class="ml-auto px-2 py-0.5 rounded text-[10px] bg-red-900/50 hover:bg-red-800 text-red-300">删除</button>
             </div>
             <div class="flex gap-4 text-gray-400">
               <span>订单 <span class="text-white font-mono">${s.total_orders}</span></span>

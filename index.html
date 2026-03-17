@@ -1819,6 +1819,11 @@
       // 转换为API格式
       const numbers = betList.map(b => ({ n: b.number, q: b.quantity }));
 
+      // 每次提交生成唯一幂等key，防止网络慢时重复提交创建两张单
+      const idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
       try {
         const res = await fetch(`${API_BASE}/api/orders`, {
           method: 'POST',
@@ -1828,8 +1833,9 @@
             numbers,
             amount: totalAmount,
             gameType,
-            clientId, // 临时匿名账号，方便后续做登录迁移或风控
-            ipAddress: '127.0.0.1'
+            clientId,
+            ipAddress: '127.0.0.1',
+            idempotency_key: idempotencyKey,
           })
         });
 
