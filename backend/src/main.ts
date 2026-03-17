@@ -2,35 +2,79 @@ import 'reflect-metadata';
 try { require('dotenv/config'); } catch { /* 未安装 dotenv 时忽略，使用系统环境变量 */ }
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus, HttpException } from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus, HttpException, Logger } from '@nestjs/common';
 import { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const logger = new Logger('Bootstrap');
+
+// 写入错误日志到文件
+function writeErrorLog(msg: string) {
+  const logDir = path.join(process.cwd(), 'logs');
+  const logFile = path.join(logDir, `error-${new Date().toISOString().split('T')[0]}.log`);
+  const logMsg = `[${new Date().toISOString()}] ${msg}\n`;
+  
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+  fs.appendFileSync(logFile, logMsg);
+  console.error(msg); // 同时输出到控制台，PM2 会捕获
+}
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
+    
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
       return res.status(status).json(typeof body === 'object' ? body : { message: body });
     }
-    // 生产环境不暴露内部错误详情，防止信息泄露
+    
+    // 生产环境也记录完整错误信息
     const isDev = process.env.NODE_ENV !== 'production';
-    const message = isDev && exception instanceof Error ? exception.message : 'Internal server error';
-    if (!isDev && exception instanceof Error) {
-      console.error('[UnhandledException]', exception.message, exception.stack);
+    
+    if (exception instanceof Error) {
+      const errorMsg = isDev 
+        ? `${exception.message}\n${exception.stack}`
+        : `${exception.message}`;
+      
+      writeErrorLog(`[UnhandledException] ${errorMsg}`);
+      
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: isDev ? exception.message : 'Internal server error',
+        error: 'Internal Server Error',
+      });
+    } else {
+      writeErrorLog(`[UnhandledException] Unknown error: ${JSON.stringify(exception)}`);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Internal server error',
+        error: 'Internal Server Error',
+      });
     }
-    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message,
-      error: 'Internal Server Error',
-    });
   }
 }
 
+// 捕获未处理的进程错误
+process.on('uncaughtException', (error) => {
+  writeErrorLog(`[Process-uncaughtException] ${error.message}\n${error.stack}`);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  const msg = reason instanceof Error ? `${reason.message}\n${reason.stack}` : String(reason);
+  writeErrorLog(`[Process-unhandledRejection] ${msg}`);
+});
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log', 'debug', 'verbose'], // 开启所有日志级别
+  });
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const allowedOrigins = process.env.ALLOWED_ORIGINS;
@@ -46,6 +90,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`🚀 Lottery API running on http://localhost:${port}`);
+  logger.log(`🚀 Lottery API running on http://localhost:${port}`);
 }
 bootstrap();
