@@ -527,20 +527,7 @@ export class DrawController {
       winningNumbers.tercero,
     );
 
-    // 归档上期（如果有）
-    await drawRepo
-      .createQueryBuilder()
-      .update(Draw)
-      .set({ archived_at: new Date() } as any)
-      .where('status = :s AND archived_at IS NULL AND draw_id < :id', { s: 'completed', id: draw.draw_id })
-      .execute();
-
-    // 开奖后自动创建下一期：以本期开奖日为基准算下一期，避免用"今天"导致日期不推进
-    const completedDateRaw = (draw as any).draw_date;
-    const completedDate = completedDateRaw ? new Date(typeof completedDateRaw === 'string' ? completedDateRaw + 'T12:00:00' : completedDateRaw) : new Date();
-    const nextDraw = getNextDrawDatePanama(completedDate);
-    const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
-    // 清理孤立 pending（draw_id 小于本次开奖的旧 pending，防止多 pending 导致全系统期次不同步）
+    // 清理孤立 pending（draw_id 小于本次开奖的旧 pending）
     await drawRepo
       .createQueryBuilder()
       .update(Draw)
@@ -548,17 +535,7 @@ export class DrawController {
       .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
       .execute();
 
-    const existingPending = await drawRepo.findOne({ where: { status: 'pending' }, order: { draw_id: 'DESC' } });
-    if (!existingPending) {
-      const next = drawRepo.create({
-        draw_date: nextDateStr as any,
-        draw_time: '15:00:00',
-        status: 'pending',
-        winning_numbers: '',
-      });
-      await drawRepo.save(next);
-      this.logger.log(`已创建下一期待开奖: draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
-    }
+    // 下一期由 DrawDayService 在次日 07:00 自动创建，同时全量归档
 
     return {
       success: true,

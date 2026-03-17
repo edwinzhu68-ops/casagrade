@@ -113,14 +113,23 @@ export class OrderController {
         const panama = getPanamaNow();
         const todayStr = `${String(panama.d).padStart(2,'0')}-${String(panama.m).padStart(2,'0')}-${panama.y}`;
         const confirmedDrawDay = `${String(dd).padStart(2,'0')}-${String(dm).padStart(2,'0')}-${dy}`;
-        if (confirmedDrawDay === todayStr) {
-          const totalMins = panama.h * 60 + panama.min;
-          const confirmedDrawMins = drawHour * 60 + drawMin;
-          const stopSaleStart = confirmedDrawMins - 5;
-          const drawEndMins = confirmedDrawMins + 60;
-          if (totalMins >= stopSaleStart && totalMins < drawEndMins) {
-            throw new BadRequestException('当前处于开奖窗口期，暂停下单');
-          }
+        const drawDateISO2 = `${dy}-${String(dm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+        const todayISO2 = `${panama.y}-${String(panama.m).padStart(2,'0')}-${String(panama.d).padStart(2,'0')}`;
+        const totalMins = panama.h * 60 + panama.min;
+        const drawMins = drawHour * 60 + drawMin;
+        const stopStart = drawMins - 5;
+        const RESUME = 7 * 60;
+
+        const drawDateObj2 = new Date(`${drawDateISO2}T12:00:00`);
+        drawDateObj2.setDate(drawDateObj2.getDate() + 1);
+        const dayAfterISO2 = `${drawDateObj2.getFullYear()}-${String(drawDateObj2.getMonth()+1).padStart(2,'0')}-${String(drawDateObj2.getDate()).padStart(2,'0')}`;
+
+        const inStop =
+          (drawDateISO2 === todayISO2 && totalMins >= stopStart) ||
+          (dayAfterISO2 === todayISO2 && totalMins < RESUME);
+
+        if (inStop) {
+          throw new BadRequestException('当前处于开奖窗口期，暂停下单');
         }
       }
     }
@@ -653,18 +662,31 @@ export class BetStatusController {
       const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;
       const totalMins = panama.h * 60 + panama.min;
 
-      if (confirmedDrawDay === todayStr && confirmedDrawMins >= 0) {
-        const stopSaleStart = confirmedDrawMins - 5;   // 开奖前 5 分钟停售
-        const drawEndMins = confirmedDrawMins + 60;    // 开奖后 60 分钟恢复
-        if (totalMins >= stopSaleStart && totalMins < drawEndMins) {
-          canBet = false;
-          isDrawWindow = true;
-        }
-        minutesUntilDraw = totalMins < stopSaleStart ? Math.max(0, stopSaleStart - totalMins) : undefined;
+      const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+      const stopSaleStart = confirmedDrawMins - 5; // 开奖前 5 分钟停售
+      const RESUME_MINS = 7 * 60; // 次日 07:00 恢复
+
+      // 次日日期（YYYY-MM-DD）
+      const drawDateObj = new Date(`${drawDateISO}T12:00:00`);
+      drawDateObj.setDate(drawDateObj.getDate() + 1);
+      const dayAfterISO = `${drawDateObj.getFullYear()}-${String(drawDateObj.getMonth() + 1).padStart(2, '0')}-${String(drawDateObj.getDate()).padStart(2, '0')}`;
+
+      // 停售窗口：开奖日 draw_time-5min 起，到次日 07:00 止
+      const inStopWindow =
+        (drawDateISO === todayISO && totalMins >= stopSaleStart) ||
+        (dayAfterISO === todayISO && totalMins < RESUME_MINS);
+
+      if (inStopWindow) {
+        canBet = false;
+        isDrawWindow = true;
+        minutesUntilDraw = undefined;
       } else {
         canBet = true;
         isDrawWindow = false;
-        minutesUntilDraw = undefined;
+        minutesUntilDraw = (drawDateISO === todayISO && totalMins < stopSaleStart)
+          ? Math.max(0, stopSaleStart - totalMins)
+          : undefined;
       }
     } else {
       // 无待开奖期（已发送开奖结果、尚未发送下一期时间）：仍允许下单，订单 draw_id 为 null，下一期开奖时会一并结算
