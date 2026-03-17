@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Query, Body, Param, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Query, Body, Param, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -119,6 +119,11 @@ export class AdminController {
   @Get('shops')
   async getAllShops() {
     const shops = await this.shopRepo.find({ order: { shop_id: 'ASC' } });
+    const ownerIds = shops.map(s => s.owner_id).filter(Boolean);
+    const users = ownerIds.length
+      ? await this.userRepo.find({ where: { user_id: In(ownerIds) } })
+      : [];
+    const userMap = new Map(users.map(u => [u.user_id, u.account_number]));
     return {
       shops: shops.map(s => ({
         shop_id: s.shop_id,
@@ -128,8 +133,28 @@ export class AdminController {
         status: s.status,
         commission_rate: s.commission_rate,
         owner_id: s.owner_id,
+        account_number: s.owner_id ? (userMap.get(s.owner_id) || null) : null,
+        subscription_expires_at: (s as any).subscription_expires_at ?? null,
       })),
     };
+  }
+
+  /**
+   * DELETE /api/admin/accounts/:accountNumber - 删除账号及其店铺（店号释放回随机池）
+   */
+  @Delete('accounts/:accountNumber')
+  async deleteAccount(@Param('accountNumber') accountNumber: string) {
+    const account = (accountNumber || '').trim();
+    if (!account) throw new BadRequestException('请提供账号');
+    const user = await this.userRepo.findOne({ where: { account_number: account } });
+    if (!user) throw new NotFoundException(`账号 ${account} 不存在`);
+    const shops = await this.shopRepo.find({ where: { owner_id: user.user_id } });
+    const shopNumbers = shops.map(s => s.shop_number);
+    for (const shop of shops) {
+      await this.shopRepo.delete(shop.shop_id);
+    }
+    await this.userRepo.delete(user.user_id);
+    return { success: true, message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}` };
   }
 
   /**

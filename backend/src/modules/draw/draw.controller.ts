@@ -491,6 +491,14 @@ export class DrawController {
       winningNumbers.tercero,
     );
 
+    // 归档上期（如果有）
+    await drawRepo
+      .createQueryBuilder()
+      .update(Draw)
+      .set({ archived_at: new Date() } as any)
+      .where('status = :s AND archived_at IS NULL AND draw_id < :id', { s: 'completed', id: draw.draw_id })
+      .execute();
+
     // 开奖后自动创建下一期：以本期开奖日为基准算下一期，避免用"今天"导致日期不推进
     const completedDateRaw = (draw as any).draw_date;
     const completedDate = completedDateRaw ? new Date(typeof completedDateRaw === 'string' ? completedDateRaw + 'T12:00:00' : completedDateRaw) : new Date();
