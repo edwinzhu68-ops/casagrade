@@ -92,7 +92,6 @@ export declare class AdminController {
     clearSettlement(): Promise<{
         success: boolean;
         message: string;
-        drawId: number;
     }>;
     cleanupNullDrawOrders(): Promise<{
         success: boolean;

@@ -550,21 +550,18 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async clearSettlement() {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const draw = await drawRepo.findOne({
-            where: {
-                status: (0, typeorm_2.In)(['COMPLETED', 'completed']),
-                archived_at: (0, typeorm_2.IsNull)(),
-            },
-            order: { draw_id: 'DESC' },
-        });
-        if (!draw) {
+        const result = await drawRepo
+            .createQueryBuilder()
+            .update(draw_entity_1.Draw)
+            .set({ archived_at: new Date() })
+            .where('status IN (:...statuses) AND archived_at IS NULL', { statuses: ['COMPLETED', 'completed'] })
+            .execute();
+        if (!result.affected || result.affected === 0) {
             throw new common_1.NotFoundException('暂无已开奖期，无需清空');
         }
-        await drawRepo.update(draw.draw_id, { archived_at: new Date() });
         return {
             success: true,
-            message: '已清空开奖结算，当前期已转入历史',
-            drawId: draw.draw_id,
+            message: `已清空开奖结算，共归档 ${result.affected} 期`,
         };
     }
     async cleanupNullDrawOrders() {

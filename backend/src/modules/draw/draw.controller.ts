@@ -94,17 +94,13 @@ async function settleOrdersForDraw(
       // 按号码位数区分规则：4位是Billete，2位是Chance（不再按game_type字段区分）
       const numLen = num.replace(/\D/g, '').length;
       if (numLen >= 4) {
-        // Billete：取后4位，与1/2/3奖分别比对
+        // Billete：只与头奖比对，不参与二奖和三奖
         const betNum = num.slice(-4).padStart(4, '0');
         const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
-        const win2Val = calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
-        const win3Val = calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
-        lineWin = win1Val + win2Val + win3Val;
+        lineWin = win1Val;
         // 记录匹配档位
         const matches: string[] = [];
         if (win1Val > 0) matches.push('头奖');
-        if (win2Val > 0) matches.push('二奖');
-        if (win3Val > 0) matches.push('三奖');
         if (matches.length > 0) matchInfo = matches.join('+');
       } else if (numLen >= 2) {
         // Chance：取后2位 [14,3,2]，三奖叠加
@@ -611,21 +607,19 @@ export class AdminController {
   @Post('clear-settlement')
   async clearSettlement() {
     const drawRepo = this.dataSource.getRepository(Draw);
-    const draw = await drawRepo.findOne({
-      where: { 
-        status: In(['COMPLETED', 'completed']),
-        archived_at: IsNull(),
-      },
-      order: { draw_id: 'DESC' },
-    });
-    if (!draw) {
+    // 一次性归档所有未归档的 completed draws，防止旧期次一直轮流显示
+    const result = await drawRepo
+      .createQueryBuilder()
+      .update(Draw)
+      .set({ archived_at: new Date() } as any)
+      .where('status IN (:...statuses) AND archived_at IS NULL', { statuses: ['COMPLETED', 'completed'] })
+      .execute();
+    if (!result.affected || result.affected === 0) {
       throw new NotFoundException('暂无已开奖期，无需清空');
     }
-    await drawRepo.update(draw.draw_id, { archived_at: new Date() });
     return {
       success: true,
-      message: '已清空开奖结算，当前期已转入历史',
-      drawId: draw.draw_id,
+      message: `已清空开奖结算，共归档 ${result.affected} 期`,
     };
   }
 
