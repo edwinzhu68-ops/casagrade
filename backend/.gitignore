@@ -19,3 +19,5 @@ logs/
 
 # 运行时临时文件
 draw-day.json
+lottery.db
+backups/
