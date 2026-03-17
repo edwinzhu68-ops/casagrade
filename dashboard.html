@@ -104,7 +104,10 @@
 
         <div class="border-t border-gray-600 pt-4 mt-2">
           <h3 class="font-bold mb-2 text-sm">🎰 手动开奖</h3>
-          <p id="confirmed-draw-status" class="text-xs text-gray-400 mb-2">系统记录：--（巴拿马时间）</p>
+          <div class="flex items-center gap-2 mb-2">
+            <p id="confirmed-draw-status" class="text-xs text-gray-400">系统开奖时间：--（巴拿马时间）</p>
+            <span id="manual-override-badge" class="hidden text-xs bg-yellow-500 text-black font-bold px-1.5 py-0.5 rounded">手动覆盖</span>
+          </div>
           <!-- 回滚后警告横幅 -->
           <div id="rollback-warning" class="hidden bg-red-900 border border-red-500 rounded-lg px-4 py-3 mb-3 flex items-center justify-between">
             <span class="text-red-200 font-bold text-sm">⚠️ 已回滚！请立即修改开奖号码后重新发送</span>
@@ -164,6 +167,11 @@
           </div>
           <p id="archive-main-result" class="text-xs mt-2 hidden"></p>
           <p class="text-xs text-gray-400 mt-1">「清空开奖结算」：将当前期从结算页清除、转入历史，结算页会显示等待开奖，直到下次发送开奖结果。登录即可操作。</p>
+          <div class="mt-3 border-t border-gray-600 pt-3">
+            <button onclick="resetPendingDraw()" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg font-bold text-sm text-gray-300" title="期次错乱时使用：取消当前 pending 期，按正常周三/周日规则重建下一期">
+              🛠 期次错乱？重建下一期
+            </button>
+          </div>
         </div>
       </div>
 
@@ -683,6 +691,29 @@
     }
 
     const NEXT_DRAW_DEFAULT_KEY = 'lottery_next_draw_default';
+    const CONFIRMED_DRAW_RECORD_KEY = 'lottery_confirmed_draw_record';
+
+    // 计算下一个周三或周日（两者中最近的）
+    function getNextWedOrSun() {
+      const now = new Date();
+      const day = now.getDay(); // 0=Sun, 3=Wed
+      const daysToWed = ((3 - day + 7) % 7) || 7;
+      const daysToSun = ((0 - day + 7) % 7) || 7;
+      const next = new Date(now);
+      next.setDate(now.getDate() + Math.min(daysToWed, daysToSun));
+      const d = String(next.getDate()).padStart(2, '0');
+      const m = String(next.getMonth() + 1).padStart(2, '0');
+      const y = next.getFullYear();
+      return `${d}-${m}-${y}`;
+    }
+
+    function setConfirmedDrawRecord(date, time) {
+      try {
+        localStorage.setItem(CONFIRMED_DRAW_RECORD_KEY, JSON.stringify({ date, time }));
+      } catch (e) {}
+      const el = document.getElementById('confirmed-draw-status');
+      if (el) el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）`;
+    }
     let firebasePollTimer = null;
 
     // 计算“下次周三 15:00”（本地时间）；若今天已是周三且未到 15:00 则用今天
@@ -763,6 +794,12 @@
         const rawDate = draw.draw_date || draw.drawDate || null;
         const dateStr = rawDate ? String(rawDate) : null;
         const timeStr = draw.drawTime || draw.draw_time || draw.time;
+        // 显示/隐藏手动覆盖 badge
+        const badge = document.getElementById('manual-override-badge');
+        if (badge) {
+          if (draw.isManualOverride) { badge.classList.remove('hidden'); }
+          else { badge.classList.add('hidden'); }
+        }
         if (dateStr) {
           const ymd = normalizeDrawDateToYMD(dateStr);
           if (ymd) {
@@ -861,6 +898,7 @@
     // 刷新数据
     async function refreshData() {
       await loadData();
+      refreshConfirmedDrawStatus();
       showToast('已刷新', 'success');
     }
 
@@ -901,6 +939,8 @@
         if (data.success) {
           showToast('✅ 开奖成功！1奖: ' + b + '  2奖: ' + s + '  3奖: ' + t, 'success');
           document.getElementById('rollback-warning').classList.add('hidden');
+          // 时机2：开奖成功 → 自动计算下一个周三或周日更新系统记录
+          setConfirmedDrawRecord(getNextWedOrSun(), '15:00');
           initDrawDefaults().catch(function () {});
           loadData();
         } else {
@@ -1232,12 +1272,14 @@
         const data = await res.json();
         if (data.success) {
           showToast('✅ 已发送开奖时间：' + drawTime, 'success');
-          // 把你刚填的日期/时间存到本地，刷新后保持一致
           try {
             localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: drawDate, time: drawClock }));
           } catch (e) {}
-          // 发送成功后，短暂等待后台刷新 pending 期，再拉一次 bet-status 展示系统实际认定的时间
-          setTimeout(refreshConfirmedDrawStatus, 1500);
+          // 时机1：发送开奖时间 → 更新系统记录
+          setConfirmedDrawRecord(drawDate, drawClock);
+          // 显示手动覆盖 badge
+          const badge = document.getElementById('manual-override-badge');
+          if (badge) badge.classList.remove('hidden');
         } else {
           showToast(data.error || '发送开奖时间失败', 'error');
         }
@@ -1246,36 +1288,58 @@
       }
     }
 
-    // 从 /api/bet-status 获取系统当前认定的开奖日和时间（巴拿马时区），展示在手动开奖上方
+    // 兜底：取消当前 pending 期，按正常规则重建下一期
+    async function resetPendingDraw() {
+      if (!confirm('确认重建期次？\n当前待开奖期将被取消，系统按正常周三/周日规则重建下一期。')) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/reset-pending`, {
+          method: 'POST',
+          headers: getAdminHeaders(false),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✅ 期次已重建：${data.drawDate} ${data.drawTime}`, 'success');
+          const badge = document.getElementById('manual-override-badge');
+          if (badge) badge.classList.add('hidden');
+          if (data.drawDate && data.drawTime) setConfirmedDrawRecord(data.drawDate, data.drawTime);
+          await initDrawDefaults();
+        } else {
+          showToast(data.error || '重建失败', 'error');
+        }
+      } catch (err) {
+        showToast('重建失败: ' + err.message, 'error');
+      }
+    }
+
+    // 从 localStorage 读取系统记录；若为空则从 /api/draw/pending 兜底
     async function refreshConfirmedDrawStatus() {
       const el = document.getElementById('confirmed-draw-status');
       if (!el) return;
+      // 优先读 localStorage
       try {
-        const res = await fetch(`${API_BASE}/api/bet-status`);
-        if (!res.ok) {
-          el.textContent = '系统记录：--（巴拿马时间）';
+        const raw = localStorage.getItem(CONFIRMED_DRAW_RECORD_KEY);
+        if (raw) {
+          const { date, time } = JSON.parse(raw);
+          if (date && time) { el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）`; return; }
+        }
+      } catch (e) {}
+      // localStorage 为空时，从 API 兜底
+      try {
+        const res = await fetch(API_BASE + '/api/draw/pending');
+        const data = res.ok ? await res.json() : {};
+        const draw = data.draw || {};
+        const rawDate = draw.drawDate || draw.draw_date || null;
+        const rawTime = draw.drawTime || draw.draw_time || null;
+        if (rawDate && rawTime) {
+          // drawDate 是 DD-MM-YYYY，time 取前5位 HH:mm
+          const timeStr = String(rawTime).slice(0, 5);
+          el.textContent = `系统开奖时间：${rawDate} ${timeStr}（巴拿马时间）`;
+          // 同步写入 localStorage，下次不需要再请求
+          setConfirmedDrawRecord(rawDate, timeStr);
           return;
         }
-        const d = await res.json();
-        const day = d.confirmedDrawDay || d.currentPeriodDate || null;
-        // 若后端暂未返回 confirmedDrawTime，则退回到当前输入框中的时间，至少让界面显示「几号几点」
-        let time = d.confirmedDrawTime || null;
-        if (!time) {
-          const timeInput = document.getElementById('draw-time');
-          if (timeInput && timeInput.value) {
-            time = String(timeInput.value).slice(0, 5);
-          }
-        }
-        if (day && time) {
-          el.textContent = `系统记录：${day} ${time}（巴拿马时间）`;
-        } else if (day) {
-          el.textContent = `系统记录：${day}（巴拿马时间）`;
-        } else {
-          el.textContent = '系统记录：--（巴拿马时间）';
-        }
-      } catch (e) {
-        el.textContent = '系统记录：--（巴拿马时间）';
-      }
+      } catch (e) {}
+      el.textContent = '系统开奖时间：--（巴拿马时间）';
     }
 
     // 根据店号渲染 Chance / Billete 销售明细（样式参考老板端）
