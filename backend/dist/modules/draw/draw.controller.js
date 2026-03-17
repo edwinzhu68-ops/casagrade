@@ -20,6 +20,7 @@ const typeorm_2 = require("typeorm");
 const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
 const admin_token_guard_1 = require("../../guards/admin-token.guard");
+const draw_day_service_1 = require("./draw-day.service");
 const BILLETE_RATE = {
     exact: [2000, 600, 300],
     first3: [50, 20, 10],
@@ -128,15 +129,9 @@ function getNextDrawDatePanama(from) {
         base = new Date(now.toLocaleString('en-US', { timeZone: 'America/Panama' }));
     }
     const day = base.getDay();
-    let days;
-    if (day === 0)
-        days = 3;
-    else if (day === 3)
-        days = 4;
-    else if (day === 1 || day === 2)
-        days = 3 - day;
-    else
-        days = 7 - day + 3;
+    const daysToWed = ((3 - day + 7) % 7) || 7;
+    const daysToSun = ((0 - day + 7) % 7) || 7;
+    const days = Math.min(daysToWed, daysToSun);
     const next = new Date(base);
     next.setDate(next.getDate() + days);
     next.setHours(15, 0, 0, 0);
@@ -202,8 +197,9 @@ function dateToYYYYMMDD(d) {
     return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 let DrawController = DrawController_1 = class DrawController {
-    constructor(dataSource) {
+    constructor(dataSource, drawDayService) {
         this.dataSource = dataSource;
+        this.drawDayService = drawDayService;
         this.logger = new common_1.Logger(DrawController_1.name);
     }
     async fetchFirebase() {
@@ -310,6 +306,7 @@ let DrawController = DrawController_1 = class DrawController {
                 drawTime: draw.draw_time,
                 drawDate: drawDateStr,
                 status: draw.status,
+                isManualOverride: draw.is_manual_override || false,
             },
         };
     }
@@ -341,8 +338,24 @@ let DrawController = DrawController_1 = class DrawController {
             if (parsed)
                 updatePayload.draw_date = parsed;
         }
+        if (updatePayload.draw_date || updatePayload.draw_time) {
+            const dateForCheck = updatePayload.draw_date || null;
+            const timeForCheck = updatePayload.draw_time || '15:00:00';
+            if (dateForCheck) {
+                const dateStr = typeof dateForCheck === 'string'
+                    ? dateForCheck.slice(0, 10)
+                    : dateForCheck.toISOString().slice(0, 10);
+                const timePart = timeForCheck.includes('T') ? timeForCheck.slice(11, 16) : timeForCheck.slice(0, 5);
+                const [hh, mm] = timePart.split(':').map(Number);
+                const targetUtcMs = new Date(`${dateStr}T${String(hh).padStart(2, '0')}:${String(mm || 0).padStart(2, '0')}:00-05:00`).getTime();
+                if (!isNaN(targetUtcMs) && targetUtcMs <= Date.now()) {
+                    return { success: false, error: '开奖时间必须晚于当前巴拿马时间，请重新填写' };
+                }
+            }
+        }
         if (draw) {
             if (Object.keys(updatePayload).length > 0) {
+                updatePayload.is_manual_override = true;
                 await drawRepo.update(draw.draw_id, updatePayload);
                 if (updatePayload.draw_time)
                     draw.draw_time = updatePayload.draw_time;
@@ -356,6 +369,7 @@ let DrawController = DrawController_1 = class DrawController {
                 draw_time: updatePayload.draw_time || '15:00:00',
                 status: 'pending',
                 winning_numbers: '',
+                is_manual_override: true,
             });
             await drawRepo.save(draw);
         }
@@ -443,6 +457,76 @@ let DrawController = DrawController_1 = class DrawController {
             segundo: winningNumbers.segundo,
             tercero: winningNumbers.tercero,
         };
+    }
+    async resetDrawTime() {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const pending = await drawRepo.findOne({
+            where: { status: 'pending' },
+            order: { draw_id: 'DESC' },
+        });
+        const lastCompleted = await drawRepo.findOne({
+            where: { status: (0, typeorm_2.In)(['COMPLETED', 'completed']) },
+            order: { draw_id: 'DESC' },
+        });
+        let nextDraw;
+        if (lastCompleted && lastCompleted.draw_date) {
+            const base = new Date(typeof lastCompleted.draw_date === 'string'
+                ? lastCompleted.draw_date + 'T12:00:00'
+                : lastCompleted.draw_date);
+            nextDraw = getNextDrawDatePanama(base);
+        }
+        else {
+            nextDraw = getNextDrawDatePanama();
+        }
+        const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+        const nextDateDisplay = drawDateToDisplayString(nextDateStr);
+        if (pending) {
+            await drawRepo.update(pending.draw_id, {
+                draw_date: nextDateStr,
+                draw_time: '15:00:00',
+                is_manual_override: false,
+            });
+            this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+            this.logger.log(`恢复默认开奖时间: draw_id=${pending.draw_id}, draw_date=${nextDateStr}`);
+            return { success: true, drawId: pending.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
+        }
+        else {
+            const next = drawRepo.create({
+                draw_date: nextDateStr,
+                draw_time: '15:00:00',
+                status: 'pending',
+                winning_numbers: '',
+                is_manual_override: false,
+            });
+            await drawRepo.save(next);
+            this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+            this.logger.log(`新建默认待开奖期: draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+            return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
+        }
+    }
+    async resetPendingDraw() {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        await drawRepo
+            .createQueryBuilder()
+            .update(draw_entity_1.Draw)
+            .set({ status: 'canceled' })
+            .where('status = :s', { s: 'pending' })
+            .execute();
+        const nextDraw = getNextDrawDatePanama();
+        const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+        const next = drawRepo.create({
+            draw_date: nextDateStr,
+            draw_time: '15:00:00',
+            status: 'pending',
+            winning_numbers: '',
+            is_manual_override: false,
+        });
+        await drawRepo.save(next);
+        const nextDateDisplay = drawDateToDisplayString(nextDateStr);
+        this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+        this.drawDayService.clearAutoArchiveFlag();
+        this.logger.log(`重置待开奖期: 新 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+        return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
     }
     async rollbackDraw() {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
@@ -533,6 +617,20 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DrawController.prototype, "manualDraw", null);
 __decorate([
+    (0, common_1.Post)('reset-time'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "resetDrawTime", null);
+__decorate([
+    (0, common_1.Post)('reset-pending'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "resetPendingDraw", null);
+__decorate([
     (0, common_1.Post)('rollback'),
     (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
     __metadata("design:type", Function),
@@ -541,7 +639,8 @@ __decorate([
 ], DrawController.prototype, "rollbackDraw", null);
 exports.DrawController = DrawController = DrawController_1 = __decorate([
     (0, common_1.Controller)('draw'),
-    __metadata("design:paramtypes", [typeorm_1.DataSource])
+    __metadata("design:paramtypes", [typeorm_1.DataSource,
+        draw_day_service_1.DrawDayService])
 ], DrawController);
 let AdminController = AdminController_1 = class AdminController {
     constructor(dataSource) {

@@ -148,6 +148,10 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
         this.confirmedDrawMins = drawMins;
         this.save();
     }
+    clearAutoArchiveFlag() {
+        this.autoArchivedForDate = null;
+        this.save();
+    }
     async tick() {
         const panama = getPanamaNow();
         const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;

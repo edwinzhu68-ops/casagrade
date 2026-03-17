@@ -14,6 +14,7 @@ export declare class DrawDayService implements OnModuleInit {
     getConfirmedDrawDay(): string | null;
     getConfirmedDrawMins(): number;
     setConfirmedDrawDay(date: string | null, drawMins?: number): void;
+    clearAutoArchiveFlag(): void;
     private tick;
     private autoArchiveLastCompleted;
 }

@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { DrawDayService } from './draw-day.service';
 interface SetDrawTimeDto {
     drawTime?: string;
     drawDate?: string;
@@ -11,8 +12,9 @@ interface ManualDrawDto {
 }
 export declare class DrawController {
     private readonly dataSource;
+    private readonly drawDayService;
     private readonly logger;
-    constructor(dataSource: DataSource);
+    constructor(dataSource: DataSource, drawDayService: DrawDayService);
     fetchFirebase(): Promise<{
         success: boolean;
         data: {
@@ -47,6 +49,7 @@ export declare class DrawController {
             drawTime: string;
             drawDate: string;
             status: string;
+            isManualOverride: boolean;
         };
         message?: undefined;
     }>;
@@ -56,9 +59,16 @@ export declare class DrawController {
     };
     setDrawTime(dto: SetDrawTimeDto): Promise<{
         success: boolean;
+        error: string;
+        drawId?: undefined;
+        drawTime?: undefined;
+        drawDate?: undefined;
+    } | {
+        success: boolean;
         drawId: number;
         drawTime: string;
         drawDate: string;
+        error?: undefined;
     }>;
     manualDraw(dto: ManualDrawDto & {
         billete?: string;
@@ -70,6 +80,18 @@ export declare class DrawController {
         primer: string;
         segundo: string;
         tercero: string;
+    }>;
+    resetDrawTime(): Promise<{
+        success: boolean;
+        drawId: number;
+        drawDate: string;
+        drawTime: string;
+    }>;
+    resetPendingDraw(): Promise<{
+        success: boolean;
+        drawId: number;
+        drawDate: string;
+        drawTime: string;
     }>;
     rollbackDraw(): Promise<{
         success: boolean;
