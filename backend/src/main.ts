@@ -11,14 +11,19 @@ const logger = new Logger('Bootstrap');
 
 // 写入错误日志到文件
 function writeErrorLog(msg: string) {
-  const logDir = path.join(process.cwd(), 'logs');
+  // 使用 __dirname 确保路径正确
+  const logDir = path.join(__dirname, 'logs');
   const logFile = path.join(logDir, `error-${new Date().toISOString().split('T')[0]}.log`);
   const logMsg = `[${new Date().toISOString()}] ${msg}\n`;
   
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
+  try {
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    fs.appendFileSync(logFile, logMsg);
+  } catch (e) {
+    console.error('Failed to write error log:', e);
   }
-  fs.appendFileSync(logFile, logMsg);
   console.error(msg); // 同时输出到控制台，PM2 会捕获
 }
 
