@@ -108,6 +108,7 @@ export declare class ShopController {
         shopName: string;
         orders: {
             order_id: number;
+            shop_id: number;
             order_number: string;
             order_hash: string;
             numbers: {

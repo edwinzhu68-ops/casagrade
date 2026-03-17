@@ -7,6 +7,7 @@ export declare class DrawDayService implements OnModuleInit {
     private confirmedDrawDay;
     private confirmedDrawMins;
     private autoArchivedForDate;
+    private nextPeriodCreatedForDate;
     constructor(dataSource: DataSource);
     onModuleInit(): void;
     private load;
@@ -16,5 +17,6 @@ export declare class DrawDayService implements OnModuleInit {
     setConfirmedDrawDay(date: string | null, drawMins?: number): void;
     clearAutoArchiveFlag(): void;
     private tick;
+    private cancelUnpaidOrders;
     private autoArchiveLastCompleted;
 }

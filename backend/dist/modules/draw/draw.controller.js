@@ -422,34 +422,22 @@ let DrawController = DrawController_1 = class DrawController {
             await drawRepo.save(draw);
         }
         this.logger.log(`开奖完成: ${JSON.stringify(winningNumbers)}`);
-        await settleOrdersForDraw(this.dataSource, draw.draw_id, winningNumbers.primer, winningNumbers.segundo, winningNumbers.tercero);
-        await drawRepo
+        const cancelResult = await this.dataSource.getRepository(order_entity_1.Order)
             .createQueryBuilder()
-            .update(draw_entity_1.Draw)
-            .set({ archived_at: new Date() })
-            .where('status = :s AND archived_at IS NULL AND draw_id < :id', { s: 'completed', id: draw.draw_id })
+            .update(order_entity_1.Order)
+            .set({ status: -1 })
+            .where('draw_id = :drawId AND status = 0', { drawId: draw.draw_id })
             .execute();
-        const completedDateRaw = draw.draw_date;
-        const completedDate = completedDateRaw ? new Date(typeof completedDateRaw === 'string' ? completedDateRaw + 'T12:00:00' : completedDateRaw) : new Date();
-        const nextDraw = getNextDrawDatePanama(completedDate);
-        const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+        if (cancelResult.affected && cancelResult.affected > 0) {
+            this.logger.log(`开奖时取消未付款订单 ${cancelResult.affected} 条`);
+        }
+        await settleOrdersForDraw(this.dataSource, draw.draw_id, winningNumbers.primer, winningNumbers.segundo, winningNumbers.tercero);
         await drawRepo
             .createQueryBuilder()
             .update(draw_entity_1.Draw)
             .set({ status: 'canceled' })
             .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
             .execute();
-        const existingPending = await drawRepo.findOne({ where: { status: 'pending' }, order: { draw_id: 'DESC' } });
-        if (!existingPending) {
-            const next = drawRepo.create({
-                draw_date: nextDateStr,
-                draw_time: '15:00:00',
-                status: 'pending',
-                winning_numbers: '',
-            });
-            await drawRepo.save(next);
-            this.logger.log(`已创建下一期待开奖: draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
-        }
         return {
             success: true,
             drawId: draw.draw_id,

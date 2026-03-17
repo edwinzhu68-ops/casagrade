@@ -2,6 +2,8 @@ import { Controller, Get, Post, Patch, Delete, Query, Body, Param, UseGuards, Ba
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { User } from '../../entities/user.entity';
@@ -422,6 +424,31 @@ export class AdminController {
       archived_at: (completed as any).archived_at ?? new Date(),
     } as any);
     return { success: true, message: `已归档第 ${completed.draw_id} 期大庄数据` };
+  }
+
+  /**
+   * GET /api/admin/logs - 获取错误日志（最近 100 行）
+   * GET /api/admin/logs?lines=50 - 指定行数
+   */
+  @Get('logs')
+  async getLogs(@Query('lines') lines: string = '100') {
+    const logDir = path.join(__dirname, '..', '..', 'logs');
+    const today = new Date().toISOString().split('T')[0];
+    const logFile = path.join(logDir, `error-${today}.log`);
+    
+    let content = '';
+    try {
+      if (fs.existsSync(logFile)) {
+        const fileContent = fs.readFileSync(logFile, 'utf-8');
+        const allLines = fileContent.split('\n');
+        const maxLines = Math.min(parseInt(lines, 10) || 100, 500);
+        content = allLines.slice(-maxLines).join('\n');
+      }
+    } catch (e) {
+      return { success: false, error: '读取日志失败: ' + (e as Error).message };
+    }
+    
+    return { success: true, logs: content, date: today };
   }
 }
 

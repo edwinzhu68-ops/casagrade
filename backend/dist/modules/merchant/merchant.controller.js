@@ -179,11 +179,42 @@ let MerchantController = MerchantController_1 = class MerchantController {
             email,
         });
         await userRepo.save(user);
-        this.logger.log(`注册: 账号=${account}，等待管理员分配店号`);
+        const allShops = await shopRepo.find({ select: ['shop_number'] });
+        const taken = new Set(allShops.map(s => s.shop_number));
+        let shopNumber = null;
+        for (const len of [3, 4, 5, 6, 7, 8, 9]) {
+            const min = Math.pow(10, len - 1);
+            const max = Math.pow(10, len) - 1;
+            const available = [];
+            for (let n = min; n <= max; n++) {
+                const sn = String(n);
+                if (/^(.)\1+$/.test(sn))
+                    continue;
+                if (!taken.has(sn))
+                    available.push(n);
+            }
+            if (available.length > 0) {
+                shopNumber = String(available[Math.floor(Math.random() * available.length)]);
+                break;
+            }
+        }
+        if (!shopNumber) {
+            throw new common_1.BadRequestException('暂无可用的随机店号，请稍后再试或联系管理员分配');
+        }
+        const newShop = shopRepo.create({
+            shop_number: shopNumber,
+            owner_id: user.user_id,
+            shop_name: shopName || `店铺${shopNumber}`,
+            status: 'active',
+            commission_rate: 0.1,
+        });
+        await shopRepo.save(newShop);
+        this.logger.log(`注册: 账号=${account}, 店号=${shopNumber}`);
         return {
             success: true,
-            message: '注册成功，请联系管理员分配店号后方可使用。',
+            message: '注册成功。可用账号或店号登录，密码相同。',
             accountNumber: account,
+            shopNumber,
         };
     }
     async forgotPassword(body) {
@@ -340,12 +371,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
             const shopByNumber = await shopRepo.findOne({
                 where: { shop_number: accountNumber },
             });
-            if (shopByNumber) {
-                if (shopByNumber.owner_id !== userIdNum) {
-                    shopByNumber.owner_id = userIdNum;
-                    await shopRepo.save(shopByNumber);
-                    this.logger.log(`店铺 ${accountNumber} 已关联到用户 ${userIdNum}`);
-                }
+            if (shopByNumber && shopByNumber.owner_id === userIdNum) {
                 return {
                     shops: [{
                             shop_id: shopByNumber.shop_id,
@@ -420,20 +446,26 @@ let MerchantController = MerchantController_1 = class MerchantController {
         }
         const existing = await bindingRepo.findOne({ where: { sub_shop_id: subShop.shop_id } });
         if (existing) {
+            const newRate = (body.commissionRate !== undefined && body.commissionRate >= 0 && body.commissionRate <= 100)
+                ? body.commissionRate / 100
+                : existing.commission_rate ?? 0.20;
             if (existing.status === 'active')
-                throw new common_1.BadRequestException('该小庄已绑定其他大庄，请先解绑');
+                throw new common_1.BadRequestException('此店号已被绑定');
             if (existing.status === 'pending')
                 throw new common_1.BadRequestException('该小庄已有待确认的绑定邀请');
             existing.main_shop_id = mainShop.shop_id;
             existing.status = 'pending';
-            existing.commission_rate = 0.20;
+            existing.commission_rate = newRate;
             await bindingRepo.save(existing);
             return { success: true, message: '绑定邀请已重新发送，等待小庄确认' };
         }
+        const rate = (body.commissionRate !== undefined && body.commissionRate >= 0 && body.commissionRate <= 100)
+            ? body.commissionRate / 100
+            : 0.20;
         const binding = bindingRepo.create({
             main_shop_id: mainShop.shop_id,
             sub_shop_id: subShop.shop_id,
-            commission_rate: 0.20,
+            commission_rate: rate,
             status: 'pending',
         });
         await bindingRepo.save(binding);

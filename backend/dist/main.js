@@ -117,8 +117,8 @@ async function bootstrap() {
     const allowedOrigins = process.env.ALLOWED_ORIGINS;
     const isDev = process.env.NODE_ENV !== 'production';
     const defaultOrigins = isDev
-        ? ['https://www.casagrade.com', 'https://api.casagrade.com', 'http://localhost:3005', 'http://localhost:8080']
-        : ['https://www.casagrade.com', 'https://api.casagrade.com'];
+        ? ['https://www.casagrade.com', 'https://casagrade.com', 'https://api.casagrade.com', 'http://localhost:3005', 'http://localhost:8080']
+        : ['https://www.casagrade.com', 'https://casagrade.com', 'https://api.casagrade.com'];
     const origins = allowedOrigins
         ? allowedOrigins.split(',').map((s) => s.trim()).filter(Boolean)
         : defaultOrigins;

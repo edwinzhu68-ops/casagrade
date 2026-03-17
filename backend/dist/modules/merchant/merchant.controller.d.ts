@@ -24,6 +24,7 @@ export declare class MerchantController implements OnModuleInit {
         success: boolean;
         message: string;
         accountNumber: string;
+        shopNumber: string;
     }>;
     forgotPassword(body: {
         email: string;
@@ -90,6 +91,7 @@ export declare class MerchantController implements OnModuleInit {
     bindingRequest(body: {
         mainShopId: number;
         subShopNumber: string;
+        commissionRate?: number;
     }, req: any): Promise<{
         success: boolean;
         message: string;

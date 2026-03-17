@@ -47,8 +47,27 @@ exports.DrawDayService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("typeorm");
 const draw_entity_1 = require("../../entities/draw.entity");
+const order_entity_1 = require("../../entities/order.entity");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+function getNextDrawDatePanama(from) {
+    let base;
+    if (from) {
+        base = from;
+    }
+    else {
+        const now = new Date();
+        base = new Date(now.toLocaleString('en-US', { timeZone: 'America/Panama' }));
+    }
+    const day = base.getDay();
+    const daysToWed = ((3 - day + 7) % 7) || 7;
+    const daysToSun = ((0 - day + 7) % 7) || 7;
+    const days = Math.min(daysToWed, daysToSun);
+    const next = new Date(base);
+    next.setDate(next.getDate() + days);
+    next.setHours(15, 0, 0, 0);
+    return next;
+}
 const PANAMA_TZ = 'America/Panama';
 const FILE_NAME = 'draw-day.json';
 function getPanamaNow() {
@@ -107,6 +126,7 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
         this.confirmedDrawDay = null;
         this.confirmedDrawMins = -1;
         this.autoArchivedForDate = null;
+        this.nextPeriodCreatedForDate = null;
         this.filePath = path.join(process.cwd(), FILE_NAME);
         this.load();
     }
@@ -123,6 +143,7 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                 this.confirmedDrawDay = data.confirmedDrawDay ?? null;
                 this.confirmedDrawMins = data.confirmedDrawMins ?? -1;
                 this.autoArchivedForDate = data.autoArchivedForDate ?? null;
+                this.nextPeriodCreatedForDate = data.nextPeriodCreatedForDate ?? null;
             }
         }
         catch {
@@ -135,6 +156,7 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                 confirmedDrawDay: this.confirmedDrawDay,
                 confirmedDrawMins: this.confirmedDrawMins,
                 autoArchivedForDate: this.autoArchivedForDate,
+                nextPeriodCreatedForDate: this.nextPeriodCreatedForDate,
             }, null, 2), 'utf-8');
         }
         catch (e) {
@@ -155,31 +177,84 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
     async tick() {
         const panama = getPanamaNow();
         const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;
+        const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
         const nowMins = panama.h * 60 + panama.min;
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const pending = await drawRepo.findOne({
             where: { status: 'pending' },
             order: { draw_id: 'DESC' },
         });
-        if (!pending) {
+        if (pending) {
+            const parsed = parseDrawTime(pending);
+            if (!parsed)
+                return;
+            const { dateStr, h, min } = parsed;
+            const drawMins = h * 60 + min;
+            if (this.confirmedDrawDay !== dateStr || this.confirmedDrawMins !== drawMins) {
+                this.setConfirmedDrawDay(dateStr, drawMins);
+                this.logger.log(`开奖日更新: ${dateStr} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+            }
+            if (dateStr === todayStr && nowMins >= drawMins && this.autoArchivedForDate !== todayStr) {
+                this.autoArchivedForDate = todayStr;
+                this.save();
+                await this.cancelUnpaidOrders(pending.draw_id);
+            }
+        }
+        else {
             if (this.confirmedDrawDay !== null) {
                 this.setConfirmedDrawDay(null);
             }
-            return;
+            if (nowMins >= 7 * 60 && this.nextPeriodCreatedForDate !== todayStr) {
+                const lastCompleted = await drawRepo.findOne({
+                    where: { status: 'completed' },
+                    order: { draw_id: 'DESC' },
+                });
+                if (lastCompleted) {
+                    const rawDate = String(lastCompleted.draw_date || '').slice(0, 10);
+                    const completedDateObj = new Date(rawDate + 'T12:00:00');
+                    completedDateObj.setDate(completedDateObj.getDate() + 1);
+                    const dayAfterISO = `${completedDateObj.getFullYear()}-${String(completedDateObj.getMonth() + 1).padStart(2, '0')}-${String(completedDateObj.getDate()).padStart(2, '0')}`;
+                    if (todayISO >= dayAfterISO) {
+                        await drawRepo
+                            .createQueryBuilder()
+                            .update(draw_entity_1.Draw)
+                            .set({ archived_at: new Date() })
+                            .where('status = :s AND archived_at IS NULL', { s: 'completed' })
+                            .execute();
+                        const completedDateBase = new Date(rawDate + 'T12:00:00');
+                        const nextDraw = getNextDrawDatePanama(completedDateBase);
+                        const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+                        const next = drawRepo.create({
+                            draw_date: nextDateStr,
+                            draw_time: '15:00:00',
+                            status: 'pending',
+                            winning_numbers: '',
+                            is_manual_override: false,
+                        });
+                        await drawRepo.save(next);
+                        this.nextPeriodCreatedForDate = todayStr;
+                        this.save();
+                        this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+                    }
+                }
+            }
         }
-        const parsed = parseDrawTime(pending);
-        if (!parsed)
-            return;
-        const { dateStr, h, min } = parsed;
-        const drawMins = h * 60 + min;
-        if (this.confirmedDrawDay !== dateStr || this.confirmedDrawMins !== drawMins) {
-            this.setConfirmedDrawDay(dateStr, drawMins);
-            this.logger.log(`开奖日更新: ${dateStr} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+    }
+    async cancelUnpaidOrders(drawId) {
+        try {
+            const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+            const result = await orderRepo
+                .createQueryBuilder()
+                .update(order_entity_1.Order)
+                .set({ status: -1 })
+                .where('draw_id = :drawId AND status = 0', { drawId })
+                .execute();
+            if (result.affected && result.affected > 0) {
+                this.logger.log(`开奖时间到，取消未付款订单 ${result.affected} 条（draw_id=${drawId}）`);
+            }
         }
-        if (dateStr === todayStr && nowMins >= drawMins && this.autoArchivedForDate !== todayStr) {
-            this.autoArchivedForDate = todayStr;
-            this.save();
-            await this.autoArchiveLastCompleted();
+        catch (e) {
+            this.logger.warn('取消未付款订单失败: ' + (e instanceof Error ? e.message : String(e)));
         }
     }
     async autoArchiveLastCompleted() {

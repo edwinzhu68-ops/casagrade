@@ -104,17 +104,47 @@ let OrderController = OrderController_1 = class OrderController {
             throw new common_1.BadRequestException('店铺已停业');
         }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        let currentDraw = await drawRepo.findOne({
+        const currentDraw = await drawRepo.findOne({
             where: { status: 'pending' },
             order: { draw_id: 'DESC' },
         });
         if (!currentDraw) {
-            currentDraw = drawRepo.create({
-                status: 'pending',
-                draw_date: new Date().toISOString().split('T')[0],
-                draw_time: '15:00:00',
-            });
-            await drawRepo.save(currentDraw);
+            throw new common_1.BadRequestException('当前处于停售期，暂停下单');
+        }
+        if (currentDraw) {
+            const timeStr = String(currentDraw.draw_time || '').trim();
+            let drawHour = -1, drawMin = 0;
+            let dy, dm, dd;
+            if (timeStr.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+                const iso = timeStr.substring(0, 10);
+                dy = parseInt(iso.slice(0, 4), 10);
+                dm = parseInt(iso.slice(5, 7), 10);
+                dd = parseInt(iso.slice(8, 10), 10);
+                const dt = new Date(timeStr);
+                if (!isNaN(dt.getTime())) {
+                    drawHour = dt.getHours();
+                    drawMin = dt.getMinutes();
+                }
+            }
+            if (drawHour >= 0) {
+                const panama = getPanamaNow();
+                const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;
+                const confirmedDrawDay = `${String(dd).padStart(2, '0')}-${String(dm).padStart(2, '0')}-${dy}`;
+                const drawDateISO2 = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+                const todayISO2 = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+                const totalMins = panama.h * 60 + panama.min;
+                const drawMins = drawHour * 60 + drawMin;
+                const stopStart = drawMins - 5;
+                const RESUME = 7 * 60;
+                const drawDateObj2 = new Date(`${drawDateISO2}T12:00:00`);
+                drawDateObj2.setDate(drawDateObj2.getDate() + 1);
+                const dayAfterISO2 = `${drawDateObj2.getFullYear()}-${String(drawDateObj2.getMonth() + 1).padStart(2, '0')}-${String(drawDateObj2.getDate()).padStart(2, '0')}`;
+                const inStop = (drawDateISO2 === todayISO2 && totalMins >= stopStart) ||
+                    (dayAfterISO2 === todayISO2 && totalMins < RESUME);
+                if (inStop) {
+                    throw new common_1.BadRequestException('当前处于开奖窗口期，暂停下单');
+                }
+            }
         }
         const limitChance = shop.limit_chance;
         const limitBillete = shop.limit_billete;
@@ -439,6 +469,7 @@ let ShopController = ShopController_1 = class ShopController {
             shopName: shop.shop_name,
             orders: orders.map(order => ({
                 order_id: order.order_id,
+                shop_id: order.shop_id,
                 order_number: order.order_number,
                 order_hash: order.order_hash,
                 numbers: order.numbers,
@@ -589,19 +620,26 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
             const panama = getPanamaNow();
             const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;
             const totalMins = panama.h * 60 + panama.min;
-            if (confirmedDrawDay === todayStr && confirmedDrawMins >= 0) {
-                const stopSaleStart = confirmedDrawMins - 5;
-                const drawEndMins = confirmedDrawMins + 60;
-                if (totalMins >= stopSaleStart && totalMins < drawEndMins) {
-                    canBet = false;
-                    isDrawWindow = true;
-                }
-                minutesUntilDraw = totalMins < stopSaleStart ? Math.max(0, stopSaleStart - totalMins) : undefined;
+            const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+            const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+            const stopSaleStart = confirmedDrawMins - 5;
+            const RESUME_MINS = 7 * 60;
+            const drawDateObj = new Date(`${drawDateISO}T12:00:00`);
+            drawDateObj.setDate(drawDateObj.getDate() + 1);
+            const dayAfterISO = `${drawDateObj.getFullYear()}-${String(drawDateObj.getMonth() + 1).padStart(2, '0')}-${String(drawDateObj.getDate()).padStart(2, '0')}`;
+            const inStopWindow = (drawDateISO === todayISO && totalMins >= stopSaleStart) ||
+                (dayAfterISO === todayISO && totalMins < RESUME_MINS);
+            if (inStopWindow) {
+                canBet = false;
+                isDrawWindow = true;
+                minutesUntilDraw = undefined;
             }
             else {
                 canBet = true;
                 isDrawWindow = false;
-                minutesUntilDraw = undefined;
+                minutesUntilDraw = (drawDateISO === todayISO && totalMins < stopSaleStart)
+                    ? Math.max(0, stopSaleStart - totalMins)
+                    : undefined;
             }
         }
         else {
@@ -612,7 +650,8 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
             if (lastCompleted) {
                 currentPeriodDate = BetStatusController_1.formatDrawPeriodDate(lastCompleted);
             }
-            canBet = true;
+            canBet = false;
+            isDrawWindow = true;
         }
         const base = {
             status: 'ok',
