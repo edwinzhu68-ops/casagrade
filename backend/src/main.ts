@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 try { require('dotenv/config'); } catch { /* 未安装 dotenv 时忽略，使用系统环境变量 */ }
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
