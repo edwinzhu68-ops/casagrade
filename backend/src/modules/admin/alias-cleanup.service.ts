@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+// import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Shop } from '../../entities/shop.entity';
@@ -16,7 +16,7 @@ export class AliasCleanupService {
   ) {}
 
   /** 每天凌晨3点执行，清理超过30天的别名 */
-  @Cron('0 3 * * *')
+  // @Cron('0 3 * * *')
   async cleanupExpiredAliases() {
     const shops = await this.shopRepo.find();
     const expireMs = ALIAS_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
