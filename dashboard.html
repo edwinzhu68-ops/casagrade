@@ -224,7 +224,7 @@
       </div>
 
       <!-- 注册成功弹窗 -->
-      <div id="modal-reg-success" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div id="modal-reg-success" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
         <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
           <h3 class="font-bold text-lg mb-4 text-center">✅ 注册成功</h3>
           <div class="bg-gray-900 rounded-xl p-4 space-y-3 font-mono text-sm mb-4">
@@ -384,7 +384,7 @@
 
   <!-- 历史期次汇总弹窗 -->
   <div id="modal-history" class="hidden fixed inset-0 bg-black/70 z-50 overflow-y-auto">
-    <div class="min-h-screen p-4 flex items-center justify-center">
+    <div class="min-h-screen p-4 flex items-center justify-center" onclick="if(event.target===this)closeHistoryModal()">
       <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-2xl">
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-lg font-bold">历史期次汇总（全部店铺）</h2>
@@ -400,7 +400,7 @@
 
   <!-- 店铺详情弹窗 -->
   <div id="modal-shop" class="hidden fixed inset-0 bg-black/70 z-50 overflow-y-auto">
-    <div class="min-h-screen p-4 flex items-center justify-center">
+    <div class="min-h-screen p-4 flex items-center justify-center" onclick="if(event.target===this)closeModal()">
       <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-bold" id="shop-detail-title">店铺详情</h2>
@@ -1321,14 +1321,14 @@
         const raw = localStorage.getItem(CONFIRMED_DRAW_RECORD_KEY);
         if (raw) {
           const { date, time, drawId } = JSON.parse(raw);
-          if (date && time) {
-            const periodStr = drawId ? ` · 第 ${drawId} 期` : '';
-            el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）${periodStr}`;
+          // drawId 存在才直接显示并返回；否则继续请求 API 补充期次
+          if (date && time && drawId) {
+            el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间） · 第 ${drawId} 期`;
             return;
           }
         }
       } catch (e) {}
-      // localStorage 为空时，从 API 兜底
+      // localStorage 无 drawId 或为空时，从 API 获取
       try {
         const res = await fetch(API_BASE + '/api/draw/pending');
         const data = res.ok ? await res.json() : {};

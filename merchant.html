@@ -60,37 +60,55 @@
         <button onclick="closeRegisterModal()" class="text-gray-400 text-lg">✕</button>
       </div>
 
-      <div class="space-y-3">
-        <div>
-          <p class="text-xs text-gray-400 mb-1" data-i18n="reg_account_label">登录账号（字母或数字）</p>
-          <input id="reg-account" type="text" maxlength="32" placeholder="例如：SHOP123 或 panama01"
-            class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg font-mono focus:outline-none border border-gray-600 focus:border-green-500" />
+      <!-- 已注册提示（一机一号） -->
+      <div id="reg-already-registered" class="hidden">
+        <div class="bg-yellow-900/40 border border-yellow-600 rounded-xl p-4 mb-4">
+          <p class="text-yellow-300 font-bold text-sm mb-1">⚠️ 此设备已注册账号</p>
+          <p class="text-white text-base font-mono mb-3" id="reg-existing-account"></p>
+          <p class="text-gray-300 text-xs">如忘记密码，请通过 WhatsApp 联系客服解决。</p>
         </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="reg_password_label">密码（字母+数字）</p>
-            <input id="reg-password" type="password" placeholder="例如：abc123"
-              class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
-          </div>
-          <div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="reg_confirm_label">确认密码</p>
-            <input id="reg-password-confirm" type="password" placeholder="再输一遍"
-              class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
-          </div>
-        </div>
-        <div>
-          <p class="text-xs text-gray-400 mb-1" data-i18n="reg_email_label">邮箱（可不填，用于找回密码）</p>
-          <input id="reg-email" type="email" placeholder="例如：shop@gmail.com"
-            class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
-        </div>
+        <a href="https://chat.whatsapp.com/Gug1qVxK8aR6k17VRUuTA9?mode=gi_t" target="_blank"
+          class="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold text-sm">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          加入 WhatsApp 客服群
+        </a>
+        <button onclick="closeRegisterModal()" class="w-full mt-3 bg-gray-700 text-white py-2 rounded-xl text-sm">关闭</button>
       </div>
 
-      <div class="flex gap-3 mt-6">
-        <button onclick="closeRegisterModal()" class="flex-1 bg-gray-700 text-white py-3 rounded-xl font-bold" data-i18n="reg_cancel">取消</button>
-        <button onclick="submitRegister()" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold" data-i18n="reg_submit">提交注册</button>
-      </div>
+      <!-- 正常注册表单 -->
+      <div id="reg-form-body">
+        <div class="space-y-3">
+          <div>
+            <p class="text-xs text-gray-400 mb-1" data-i18n="reg_account_label">登录账号（字母或数字）</p>
+            <input id="reg-account" type="text" maxlength="32" placeholder="例如：SHOP123 或 panama01"
+              class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg font-mono focus:outline-none border border-gray-600 focus:border-green-500" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-xs text-gray-400 mb-1" data-i18n="reg_password_label">密码（字母+数字）</p>
+              <input id="reg-password" type="password" placeholder="例如：abc123"
+                class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1" data-i18n="reg_confirm_label">确认密码</p>
+              <input id="reg-password-confirm" type="password" placeholder="再输一遍"
+                class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
+            </div>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-1" data-i18n="reg_email_label">邮箱（可不填，用于找回密码）</p>
+            <input id="reg-email" type="email" placeholder="例如：shop@gmail.com"
+              class="w-full text-sm py-2 px-3 bg-gray-700 rounded-lg focus:outline-none border border-gray-600 focus:border-green-500" />
+          </div>
+        </div>
 
-      <p class="text-[11px] text-gray-500 mt-3" data-i18n="reg_footer">注册成功后系统随机分配店号，账号与店号均可登录。</p>
+        <div class="flex gap-3 mt-6">
+          <button onclick="closeRegisterModal()" class="flex-1 bg-gray-700 text-white py-3 rounded-xl font-bold" data-i18n="reg_cancel">取消</button>
+          <button onclick="submitRegister()" class="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold" data-i18n="reg_submit">提交注册</button>
+        </div>
+
+        <p class="text-[11px] text-gray-500 mt-3" data-i18n="reg_footer">注册成功后系统随机分配店号，账号与店号均可登录。</p>
+      </div>
     </div>
   </div>
 
@@ -229,7 +247,7 @@
 
       <!-- 销售限额设置 -->
       <div class="bg-gray-800 rounded-2xl p-4">
-        <h3 class="font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额与单价</h3>
+        <h3 class="font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额</h3>
         <div class="grid grid-cols-2 gap-4">
           <div>
             <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
@@ -507,7 +525,7 @@
         view_all: '查看全部 →',
         no_data: '暂无数据',
         after_draw_cleared: '开奖后已清空',
-        settings_title: '⚙️ 销售限额与单价',
+        settings_title: '⚙️ 销售限额',
         chance_limit_label: 'Chance 每号最多',
         billete_limit_label: 'Billete 每号最多',
         limit_unit: '张',
@@ -1026,8 +1044,21 @@
       // 不点退出则一直保持登录；仅退出登录时清除 token
     })();
 
+    const REGISTERED_ACCOUNT_KEY = 'lottery_registered_account';
+
     // 打开/关闭注册弹窗
     function openRegisterModal() {
+      const existingAccount = localStorage.getItem(REGISTERED_ACCOUNT_KEY);
+      const alreadyDiv = document.getElementById('reg-already-registered');
+      const formDiv = document.getElementById('reg-form-body');
+      if (existingAccount) {
+        document.getElementById('reg-existing-account').textContent = existingAccount;
+        alreadyDiv.classList.remove('hidden');
+        formDiv.classList.add('hidden');
+      } else {
+        alreadyDiv.classList.add('hidden');
+        formDiv.classList.remove('hidden');
+      }
       document.getElementById('modal-register').classList.remove('hidden');
     }
 
@@ -1110,9 +1141,11 @@
           alert(data.message || data.error || t('alert_register_fail') || '注册失败');
           return;
         }
+        const registeredAccount = data.accountNumber || account;
+        localStorage.setItem(REGISTERED_ACCOUNT_KEY, registeredAccount);
         closeRegisterModal();
         var msg = (data.message || '注册成功') + '\n\n';
-        msg += '账号（字母+数字）：' + (data.accountNumber || account) + '\n';
+        msg += '账号（字母+数字）：' + registeredAccount + '\n';
         msg += '店号（纯数字）：' + (data.shop_number || '') + '\n\n';
         msg += '两者均可登录，密码相同。请牢记。';
         alert(msg);
@@ -3018,7 +3051,7 @@
   </script>
 
   <!-- 设置弹窗 -->
-  <div id="modal-settings" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div id="modal-settings" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
     <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh]">
       <div class="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
         <h2 class="text-lg font-bold" data-i18n="settings_panel_title">⚙️ 设置</h2>
@@ -3110,7 +3143,7 @@
   </div>
 
   <!-- 宣传海报提示弹窗（首次登录出现一次） -->
-  <div id="modal-poster-prompt" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div id="modal-poster-prompt" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
     <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
       <div class="text-5xl mb-3">🎉</div>
       <h3 class="text-lg font-bold mb-2">登录成功！</h3>
@@ -3150,7 +3183,7 @@
   </div>
 
   <!-- PWA 添加到桌面提示 -->
-  <div id="modal-pwa-prompt" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4">
+  <div id="modal-pwa-prompt" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
     <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-5">
       <h3 id="pwa-prompt-title" class="text-base font-bold mb-2">📲 添加到桌面</h3>
       <p id="pwa-prompt-desc" class="text-sm text-gray-400 mb-4 leading-relaxed"></p>
