@@ -68,6 +68,18 @@ let OrderController = OrderController_1 = class OrderController {
         this.dataSource = dataSource;
         this.logger = new common_1.Logger(OrderController_1.name);
     }
+    async onModuleInit() {
+        const qr = this.dataSource.createQueryRunner();
+        for (const sql of [
+            `ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR(64)`,
+        ]) {
+            try {
+                await qr.query(sql);
+            }
+            catch { }
+        }
+        await qr.release();
+    }
     async createOrder(dto, req) {
         const shopId = dto.shopId ?? dto.shop_id;
         const numbers = dto.numbers;
@@ -92,6 +104,41 @@ let OrderController = OrderController_1 = class OrderController {
         for (const item of numbers) {
             if (typeof item.n !== 'string' || item.n.length > 10 || typeof item.q !== 'number' || item.q < 1 || item.q > 999) {
                 throw new common_1.BadRequestException('号码或数量格式无效');
+            }
+        }
+        const BILLETE_PRICE = 1.00;
+        const CHANCE_PRICE = 0.25;
+        let expectedAmount = 0;
+        for (const item of numbers) {
+            const numLen = String(item.n).replace(/\D/g, '').length;
+            const price = numLen >= 4 ? BILLETE_PRICE : CHANCE_PRICE;
+            expectedAmount += price * Number(item.q);
+        }
+        expectedAmount = Math.round(expectedAmount * 100) / 100;
+        if (Math.abs(expectedAmount - amount) > 0.01) {
+            throw new common_1.BadRequestException(`金额不符：期望 $${expectedAmount}，实际 $${amount}`);
+        }
+        const idempotencyKey = (dto.idempotency_key || '').trim().substring(0, 64) || null;
+        if (idempotencyKey) {
+            const orderRepo0 = this.dataSource.getRepository(order_entity_1.Order);
+            const existing = await orderRepo0
+                .createQueryBuilder('o')
+                .where('o.idempotency_key = :k', { k: idempotencyKey })
+                .andWhere('o.shop_id = :s', { s: Number(shopId) })
+                .andWhere('o.status != :canceled', { canceled: -1 })
+                .getOne();
+            if (existing) {
+                this.logger.log(`幂等重复请求，返回已有订单 #${existing.order_number}`);
+                return {
+                    order_id: existing.order_id,
+                    order_number: existing.order_number,
+                    order_hash: existing.order_hash,
+                    verification_code: existing.verification_code,
+                    amount: existing.amount,
+                    status: existing.status,
+                    created_at: existing.created_at,
+                    _idempotent: true,
+                };
             }
         }
         const shop = await this.dataSource.getRepository(shop_entity_1.Shop).findOne({
@@ -124,6 +171,22 @@ let OrderController = OrderController_1 = class OrderController {
                 if (!isNaN(dt.getTime())) {
                     drawHour = dt.getHours();
                     drawMin = dt.getMinutes();
+                }
+            }
+            else {
+                const parts = timeStr.split(':').map(Number);
+                if (parts.length >= 2 && !isNaN(parts[0])) {
+                    drawHour = parts[0];
+                    drawMin = parts[1] || 0;
+                }
+                const rawDate = String(currentDraw.draw_date || '').slice(0, 10);
+                if (rawDate && /^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+                    dy = parseInt(rawDate.slice(0, 4), 10);
+                    dm = parseInt(rawDate.slice(5, 7), 10);
+                    dd = parseInt(rawDate.slice(8, 10), 10);
+                }
+                else {
+                    drawHour = -1;
                 }
             }
             if (drawHour >= 0) {
@@ -182,7 +245,7 @@ let OrderController = OrderController_1 = class OrderController {
         const orderHash = crypto.createHash('sha256').update(orderNumber + Date.now()).digest('hex').substring(0, 64);
         const verificationCode = this.generateVerificationCode();
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
-        const order = orderRepo.create({
+        const orderData = {
             order_number: orderNumber,
             order_hash: orderHash,
             shop_id: Number(shopId),
@@ -194,7 +257,10 @@ let OrderController = OrderController_1 = class OrderController {
             customer_info: { clientId },
             ip_address: ipAddress,
             draw_id: currentDraw?.draw_id || null,
-        });
+        };
+        if (idempotencyKey)
+            orderData.idempotency_key = idempotencyKey;
+        const order = orderRepo.create(orderData);
         await orderRepo.save(order);
         this.logger.log(`订单创建: #${orderNumber}, 店铺: ${shopId}, 金额: $${amount}`);
         return {
@@ -319,12 +385,15 @@ let OrderController = OrderController_1 = class OrderController {
         if (order.status !== 3) {
             throw new common_1.BadRequestException(order.status === 1 ? '尚未开奖，无法兑奖' : '该订单未中奖或状态异常');
         }
-        if (order.redeemed_at) {
+        const redeemResult = await orderRepo
+            .createQueryBuilder()
+            .update(order_entity_1.Order)
+            .set({ redeemed_at: new Date() })
+            .where('order_id = :id AND redeemed_at IS NULL', { id: order.order_id })
+            .execute();
+        if (!redeemResult.affected || redeemResult.affected === 0) {
             throw new common_1.BadRequestException('该订单已兑奖，请勿重复操作');
         }
-        await orderRepo.update(order.order_id, {
-            redeemed_at: new Date(),
-        });
         this.logger.log(`兑奖完成: #${order.order_number}, 店铺: ${body.shopId}, 金额: $${order.win_amount}`);
         return {
             success: true,
@@ -559,10 +628,16 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
     }
     async getBetStatus(shopId) {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const draw = await drawRepo.findOne({
+        let draw = await drawRepo.findOne({
             where: { status: 'pending' },
             order: { draw_id: 'DESC' },
         });
+        if (!draw) {
+            draw = await drawRepo.findOne({
+                where: { status: 'completed' },
+                order: { draw_id: 'DESC' },
+            });
+        }
         let canBet = true;
         let minutesUntilDraw;
         let currentPeriodDate = null;

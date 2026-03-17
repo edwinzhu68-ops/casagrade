@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Delete, Param, Body, Inject, Logger, Query, Req, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Param, Body, Inject, Logger, Query, Req, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Request } from 'express';
 import { DataSource, Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
@@ -24,13 +24,24 @@ interface CreateOrderDto {
   game_type?: string;
   clientId?: string;
   ipAddress?: string;
+  idempotency_key?: string;
 }
 
 @Controller('orders')
-export class OrderController {
+export class OrderController implements OnModuleInit {
   private readonly logger = new Logger(OrderController.name);
 
   constructor(private readonly dataSource: DataSource) {}
+
+  async onModuleInit() {
+    const qr = this.dataSource.createQueryRunner();
+    for (const sql of [
+      `ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR(64)`,
+    ]) {
+      try { await qr.query(sql); } catch {}
+    }
+    await qr.release();
+  }
 
   /**
    * POST /api/orders - 顾客下单
@@ -66,6 +77,45 @@ export class OrderController {
       }
     }
 
+    // 0a. 金额后端验算：按 numbers 重新计算期望金额，防止前端篡改
+    const BILLETE_PRICE = 1.00;
+    const CHANCE_PRICE  = 0.25;
+    let expectedAmount = 0;
+    for (const item of numbers) {
+      const numLen = String(item.n).replace(/\D/g, '').length;
+      const price  = numLen >= 4 ? BILLETE_PRICE : CHANCE_PRICE;
+      expectedAmount += price * Number(item.q);
+    }
+    expectedAmount = Math.round(expectedAmount * 100) / 100;
+    if (Math.abs(expectedAmount - amount) > 0.01) {
+      throw new BadRequestException(`金额不符：期望 $${expectedAmount}，实际 $${amount}`);
+    }
+
+    // 0b. 幂等校验：同一 idempotency_key + shop_id + draw_id 已存在则直接返回原订单
+    const idempotencyKey = (dto.idempotency_key || '').trim().substring(0, 64) || null;
+    if (idempotencyKey) {
+      const orderRepo0 = this.dataSource.getRepository(Order);
+      const existing = await orderRepo0
+        .createQueryBuilder('o')
+        .where('o.idempotency_key = :k', { k: idempotencyKey })
+        .andWhere('o.shop_id = :s', { s: Number(shopId) })
+        .andWhere('o.status != :canceled', { canceled: -1 })
+        .getOne();
+      if (existing) {
+        this.logger.log(`幂等重复请求，返回已有订单 #${existing.order_number}`);
+        return {
+          order_id: existing.order_id,
+          order_number: existing.order_number,
+          order_hash: existing.order_hash,
+          verification_code: existing.verification_code,
+          amount: existing.amount,
+          status: existing.status,
+          created_at: existing.created_at,
+          _idempotent: true,
+        };
+      }
+    }
+
     // 1. 检查店铺是否存在
     const shop = await this.dataSource.getRepository(Shop).findOne({
       where: { shop_id: Number(shopId) },
@@ -91,18 +141,29 @@ export class OrderController {
       throw new BadRequestException('当前处于停售期，暂停下单');
     }
 
-    // 2a. 服务端停售窗口验证（开奖前5分钟 到 开奖后60分钟，拒绝下单）
+    // 2a. 服务端停售窗口验证（开奖前5分钟 到 次日07:00，拒绝下单）
     if (currentDraw) {
       const timeStr = String(currentDraw.draw_time || '').trim();
       let drawHour = -1, drawMin = 0;
       let dy: number, dm: number, dd: number;
       if (timeStr.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+        // ISO 格式：2026-03-18T15:00:00
         const iso = timeStr.substring(0, 10);
         dy = parseInt(iso.slice(0, 4), 10);
         dm = parseInt(iso.slice(5, 7), 10);
         dd = parseInt(iso.slice(8, 10), 10);
         const dt = new Date(timeStr);
         if (!isNaN(dt.getTime())) { drawHour = dt.getHours(); drawMin = dt.getMinutes(); }
+      } else {
+        // HH:mm 或 HH:mm:ss 格式：从 draw_date 字段取日期
+        const parts = timeStr.split(':').map(Number);
+        if (parts.length >= 2 && !isNaN(parts[0])) { drawHour = parts[0]; drawMin = parts[1] || 0; }
+        const rawDate = String((currentDraw as any).draw_date || '').slice(0, 10);
+        if (rawDate && /^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+          dy = parseInt(rawDate.slice(0, 4), 10);
+          dm = parseInt(rawDate.slice(5, 7), 10);
+          dd = parseInt(rawDate.slice(8, 10), 10);
+        } else { drawHour = -1; } // 无法解析日期则跳过
       }
       if (drawHour >= 0) {
         const panama = getPanamaNow();
@@ -175,19 +236,21 @@ export class OrderController {
 
     // 5. 创建订单
     const orderRepo = this.dataSource.getRepository(Order);
-    const order = orderRepo.create({
+    const orderData: any = {
       order_number: orderNumber,
       order_hash: orderHash,
       shop_id: Number(shopId),
       numbers,
       amount,
       game_type: gameTypeValue,
-      status: 0, // 0:未付款
+      status: 0,
       verification_code: verificationCode,
       customer_info: { clientId },
       ip_address: ipAddress,
       draw_id: currentDraw?.draw_id || null,
-    });
+    };
+    if (idempotencyKey) orderData.idempotency_key = idempotencyKey;
+    const order = orderRepo.create(orderData) as unknown as Order;
 
     await orderRepo.save(order);
 
@@ -364,13 +427,17 @@ export class OrderController {
     if (order.status !== 3) {
       throw new BadRequestException(order.status === 1 ? '尚未开奖，无法兑奖' : '该订单未中奖或状态异常');
     }
-    if ((order as any).redeemed_at) {
+    // 原子操作：WHERE redeemed_at IS NULL，防止并发双击导致重复兑奖
+    const redeemResult = await orderRepo
+      .createQueryBuilder()
+      .update(Order)
+      .set({ redeemed_at: new Date() } as any)
+      .where('order_id = :id AND redeemed_at IS NULL', { id: order.order_id })
+      .execute();
+
+    if (!redeemResult.affected || redeemResult.affected === 0) {
       throw new BadRequestException('该订单已兑奖，请勿重复操作');
     }
-
-    await orderRepo.update(order.order_id, {
-      redeemed_at: new Date(),
-    } as any);
 
     this.logger.log(`兑奖完成: #${order.order_number}, 店铺: ${body.shopId}, 金额: $${order.win_amount}`);
 

@@ -23,6 +23,9 @@ export class User {
   @Column({ length: 64, nullable: true, default: null })
   session_token: string | null;
 
+  @Column({ length: 64, nullable: true, default: null })
+  device_id: string | null;
+
   @Column({ nullable: true, default: null })
   last_login_at: Date | null;
 

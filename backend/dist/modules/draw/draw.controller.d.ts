@@ -76,10 +76,18 @@ export declare class DrawController {
         terceras?: string;
     }): Promise<{
         success: boolean;
+        error: string;
+        drawId?: undefined;
+        primer?: undefined;
+        segundo?: undefined;
+        tercero?: undefined;
+    } | {
+        success: boolean;
         drawId: number;
         primer: string;
         segundo: string;
         tercero: string;
+        error?: undefined;
     }>;
     resetDrawTime(): Promise<{
         success: boolean;

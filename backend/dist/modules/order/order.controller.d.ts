@@ -1,3 +1,4 @@
+import { OnModuleInit } from '@nestjs/common';
 import { Request } from 'express';
 import { DataSource } from 'typeorm';
 import { DrawDayService } from '../draw/draw-day.service';
@@ -13,11 +14,13 @@ interface CreateOrderDto {
     game_type?: string;
     clientId?: string;
     ipAddress?: string;
+    idempotency_key?: string;
 }
-export declare class OrderController {
+export declare class OrderController implements OnModuleInit {
     private readonly dataSource;
     private readonly logger;
     constructor(dataSource: DataSource);
+    onModuleInit(): Promise<void>;
     createOrder(dto: CreateOrderDto, req: Request): Promise<{
         order_id: number;
         order_number: string;
@@ -26,6 +29,16 @@ export declare class OrderController {
         amount: number;
         status: number;
         created_at: Date;
+        _idempotent: boolean;
+    } | {
+        order_id: number;
+        order_number: string;
+        order_hash: string;
+        verification_code: string;
+        amount: number;
+        status: number;
+        created_at: Date;
+        _idempotent?: undefined;
     }>;
     deleteOrder(orderNumber: string, body: {
         shopId?: number;

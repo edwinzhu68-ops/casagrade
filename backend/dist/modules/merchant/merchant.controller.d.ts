@@ -13,6 +13,7 @@ interface RegisterDto {
     passwordConfirm?: string;
     shop_name?: string;
     email?: string;
+    device_id?: string;
 }
 export declare class MerchantController implements OnModuleInit {
     private readonly dataSource;

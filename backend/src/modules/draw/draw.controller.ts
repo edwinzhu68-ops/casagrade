@@ -42,7 +42,8 @@ function calcBilletePrizeForOneDraw(betNum: string, winRaw: string, qty: number,
   const originalLen = winRaw.replace(/\D/g, '').length;
   if (qty <= 0 || originalLen < 2) return 0;
   const b = betNum.slice(-4).padStart(4, '0');
-  const w = winRaw.replace(/\D/g, '').padStart(4, '0');
+  const wDigits = winRaw.replace(/\D/g, '');
+  const w = (wDigits.length > 4 ? wDigits.slice(-4) : wDigits).padStart(4, '0');
   // 奖号不足4位（如2位数）：只比后两位，不做精确/前三/后三等高档比较
   if (originalLen < 4) {
     if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE.last2[prizeIndex] * qty;
@@ -95,13 +96,20 @@ async function settleOrdersForDraw(
       // 按号码位数区分规则：4位是Billete，2位是Chance（不再按game_type字段区分）
       const numLen = num.replace(/\D/g, '').length;
       if (numLen >= 4) {
-        // Billete：只与头奖比对，不参与二奖和三奖
+        // Billete：
+        // - 普通开奖（二三奖均为4位）：三个奖都参与，各取最高档，结果相加
+        // - GORDITO（二三奖为2位）：只与头奖比对
         const betNum = num.slice(-4).padStart(4, '0');
+        const isGordito = win2.length <= 2 && win3.length <= 2;
         const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
-        lineWin = win1Val;
+        const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
+        const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
+        lineWin = win1Val + win2Val + win3Val;
         // 记录匹配档位
         const matches: string[] = [];
         if (win1Val > 0) matches.push('头奖');
+        if (win2Val > 0) matches.push('二奖');
+        if (win3Val > 0) matches.push('三奖');
         if (matches.length > 0) matchInfo = matches.join('+');
       } else if (numLen >= 2) {
         // Chance：取后2位 [14,3,2]，三奖叠加
@@ -480,6 +488,21 @@ export class DrawController {
       where: { status: 'pending' },
       order: { draw_id: 'DESC' },
     });
+
+    // 防重复开奖：无 pending 期时检查最近一期是否刚刚完成（60秒内），若是则拒绝
+    if (!draw) {
+      const lastCompleted = await drawRepo.findOne({
+        where: { status: 'completed' },
+        order: { draw_id: 'DESC' },
+      });
+      if (lastCompleted) {
+        const completedAt = new Date((lastCompleted as any).updated_at || (lastCompleted as any).created_at);
+        const secondsAgo = (Date.now() - completedAt.getTime()) / 1000;
+        if (secondsAgo < 60) {
+          return { success: false, error: '开奖已完成，请勿重复提交（60秒内）' };
+        }
+      }
+    }
 
     const hasValidPending = draw != null && Number.isFinite((draw as any).draw_id);
     if (hasValidPending) {

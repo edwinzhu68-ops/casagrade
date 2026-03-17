@@ -121,6 +121,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
             `ALTER TABLE users ADD COLUMN session_token VARCHAR(64)`,
             `ALTER TABLE users ADD COLUMN last_login_at DATETIME`,
             `ALTER TABLE users ADD COLUMN last_login_ua VARCHAR(512)`,
+            `ALTER TABLE users ADD COLUMN device_id VARCHAR(64)`,
         ]) {
             try {
                 await qr.query(sql);
@@ -171,12 +172,20 @@ let MerchantController = MerchantController_1 = class MerchantController {
         if (existing) {
             throw new common_1.BadRequestException('该账号已存在');
         }
+        const deviceId = (dto.device_id || '').trim() || null;
+        if (deviceId) {
+            const deviceExisting = await userRepo.findOne({ where: { device_id: deviceId } });
+            if (deviceExisting) {
+                throw new common_1.BadRequestException(`此设备已注册账号，一台设备仅限注册一个账号。如忘记密码请联系客服。`);
+            }
+        }
         const passwordHash = await bcrypt.hash(password, 10);
         const user = userRepo.create({
             account_number: account,
             password_hash: passwordHash,
             role: 'merchant',
             email,
+            device_id: deviceId,
         });
         await userRepo.save(user);
         const allShops = await shopRepo.find({ select: ['shop_number'] });

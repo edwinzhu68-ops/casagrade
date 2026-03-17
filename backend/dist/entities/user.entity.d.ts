@@ -6,6 +6,7 @@ export declare class User {
     password_hash: string;
     role: string;
     session_token: string | null;
+    device_id: string | null;
     last_login_at: Date | null;
     last_login_ua: string | null;
     created_at: Date;

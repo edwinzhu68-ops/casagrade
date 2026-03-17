@@ -35,7 +35,8 @@ function calcBilletePrizeForOneDraw(betNum, winRaw, qty, prizeIndex) {
     if (qty <= 0 || originalLen < 2)
         return 0;
     const b = betNum.slice(-4).padStart(4, '0');
-    const w = winRaw.replace(/\D/g, '').padStart(4, '0');
+    const wDigits = winRaw.replace(/\D/g, '');
+    const w = (wDigits.length > 4 ? wDigits.slice(-4) : wDigits).padStart(4, '0');
     if (originalLen < 4) {
         if (b.substring(2, 4) === w.substring(2, 4))
             return BILLETE_RATE.last2[prizeIndex] * qty;
@@ -79,11 +80,18 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
             const numLen = num.replace(/\D/g, '').length;
             if (numLen >= 4) {
                 const betNum = num.slice(-4).padStart(4, '0');
+                const isGordito = win2.length <= 2 && win3.length <= 2;
                 const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
-                lineWin = win1Val;
+                const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
+                const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
+                lineWin = win1Val + win2Val + win3Val;
                 const matches = [];
                 if (win1Val > 0)
                     matches.push('头奖');
+                if (win2Val > 0)
+                    matches.push('二奖');
+                if (win3Val > 0)
+                    matches.push('三奖');
                 if (matches.length > 0)
                     matchInfo = matches.join('+');
             }
@@ -396,6 +404,19 @@ let DrawController = DrawController_1 = class DrawController {
             where: { status: 'pending' },
             order: { draw_id: 'DESC' },
         });
+        if (!draw) {
+            const lastCompleted = await drawRepo.findOne({
+                where: { status: 'completed' },
+                order: { draw_id: 'DESC' },
+            });
+            if (lastCompleted) {
+                const completedAt = new Date(lastCompleted.updated_at || lastCompleted.created_at);
+                const secondsAgo = (Date.now() - completedAt.getTime()) / 1000;
+                if (secondsAgo < 60) {
+                    return { success: false, error: '开奖已完成，请勿重复提交（60秒内）' };
+                }
+            }
+        }
         const hasValidPending = draw != null && Number.isFinite(draw.draw_id);
         if (hasValidPending) {
             const updateFields = {

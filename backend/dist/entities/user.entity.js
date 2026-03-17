@@ -43,6 +43,10 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "session_token", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ length: 64, nullable: true, default: null }),
+    __metadata("design:type", String)
+], User.prototype, "device_id", void 0);
+__decorate([
     (0, typeorm_1.Column)({ nullable: true, default: null }),
     __metadata("design:type", Date)
 ], User.prototype, "last_login_at", void 0);
