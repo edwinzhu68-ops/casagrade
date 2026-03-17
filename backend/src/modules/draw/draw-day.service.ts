@@ -5,6 +5,25 @@ import { Order } from '../../entities/order.entity';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/** 从当前巴拿马时间起，计算最近的下一个周三或周日 15:00 */
+function getNextDrawDatePanama(from?: Date): Date {
+  let base: Date;
+  if (from) {
+    base = from;
+  } else {
+    const now = new Date();
+    base = new Date(now.toLocaleString('en-US', { timeZone: 'America/Panama' }));
+  }
+  const day = base.getDay();
+  const daysToWed = ((3 - day + 7) % 7) || 7;
+  const daysToSun = ((0 - day + 7) % 7) || 7;
+  const days = Math.min(daysToWed, daysToSun);
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  next.setHours(15, 0, 0, 0);
+  return next;
+}
+
 const PANAMA_TZ = 'America/Panama';
 const FILE_NAME = 'draw-day.json';
 
@@ -70,6 +89,8 @@ export class DrawDayService implements OnModuleInit {
   private confirmedDrawMins = -1;
   /** 已触发过自动归档的日期，避免重复 */
   private autoArchivedForDate: string | null = null;
+  /** 已在次日07:00创建下一期的日期，避免重复 */
+  private nextPeriodCreatedForDate: string | null = null;
 
   constructor(private readonly dataSource: DataSource) {
     this.filePath = path.join(process.cwd(), FILE_NAME);
@@ -91,6 +112,7 @@ export class DrawDayService implements OnModuleInit {
         this.confirmedDrawDay = data.confirmedDrawDay ?? null;
         this.confirmedDrawMins = data.confirmedDrawMins ?? -1;
         this.autoArchivedForDate = data.autoArchivedForDate ?? null;
+        this.nextPeriodCreatedForDate = data.nextPeriodCreatedForDate ?? null;
       }
     } catch {
       this.confirmedDrawDay = null;
@@ -103,6 +125,7 @@ export class DrawDayService implements OnModuleInit {
         confirmedDrawDay: this.confirmedDrawDay,
         confirmedDrawMins: this.confirmedDrawMins,
         autoArchivedForDate: this.autoArchivedForDate,
+        nextPeriodCreatedForDate: this.nextPeriodCreatedForDate,
       }, null, 2), 'utf-8');
     } catch (e) {
       this.logger.warn('保存 draw-day 失败: ' + (e instanceof Error ? e.message : String(e)));
@@ -128,6 +151,7 @@ export class DrawDayService implements OnModuleInit {
   private async tick() {
     const panama = getPanamaNow();
     const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;
+    const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
     const nowMins = panama.h * 60 + panama.min;
 
     const drawRepo = this.dataSource.getRepository(Draw);
@@ -136,31 +160,70 @@ export class DrawDayService implements OnModuleInit {
       order: { draw_id: 'DESC' },
     });
 
-    if (!pending) {
+    if (pending) {
+      // ── 有待开奖期：维护状态，到点取消未付款订单 ──
+      const parsed = parseDrawTime(pending);
+      if (!parsed) return;
+      const { dateStr, h, min } = parsed;
+      const drawMins = h * 60 + min;
+
+      if (this.confirmedDrawDay !== dateStr || this.confirmedDrawMins !== drawMins) {
+        this.setConfirmedDrawDay(dateStr, drawMins);
+        this.logger.log(`开奖日更新: ${dateStr} ${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
+      }
+
+      // 开奖时间到：取消未付款订单（只触发一次）
+      if (dateStr === todayStr && nowMins >= drawMins && this.autoArchivedForDate !== todayStr) {
+        this.autoArchivedForDate = todayStr;
+        this.save();
+        await this.cancelUnpaidOrders(pending.draw_id);
+      }
+    } else {
+      // ── 无待开奖期（结果已发）：次日 07:00 全量归档 + 创建下一期 ──
       if (this.confirmedDrawDay !== null) {
         this.setConfirmedDrawDay(null);
       }
-      return;
-    }
 
-    const parsed = parseDrawTime(pending);
-    if (!parsed) return;
+      if (nowMins >= 7 * 60 && this.nextPeriodCreatedForDate !== todayStr) {
+        const lastCompleted = await drawRepo.findOne({
+          where: { status: 'completed' },
+          order: { draw_id: 'DESC' },
+        });
+        if (lastCompleted) {
+          // 确认今天 >= 已完成开奖日的次日
+          const rawDate = String((lastCompleted as any).draw_date || '').slice(0, 10);
+          const completedDateObj = new Date(rawDate + 'T12:00:00');
+          completedDateObj.setDate(completedDateObj.getDate() + 1);
+          const dayAfterISO = `${completedDateObj.getFullYear()}-${String(completedDateObj.getMonth() + 1).padStart(2, '0')}-${String(completedDateObj.getDate()).padStart(2, '0')}`;
 
-    const { dateStr, h, min } = parsed;
-    const drawMins = h * 60 + min;
+          if (todayISO >= dayAfterISO) {
+            // 全量归档：所有未归档的已完成期
+            await drawRepo
+              .createQueryBuilder()
+              .update(Draw)
+              .set({ archived_at: new Date() } as any)
+              .where('status = :s AND archived_at IS NULL', { s: 'completed' })
+              .execute();
 
-    // 更新确认开奖日（只要 pending 存在就维护）
-    if (this.confirmedDrawDay !== dateStr || this.confirmedDrawMins !== drawMins) {
-      this.setConfirmedDrawDay(dateStr, drawMins);
-      this.logger.log(`开奖日更新: ${dateStr} ${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`);
-    }
+            // 创建下一期（按正常周三/周日规则）
+            const completedDateBase = new Date(rawDate + 'T12:00:00');
+            const nextDraw = getNextDrawDatePanama(completedDateBase);
+            const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+            const next = drawRepo.create({
+              draw_date: nextDateStr as any,
+              draw_time: '15:00:00',
+              status: 'pending',
+              winning_numbers: '',
+              is_manual_override: false,
+            });
+            await drawRepo.save(next);
 
-    // 自动归档 + 取消未付款订单：开奖日当天，当前时间 >= draw_time，且本日还未处理过
-    if (dateStr === todayStr && nowMins >= drawMins && this.autoArchivedForDate !== todayStr) {
-      this.autoArchivedForDate = todayStr;
-      this.save();
-      await this.cancelUnpaidOrders(pending.draw_id);
-      await this.autoArchiveLastCompleted();
+            this.nextPeriodCreatedForDate = todayStr;
+            this.save();
+            this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+          }
+        }
+      }
     }
   }
 

@@ -79,21 +79,16 @@ export class OrderController {
       throw new BadRequestException('店铺已停业');
     }
 
-    // 2. 获取当前待开奖期次，如果没有则自动创建
+    // 2. 获取当前待开奖期次
     const drawRepo = this.dataSource.getRepository(Draw);
-    let currentDraw = await drawRepo.findOne({
+    const currentDraw = await drawRepo.findOne({
       where: { status: 'pending' },
       order: { draw_id: 'DESC' },
     });
 
-    // 如果没有待开奖期，自动创建第一期
+    // 无待开奖期 → 停售（次日07:00自动创建）
     if (!currentDraw) {
-      currentDraw = drawRepo.create({
-        status: 'pending',
-        draw_date: new Date().toISOString().split('T')[0],
-        draw_time: '15:00:00',
-      });
-      await drawRepo.save(currentDraw);
+      throw new BadRequestException('当前处于停售期，暂停下单');
     }
 
     // 2a. 服务端停售窗口验证（开奖前5分钟 到 开奖后60分钟，拒绝下单）
@@ -689,7 +684,7 @@ export class BetStatusController {
           : undefined;
       }
     } else {
-      // 无待开奖期（已发送开奖结果、尚未发送下一期时间）：仍允许下单，订单 draw_id 为 null，下一期开奖时会一并结算
+      // 无待开奖期（已发结果，等待次日07:00创建下一期）→ 停售
       const lastCompleted = await drawRepo.findOne({
         where: { status: 'completed' },
         order: { draw_id: 'DESC' },
@@ -697,7 +692,8 @@ export class BetStatusController {
       if (lastCompleted) {
         currentPeriodDate = BetStatusController.formatDrawPeriodDate(lastCompleted);
       }
-      canBet = true; // 无当前期也允许下单，不限制
+      canBet = false;
+      isDrawWindow = true;
     }
 
     const base = {
