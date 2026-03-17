@@ -11,8 +11,8 @@ const logger = new Logger('Bootstrap');
 
 // 写入错误日志到文件
 function writeErrorLog(msg: string) {
-  // 使用 __dirname 确保路径正确
-  const logDir = path.join(__dirname, 'logs');
+  // __dirname 是 dist 目录，往上一级到 backend
+  const logDir = path.join(__dirname, '..', 'logs');
   const logFile = path.join(logDir, `error-${new Date().toISOString().split('T')[0]}.log`);
   const logMsg = `[${new Date().toISOString()}] ${msg}\n`;
   
