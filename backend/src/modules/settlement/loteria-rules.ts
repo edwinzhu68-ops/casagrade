@@ -228,12 +228,8 @@ export function example() {
 
   // 买 Billete 1234, $1
   const billeteResult = calculateBilletePayout('1234', draw, 1);
-  console.log('Billete 1234 中奖:', billeteResult);
-  // 输出: 头奖四位(2000) + 头奖前三位(50) + 头奖后三位(50) + 头奖前两位(3) + 头奖后两位(3) + 二奖后两位(2) + 三奖后两位(1) = 2109
-
   // 买 Chance 34, $0.25
   const chancePayout = calculateChancePayout('34', draw, 0.25);
-  console.log('Chance 34 中奖:', chancePayout);  // 二奖后两位 = $3
 }
 
 // ============================================
