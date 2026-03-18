@@ -9,6 +9,10 @@
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     .hidden { display: none !important; }
+    @keyframes drawReadyPulse {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(74,222,128,0.7); }
+      50% { opacity: 0.92; transform: scale(1.01); box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+    }
   </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
@@ -99,6 +103,12 @@
             <div><span class="text-gray-400">Segundo Premio</span> <span id="fb-segundo" class="text-green-300 font-bold"></span></div>
             <div><span class="text-gray-400">Tercer Premio</span> <span id="fb-tercero" class="text-green-300 font-bold"></span></div>
             <div><span class="text-gray-400">Letras</span> <span id="fb-letras"></span></div>
+          </div>
+          <!-- 开奖就绪横幅：号码完整且期次匹配时显示 -->
+          <div id="draw-ready-banner" class="hidden rounded-xl px-4 py-4 mb-2 text-center" style="background:#16a34a;border:3px solid #4ade80;animation:drawReadyPulse 1s ease-in-out infinite;">
+            <div class="text-white font-bold text-2xl mb-1">✅ 可以发送！</div>
+            <div id="draw-ready-numbers" class="text-green-100 font-mono text-lg font-bold mb-2"></div>
+            <div class="text-green-200 text-sm">号码已自动填入 · 确认无误后点击下方「发送开奖结果」</div>
           </div>
         </div>
 
@@ -777,6 +787,7 @@
               const d = parts[0], m = parts[1], y = parts[2];
               if (/^\d{4}$/.test(y) && /^\d{1,2}$/.test(m) && /^\d{1,2}$/.test(d)) {
                 setDrawDate(`${d.padStart(2,'0')}-${m.padStart(2,'0')}-${y}`);
+                pendingDrawDate = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; // YYYY-MM-DD
                 timeInput.value = time && String(time).trim() ? String(time).slice(0,5) : '15:00';
                 try {
                   localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: getDrawDate(), time: timeInput.value }));
@@ -806,6 +817,7 @@
           const ymd = normalizeDrawDateToYMD(dateStr);
           if (ymd) {
             setDrawDate(ymd);
+            pendingDrawDate = ymd; // 记录当期开奖日期，用于与 Firebase 结果比对
             timeInput.value = (timeStr && String(timeStr).trim()) ? String(timeStr).slice(0, 5) : '15:00';
             try {
               localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: getDrawDate(), time: timeInput.value }));
@@ -848,7 +860,7 @@
     } else {
       document.getElementById('page-login').classList.add('hidden');
       document.getElementById('page-admin').classList.remove('hidden');
-      initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); });
+      initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); checkAutoStartPoll(); });
     }
     let allOrders = [];
     let allShops = [];
@@ -883,7 +895,7 @@
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-admin').classList.remove('hidden');
         
-        initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); });
+        initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); checkAutoStartPoll(); });
       } catch (err) {
         showToast(err.message || '登录失败', 'error');
       }
@@ -1002,6 +1014,8 @@
     }
 
     let lastFirebaseDraw = null;
+    let pendingDrawDate = null; // YYYY-MM-DD，来自 /api/draw/pending
+    let autoStartPollDone = false; // 本次会话只自动触发一次
 
     // 将号码格式化为 4 位，不足用 - 占位（逐位公布时用）
     function pad4Display(x) {
@@ -1068,11 +1082,35 @@
       document.getElementById('fb-tercero').textContent = d.tercero != null ? String(d.tercero) : '—';
       document.getElementById('fb-letras').textContent = (d.letras || '—').toString();
       document.getElementById('firebase-draw-result').classList.remove('hidden');
-      if (isFirebaseDrawComplete(d)) document.getElementById('btn-confirm-firebase').classList.remove('hidden');
+      const complete = isFirebaseDrawComplete(d);
+      if (complete) document.getElementById('btn-confirm-firebase').classList.remove('hidden');
       else document.getElementById('btn-confirm-firebase').classList.add('hidden');
+
+      // 开奖就绪逻辑：号码完整且有待开奖期 → 显示横幅 + 自动填入
+      const banner = document.getElementById('draw-ready-banner');
+      if (complete && pendingDrawDate) {
+        // 自动填入号码
+        document.getElementById('draw-1st').value = rawDigits(d.primer) || '';
+        document.getElementById('draw-2nd').value = rawDigits(d.segundo) || '';
+        document.getElementById('draw-3rd').value = rawDigits(d.tercero) || '';
+        saveNextDrawDefault();
+        // 显示横幅
+        const type = (d.drawType || '').toUpperCase();
+        document.getElementById('draw-ready-numbers').textContent =
+          `${type}  1️⃣ ${d.primer}  2️⃣ ${d.segundo}  3️⃣ ${d.tercero}`;
+        banner.classList.remove('hidden');
+        // 停止轮询（号码已到，无需继续）
+        if (firebasePollTimer) stopFirebasePoll();
+        // 滚动到横幅位置提醒用户
+        banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      } else {
+        banner.classList.add('hidden');
+      }
+
       // 拉取一次后只填入号码，不填日期（日期在手动开奖处用 YYYY-MM-DD 单独填）
       if (!fillForm) return;
-      if (isFirebaseDrawComplete(d)) {
+      if (complete) {
         document.getElementById('draw-1st').value = rawDigits(d.primer) || '';
         document.getElementById('draw-2nd').value = rawDigits(d.segundo) || '';
         document.getElementById('draw-3rd').value = rawDigits(d.tercero) || '';
@@ -1122,6 +1160,43 @@
       firebasePollTimer = null;
       document.getElementById('btn-start-poll').classList.remove('hidden');
       document.getElementById('btn-stop-poll').classList.add('hidden');
+    }
+
+    // 自动开始轮询：当前巴拿马时间在 pendingDraw 开奖时间 +5min 到 +5h 之间时自动开启
+    function checkAutoStartPoll() {
+      if (autoStartPollDone || firebasePollTimer) return;
+      if (!pendingDrawDate) return; // 还没拿到待开奖期，不处理
+
+      // 读取手动开奖处填的时间（HH:mm）
+      const drawTimeStr = (document.getElementById('draw-time').value || '15:00').slice(0, 5);
+      const [dh, dm] = drawTimeStr.split(':').map(Number);
+
+      // pendingDrawDate 是 YYYY-MM-DD（本地/巴拿马日期）
+      const [py, pmo, pd] = pendingDrawDate.split('-').map(Number);
+
+      // 巴拿马时间 = UTC-5
+      const panamaNow = new Date(Date.now() - 5 * 3600 * 1000);
+      const nowY = panamaNow.getUTCFullYear();
+      const nowMo = panamaNow.getUTCMonth() + 1;
+      const nowD = panamaNow.getUTCDate();
+      const nowH = panamaNow.getUTCHours();
+      const nowMin = panamaNow.getUTCMinutes();
+
+      // 今天（巴拿马）是否就是开奖日
+      if (nowY !== py || nowMo !== pmo || nowD !== pd) return;
+
+      // 距开奖时间的分钟数（+5min 起、+5h 内）
+      const minutesSinceDraw = (nowH - dh) * 60 + (nowMin - dm);
+      if (minutesSinceDraw < 5 || minutesSinceDraw >= 300) return;
+
+      autoStartPollDone = true;
+      firebasePollTimer = setInterval(function () {
+        fetchFirebaseDraw(false);
+      }, 12000);
+      document.getElementById('btn-start-poll').classList.add('hidden');
+      document.getElementById('btn-stop-poll').classList.remove('hidden');
+      showToast('🔄 已自动开启 Firebase 轮询（开奖时间 +5min）', 'success');
+      fetchFirebaseDraw(false); // 立即拉一次
     }
 
     // 将 Firebase 拉取到的三组号码填入手动开奖（只填号码，不填日期）
