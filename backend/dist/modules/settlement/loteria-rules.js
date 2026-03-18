@@ -118,9 +118,7 @@ function example() {
         tercero: '9934'
     };
     const billeteResult = calculateBilletePayout('1234', draw, 1);
-    console.log('Billete 1234 中奖:', billeteResult);
     const chancePayout = calculateChancePayout('34', draw, 0.25);
-    console.log('Chance 34 中奖:', chancePayout);
 }
 exports.LOTERIA_NUMBER_RANGE = { min: 1, max: 36 };
 function validateNumbers(numbers) {

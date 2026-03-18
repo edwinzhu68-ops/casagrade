@@ -19,10 +19,17 @@ export declare class DrawController {
         success: boolean;
         data: {
             drawType: string;
+            drawDate: string;
+            drawHora: string;
             primer: string;
             segundo: string;
             tercero: string;
             letras: string;
+            expectedDigits: {
+                p: number;
+                s: number;
+                t: number;
+            };
         };
     }>;
     getLatestDraw(): Promise<{

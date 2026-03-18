@@ -223,35 +223,39 @@ let DrawController = DrawController_1 = class DrawController {
         };
         const drawType = get('Tipo de Sorteo').toUpperCase();
         const digits = (s) => s.replace(/\D/g, '');
-        const pRaw = digits(get('Primer Premio'));
-        const sRaw = digits(get('Segundo Premio'));
-        const tRaw = digits(get('Tercer Premio'));
+        const pFull = get('Primer Premio');
+        const sFull = get('Segundo Premio');
+        const tFull = get('Tercer Premio');
+        const pRaw = digits(pFull);
+        const sRaw = digits(sFull);
+        const tRaw = digits(tFull);
         let primer;
         let segundo;
         let tercero;
-        if (drawType === 'GORDITO') {
-            primer = pRaw.slice(-4).padStart(4, '0');
-            segundo = sRaw.slice(-2).padStart(2, '0');
-            tercero = tRaw.slice(-2).padStart(2, '0');
-        }
-        else if (drawType === 'EXTRAORDINARIA') {
-            primer = pRaw.slice(-5).padStart(5, '0');
-            segundo = sRaw.slice(-5).padStart(5, '0');
-            tercero = tRaw.slice(-5).padStart(5, '0');
+        if (drawType.includes('GORDITO')) {
+            primer = pRaw.length >= 4 ? pRaw.slice(-4) : pFull;
+            segundo = sRaw.length >= 2 ? sRaw.slice(-2) : sFull;
+            tercero = tRaw.length >= 2 ? tRaw.slice(-2) : tFull;
         }
         else {
-            primer = pRaw.slice(-4).padStart(4, '0');
-            segundo = sRaw.slice(-4).padStart(4, '0');
-            tercero = tRaw.slice(-4).padStart(4, '0');
+            primer = pFull;
+            segundo = sFull;
+            tercero = tFull;
         }
+        const expectedDigits = drawType === 'GORDITO' ? { p: 4, s: 2, t: 2 } :
+            drawType === 'EXTRAORDINARIA' ? { p: 5, s: 5, t: 5 } :
+                { p: 4, s: 4, t: 4 };
         return {
             success: true,
             data: {
                 drawType: get('Tipo de Sorteo'),
+                drawDate: get('Fecha del Sorteo'),
+                drawHora: get('Hora del Sorteo'),
                 primer,
                 segundo,
                 tercero,
                 letras: get('Letras'),
+                expectedDigits,
             },
         };
     }

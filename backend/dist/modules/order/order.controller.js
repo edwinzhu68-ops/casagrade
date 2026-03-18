@@ -285,8 +285,8 @@ let OrderController = OrderController_1 = class OrderController {
         if (order.shop_id !== shopId) {
             throw new common_1.BadRequestException('无权删除其他店铺的订单');
         }
-        if (order.status === 1 || order.status === 2 || order.status === 3) {
-            throw new common_1.BadRequestException('已付款或已结算的订单不允许删除');
+        if (order.status === 2 || order.status === 3) {
+            throw new common_1.BadRequestException('已结算或已中奖的订单不允许删除');
         }
         this.logger.log(`订单删除: #${order.order_number}, 店铺: ${shopId}, 状态: ${order.status}`);
         await orderRepo.remove(order);

@@ -264,38 +264,47 @@ export class DrawController {
     const drawType = get('Tipo de Sorteo').toUpperCase();
     const digits = (s: string) => s.replace(/\D/g, '');
 
-    const pRaw = digits(get('Primer Premio'));
-    const sRaw = digits(get('Segundo Premio'));
-    const tRaw = digits(get('Tercer Premio'));
+    // 保留原始字符串（含 -- 等占位符），前端可据此判断是否还未开完
+    const pFull = get('Primer Premio');
+    const sFull = get('Segundo Premio');
+    const tFull = get('Tercer Premio');
+    const pRaw = digits(pFull);
+    const sRaw = digits(sFull);
+    const tRaw = digits(tFull);
 
     let primer: string;
     let segundo: string;
     let tercero: string;
 
-    if (drawType === 'GORDITO') {
-      primer = pRaw.slice(-4).padStart(4, '0');
-      segundo = sRaw.slice(-2).padStart(2, '0');
-      tercero = tRaw.slice(-2).padStart(2, '0');
-    } else if (drawType === 'EXTRAORDINARIA') {
-      primer = pRaw.slice(-5).padStart(5, '0');
-      segundo = sRaw.slice(-5).padStart(5, '0');
-      tercero = tRaw.slice(-5).padStart(5, '0');
+    // GORDITO：头奖取后4位，二三奖取后2位
+    // 其他：直接返回原始字符串（含 --），前端检测 - 号判断是否未完整
+    if (drawType.includes('GORDITO')) {
+      primer = pRaw.length >= 4 ? pRaw.slice(-4) : pFull;
+      segundo = sRaw.length >= 2 ? sRaw.slice(-2) : sFull;
+      tercero = tRaw.length >= 2 ? tRaw.slice(-2) : tFull;
     } else {
-      // MIERCOLITO, DOMINICAL 或未知：三奖均 4 位
-      primer = pRaw.slice(-4).padStart(4, '0');
-      segundo = sRaw.slice(-4).padStart(4, '0');
-      tercero = tRaw.slice(-4).padStart(4, '0');
+      primer = pFull;
+      segundo = sFull;
+      tercero = tFull;
     }
 
-    // 只返回号码，供填入手动开奖表单；不返回日期，日期由手动开奖处单独填（YYYY-MM-DD）
+    // 按 drawType 决定预计开奖位数（供前端"准备开奖"提示用）
+    const expectedDigits: { p: number; s: number; t: number } =
+      drawType === 'GORDITO' ? { p: 4, s: 2, t: 2 } :
+      drawType === 'EXTRAORDINARIA' ? { p: 5, s: 5, t: 5 } :
+      { p: 4, s: 4, t: 4 };
+
     return {
       success: true,
       data: {
         drawType: get('Tipo de Sorteo'),
+        drawDate: get('Fecha del Sorteo'),   // 原样返回，如 "16-03-2026"
+        drawHora: get('Hora del Sorteo'),    // 原样返回，如 "15:00" 或空
         primer,
         segundo,
         tercero,
         letras: get('Letras'),
+        expectedDigits,                      // 预计各奖位数
       },
     };
   }
