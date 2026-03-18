@@ -19,6 +19,7 @@
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen" style="visibility:hidden">
+<div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none w-full max-w-sm px-4"></div>
 
   <!-- 首页 - 输入店号 -->
   <div id="page-home" class="min-h-screen flex items-center justify-center p-4">
@@ -52,29 +53,23 @@
   <div id="page-shop" class="hidden min-h-screen pb-16">
     <header class="bg-green-600 text-white px-3 py-2 sticky top-0 z-10">
       <div class="max-w-md mx-auto">
-        <div class="flex items-center gap-2">
-          <!-- 左：固定宽，与右侧对称，使中间店号真正居中 -->
-          <div id="header-account-area" class="flex-shrink-0 w-14 text-left cursor-pointer rounded px-1 py-0.5 hover:bg-white/10 active:bg-white/20" title="Toca para registrarte o entrar" onclick="openAuthModal()">
-            <p id="header-account-label" class="text-xs opacity-95 leading-tight truncate">Cuenta</p>
-            <p id="header-account-value" class="text-xs font-mono truncate opacity-90">-</p>
-          </div>
-          <div class="flex-1 flex flex-col items-center justify-center min-w-0">
+        <div class="flex items-center justify-between">
+          <!-- 左：语言切换（与 merchant.html 一致） -->
+          <button type="button" id="btn-client-lang" onclick="toggleClientLang()" class="w-14 h-10 flex items-center justify-center text-2xl rounded-lg hover:bg-white/20 active:bg-white/30 flex-shrink-0">🇨🇳</button>
+          <!-- 中：店号 + 账户信息（点击开账户弹窗） -->
+          <div class="flex-1 flex flex-col items-center justify-center min-w-0 cursor-pointer" onclick="openAuthModal()">
             <h1 class="font-bold text-xl sm:text-2xl font-mono text-center tabular-nums">
               <span id="shop-number">-----</span>
             </h1>
+            <div id="header-account-area" class="flex items-center gap-1">
+              <p id="header-account-label" class="text-xs opacity-80 leading-tight">Cuenta</p>
+              <p id="header-account-value" class="text-xs font-mono opacity-90">-</p>
+            </div>
             <span id="draw-status-badge" class="hidden mt-0.5 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-200"></span>
           </div>
-          <div class="relative flex flex-shrink-0 w-14 justify-end">
-            <button type="button" id="header-menu-btn" onclick="toggleHeaderMenu()" class="p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white" title="Menú" aria-label="Menú">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
-            </button>
-            <div id="header-menu-dropdown" class="hidden absolute top-full right-0 mt-1.5 w-44 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-20">
-              <button id="menu-lang-btn" type="button" onclick="closeHeaderMenu(); toggleClientLang();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100">🇨🇳 中文</button>
-              <div class="border-t border-gray-100 my-1"></div>
-              <button type="button" onclick="closeHeaderMenu(); goToOtherStore();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100" data-i18n="menu_other_store">Otra tienda</button>
-              <div class="border-t border-gray-100 my-1"></div>
-              <button type="button" onclick="closeHeaderMenu(); exitClientShop();" class="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-100" data-i18n="menu_exit">Salir</button>
-            </div>
+          <!-- 右：返回 -->
+          <div class="w-14 flex justify-end flex-shrink-0">
+            <button type="button" onclick="exitClientShop()" class="text-white/80 hover:text-white text-sm font-medium" data-i18n="menu_exit">Salir</button>
           </div>
         </div>
         <!-- 开奖中 15:00-16:00：暂停销售、下单禁用 -->
@@ -205,8 +200,8 @@
       </div>
       <!-- 未选时：两个入口 -->
       <div id="auth-choice" class="space-y-2">
-        <button type="button" onclick="showAuthRegisterForm()" class="w-full py-3 rounded-xl bg-green-600 text-white font-bold" data-i18n="btn_register">Registrarse</button>
-        <button type="button" onclick="document.getElementById('auth-choice').classList.add('hidden'); document.getElementById('auth-login-form').classList.remove('hidden');" class="w-full py-3 rounded-xl bg-gray-200 text-gray-800 font-bold" data-i18n="btn_login_choice">Iniciar sesión</button>
+        <button type="button" onclick="document.getElementById('auth-choice').classList.add('hidden'); document.getElementById('auth-login-form').classList.remove('hidden');" class="w-full py-4 rounded-xl bg-green-600 text-white font-bold text-xl" data-i18n="btn_login_choice">Iniciar sesión</button>
+        <button type="button" onclick="showAuthRegisterForm()" class="w-full py-4 rounded-xl bg-red-600 text-white font-bold text-xl" data-i18n="btn_register">Registrarse</button>
       </div>
       <!-- 注册表单 -->
       <div id="auth-register-form" class="hidden space-y-3">
@@ -491,6 +486,22 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 
   <script>
+    function showToast(msg, type) {
+      var colors = { error: 'bg-red-500', success: 'bg-green-500', warning: 'bg-yellow-400 text-gray-900', info: 'bg-gray-800' };
+      var container = document.getElementById('toast-container');
+      if (!container) { console.warn(msg); return; }
+      var el = document.createElement('div');
+      var colorClass = colors[type] || colors.info;
+      el.className = 'pointer-events-auto w-full px-4 py-3 rounded-xl text-white text-sm font-medium shadow-xl text-center ' + colorClass;
+      el.style.cssText = 'opacity:0;transform:translateY(-10px);transition:opacity 0.25s,transform 0.25s;';
+      el.textContent = msg;
+      container.appendChild(el);
+      requestAnimationFrame(function() { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+      setTimeout(function() {
+        el.style.opacity = '0'; el.style.transform = 'translateY(-10px)';
+        setTimeout(function() { el.parentNode && el.parentNode.removeChild(el); }, 300);
+      }, 3500);
+    }
     // API 地址：优先从 localStorage 读取 lottery_api_base（本地调试可设为 http://localhost:3000）；否则本地打开用相对路径，线上用 api.casagrade.com
     var API_BASE = (function () {
       try {
@@ -668,7 +679,11 @@
     };
 
     function getClientLang() {
-      return localStorage.getItem(CLIENT_LANG_KEY) || 'es';
+      var saved = localStorage.getItem(CLIENT_LANG_KEY);
+      if (saved) return saved;
+      // 自动检测系统语言：中文简体/繁体 → 中文，其他 → 西班牙语
+      var sys = (navigator.language || navigator.userLanguage || '').toLowerCase();
+      return sys.startsWith('zh') ? 'zh' : 'es';
     }
     function setClientLang(lang) {
       localStorage.setItem(CLIENT_LANG_KEY, lang);
@@ -691,9 +706,9 @@
       document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
         el.placeholder = tc(el.getAttribute('data-i18n-ph'));
       });
-      // 语言切换按钮
-      var langBtn = document.getElementById('menu-lang-btn');
-      if (langBtn) langBtn.textContent = tc('menu_lang');
+      // 语言切换按钮：显示「可切换到的语言」的旗帜
+      var langBtn = document.getElementById('btn-client-lang');
+      if (langBtn) langBtn.textContent = getClientLang() === 'zh' ? '🇵🇦' : '🇨🇳';
       // 动态更新：总计行
       var countEl = document.getElementById('total-count');
       if (countEl) {
@@ -917,10 +932,10 @@
             var data = await r.json();
             errMsg = data.message || data.error || errMsg;
           } catch (e) {}
-          alert(errMsg + ' (HTTP ' + r.status + ')');
+          showToast(errMsg + ' (HTTP ' + r.status + ')', 'error');
         }
       } catch (e) {
-        alert('No se pudo conectar al servidor. Verifica tu red.' + (e && e.message ? ' ' + e.message : ''));
+        showToast('No se pudo conectar al servidor. Verifica tu red.' + (e && e.message ? ' ' + e.message : ''), 'error');
       }
       stopStatusPolling();
       stopPayCountdown();
@@ -1339,10 +1354,10 @@
       var password = (document.getElementById('auth-reg-password').value || '');
       var password2 = (document.getElementById('auth-reg-password2').value || '');
       var displayName = (document.getElementById('auth-reg-display').value || '').trim();
-      if (!username) { alert('Introduce un usuario'); return; }
-      if (!password) { alert('Introduce una contraseña'); return; }
-      if (password.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
-      if (password !== password2) { alert('Las dos contraseñas no coinciden'); return; }
+      if (!username) { showToast('Introduce un usuario', 'error'); return; }
+      if (!password) { showToast('Introduce una contraseña', 'error'); return; }
+      if (password.length < 6) { showToast('La contraseña debe tener al menos 6 caracteres', 'error'); return; }
+      if (password !== password2) { showToast('Las dos contraseñas no coinciden', 'error'); return; }
       var users = [];
       try {
         var raw = localStorage.getItem(AUTH_USERS_KEY);
@@ -1350,7 +1365,7 @@
       } catch (e) {}
       if (!Array.isArray(users)) users = [];
       if (users.some(function(u) { return u.username === username; })) {
-        alert('Ese usuario ya existe');
+        showToast('Ese usuario ya existe', 'error');
         return;
       }
       var finalDisplay = displayName || username;
@@ -1365,7 +1380,7 @@
     function doLogin() {
       var username = (document.getElementById('auth-log-username').value || '').trim();
       var password = (document.getElementById('auth-log-password').value || '');
-      if (!username) { alert('Introduce un usuario'); return; }
+      if (!username) { showToast('Introduce un usuario', 'error'); return; }
       var users = [];
       try {
         var raw = localStorage.getItem(AUTH_USERS_KEY);
@@ -1374,7 +1389,7 @@
       if (!Array.isArray(users)) users = [];
       var u = users.find(function(x) { return x.username === username; });
       if (!u || u.password !== password) {
-        alert('Usuario o contraseña incorrectos');
+        showToast('Usuario o contraseña incorrectos', 'error');
         return;
       }
       authCurrent = { username: u.username, displayName: u.displayName || u.username };
@@ -1504,7 +1519,7 @@
           }
           var mins = statusData && statusData.minutesUntilDraw;
           if (typeof mins === 'number' && !isNaN(mins) && mins <= 10 && mins >= 0) {
-            alert('⚠️ Quedan menos de ' + mins + ' minutos para el sorteo.');
+            showToast('Quedan menos de ' + mins + ' minutos para el sorteo.', 'warning');
           }
         }
       } catch (_) {}
@@ -1523,7 +1538,7 @@
     async function goToShop() {
       var shopNumber = (document.getElementById('store-input').value || '').trim();
       if (!shopNumber || !/^\d{1,9}$/.test(shopNumber)) {
-        alert('Introduce el número de tienda (solo dígitos, ej. 1, 01, 002)');
+        showToast('Introduce el número de tienda (solo dígitos, ej. 1, 01, 002)', 'error');
         return;
       }
       var btn = document.getElementById('btn-entrar');
@@ -1535,7 +1550,7 @@
         showPage('page-shop');
         startClientStopCountdown();
       } catch (err) {
-        alert(err.message || 'No existe esta tienda o no se puede conectar.');
+        showToast(err.message || 'No existe esta tienda o no se puede conectar.', 'error');
       } finally {
         btn.disabled = false;
         btn.textContent = originalText;
@@ -1783,7 +1798,7 @@
         return Object.assign({}, b, { quantity: maxAllowed });
       }).filter(Boolean);
       if (betList.length === 0) {
-        alert('Todos los números han alcanzado el límite de ventas.');
+        showToast('Todos los números han alcanzado el límite de ventas.', 'warning');
         return;
       }
       submitBet();
@@ -1793,13 +1808,13 @@
     async function submitBet() {
       if (betList.length === 0) return;
       if (!currentShop) {
-        alert('Primero selecciona una tienda');
+        showToast('Primero selecciona una tienda', 'warning');
         return;
       }
       if (!lastBetStatus.canBet || lastBetStatus.isDrawWindow) {
-        alert(getClientLang() === 'zh'
+        showToast(getClientLang() === 'zh'
           ? '暂停销售，次日 07:00 恢复'
-          : 'Ventas suspendidas. Se reanudan a las 7:00 am del día siguiente.');
+          : 'Ventas suspendidas. Se reanudan a las 7:00 am del día siguiente.', 'warning');
         return;
       }
       var pendingList = [];
@@ -1810,7 +1825,7 @@
         pendingList = pendingList.filter(function (o) { return o && o.clientId === clientId; });
       } catch (e) {}
       if (pendingList.length >= MAX_PENDING_ORDERS) {
-        alert('Ya tienes 3 pedidos pendientes de pago. Por favor paga primero antes de hacer más pedidos.');
+        showToast('Ya tienes 3 pedidos pendientes de pago. Por favor paga primero antes de hacer más pedidos.', 'warning');
         return;
       }
 
@@ -1938,7 +1953,7 @@
         if (msg === 'Failed to fetch' || (err && err.name === 'TypeError' && err.message && err.message.indexOf('fetch') !== -1)) {
           msg = 'No se pudo conectar con el servidor (Failed to fetch). Comprueba la red o que la API esté en ' + (API_BASE || 'esta página') + '.';
         }
-        alert(msg);
+        showToast(msg, 'error');
       }
     }
 
@@ -2035,9 +2050,9 @@
         const data = await res.json();
         const canceled = data.status === -1 || data.status === 'canceled';
         if (canceled) {
-          alert('El pedido ha sido cancelado por tiempo. Por favor, realiza un nuevo pedido.');
+          showToast('El pedido ha sido cancelado por tiempo. Por favor, realiza un nuevo pedido.', 'warning');
         } else {
-          alert('Tiempo agotado. El pedido puede haber sido cancelado. Por favor, verifica o realiza un nuevo pedido.');
+          showToast('Tiempo agotado. El pedido puede haber sido cancelado. Por favor, verifica o realiza un nuevo pedido.', 'warning');
         }
       } catch (e) {}
       showPage('page-shop');
@@ -2321,10 +2336,10 @@
     async function reorderFromHistory(orderNumber) {
       try {
         const res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)));
-        if (!res.ok) { alert('获取订单失败'); return; }
+        if (!res.ok) { showToast('获取订单失败', 'error'); return; }
         const data = await res.json();
         const numbers = data.numbers;
-        if (!Array.isArray(numbers) || numbers.length === 0) { alert('订单无号码'); return; }
+        if (!Array.isArray(numbers) || numbers.length === 0) { showToast('订单无号码', 'error'); return; }
 
         // 清空当前 betList，填入历史号码
         betList = [];
@@ -2346,7 +2361,7 @@
         updateUI();
         showPage('page-shop');
       } catch (e) {
-        alert('重新下单失败');
+        showToast('重新下单失败', 'error');
       }
     }
 
@@ -2376,14 +2391,27 @@
         var sliceList = list.slice(0, 15);
         listEl.innerHTML = sliceList.map(function (info) {
           var num = (info.order_number != null ? info.order_number : info.orderNumber || '').toString();
-          var amt = Number(info.amount || 0).toFixed(2);
           var shop = (info.shopNumber || info.shop_number || '').toString() || '-';
-          var past = isOrderPast(info);
-          var rowClass = past ? 'bg-gray-100 text-gray-500 opacity-80' : 'bg-gray-50 hover:bg-gray-100';
+          var winAmt = (function(o) {
+            var w = Number(o && o.win_amount);
+            if (w > 0) return w;
+            var b = o && o.win_breakdown;
+            if (!Array.isArray(b) || b.length === 0) return 0;
+            return b.reduce(function(s, i) { return s + (Number(i.win) || 0); }, 0);
+          })(info);
+          var isWon = winAmt > 0;
+          var s = info.status;
+          var settled = s === 'settled' || s === 2;
+          var past = isOrderPast(info) || (settled && !isWon);
+          var amt = isWon ? '$' + winAmt.toFixed(2) : '$' + Number(info.amount || 0).toFixed(2);
+          var rowClass = past
+            ? 'border-gray-200 bg-gray-100 text-gray-500 opacity-75'
+            : (isWon ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-700');
+          var amtClass = past ? 'text-gray-400' : (isWon ? 'text-amber-600' : 'text-green-600');
           var shortNum = shortOrderNumber(num);
           var safeNum = (num + '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           var rawNum = (num + '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-          return '<button type="button" onclick="openClientOrderDetail(\'' + rawNum + '\')" class="client-home-order-item w-full text-left rounded-lg px-3 py-2 ' + rowClass + ' text-sm border border-transparent hover:bg-gray-100 cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono">' + shop + ' · #' + shortNum + '</span> <span class="font-bold text-green-600">$' + amt + '</span></button>';
+          return '<button type="button" onclick="openClientOrderDetail(\'' + rawNum + '\')" class="client-home-order-item w-full text-left rounded-xl px-3 py-2 border-2 ' + rowClass + ' text-sm cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono">' + shop + ' · #' + shortNum + '</span> <span class="font-bold ' + amtClass + '">' + (isWon ? '🏆 ' : '') + amt + '</span></button>';
         }).join('');
       } catch (e) {
         wrap.classList.add('hidden');
@@ -2450,7 +2478,7 @@
       }
       if (!info) {
         window.__openingOrderNumber = null;
-        alert('No se encontró el pedido.');
+        showToast('No se encontró el pedido.', 'error');
         return;
       }
 
@@ -2658,7 +2686,7 @@
         }
       } catch (err) {
         console.error('openClientOrderDetail', err);
-        alert('No se pudo abrir el pedido. ' + (err && err.message ? err.message : ''));
+        showToast('No se pudo abrir el pedido. ' + (err && err.message ? err.message : ''), 'error');
       } finally {
         window.__openingOrderNumber = null;
       }

@@ -98,11 +98,14 @@
           </div>
           <div id="firebase-draw-result" class="hidden text-sm bg-gray-900/60 rounded-lg p-3 space-y-1 font-mono mb-4">
             <div><span class="text-gray-400">Fecha del Sorteo</span> <span id="fb-date"></span></div>
+            <div><span class="text-gray-400">Hora del Sorteo</span> <span id="fb-hora"></span></div>
             <div><span class="text-gray-400">Tipo de Sorteo</span> <span id="fb-type"></span></div>
             <div><span class="text-gray-400">Primer Premio</span> <span id="fb-primer" class="text-green-300 font-bold"></span></div>
             <div><span class="text-gray-400">Segundo Premio</span> <span id="fb-segundo" class="text-green-300 font-bold"></span></div>
             <div><span class="text-gray-400">Tercer Premio</span> <span id="fb-tercero" class="text-green-300 font-bold"></span></div>
             <div><span class="text-gray-400">Letras</span> <span id="fb-letras"></span></div>
+            <!-- 准备开奖提示：日期匹配今天且号码未出时显示 -->
+            <div id="fb-preparing" class="hidden mt-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-yellow-300 text-xs text-center"></div>
           </div>
           <!-- 开奖就绪横幅：号码完整且期次匹配时显示 -->
           <div id="draw-ready-banner" class="hidden rounded-xl px-4 py-4 mb-2 text-center" style="background:#16a34a;border:3px solid #4ade80;animation:drawReadyPulse 1s ease-in-out infinite;">
@@ -1057,15 +1060,25 @@
       return now.getHours() > 15 || (now.getHours() === 15 && now.getMinutes() >= 0);
     }
 
-    // 按 Tipo 判断三奖是否已齐：GORDITO 4+2+2，EXTRAORDINARIA 5+5+5，其余 4+4+4
+    // 判断三奖是否已全部开出：
+    // - GORDITO（drawType 含 GORDITO，或二三奖已出且均≤2位）：头奖≥4位，二三奖≥2位
+    // - 其他：头奖位数决定要求（头奖5位→三奖都要5位；头奖4位→三奖都要4位）
     function isFirebaseDrawComplete(d) {
       if (!d) return false;
-      const digits = (x) => (x == null ? '' : String(x)).replace(/\D/g, '');
+      const raw = (x) => (x == null ? '' : String(x));
+      const digits = (x) => raw(x).replace(/\D/g, '');
+      const hasDash = (x) => raw(x).includes('-');
+      // 任意一奖包含 - 号，说明官网还未开完
+      if (hasDash(d.primer) || hasDash(d.segundo) || hasDash(d.tercero)) return false;
       const p = digits(d.primer), s = digits(d.segundo), t = digits(d.tercero);
       const type = (d.drawType || '').toUpperCase();
-      if (type === 'GORDITO') return p.length >= 4 && s.length >= 2 && t.length >= 2;
-      if (type === 'EXTRAORDINARIA') return p.length >= 5 && s.length >= 5 && t.length >= 5;
-      return p.length >= 4 && s.length >= 4 && t.length >= 4;
+      // GORDITO 判断
+      const isGordito = type.includes('GORDITO') ||
+        (p.length >= 4 && s.length > 0 && s.length <= 2 && t.length > 0 && t.length <= 2);
+      if (isGordito) return p.length >= 4 && s.length >= 2 && t.length >= 2;
+      // 普通开奖：头奖位数决定要求
+      const req = p.length >= 5 ? 5 : 4;
+      return p.length >= req && s.length >= req && t.length >= req;
     }
 
     // 取原始数字写入表单（不强制 4 位）：后端按原始位数存储
@@ -1073,20 +1086,52 @@
       return (x == null ? '' : String(x)).replace(/\D/g, '');
     }
 
+    // 把 Firebase 返回的 "DD-MM-YYYY" 或 "DD/MM/YYYY" 转为 "YYYY-MM-DD"
+    function fbDateToYMD(s) {
+      if (!s) return null;
+      const parts = String(s).trim().split(/[-\/]/);
+      if (parts.length !== 3) return null;
+      const [d, m, y] = parts.map(Number);
+      if (!y || y < 2000 || !m || !d) return null;
+      return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+
     function applyFirebaseToUI(d, fillForm) {
       lastFirebaseDraw = d;
       document.getElementById('fb-date').textContent = d.drawDate || '—';
+      document.getElementById('fb-hora').textContent = d.drawHora || '—';
       document.getElementById('fb-type').textContent = d.drawType || '—';
-      document.getElementById('fb-primer').textContent = d.primer != null ? String(d.primer) : '—';
-      document.getElementById('fb-segundo').textContent = d.segundo != null ? String(d.segundo) : '—';
-      document.getElementById('fb-tercero').textContent = d.tercero != null ? String(d.tercero) : '—';
+      document.getElementById('fb-primer').textContent = d.primer !== '' && d.primer != null ? String(d.primer) : '----';
+      document.getElementById('fb-segundo').textContent = d.segundo !== '' && d.segundo != null ? String(d.segundo) : '----';
+      document.getElementById('fb-tercero').textContent = d.tercero !== '' && d.tercero != null ? String(d.tercero) : '----';
       document.getElementById('fb-letras').textContent = (d.letras || '—').toString();
       document.getElementById('firebase-draw-result').classList.remove('hidden');
+
+      // 准备开奖提示：Firebase 日期 = 今天（巴拿马时间）且号码未出
+      const preparingEl = document.getElementById('fb-preparing');
+      const fbYMD = fbDateToYMD(d.drawDate);
+      const panamaTodayYMD = (function() {
+        const now = new Date(Date.now() - 5 * 3600 * 1000);
+        return `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`;
+      })();
       const complete = isFirebaseDrawComplete(d);
+      const isToday = fbYMD === panamaTodayYMD;
+      const hasFbDate = !!fbYMD;
+      if (hasFbDate && isToday && !complete) {
+        const type = (d.drawType || '').toUpperCase();
+        const exp = d.expectedDigits || {};
+        const digitHint = type === 'GORDITO'         ? `1奖${exp.p||4}位 · 2奖${exp.s||2}位 · 3奖${exp.t||2}位` :
+                          type === 'EXTRAORDINARIA'  ? `三奖各${exp.p||5}位` :
+                                                       `三奖各${exp.p||4}位`;
+        preparingEl.textContent = `🕐 今日开奖 · ${d.drawType || type} · 预计 ${digitHint} · 号码未出`;
+        preparingEl.classList.remove('hidden');
+      } else {
+        preparingEl.classList.add('hidden');
+      }
       if (complete) document.getElementById('btn-confirm-firebase').classList.remove('hidden');
       else document.getElementById('btn-confirm-firebase').classList.add('hidden');
 
-      // 开奖就绪逻辑：号码完整且有待开奖期 → 显示横幅 + 自动填入
+      // 开奖就绪逻辑：号码完整且有待开奖期 → 自动填入 + 显示横幅
       const banner = document.getElementById('draw-ready-banner');
       if (complete && pendingDrawDate) {
         // 自动填入号码
@@ -1417,6 +1462,15 @@
           const timeStr = String(rawTime).slice(0, 5);
           // 同步写入 localStorage，下次不需要再请求
           setConfirmedDrawRecord(rawDate, timeStr, rawDrawId);
+          return;
+        }
+        // 无待开奖期（已开奖，等待次日07:00创建下一期）→ 显示最近已完成期
+        const latestRes = await fetch(API_BASE + '/api/draw/latest');
+        const latestData = latestRes.ok ? await latestRes.json() : {};
+        const latest = latestData.draw || {};
+        const latestId = latest.drawId || latest.draw_id || null;
+        if (latestId) {
+          el.textContent = `已开奖 · 第 ${latestId} 期（等待次日07:00创建下一期）`;
           return;
         }
       } catch (e) {}

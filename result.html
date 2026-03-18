@@ -18,7 +18,8 @@
   </style>
 </head>
 <body class="bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950 text-white min-h-screen">
-  
+<div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none w-full max-w-sm px-4"></div>
+
   <!-- 提示页：目前默认隐藏，仅保留备份入口 -->
   <div id="page-login" class="hidden flex items-center justify-center min-h-screen p-4">
     <div class="bg-gray-800 rounded-3xl shadow-2xl p-8 w-full max-w-md">
@@ -229,6 +230,22 @@
   </div>
 
   <script>
+    function showToast(msg, type) {
+      var colors = { error: 'bg-red-500', success: 'bg-green-500', warning: 'bg-yellow-400 text-gray-900', info: 'bg-gray-800' };
+      var container = document.getElementById('toast-container');
+      if (!container) { console.warn(msg); return; }
+      var el = document.createElement('div');
+      var colorClass = colors[type] || colors.info;
+      el.className = 'pointer-events-auto w-full px-4 py-3 rounded-xl text-white text-sm font-medium shadow-xl text-center ' + colorClass;
+      el.style.cssText = 'opacity:0;transform:translateY(-10px);transition:opacity 0.25s,transform 0.25s;';
+      el.textContent = msg;
+      container.appendChild(el);
+      requestAnimationFrame(function() { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+      setTimeout(function() {
+        el.style.opacity = '0'; el.style.transform = 'translateY(-10px)';
+        setTimeout(function() { el.parentNode && el.parentNode.removeChild(el); }, 300);
+      }, 3500);
+    }
     // 日期格式化：DD-MM-YYYY
     function fmtDate(d) {
       if (!d) return '';
@@ -879,10 +896,10 @@
     async function redeemFromResultDetail(order) {
       const orderNumber = order.order_number || order.orderNumber;
       if (!orderNumber) {
-        alert(t('alert_order_id_missing'));
+        showToast(t('alert_order_id_missing'), 'error');
         return;
       }
-      
+
       try {
         const res = await fetch(`${API_BASE}/api/orders/${orderNumber}/redeem`, {
           method: 'POST',
@@ -894,11 +911,11 @@
           loadData();
         } else {
           const data = await res.json();
-          alert(t('alert_redeem_fail') + ': ' + (data.message || t('unknown_error')));
+          showToast(t('alert_redeem_fail') + ': ' + (data.message || t('unknown_error')), 'error');
         }
       } catch (e) {
         console.error(e);
-        alert(t('alert_redeem_fail'));
+        showToast(t('alert_redeem_fail'), 'error');
       }
     }
 
