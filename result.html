@@ -647,7 +647,10 @@
         
         calculateSales(ordersForCurrentDraw);
         
-        if (drawResult && !showWaitingForDraw) {
+        // 如果没有当期订单，中奖金额必须为 0
+        if (!ordersForCurrentDraw || ordersForCurrentDraw.length === 0) {
+          document.getElementById('total-payout').textContent = '0.00';
+        } else if (drawResult && !showWaitingForDraw) {
           calculatePayouts();
         } else {
           document.getElementById('total-payout').textContent = '0.00';
