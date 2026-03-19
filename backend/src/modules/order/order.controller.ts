@@ -22,6 +22,19 @@ import { UnauthorizedException } from '@nestjs/common';
 
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
 
+/**
+ * 按店铺 ID 串行化"限额检查 + 写入"，防止并发超卖。
+ * 单进程有效；多进程部署需换成 Redis 锁。
+ */
+const shopOrderLocks = new Map<number, Promise<unknown>>();
+function withShopLock<T>(shopId: number, fn: () => Promise<T>): Promise<T> {
+  const prev = shopOrderLocks.get(shopId) ?? Promise.resolve();
+  const next = prev.then(() => fn());
+  // 无论成功失败都释放锁，避免死锁
+  shopOrderLocks.set(shopId, next.catch(() => {}));
+  return next;
+}
+
 /** 解析并验证签名 token，返回 userId；验证失败返回 null */
 function parseOrderToken(token: string): number | null {
   if (!token) return null;
@@ -218,90 +231,92 @@ export class OrderController implements OnModuleInit {
       }
     }
 
-    // 2b. 每号限额校验（仅当限额已设置且有当期）
+    // 2b. 每号限额校验 + 订单写入，用 per-shop mutex 串行化，防并发超卖
     const limitChance = (shop as any).limit_chance as number | null;
     const limitBillete = (shop as any).limit_billete as number | null;
-    if (currentDraw && (limitChance != null || limitBillete != null)) {
-      // 用数据库聚合代替加载全部订单到内存：让DB统计每个号码的已售总量
-      const dbType = (this.dataSource.options as any).type as string;
-      let soldRows: { num: string; qty: string }[] = [];
-      if (dbType === 'postgres') {
-        soldRows = await this.dataSource.query(
-          `SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
-           FROM orders, jsonb_array_elements(numbers::jsonb) AS item
-           WHERE draw_id = $1 AND status != -1
-           GROUP BY item->>'n'`,
-          [currentDraw.draw_id],
-        );
-      } else {
-        soldRows = await this.dataSource.query(
-          `SELECT json_extract(value, '$.n') AS num,
-                  SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
-           FROM orders, json_each(numbers)
-           WHERE draw_id = ? AND status != -1
-           GROUP BY json_extract(value, '$.n')`,
-          [currentDraw.draw_id],
-        );
-      }
-      const soldMap: Record<string, number> = Object.fromEntries(
-        soldRows.map(r => [r.num, Number(r.qty)]),
-      );
 
-      // 校验本次下单每个号码，收集所有超限号码
-      const overLimitItems: Array<{ n: string | number; alreadySold: number; limit: number }> = [];
-      for (const item of numbers) {
-        const numStr = String(item.n).replace(/\D/g, '');
-        const isBillete = numStr.length >= 4;
-        const limit = isBillete ? limitBillete : limitChance;
-        if (limit == null) continue;
-        const alreadySold = soldMap[item.n] || 0;
-        if (alreadySold + item.q > limit) {
-          overLimitItems.push({ n: item.n, alreadySold, limit });
+    return withShopLock(Number(shopId), async () => {
+      if (currentDraw && (limitChance != null || limitBillete != null)) {
+        // 用数据库聚合统计每个号码的已售总量（在锁内执行，读到的是最新值）
+        const dbType = (this.dataSource.options as any).type as string;
+        let soldRows: { num: string; qty: string }[] = [];
+        if (dbType === 'postgres') {
+          soldRows = await this.dataSource.query(
+            `SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+             FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+             WHERE draw_id = $1 AND status != -1
+             GROUP BY item->>'n'`,
+            [currentDraw.draw_id],
+          );
+        } else {
+          soldRows = await this.dataSource.query(
+            `SELECT json_extract(value, '$.n') AS num,
+                    SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+             FROM orders, json_each(numbers)
+             WHERE draw_id = ? AND status != -1
+             GROUP BY json_extract(value, '$.n')`,
+            [currentDraw.draw_id],
+          );
+        }
+        const soldMap: Record<string, number> = Object.fromEntries(
+          soldRows.map(r => [r.num, Number(r.qty)]),
+        );
+
+        const overLimitItems: Array<{ n: string | number; alreadySold: number; limit: number }> = [];
+        for (const item of numbers) {
+          const numStr = String(item.n).replace(/\D/g, '');
+          const isBillete = numStr.length >= 4;
+          const limit = isBillete ? limitBillete : limitChance;
+          if (limit == null) continue;
+          const alreadySold = soldMap[item.n] || 0;
+          if (alreadySold + item.q > limit) {
+            overLimitItems.push({ n: item.n, alreadySold, limit });
+          }
+        }
+        if (overLimitItems.length > 0) {
+          throw new BadRequestException({ message: '部分号码超出限额', overLimitItems });
         }
       }
-      if (overLimitItems.length > 0) {
-        throw new BadRequestException({ message: '部分号码超出限额', overLimitItems });
-      }
-    }
 
-    // 3. 生成订单号和hash
-    const orderNumber = this.generateOrderNumber();
-    const orderHash = crypto.createHash('sha256').update(orderNumber + Date.now()).digest('hex').substring(0, 64);
+      // 3. 生成订单号和hash
+      const orderNumber = this.generateOrderNumber();
+      const orderHash = crypto.createHash('sha256').update(orderNumber + Date.now()).digest('hex').substring(0, 64);
 
-    // 4. 生成核销码（5位数字）
-    const verificationCode = this.generateVerificationCode();
+      // 4. 生成核销码（5位数字）
+      const verificationCode = this.generateVerificationCode();
 
-    // 5. 创建订单
-    const orderRepo = this.dataSource.getRepository(Order);
-    const orderData: any = {
-      order_number: orderNumber,
-      order_hash: orderHash,
-      shop_id: Number(shopId),
-      numbers,
-      amount,
-      game_type: gameTypeValue,
-      status: 0,
-      verification_code: verificationCode,
-      customer_info: { clientId },
-      ip_address: ipAddress,
-      draw_id: currentDraw?.draw_id || null,
-    };
-    if (idempotencyKey) orderData.idempotency_key = idempotencyKey;
-    const order = orderRepo.create(orderData) as unknown as Order;
+      // 5. 创建订单
+      const orderRepo = this.dataSource.getRepository(Order);
+      const orderData: any = {
+        order_number: orderNumber,
+        order_hash: orderHash,
+        shop_id: Number(shopId),
+        numbers,
+        amount,
+        game_type: gameTypeValue,
+        status: 0,
+        verification_code: verificationCode,
+        customer_info: { clientId },
+        ip_address: ipAddress,
+        draw_id: currentDraw?.draw_id || null,
+      };
+      if (idempotencyKey) orderData.idempotency_key = idempotencyKey;
+      const order = orderRepo.create(orderData) as unknown as Order;
 
-    await orderRepo.save(order);
+      await orderRepo.save(order);
 
-    this.logger.log(`订单创建: #${orderNumber}, 店铺: ${shopId}, 金额: $${amount}`);
+      this.logger.log(`订单创建: #${orderNumber}, 店铺: ${shopId}, 金额: $${amount}`);
 
-    return {
-      order_id: order.order_id,
-      order_number: order.order_number,
-      order_hash: order.order_hash,
-      verification_code: order.verification_code,
-      amount: order.amount,
-      status: 0,
-      created_at: order.created_at,
-    };
+      return {
+        order_id: order.order_id,
+        order_number: order.order_number,
+        order_hash: order.order_hash,
+        verification_code: order.verification_code,
+        amount: order.amount,
+        status: 0,
+        created_at: order.created_at,
+      };
+    });
   }
 
   /**

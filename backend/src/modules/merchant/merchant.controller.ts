@@ -15,6 +15,13 @@ import { Repository } from 'typeorm';
 const loginFailMap = new Map<string, { count: number; until: number }>();
 const LOGIN_MAX_FAIL = 10;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15分钟
+// 每小时清理过期记录，防止扫描器长期积累导致内存泄漏
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginFailMap) {
+    if (entry.until < now) loginFailMap.delete(ip);
+  }
+}, 60 * 60 * 1000);
 
 // ─── Token 工具（HMAC-SHA256 签名） ─────────────────────────────────────────
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';

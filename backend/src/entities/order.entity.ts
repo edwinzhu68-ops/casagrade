@@ -80,4 +80,8 @@ export class Order {
   /** 兑奖时间：老板扫码确认兑奖后写入，防重复兑奖 */
   @Column({ type: 'datetime', nullable: true })
   redeemed_at: Date;
+
+  /** 幂等键：同一 key+shop_id 的重复请求直接返回原订单 */
+  @Column({ length: 64, nullable: true })
+  idempotency_key: string;
 }
