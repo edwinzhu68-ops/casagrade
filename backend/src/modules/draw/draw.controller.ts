@@ -324,20 +324,53 @@ export class DrawController {
       if (!res.ok) return { success: false, error: `LNB 请求失败: ${res.status}` };
       const html = await res.text();
 
-      // 提取所有 premio-number 里的数字（\s* 处理标签内可能的空白）
-      const matches = [...html.matchAll(/class="premio-number"[^>]*>\s*([\d\s\-]+?)\s*<\/div>/g)];
-      const primer  = matches[0]?.[1]?.replace(/\D/g, '') || '';
-      const segundo = matches[1]?.[1]?.replace(/\D/g, '') || '';
-      const tercero = matches[2]?.[1]?.replace(/\D/g, '') || '';
+      // 西班牙语月份 → 数字
+      const MONTHS: Record<string, number> = {
+        enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+        julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+      };
 
-      if (!primer && !segundo && !tercero) {
-        // 调试用：返回部分 HTML 片段帮助排查结构
-        const snippet = html.slice(html.indexOf('premio'), html.indexOf('premio') + 500).replace(/\n/g, ' ');
-        this.logger.warn(`LNB 未匹配到号码，HTML片段: ${snippet}`);
-        return { success: false, error: 'LNB 页面未找到开奖号码（可能页面结构已变化）' };
+      // 找所有日期块位置（每期开奖前有 <div class="date">）
+      const dateRegex = /class="date"[\s\S]*?<div>(\d{1,2})<\/div>[\s\S]*?<div>([A-Za-záéíóúñ]+)<\/div>[\s\S]*?<div>(\d{4})<\/div>/gi;
+      // 找所有号码位置
+      const prizeRegex = /class="premio-number"[^>]*>\s*(\d+)\s*<\/div>/g;
+
+      const dateMatches = [...html.matchAll(dateRegex)];
+      const prizeMatches = [...html.matchAll(prizeRegex)];
+
+      if (dateMatches.length === 0 || prizeMatches.length === 0) {
+        this.logger.warn('LNB 未匹配到日期或号码');
+        return { success: false, error: 'LNB 页面未找到开奖数据（页面结构可能已变化）' };
       }
 
-      return { success: true, data: { primer, segundo, tercero, source: 'lnb.gob.pa' } };
+      // 按日期分组：取每个日期块到下一个日期块之间的号码
+      const draws = dateMatches.map((dm, i) => {
+        const dateEnd = (dm.index ?? 0) + dm[0].length;
+        const nextDateStart = dateMatches[i + 1]?.index ?? html.length;
+        const prizesInBlock = prizeMatches.filter(
+          pm => (pm.index ?? 0) >= dateEnd && (pm.index ?? 0) < nextDateStart,
+        );
+        const day   = parseInt(dm[1], 10);
+        const month = MONTHS[dm[2].toLowerCase()] ?? 0;
+        const year  = parseInt(dm[3], 10);
+        return {
+          date: new Date(year, month - 1, day),
+          primer:  prizesInBlock[0]?.[1] || '',
+          segundo: prizesInBlock[1]?.[1] || '',
+          tercero: prizesInBlock[2]?.[1] || '',
+        };
+      });
+
+      // 取日期最新的一期
+      draws.sort((a, b) => b.date.getTime() - a.date.getTime());
+      const latest = draws[0];
+
+      if (!latest.primer && !latest.segundo && !latest.tercero) {
+        return { success: false, error: 'LNB 最新一期号码未找到' };
+      }
+
+      const dateStr = `${String(latest.date.getDate()).padStart(2,'0')}-${String(latest.date.getMonth()+1).padStart(2,'0')}-${latest.date.getFullYear()}`;
+      return { success: true, data: { primer: latest.primer, segundo: latest.segundo, tercero: latest.tercero, drawDate: dateStr, source: 'lnb.gob.pa' } };
     } catch (e) {
       this.logger.error('fetchLnb error', e);
       return { success: false, error: String((e as any)?.message || e) };
