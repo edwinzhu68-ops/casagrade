@@ -1111,6 +1111,7 @@
             if (data.last_login_ua) localStorage.setItem('lottery_login_ua', data.last_login_ua);
             if (DEBUG) console.log("Setting shop number:", currentShop);
             document.getElementById("shop-number").textContent = currentShop.shop_number || t('shop_not_set');
+            showSubscriptionExpiry(currentShop);
             limits.chance = currentShop.limit_chance != null ? Number(currentShop.limit_chance) : null;
             limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
             document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
