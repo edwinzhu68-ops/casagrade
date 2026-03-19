@@ -388,6 +388,11 @@
           </div>
         </button>
         <div id="shop-list-panel" class="hidden mt-3">
+          <!-- 搜索框 -->
+          <div class="mb-2">
+            <input id="shop-search" type="text" placeholder="搜索店号 / 账号…" oninput="onShopSearch()"
+              class="w-full bg-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none" />
+          </div>
           <!-- 排序控制 -->
           <div class="flex gap-2 mb-2 text-xs flex-wrap">
             <span class="text-gray-400">排序：</span>
@@ -401,6 +406,14 @@
           </div>
           <div id="shop-list-table" class="space-y-1.5 text-xs">
             <p class="text-gray-500 text-center py-4">点击刷新加载</p>
+          </div>
+          <!-- 分页控制 -->
+          <div id="shop-pagination" class="hidden flex items-center justify-between mt-2 text-xs text-gray-400">
+            <span id="shop-page-info"></span>
+            <div class="flex gap-1">
+              <button onclick="shopPageChange(-1)" id="shop-btn-prev" class="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">◀ 上一页</button>
+              <button onclick="shopPageChange(1)"  id="shop-btn-next" class="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">下一页 ▶</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1877,9 +1890,25 @@
       if (!open && shopListData.length === 0) loadShopList();
     }
 
+    const SHOP_PAGE_SIZE = 50;
+    let shopCurrentPage = 0;
+    let shopSearchQuery = '';
+
+    function onShopSearch() {
+      shopSearchQuery = (document.getElementById('shop-search')?.value || '').trim().toLowerCase();
+      shopCurrentPage = 0;
+      renderShopList();
+    }
+
+    function shopPageChange(delta) {
+      shopCurrentPage += delta;
+      renderShopList();
+    }
+
     function setShopSort(key) {
       if (shopSortKey === key) { shopSortAsc = !shopSortAsc; }
       else { shopSortKey = key; shopSortAsc = true; }
+      shopCurrentPage = 0;
       document.querySelectorAll('[id^="sort-btn-"]').forEach(b => b.className = 'px-2 py-0.5 rounded bg-gray-700 text-gray-300');
       document.getElementById('sort-btn-' + key).className = 'px-2 py-0.5 rounded bg-blue-600 text-white';
       renderShopList();
@@ -1895,13 +1924,35 @@
       if (toEl) toEl.textContent = platformOrders;
       if (tsEl) tsEl.textContent = Math.round(platformSales);
       if (!shopListData.length) { el.innerHTML = '<p class="text-gray-500 text-center py-4">暂无店铺</p>'; return; }
-      const sorted = shopListData.slice().sort((a, b) => {
+      // 搜索过滤
+      const filtered = shopSearchQuery
+        ? shopListData.filter(s =>
+            String(s.shop_number || '').includes(shopSearchQuery) ||
+            String(s.account_number || '').toLowerCase().includes(shopSearchQuery))
+        : shopListData;
+      // 排序
+      const sorted = filtered.slice().sort((a, b) => {
         const av = a[shopSortKey] ?? '';
         const bv = b[shopSortKey] ?? '';
         const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { numeric: true });
         return shopSortAsc ? cmp : -cmp;
       });
-      el.innerHTML = sorted.map(s => {
+      // 分页
+      const totalPages = Math.ceil(sorted.length / SHOP_PAGE_SIZE);
+      shopCurrentPage = Math.max(0, Math.min(shopCurrentPage, totalPages - 1));
+      const pageData = sorted.slice(shopCurrentPage * SHOP_PAGE_SIZE, (shopCurrentPage + 1) * SHOP_PAGE_SIZE);
+      // 更新分页控件
+      const pag = document.getElementById('shop-pagination');
+      if (sorted.length > SHOP_PAGE_SIZE) {
+        pag.classList.remove('hidden');
+        document.getElementById('shop-page-info').textContent =
+          `第 ${shopCurrentPage + 1} / ${totalPages} 页，共 ${sorted.length} 家`;
+        document.getElementById('shop-btn-prev').disabled = shopCurrentPage === 0;
+        document.getElementById('shop-btn-next').disabled = shopCurrentPage >= totalPages - 1;
+      } else {
+        pag.classList.add('hidden');
+      }
+      el.innerHTML = pageData.map(s => {
         const acct = s.account_number || '—';
         const regDate = s.registered_at ? new Date(s.registered_at).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '—';
         const inactive = s.inactive_periods ?? 0;
