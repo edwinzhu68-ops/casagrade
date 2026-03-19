@@ -32,6 +32,20 @@ export declare class DrawController {
             };
         };
     }>;
+    fetchLnb(): Promise<{
+        success: boolean;
+        error: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: {
+            primer: string;
+            segundo: string;
+            tercero: string;
+            source: string;
+        };
+        error?: undefined;
+    }>;
     getLatestDraw(): Promise<{
         draw: any;
         message: string;

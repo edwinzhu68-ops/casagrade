@@ -311,6 +311,40 @@ export class DrawController {
   }
 
   /**
+   * GET /api/draw/fetch-lnb - 从 lnb.gob.pa 官网爬取开奖号码（需管理员密钥）
+   */
+  @Get('fetch-lnb')
+  @UseGuards(AdminTokenGuard)
+  async fetchLnb() {
+    try {
+      const url = 'https://lnb.gob.pa/';
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LotteryBot/1.0)' },
+      });
+      if (!res.ok) return { success: false, error: `LNB 请求失败: ${res.status}` };
+      const html = await res.text();
+
+      // 提取所有 premio-number 里的数字（\s* 处理标签内可能的空白）
+      const matches = [...html.matchAll(/class="premio-number"[^>]*>\s*([\d\s\-]+?)\s*<\/div>/g)];
+      const primer  = matches[0]?.[1]?.replace(/\D/g, '') || '';
+      const segundo = matches[1]?.[1]?.replace(/\D/g, '') || '';
+      const tercero = matches[2]?.[1]?.replace(/\D/g, '') || '';
+
+      if (!primer && !segundo && !tercero) {
+        // 调试用：返回部分 HTML 片段帮助排查结构
+        const snippet = html.slice(html.indexOf('premio'), html.indexOf('premio') + 500).replace(/\n/g, ' ');
+        this.logger.warn(`LNB 未匹配到号码，HTML片段: ${snippet}`);
+        return { success: false, error: 'LNB 页面未找到开奖号码（可能页面结构已变化）' };
+      }
+
+      return { success: true, data: { primer, segundo, tercero, source: 'lnb.gob.pa' } };
+    } catch (e) {
+      this.logger.error('fetchLnb error', e);
+      return { success: false, error: String((e as any)?.message || e) };
+    }
+  }
+
+  /**
    * GET /api/draw/latest - 获取最近开奖（未归档的最近一期；归档后结算页显示等待开奖）
    */
   @Get('latest')

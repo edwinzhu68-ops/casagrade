@@ -15,11 +15,20 @@ import { Repository } from 'typeorm';
 const loginFailMap = new Map<string, { count: number; until: number }>();
 const LOGIN_MAX_FAIL = 10;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15分钟
+
+// ─── 卡密激活限流（防暴力枚举） ──────────────────────────────────────────────
+const cardFailMap = new Map<string, { count: number; until: number }>();
+const CARD_MAX_FAIL = 5;               // 同一IP最多失败5次
+const CARD_LOCKOUT_MS = 30 * 60 * 1000; // 锁定30分钟
+
 // 每小时清理过期记录，防止扫描器长期积累导致内存泄漏
 setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of loginFailMap) {
     if (entry.until < now) loginFailMap.delete(ip);
+  }
+  for (const [ip, entry] of cardFailMap) {
+    if (entry.until < now) cardFailMap.delete(ip);
   }
 }, 60 * 60 * 1000);
 
@@ -829,6 +838,98 @@ export class MerchantController implements OnModuleInit {
   }
 
   /**
+   * POST /merchant/binding/batch-create-subs
+   * 大庄批量创建小庄账号并直接绑定（自动激活，跳过邀请确认）
+   * Body: { mainShopId, count, password? }
+   * - 店号从10000起，自动找到下一个可用的5位数号
+   * - 账号 = 店号字符串
+   * - 密码未传则使用店号本身（店主拿到账号后应自行修改）
+   */
+  @Post('binding/batch-create-subs')
+  async batchCreateSubs(
+    @Body() body: { mainShopId: number; count: number; password?: string },
+    @Req() req: any,
+  ) {
+    const { mainShopId, count, password } = body;
+    if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
+    const n = Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
+
+    // 验证操作者是大庄所有者
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const userRepo = this.dataSource.getRepository(User);
+    const bindingRepo = this.dataSource.getRepository(ShopBinding);
+
+    const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+    if (!mainShop) throw new NotFoundException('大庄店铺不存在');
+    if (mainShop.owner_id !== tokenInfo.userId) throw new UnauthorizedException('无权操作该店铺');
+
+    // 找最大的5位数店号（≥10000），从它+1开始分配
+    const allShops = await shopRepo.find({ select: ['shop_number'] });
+    const usedShopNumbers = new Set(allShops.map(s => s.shop_number));
+    // 同时检查 account_number（两者值相同，避免历史遗留账号冲突）
+    const allUsers = await userRepo.find({ select: ['account_number'] });
+    const usedAccounts = new Set(allUsers.map(u => u.account_number));
+    let next = 10000;
+    const allExisting5digit = allShops
+      .map(s => parseInt(s.shop_number, 10))
+      .filter(n => n >= 10000 && n <= 99999);
+    if (allExisting5digit.length > 0) next = Math.max(...allExisting5digit) + 1;
+
+    const created: { shopNumber: string; account: string; password: string }[] = [];
+
+    for (let i = 0; i < n; i++) {
+      // 跳过店号或账号已被占用的号
+      while (usedShopNumbers.has(String(next)) || usedAccounts.has(String(next))) next++;
+      if (next > 99999) throw new BadRequestException('5位数店号已用尽');
+
+      const shopNumber = String(next);
+      const accountNumber = shopNumber;
+      // 密码：用统一密码 or 每个随机生成（字母+数字，去掉易混淆字符）
+      const customPwd = (password || '').trim();
+      const pwd = customPwd || (() => {
+        const letters = 'abcdefghjkmnpqrstuvwxyz'; // 去掉 i/l/o
+        const rand2 = Array.from({ length: 2 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+        return shopNumber + rand2; // 如：10001kx
+      })();
+      const passwordHash = await bcrypt.hash(pwd, 10);
+
+      // 创建用户
+      const user = userRepo.create({ account_number: accountNumber, password_hash: passwordHash });
+      await userRepo.save(user);
+
+      // 创建店铺
+      const shop = shopRepo.create({
+        shop_number: shopNumber,
+        owner_id: user.user_id,
+        shop_name: `小庄${shopNumber}`,
+        status: 'active',
+        commission_rate: 0.1,
+      });
+      await shopRepo.save(shop);
+
+      // 直接创建已激活绑定（status=active，跳过邀请）
+      const binding = bindingRepo.create({
+        main_shop_id: mainShop.shop_id,
+        sub_shop_id: shop.shop_id,
+        commission_rate: 0.20,
+        status: 'active',
+      });
+      await bindingRepo.save(binding);
+
+      usedShopNumbers.add(shopNumber);
+      usedAccounts.add(accountNumber);
+      created.push({ shopNumber, account: accountNumber, password: pwd });
+      next++;
+    }
+
+    this.logger.log(`大庄批量注册小庄: 大庄=${mainShop.shop_number} 创建${n}个 [${created.map(c=>c.shopNumber).join(',')}]`);
+    return { success: true, created, count: created.length };
+  }
+
+  /**
    * GET /merchant/binding/sub-shops?mainShopId=
    * 主店铺获取所有已绑定分店铺列表（含基本信息）
    */
@@ -1104,10 +1205,19 @@ export class MerchantController implements OnModuleInit {
   async activateCard(
     @Body('shopId') shopId: number,
     @Body('code') code: string,
+    @Req() req: any,
   ) {
     const normalizedCode = (code || '').trim().toUpperCase();
     if (!shopId) throw new BadRequestException('缺少 shopId');
     if (!normalizedCode) throw new BadRequestException('请输入卡密');
+
+    // 卡密激活限流：同一IP失败5次后锁定30分钟
+    const ip = (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const cardFail = cardFailMap.get(ip);
+    if (cardFail && cardFail.count >= CARD_MAX_FAIL && Date.now() < cardFail.until) {
+      const mins = Math.ceil((cardFail.until - Date.now()) / 60000);
+      throw new BadRequestException(`尝试次数过多，请 ${mins} 分钟后再试`);
+    }
 
     const shopRepo = this.dataSource.getRepository(Shop);
     const cardRepo = this.dataSource.getRepository(CardCode);
@@ -1116,8 +1226,15 @@ export class MerchantController implements OnModuleInit {
     if (!shop) throw new NotFoundException('店铺不存在');
 
     const card = await cardRepo.findOne({ where: { code: normalizedCode } });
-    if (!card) throw new BadRequestException('卡密不存在');
-    if (card.used_at) throw new BadRequestException('该卡密已被使用');
+
+    // 卡密不存在或已使用：累加失败计数
+    if (!card || card.used_at) {
+      const entry = cardFailMap.get(ip) || { count: 0, until: 0 };
+      entry.count += 1;
+      if (entry.count >= CARD_MAX_FAIL) entry.until = Date.now() + CARD_LOCKOUT_MS;
+      cardFailMap.set(ip, entry);
+      throw new BadRequestException(!card ? '卡密不存在' : '该卡密已被使用');
+    }
 
     // 计算新到期日：从当前到期日或今天起累加
     const base = shop.subscription_expires_at && shop.subscription_expires_at > new Date()
@@ -1125,13 +1242,29 @@ export class MerchantController implements OnModuleInit {
       : new Date();
     if (card.type === 'monthly') {
       base.setMonth(base.getMonth() + 1);
+    } else if (card.type === 'half_yearly') {
+      base.setMonth(base.getMonth() + 6);
     } else {
       base.setFullYear(base.getFullYear() + 1);
     }
 
-    await shopRepo.update(shop.shop_id, { subscription_expires_at: base });
-    await cardRepo.update(card.id, { used_by_shop_id: shop.shop_id, used_at: new Date() });
+    // 🔴 原子写入：条件 UPDATE，只有 used_at IS NULL 时才成功，防止并发双激活
+    const lockResult = await cardRepo.createQueryBuilder()
+      .update(CardCode)
+      .set({ used_by_shop_id: shop.shop_id, used_at: new Date() })
+      .where('id = :id AND used_at IS NULL', { id: card.id })
+      .execute();
 
+    if (!lockResult.affected || lockResult.affected === 0) {
+      throw new BadRequestException('该卡密已被使用');
+    }
+
+    await shopRepo.update(shop.shop_id, { subscription_expires_at: base });
+
+    // 激活成功：清除该IP的失败记录
+    cardFailMap.delete(ip);
+
+    this.logger.log(`卡密激活成功：code=${normalizedCode} shop=${shop.shop_number} expires=${base.toISOString().slice(0, 10)}`);
     return {
       success: true,
       type: card.type,

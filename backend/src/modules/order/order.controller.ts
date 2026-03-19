@@ -170,6 +170,12 @@ export class OrderController implements OnModuleInit {
       throw new BadRequestException('店铺已停业');
     }
 
+    // 订阅到期拦截
+    const expiresAt = (shop as any).subscription_expires_at;
+    if (expiresAt && new Date(expiresAt) < new Date()) {
+      throw new BadRequestException('Su suscripción ha vencido. Contacte al administrador para renovar.');
+    }
+
     // 2. 获取当前待开奖期次
     const drawRepo = this.dataSource.getRepository(Draw);
     const currentDraw = await drawRepo.findOne({

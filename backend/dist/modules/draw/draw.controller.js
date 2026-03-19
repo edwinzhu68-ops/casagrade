@@ -259,6 +259,31 @@ let DrawController = DrawController_1 = class DrawController {
             },
         };
     }
+    async fetchLnb() {
+        try {
+            const url = 'https://lnb.gob.pa/';
+            const res = await fetch(url, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LotteryBot/1.0)' },
+            });
+            if (!res.ok)
+                return { success: false, error: `LNB 请求失败: ${res.status}` };
+            const html = await res.text();
+            const matches = [...html.matchAll(/class="premio-number"[^>]*>\s*([\d\s\-]+?)\s*<\/div>/g)];
+            const primer = matches[0]?.[1]?.replace(/\D/g, '') || '';
+            const segundo = matches[1]?.[1]?.replace(/\D/g, '') || '';
+            const tercero = matches[2]?.[1]?.replace(/\D/g, '') || '';
+            if (!primer && !segundo && !tercero) {
+                const snippet = html.slice(html.indexOf('premio'), html.indexOf('premio') + 500).replace(/\n/g, ' ');
+                this.logger.warn(`LNB 未匹配到号码，HTML片段: ${snippet}`);
+                return { success: false, error: 'LNB 页面未找到开奖号码（可能页面结构已变化）' };
+            }
+            return { success: true, data: { primer, segundo, tercero, source: 'lnb.gob.pa' } };
+        }
+        catch (e) {
+            this.logger.error('fetchLnb error', e);
+            return { success: false, error: String(e?.message || e) };
+        }
+    }
     async getLatestDraw() {
         const draw = await this.dataSource.getRepository(draw_entity_1.Draw).findOne({
             where: { status: (0, typeorm_2.In)(['COMPLETED', 'completed']), archived_at: (0, typeorm_2.IsNull)() },
@@ -595,6 +620,13 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], DrawController.prototype, "fetchFirebase", null);
+__decorate([
+    (0, common_1.Get)('fetch-lnb'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "fetchLnb", null);
 __decorate([
     (0, common_1.Get)('latest'),
     __metadata("design:type", Function),

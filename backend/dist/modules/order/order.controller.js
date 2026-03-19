@@ -68,6 +68,13 @@ const draw_day_service_1 = require("../draw/draw-day.service");
 const crypto = __importStar(require("crypto"));
 const common_2 = require("@nestjs/common");
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
+const shopOrderLocks = new Map();
+function withShopLock(shopId, fn) {
+    const prev = shopOrderLocks.get(shopId) ?? Promise.resolve();
+    const next = prev.then(() => fn());
+    shopOrderLocks.set(shopId, next.catch(() => { }));
+    return next;
+}
 function parseOrderToken(token) {
     if (!token)
         return null;
@@ -184,6 +191,10 @@ let OrderController = OrderController_1 = class OrderController {
         if (shop.status !== 'active') {
             throw new common_1.BadRequestException('店铺已停业');
         }
+        const expiresAt = shop.subscription_expires_at;
+        if (expiresAt && new Date(expiresAt) < new Date()) {
+            throw new common_1.BadRequestException('Su suscripción ha vencido. Contacte al administrador para renovar.');
+        }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const currentDraw = await drawRepo.findOne({
             where: { status: 'pending' },
@@ -245,70 +256,72 @@ let OrderController = OrderController_1 = class OrderController {
         }
         const limitChance = shop.limit_chance;
         const limitBillete = shop.limit_billete;
-        if (currentDraw && (limitChance != null || limitBillete != null)) {
-            const dbType = this.dataSource.options.type;
-            let soldRows = [];
-            if (dbType === 'postgres') {
-                soldRows = await this.dataSource.query(`SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
-           FROM orders, jsonb_array_elements(numbers::jsonb) AS item
-           WHERE draw_id = $1 AND status != -1
-           GROUP BY item->>'n'`, [currentDraw.draw_id]);
-            }
-            else {
-                soldRows = await this.dataSource.query(`SELECT json_extract(value, '$.n') AS num,
-                  SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
-           FROM orders, json_each(numbers)
-           WHERE draw_id = ? AND status != -1
-           GROUP BY json_extract(value, '$.n')`, [currentDraw.draw_id]);
-            }
-            const soldMap = Object.fromEntries(soldRows.map(r => [r.num, Number(r.qty)]));
-            const overLimitItems = [];
-            for (const item of numbers) {
-                const numStr = String(item.n).replace(/\D/g, '');
-                const isBillete = numStr.length >= 4;
-                const limit = isBillete ? limitBillete : limitChance;
-                if (limit == null)
-                    continue;
-                const alreadySold = soldMap[item.n] || 0;
-                if (alreadySold + item.q > limit) {
-                    overLimitItems.push({ n: item.n, alreadySold, limit });
+        return withShopLock(Number(shopId), async () => {
+            if (currentDraw && (limitChance != null || limitBillete != null)) {
+                const dbType = this.dataSource.options.type;
+                let soldRows = [];
+                if (dbType === 'postgres') {
+                    soldRows = await this.dataSource.query(`SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+             FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+             WHERE draw_id = $1 AND status != -1
+             GROUP BY item->>'n'`, [currentDraw.draw_id]);
+                }
+                else {
+                    soldRows = await this.dataSource.query(`SELECT json_extract(value, '$.n') AS num,
+                    SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+             FROM orders, json_each(numbers)
+             WHERE draw_id = ? AND status != -1
+             GROUP BY json_extract(value, '$.n')`, [currentDraw.draw_id]);
+                }
+                const soldMap = Object.fromEntries(soldRows.map(r => [r.num, Number(r.qty)]));
+                const overLimitItems = [];
+                for (const item of numbers) {
+                    const numStr = String(item.n).replace(/\D/g, '');
+                    const isBillete = numStr.length >= 4;
+                    const limit = isBillete ? limitBillete : limitChance;
+                    if (limit == null)
+                        continue;
+                    const alreadySold = soldMap[item.n] || 0;
+                    if (alreadySold + item.q > limit) {
+                        overLimitItems.push({ n: item.n, alreadySold, limit });
+                    }
+                }
+                if (overLimitItems.length > 0) {
+                    throw new common_1.BadRequestException({ message: '部分号码超出限额', overLimitItems });
                 }
             }
-            if (overLimitItems.length > 0) {
-                throw new common_1.BadRequestException({ message: '部分号码超出限额', overLimitItems });
-            }
-        }
-        const orderNumber = this.generateOrderNumber();
-        const orderHash = crypto.createHash('sha256').update(orderNumber + Date.now()).digest('hex').substring(0, 64);
-        const verificationCode = this.generateVerificationCode();
-        const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
-        const orderData = {
-            order_number: orderNumber,
-            order_hash: orderHash,
-            shop_id: Number(shopId),
-            numbers,
-            amount,
-            game_type: gameTypeValue,
-            status: 0,
-            verification_code: verificationCode,
-            customer_info: { clientId },
-            ip_address: ipAddress,
-            draw_id: currentDraw?.draw_id || null,
-        };
-        if (idempotencyKey)
-            orderData.idempotency_key = idempotencyKey;
-        const order = orderRepo.create(orderData);
-        await orderRepo.save(order);
-        this.logger.log(`订单创建: #${orderNumber}, 店铺: ${shopId}, 金额: $${amount}`);
-        return {
-            order_id: order.order_id,
-            order_number: order.order_number,
-            order_hash: order.order_hash,
-            verification_code: order.verification_code,
-            amount: order.amount,
-            status: 0,
-            created_at: order.created_at,
-        };
+            const orderNumber = this.generateOrderNumber();
+            const orderHash = crypto.createHash('sha256').update(orderNumber + Date.now()).digest('hex').substring(0, 64);
+            const verificationCode = this.generateVerificationCode();
+            const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+            const orderData = {
+                order_number: orderNumber,
+                order_hash: orderHash,
+                shop_id: Number(shopId),
+                numbers,
+                amount,
+                game_type: gameTypeValue,
+                status: 0,
+                verification_code: verificationCode,
+                customer_info: { clientId },
+                ip_address: ipAddress,
+                draw_id: currentDraw?.draw_id || null,
+            };
+            if (idempotencyKey)
+                orderData.idempotency_key = idempotencyKey;
+            const order = orderRepo.create(orderData);
+            await orderRepo.save(order);
+            this.logger.log(`订单创建: #${orderNumber}, 店铺: ${shopId}, 金额: $${amount}`);
+            return {
+                order_id: order.order_id,
+                order_number: order.order_number,
+                order_hash: order.order_hash,
+                verification_code: order.verification_code,
+                amount: order.amount,
+                status: 0,
+                created_at: order.created_at,
+            };
+        });
     }
     async deleteOrder(orderNumber, body, req) {
         const shopId = body?.shopId != null ? Number(body.shopId) : undefined;

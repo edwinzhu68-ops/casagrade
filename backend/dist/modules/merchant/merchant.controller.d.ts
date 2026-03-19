@@ -154,6 +154,19 @@ export declare class MerchantController implements OnModuleInit {
             main_shop_name: string;
         };
     }>;
+    batchCreateSubs(body: {
+        mainShopId: number;
+        count: number;
+        password?: string;
+    }, req: any): Promise<{
+        success: boolean;
+        created: {
+            shopNumber: string;
+            account: string;
+            password: string;
+        }[];
+        count: number;
+    }>;
     subShops(mainShopId: string): Promise<{
         sub_shops: {
             binding_id: number;
@@ -205,7 +218,7 @@ export declare class MerchantController implements OnModuleInit {
     bindingPendingCount(shopId: string): Promise<{
         count: number;
     }>;
-    activateCard(shopId: number, code: string): Promise<{
+    activateCard(shopId: number, code: string, req: any): Promise<{
         success: boolean;
         type: string;
         subscription_expires_at: Date;

@@ -29,7 +29,6 @@ export declare class OrderController implements OnModuleInit {
         amount: number;
         status: number;
         created_at: Date;
-        _idempotent: boolean;
     } | {
         order_id: number;
         order_number: string;
@@ -38,7 +37,7 @@ export declare class OrderController implements OnModuleInit {
         amount: number;
         status: number;
         created_at: Date;
-        _idempotent?: undefined;
+        _idempotent: boolean;
     }>;
     deleteOrder(orderNumber: string, body: {
         shopId?: number;

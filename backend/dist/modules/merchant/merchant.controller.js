@@ -61,6 +61,20 @@ const nodemailer = __importStar(require("nodemailer"));
 const loginFailMap = new Map();
 const LOGIN_MAX_FAIL = 10;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+const cardFailMap = new Map();
+const CARD_MAX_FAIL = 5;
+const CARD_LOCKOUT_MS = 30 * 60 * 1000;
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of loginFailMap) {
+        if (entry.until < now)
+            loginFailMap.delete(ip);
+    }
+    for (const [ip, entry] of cardFailMap) {
+        if (entry.until < now)
+            cardFailMap.delete(ip);
+    }
+}, 60 * 60 * 1000);
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
 function createSignedToken(userId, accountNumber) {
     const payload = Buffer.from(`${userId}:${accountNumber}`).toString('base64');
@@ -695,6 +709,72 @@ let MerchantController = MerchantController_1 = class MerchantController {
             },
         };
     }
+    async batchCreateSubs(body, req) {
+        const { mainShopId, count, password } = body;
+        if (!mainShopId)
+            throw new common_1.BadRequestException('缺少 mainShopId');
+        const n = Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        if (!tokenInfo)
+            throw new common_1.UnauthorizedException('请先登录');
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const userRepo = this.dataSource.getRepository(user_entity_1.User);
+        const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
+        const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+        if (!mainShop)
+            throw new common_1.NotFoundException('大庄店铺不存在');
+        if (mainShop.owner_id !== tokenInfo.userId)
+            throw new common_1.UnauthorizedException('无权操作该店铺');
+        const allShops = await shopRepo.find({ select: ['shop_number'] });
+        const usedShopNumbers = new Set(allShops.map(s => s.shop_number));
+        const allUsers = await userRepo.find({ select: ['account_number'] });
+        const usedAccounts = new Set(allUsers.map(u => u.account_number));
+        let next = 10000;
+        const allExisting5digit = allShops
+            .map(s => parseInt(s.shop_number, 10))
+            .filter(n => n >= 10000 && n <= 99999);
+        if (allExisting5digit.length > 0)
+            next = Math.max(...allExisting5digit) + 1;
+        const created = [];
+        for (let i = 0; i < n; i++) {
+            while (usedShopNumbers.has(String(next)) || usedAccounts.has(String(next)))
+                next++;
+            if (next > 99999)
+                throw new common_1.BadRequestException('5位数店号已用尽');
+            const shopNumber = String(next);
+            const accountNumber = shopNumber;
+            const customPwd = (password || '').trim();
+            const pwd = customPwd || (() => {
+                const letters = 'abcdefghjkmnpqrstuvwxyz';
+                const rand2 = Array.from({ length: 2 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+                return shopNumber + rand2;
+            })();
+            const passwordHash = await bcrypt.hash(pwd, 10);
+            const user = userRepo.create({ account_number: accountNumber, password_hash: passwordHash });
+            await userRepo.save(user);
+            const shop = shopRepo.create({
+                shop_number: shopNumber,
+                owner_id: user.user_id,
+                shop_name: `小庄${shopNumber}`,
+                status: 'active',
+                commission_rate: 0.1,
+            });
+            await shopRepo.save(shop);
+            const binding = bindingRepo.create({
+                main_shop_id: mainShop.shop_id,
+                sub_shop_id: shop.shop_id,
+                commission_rate: 0.20,
+                status: 'active',
+            });
+            await bindingRepo.save(binding);
+            usedShopNumbers.add(shopNumber);
+            usedAccounts.add(accountNumber);
+            created.push({ shopNumber, account: accountNumber, password: pwd });
+            next++;
+        }
+        this.logger.log(`大庄批量注册小庄: 大庄=${mainShop.shop_number} 创建${n}个 [${created.map(c => c.shopNumber).join(',')}]`);
+        return { success: true, created, count: created.length };
+    }
     async subShops(mainShopId) {
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
@@ -895,33 +975,55 @@ let MerchantController = MerchantController_1 = class MerchantController {
         });
         return { count };
     }
-    async activateCard(shopId, code) {
+    async activateCard(shopId, code, req) {
         const normalizedCode = (code || '').trim().toUpperCase();
         if (!shopId)
             throw new common_1.BadRequestException('缺少 shopId');
         if (!normalizedCode)
             throw new common_1.BadRequestException('请输入卡密');
+        const ip = req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+        const cardFail = cardFailMap.get(ip);
+        if (cardFail && cardFail.count >= CARD_MAX_FAIL && Date.now() < cardFail.until) {
+            const mins = Math.ceil((cardFail.until - Date.now()) / 60000);
+            throw new common_1.BadRequestException(`尝试次数过多，请 ${mins} 分钟后再试`);
+        }
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const cardRepo = this.dataSource.getRepository(card_code_entity_1.CardCode);
         const shop = await shopRepo.findOne({ where: { shop_id: Number(shopId) } });
         if (!shop)
             throw new common_1.NotFoundException('店铺不存在');
         const card = await cardRepo.findOne({ where: { code: normalizedCode } });
-        if (!card)
-            throw new common_1.BadRequestException('卡密不存在');
-        if (card.used_at)
-            throw new common_1.BadRequestException('该卡密已被使用');
+        if (!card || card.used_at) {
+            const entry = cardFailMap.get(ip) || { count: 0, until: 0 };
+            entry.count += 1;
+            if (entry.count >= CARD_MAX_FAIL)
+                entry.until = Date.now() + CARD_LOCKOUT_MS;
+            cardFailMap.set(ip, entry);
+            throw new common_1.BadRequestException(!card ? '卡密不存在' : '该卡密已被使用');
+        }
         const base = shop.subscription_expires_at && shop.subscription_expires_at > new Date()
             ? new Date(shop.subscription_expires_at)
             : new Date();
         if (card.type === 'monthly') {
             base.setMonth(base.getMonth() + 1);
         }
+        else if (card.type === 'half_yearly') {
+            base.setMonth(base.getMonth() + 6);
+        }
         else {
             base.setFullYear(base.getFullYear() + 1);
         }
+        const lockResult = await cardRepo.createQueryBuilder()
+            .update(card_code_entity_1.CardCode)
+            .set({ used_by_shop_id: shop.shop_id, used_at: new Date() })
+            .where('id = :id AND used_at IS NULL', { id: card.id })
+            .execute();
+        if (!lockResult.affected || lockResult.affected === 0) {
+            throw new common_1.BadRequestException('该卡密已被使用');
+        }
         await shopRepo.update(shop.shop_id, { subscription_expires_at: base });
-        await cardRepo.update(card.id, { used_by_shop_id: shop.shop_id, used_at: new Date() });
+        cardFailMap.delete(ip);
+        this.logger.log(`卡密激活成功：code=${normalizedCode} shop=${shop.shop_number} expires=${base.toISOString().slice(0, 10)}`);
         return {
             success: true,
             type: card.type,
@@ -1124,6 +1226,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "myBinding", null);
 __decorate([
+    (0, common_1.Post)('binding/batch-create-subs'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], MerchantController.prototype, "batchCreateSubs", null);
+__decorate([
     (0, common_1.Get)('binding/sub-shops'),
     __param(0, (0, common_1.Query)('mainShopId')),
     __metadata("design:type", Function),
@@ -1157,8 +1267,9 @@ __decorate([
     (0, common_1.Post)('activate-card'),
     __param(0, (0, common_1.Body)('shopId')),
     __param(1, (0, common_1.Body)('code')),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, String]),
+    __metadata("design:paramtypes", [Number, String, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "activateCard", null);
 __decorate([

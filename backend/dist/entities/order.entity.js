@@ -110,6 +110,10 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'datetime', nullable: true }),
     __metadata("design:type", Date)
 ], Order.prototype, "redeemed_at", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 64, nullable: true }),
+    __metadata("design:type", String)
+], Order.prototype, "idempotency_key", void 0);
 exports.Order = Order = __decorate([
     (0, typeorm_1.Entity)('orders'),
     (0, typeorm_1.Index)(['draw_id', 'status']),

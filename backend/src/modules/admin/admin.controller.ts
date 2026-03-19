@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Query, Body, Param, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Query, Body, Param, Req, UseGuards, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -17,7 +18,7 @@ function generateCardCode(type: string): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const rand2 = () => Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
   const seg4  = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  const prefix = type === 'yearly' ? 'YY' : 'MM';
+  const prefix = type === 'yearly' ? 'YY' : type === 'half_yearly' ? 'HY' : 'MM';
   // 格式：MM/YY + XX-XXXX-XXXX  共 14 字符（在 length:20 限制内）
   return `${prefix}${rand2()}-${seg4()}-${seg4()}`;
 }
@@ -25,6 +26,8 @@ function generateCardCode(type: string): string {
 @Controller('admin')
 @UseGuards(AdminTokenGuard)
 export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
   constructor(
     @InjectRepository(Order)
     private readonly orderRepo: Repository<Order>,
@@ -155,6 +158,15 @@ export class AdminController {
       rows.forEach(r => lastOrderMap.set(Number(r.shop_id), Number(r.last_draw_id)));
     }
 
+    // 查每个店铺作为大庄时绑定的小庄数量
+    const bindings = shopIds.length
+      ? await this.shopBindingRepo.find({ where: { main_shop_id: In(shopIds), status: 'active' } })
+      : [];
+    const subCountMap = new Map<number, number>();
+    for (const b of bindings) {
+      subCountMap.set(b.main_shop_id, (subCountMap.get(b.main_shop_id) || 0) + 1);
+    }
+
     return {
       shops: shops.map(s => {
         const user = s.owner_id ? userMap.get(s.owner_id) : null;
@@ -174,6 +186,7 @@ export class AdminController {
           registered_at: user ? user.created_at : null,
           inactive_periods,
           subscription_expires_at: (s as any).subscription_expires_at ?? null,
+          sub_shop_count: subCountMap.get(s.shop_id) || 0,
         };
       }),
     };
@@ -216,6 +229,34 @@ export class AdminController {
   }
 
   /**
+   * PATCH /api/admin/shops/:shopId/subscription - 手动设置店铺订阅到期日
+   * Body: { expires_at: "YYYY-MM-DD" | "YYYY-MM-DDTHH:mm:ssZ" | null }
+   */
+  @Patch('shops/:shopId/subscription')
+  async setShopSubscription(
+    @Param('shopId') shopId: string,
+    @Body('expires_at') expiresAt: string | null,
+  ) {
+    const id = parseInt(shopId, 10);
+    if (isNaN(id)) throw new BadRequestException('无效的 shopId');
+    const shop = await this.shopRepo.findOne({ where: { shop_id: id } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+
+    let newExpiry: Date | null = null;
+    if (expiresAt !== null && expiresAt !== undefined && expiresAt !== '') {
+      newExpiry = new Date(expiresAt);
+      if (isNaN(newExpiry.getTime())) throw new BadRequestException('日期格式无效，请用 YYYY-MM-DD');
+    }
+
+    await this.shopRepo.update(id, { subscription_expires_at: newExpiry } as any);
+    return {
+      success: true,
+      shop_id: id,
+      subscription_expires_at: newExpiry ? newExpiry.toISOString() : null,
+    };
+  }
+
+  /**
    * POST /api/admin/reset-password - 重置商家密码
    */
   @Post('reset-password')
@@ -249,8 +290,9 @@ export class AdminController {
   async generateCards(
     @Body('type') type: string,
     @Body('count') count: number,
+    @Req() req: Request,
   ) {
-    if (type !== 'monthly' && type !== 'yearly') throw new BadRequestException('type 只能是 monthly 或 yearly');
+    if (!['monthly', 'half_yearly', 'yearly'].includes(type)) throw new BadRequestException('type 只能是 monthly / half_yearly / yearly');
     const n = Math.min(Math.max(parseInt(String(count)) || 1, 1), 50);
     const codes: string[] = [];
     for (let i = 0; i < n; i++) {
@@ -264,7 +306,10 @@ export class AdminController {
       await this.cardCodeRepo.save(card);
       codes.push(code);
     }
-    return { success: true, codes, type };
+    // 审计日志
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '?';
+    this.logger.log(`[审计] 生成卡密 type=${type} count=${n} ip=${ip} time=${new Date().toISOString()}`);
+    return { success: true, codes, type, generated_at: new Date().toISOString() };
   }
 
   /**
@@ -286,6 +331,49 @@ export class AdminController {
         created_at: c.created_at,
       })),
     };
+  }
+
+  /**
+   * GET /api/admin/shops/:shopId/sub-shops - 获取某大庄的所有小庄列表
+   */
+  @Get('shops/:shopId/sub-shops')
+  async getSubShops(@Param('shopId') shopId: string) {
+    const id = parseInt(shopId, 10);
+    if (isNaN(id)) throw new BadRequestException('无效的 shopId');
+    const bindings = await this.shopBindingRepo.find({
+      where: { main_shop_id: id, status: 'active' },
+      order: { created_at: 'ASC' },
+    });
+    const subIds = bindings.map(b => b.sub_shop_id);
+    const shops = subIds.length ? await this.shopRepo.find({ where: { shop_id: In(subIds) } }) : [];
+    const shopMap = new Map(shops.map(s => [s.shop_id, s]));
+    return {
+      sub_shops: bindings.map(b => {
+        const s = shopMap.get(b.sub_shop_id);
+        return {
+          shop_id: b.sub_shop_id,
+          shop_number: s?.shop_number ?? '',
+          shop_name: s?.shop_name ?? '',
+          subscription_expires_at: (s as any)?.subscription_expires_at ?? null,
+          binding_id: b.binding_id,
+        };
+      }),
+    };
+  }
+
+  /**
+   * DELETE /api/admin/cards/:id - 作废卡密（只允许删除未使用的卡密）
+   */
+  @Delete('cards/:id')
+  async revokeCard(@Param('id') id: string, @Req() req: Request) {
+    const cardId = parseInt(id, 10);
+    if (isNaN(cardId)) throw new BadRequestException('无效的卡密ID');
+    const card = await this.cardCodeRepo.findOne({ where: { id: cardId } });
+    if (!card) throw new NotFoundException('卡密不存在');
+    await this.cardCodeRepo.delete(cardId);
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '?';
+    this.logger.log(`[审计] 作废卡密 id=${cardId} code=${card.code} ip=${ip} time=${new Date().toISOString()}`);
+    return { success: true, message: `卡密 ${card.code} 已作废` };
   }
 
   /**

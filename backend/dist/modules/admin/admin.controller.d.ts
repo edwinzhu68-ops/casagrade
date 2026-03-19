@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import { Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
@@ -12,6 +13,7 @@ export declare class AdminController {
     private readonly drawRepo;
     private readonly cardCodeRepo;
     private readonly shopBindingRepo;
+    private readonly logger;
     constructor(orderRepo: Repository<Order>, shopRepo: Repository<Shop>, userRepo: Repository<User>, drawRepo: Repository<Draw>, cardCodeRepo: Repository<CardCode>, shopBindingRepo: Repository<ShopBinding>);
     shopCompare(from: string, to: string, top?: string): Promise<{
         items: {
@@ -34,6 +36,7 @@ export declare class AdminController {
             registered_at: Date;
             inactive_periods: number;
             subscription_expires_at: any;
+            sub_shop_count: number;
         }[];
     }>;
     deleteAccount(accountNumber: string): Promise<{
@@ -45,14 +48,20 @@ export declare class AdminController {
         shop_id: number;
         status: string;
     }>;
+    setShopSubscription(shopId: string, expiresAt: string | null): Promise<{
+        success: boolean;
+        shop_id: number;
+        subscription_expires_at: string;
+    }>;
     resetPassword(shopNumber: string, newPassword: string): Promise<{
         success: boolean;
         message: string;
     }>;
-    generateCards(type: string, count: number): Promise<{
+    generateCards(type: string, count: number, req: Request): Promise<{
         success: boolean;
         codes: string[];
         type: string;
+        generated_at: string;
     }>;
     listCards(type?: string): Promise<{
         cards: {
@@ -64,6 +73,19 @@ export declare class AdminController {
             used_at: Date;
             created_at: Date;
         }[];
+    }>;
+    getSubShops(shopId: string): Promise<{
+        sub_shops: {
+            shop_id: number;
+            shop_number: string;
+            shop_name: string;
+            subscription_expires_at: any;
+            binding_id: number;
+        }[];
+    }>;
+    revokeCard(id: string, req: Request): Promise<{
+        success: boolean;
+        message: string;
     }>;
     assignShop(shopNumber: string, accountNumber: string): Promise<{
         success: boolean;

@@ -44,9 +44,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var AdminController_1;
+var _a, _b;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminController = void 0;
 const common_1 = require("@nestjs/common");
+const express_1 = require("express");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const bcrypt = __importStar(require("bcrypt"));
@@ -63,10 +66,10 @@ function generateCardCode(type) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const rand2 = () => Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     const seg4 = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    const prefix = type === 'yearly' ? 'YY' : 'MM';
+    const prefix = type === 'yearly' ? 'YY' : type === 'half_yearly' ? 'HY' : 'MM';
     return `${prefix}${rand2()}-${seg4()}-${seg4()}`;
 }
-let AdminController = class AdminController {
+let AdminController = AdminController_1 = class AdminController {
     constructor(orderRepo, shopRepo, userRepo, drawRepo, cardCodeRepo, shopBindingRepo) {
         this.orderRepo = orderRepo;
         this.shopRepo = shopRepo;
@@ -74,6 +77,7 @@ let AdminController = class AdminController {
         this.drawRepo = drawRepo;
         this.cardCodeRepo = cardCodeRepo;
         this.shopBindingRepo = shopBindingRepo;
+        this.logger = new common_1.Logger(AdminController_1.name);
     }
     async shopCompare(from, to, top = '10') {
         const topN = Number(top) || 10;
@@ -160,6 +164,13 @@ let AdminController = class AdminController {
                 .getRawMany();
             rows.forEach(r => lastOrderMap.set(Number(r.shop_id), Number(r.last_draw_id)));
         }
+        const bindings = shopIds.length
+            ? await this.shopBindingRepo.find({ where: { main_shop_id: (0, typeorm_2.In)(shopIds), status: 'active' } })
+            : [];
+        const subCountMap = new Map();
+        for (const b of bindings) {
+            subCountMap.set(b.main_shop_id, (subCountMap.get(b.main_shop_id) || 0) + 1);
+        }
         return {
             shops: shops.map(s => {
                 const user = s.owner_id ? userMap.get(s.owner_id) : null;
@@ -179,6 +190,7 @@ let AdminController = class AdminController {
                     registered_at: user ? user.created_at : null,
                     inactive_periods,
                     subscription_expires_at: s.subscription_expires_at ?? null,
+                    sub_shop_count: subCountMap.get(s.shop_id) || 0,
                 };
             }),
         };
@@ -209,6 +221,26 @@ let AdminController = class AdminController {
         await this.shopRepo.update(shop.shop_id, { status });
         return { success: true, shop_id: shop.shop_id, status };
     }
+    async setShopSubscription(shopId, expiresAt) {
+        const id = parseInt(shopId, 10);
+        if (isNaN(id))
+            throw new common_1.BadRequestException('无效的 shopId');
+        const shop = await this.shopRepo.findOne({ where: { shop_id: id } });
+        if (!shop)
+            throw new common_1.NotFoundException('店铺不存在');
+        let newExpiry = null;
+        if (expiresAt !== null && expiresAt !== undefined && expiresAt !== '') {
+            newExpiry = new Date(expiresAt);
+            if (isNaN(newExpiry.getTime()))
+                throw new common_1.BadRequestException('日期格式无效，请用 YYYY-MM-DD');
+        }
+        await this.shopRepo.update(id, { subscription_expires_at: newExpiry });
+        return {
+            success: true,
+            shop_id: id,
+            subscription_expires_at: newExpiry ? newExpiry.toISOString() : null,
+        };
+    }
     async resetPassword(shopNumber, newPassword) {
         const sn = (shopNumber || '').trim();
         const pwd = (newPassword || '').trim();
@@ -229,9 +261,9 @@ let AdminController = class AdminController {
         await this.userRepo.update(shop.owner_id, { password_hash: hash });
         return { success: true, message: `店号 ${sn} 密码已重置` };
     }
-    async generateCards(type, count) {
-        if (type !== 'monthly' && type !== 'yearly')
-            throw new common_1.BadRequestException('type 只能是 monthly 或 yearly');
+    async generateCards(type, count, req) {
+        if (!['monthly', 'half_yearly', 'yearly'].includes(type))
+            throw new common_1.BadRequestException('type 只能是 monthly / half_yearly / yearly');
         const n = Math.min(Math.max(parseInt(String(count)) || 1, 1), 50);
         const codes = [];
         for (let i = 0; i < n; i++) {
@@ -245,7 +277,9 @@ let AdminController = class AdminController {
             await this.cardCodeRepo.save(card);
             codes.push(code);
         }
-        return { success: true, codes, type };
+        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || '?';
+        this.logger.log(`[审计] 生成卡密 type=${type} count=${n} ip=${ip} time=${new Date().toISOString()}`);
+        return { success: true, codes, type, generated_at: new Date().toISOString() };
     }
     async listCards(type) {
         const where = {};
@@ -263,6 +297,42 @@ let AdminController = class AdminController {
                 created_at: c.created_at,
             })),
         };
+    }
+    async getSubShops(shopId) {
+        const id = parseInt(shopId, 10);
+        if (isNaN(id))
+            throw new common_1.BadRequestException('无效的 shopId');
+        const bindings = await this.shopBindingRepo.find({
+            where: { main_shop_id: id, status: 'active' },
+            order: { created_at: 'ASC' },
+        });
+        const subIds = bindings.map(b => b.sub_shop_id);
+        const shops = subIds.length ? await this.shopRepo.find({ where: { shop_id: (0, typeorm_2.In)(subIds) } }) : [];
+        const shopMap = new Map(shops.map(s => [s.shop_id, s]));
+        return {
+            sub_shops: bindings.map(b => {
+                const s = shopMap.get(b.sub_shop_id);
+                return {
+                    shop_id: b.sub_shop_id,
+                    shop_number: s?.shop_number ?? '',
+                    shop_name: s?.shop_name ?? '',
+                    subscription_expires_at: s?.subscription_expires_at ?? null,
+                    binding_id: b.binding_id,
+                };
+            }),
+        };
+    }
+    async revokeCard(id, req) {
+        const cardId = parseInt(id, 10);
+        if (isNaN(cardId))
+            throw new common_1.BadRequestException('无效的卡密ID');
+        const card = await this.cardCodeRepo.findOne({ where: { id: cardId } });
+        if (!card)
+            throw new common_1.NotFoundException('卡密不存在');
+        await this.cardCodeRepo.delete(cardId);
+        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || '?';
+        this.logger.log(`[审计] 作废卡密 id=${cardId} code=${card.code} ip=${ip} time=${new Date().toISOString()}`);
+        return { success: true, message: `卡密 ${card.code} 已作废` };
     }
     async assignShop(shopNumber, accountNumber) {
         const sn = (shopNumber || '').trim();
@@ -433,6 +503,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "setShopStatus", null);
 __decorate([
+    (0, common_1.Patch)('shops/:shopId/subscription'),
+    __param(0, (0, common_1.Param)('shopId')),
+    __param(1, (0, common_1.Body)('expires_at')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "setShopSubscription", null);
+__decorate([
     (0, common_1.Post)('reset-password'),
     __param(0, (0, common_1.Body)('shopNumber')),
     __param(1, (0, common_1.Body)('newPassword')),
@@ -444,8 +522,9 @@ __decorate([
     (0, common_1.Post)('generate-cards'),
     __param(0, (0, common_1.Body)('type')),
     __param(1, (0, common_1.Body)('count')),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Number]),
+    __metadata("design:paramtypes", [String, Number, typeof (_a = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _a : Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "generateCards", null);
 __decorate([
@@ -455,6 +534,21 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "listCards", null);
+__decorate([
+    (0, common_1.Get)('shops/:shopId/sub-shops'),
+    __param(0, (0, common_1.Param)('shopId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getSubShops", null);
+__decorate([
+    (0, common_1.Delete)('cards/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, typeof (_b = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _b : Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "revokeCard", null);
 __decorate([
     (0, common_1.Post)('assign-shop'),
     __param(0, (0, common_1.Body)('shopNumber')),
@@ -489,7 +583,7 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getLogs", null);
-exports.AdminController = AdminController = __decorate([
+exports.AdminController = AdminController = AdminController_1 = __decorate([
     (0, common_1.Controller)('admin'),
     (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
     __param(0, (0, typeorm_1.InjectRepository)(order_entity_1.Order)),
