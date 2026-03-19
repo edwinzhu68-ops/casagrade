@@ -1975,6 +1975,7 @@
         const subTag = subCount > 0
           ? `<button onclick="toggleSubShops(${s.shop_id}, this)" class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300">小庄 ${subCount} 家 ▸</button>`
           : '';
+        const addSubBtn = `<button onclick="adminBatchCreateSubs(${s.shop_id},'${s.shop_number}')" class="px-1.5 py-0.5 rounded text-[10px] bg-green-900/50 hover:bg-green-800 text-green-300">+注册小庄</button>`;
         return `
           <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1" id="shop-row-${s.shop_id}">
             <div class="flex items-center gap-2 flex-wrap">
@@ -1983,6 +1984,7 @@
               <span class="text-gray-500 text-[11px] shrink-0">${regDate}</span>
               ${inactiveTag}
               ${subTag}
+              ${addSubBtn}
               <button onclick="confirmDeleteAccount('${acct}','${s.shop_number}')"
                 class="ml-auto px-2 py-0.5 rounded text-[10px] bg-red-900/50 hover:bg-red-800 text-red-300">删除</button>
             </div>
@@ -2058,6 +2060,30 @@
           </div>`;
         }).join('');
       } catch (e) { el.innerHTML = '<p class="text-red-400 text-[11px] py-1">加载失败</p>'; }
+    }
+
+    async function adminBatchCreateSubs(mainShopId, shopNumber) {
+      const countStr = prompt(`为大庄 ${shopNumber} 批量注册小庄，请输入数量（无上限）：`, '1');
+      if (countStr === null) return;
+      const count = parseInt(countStr);
+      if (isNaN(count) || count < 1) { showToast('请输入有效数量', 'error'); return; }
+      if (!confirm(`确定为大庄 ${shopNumber} 注册 ${count} 个小庄？`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/merchant/binding/batch-create-subs`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(true), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mainShopId, count, adminOverride: true }),
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || data.error || '注册失败', 'error'); return; }
+        const created = data.created || [];
+        const lines = created.map(c => `店号:${c.shopNumber}  账号:${c.account}  密码:${c.password}`).join('\n');
+        showToast(`✅ 成功注册 ${created.length} 个小庄`, 'success');
+        alert(`注册成功！共 ${created.length} 个：\n\n${lines}`);
+        loadShopList();
+      } catch (e) {
+        showToast('请求失败：' + e.message, 'error');
+      }
     }
 
     async function batchSubExpiry(mainShopId) {
