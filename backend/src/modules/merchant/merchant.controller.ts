@@ -872,18 +872,18 @@ export class MerchantController implements OnModuleInit {
     // 同时检查 account_number（两者值相同，避免历史遗留账号冲突）
     const allUsers = await userRepo.find({ select: ['account_number'] });
     const usedAccounts = new Set(allUsers.map(u => u.account_number));
-    let next = 10000;
-    const allExisting5digit = allShops
+    // 从10000起找最大已用号，下一个从它+1开始（不限制位数，5位满了自动升6位、7位）
+    const allExistingNums = allShops
       .map(s => parseInt(s.shop_number, 10))
-      .filter(n => n >= 10000 && n <= 99999);
-    if (allExisting5digit.length > 0) next = Math.max(...allExisting5digit) + 1;
+      .filter(n => n >= 10000 && !isNaN(n));
+    let next = allExistingNums.length > 0 ? Math.max(...allExistingNums) + 1 : 10000;
 
     const created: { shopNumber: string; account: string; password: string }[] = [];
 
     for (let i = 0; i < n; i++) {
       // 跳过店号或账号已被占用的号
       while (usedShopNumbers.has(String(next)) || usedAccounts.has(String(next))) next++;
-      if (next > 99999) throw new BadRequestException('5位数店号已用尽');
+      if (next > 9999999999) throw new BadRequestException('店号已用尽'); // 几乎不可能
 
       const shopNumber = String(next);
       const accountNumber = shopNumber;
