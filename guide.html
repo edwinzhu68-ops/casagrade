@@ -125,11 +125,11 @@
   <!-- 三大核心优势 -->
   <div class="max-w-2xl mx-auto px-4 mt-5 space-y-3">
 
-    <div class="bg-red-950/60 rounded-2xl px-5 py-4 flex items-start gap-4 border-2 border-red-500/70">
+    <div id="zh-only-risk" class="bg-gray-900 rounded-2xl px-5 py-4 flex items-start gap-4 border border-gray-700">
       <div class="text-3xl shrink-0 mt-0.5">🛡️</div>
       <div>
-        <p class="font-black text-white text-sm" data-zh="极大降低被抓风险" data-es="Reduce enormemente el riesgo de ser detenido">极大降低被抓风险</p>
-        <p class="text-gray-400 text-xs mt-1.5 leading-relaxed" data-zh="店里不打单、不存票根、门口不聚人。就算有人来，你只是在用手机——什么都找不到。" data-es="Sin tickets en tienda, sin recibos, sin cola en la puerta. Si viene alguien, solo estás usando el móvil — no hay nada que encontrar.">店里不打单、不存票根、门口不聚人。就算有人来，你只是在用手机——什么都找不到。</p>
+        <p class="font-black text-red-400 text-sm">极大降低被抓风险</p>
+        <p class="text-gray-400 text-xs mt-1.5 leading-relaxed">店里不打单、不存票根、门口不聚人。就算有人来，你只是在用手机——什么都找不到。</p>
       </div>
     </div>
 
@@ -739,6 +739,8 @@
       document.querySelectorAll('[data-zh]').forEach(el => {
         el.innerHTML = isZh ? el.dataset.zh : el.dataset.es;
       });
+      const zhOnly = document.getElementById('zh-only-risk');
+      if (zhOnly) zhOnly.style.display = isZh ? '' : 'none';
     }
 
     function openPoster() {
