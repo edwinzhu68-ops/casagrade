@@ -916,6 +916,7 @@
         if (!res.ok) throw new Error(data.message || data.error || '登录失败');
         
         authToken = data.token;
+        localStorage.setItem('lottery_token', authToken);
         var secretEl = document.getElementById('admin-secret');
         if (secretEl && secretEl.value) localStorage.setItem(ADMIN_TOKEN_KEY, secretEl.value);
         
