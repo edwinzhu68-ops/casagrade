@@ -847,16 +847,17 @@ export class MerchantController implements OnModuleInit {
    */
   @Post('binding/batch-create-subs')
   async batchCreateSubs(
-    @Body() body: { mainShopId: number; count: number; password?: string },
+    @Body() body: { mainShopId: number; count: number; password?: string; adminOverride?: boolean },
     @Req() req: any,
   ) {
-    const { mainShopId, count, password } = body;
+    const { mainShopId, count, password, adminOverride } = body;
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
-    const n = Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
 
-    // 验证操作者是大庄所有者
-    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
-    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+    // 管理员带 X-Admin-Token 且传 adminOverride=true 时不限数量
+    const isAdmin = adminOverride && !!req.headers?.['x-admin-token'];
+    const n = isAdmin
+      ? Math.max(parseInt(String(count)) || 1, 1)
+      : Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
 
     const shopRepo = this.dataSource.getRepository(Shop);
     const userRepo = this.dataSource.getRepository(User);
@@ -864,7 +865,13 @@ export class MerchantController implements OnModuleInit {
 
     const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
     if (!mainShop) throw new NotFoundException('大庄店铺不存在');
-    if (mainShop.owner_id !== tokenInfo.userId) throw new UnauthorizedException('无权操作该店铺');
+
+    // 管理员 adminOverride 跳过大庄所有权验证；普通大庄必须验证 token
+    if (!isAdmin) {
+      const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+      if (!tokenInfo) throw new UnauthorizedException('请先登录');
+      if (mainShop.owner_id !== tokenInfo.userId) throw new UnauthorizedException('无权操作该店铺');
+    }
 
     // 找最大的5位数店号（≥10000），从它+1开始分配
     const allShops = await shopRepo.find({ select: ['shop_number'] });
