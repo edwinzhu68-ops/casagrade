@@ -794,10 +794,10 @@ async function batchCreateSubs() {
   btn.textContent = '注册中…';
   resultDiv.classList.add('hidden');
   try {
-    const res = await fetch(`${API_BASE}/api/merchant/binding/batch-create-subs`, {
+    const res = await fetch(`${API}/merchant/binding/batch-create-subs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ mainShopId: shopId, count, password: password || undefined }),
+      body: JSON.stringify({ mainShopId: currentShopId, count, password: password || undefined }),
     });
     const data = await res.json();
     if (!data.success) { alert(data.message || '注册失败'); return; }
@@ -812,7 +812,7 @@ async function batchCreateSubs() {
     resultDiv.classList.remove('hidden');
     // 刷新当期数据，让新小庄出现在列表
     if (typeof loadData === 'function') loadData();
-  } catch (e) { alert('请求失败'); }
+  } catch (e) { alert('请求失败：' + (e?.message || e)); }
   finally { btn.disabled = false; btn.textContent = '批量注册并绑定'; }
 }
 
