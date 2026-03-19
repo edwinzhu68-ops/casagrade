@@ -57,75 +57,75 @@ function calcBilletePrizeForOneDraw(betNum, winRaw, qty, prizeIndex) {
     return 0;
 }
 async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero) {
-    const orderRepo = dataSource.getRepository(order_entity_1.Order);
     const win1 = String(primer ?? '').replace(/\D/g, '');
     const win2 = String(segundo ?? '').replace(/\D/g, '');
     const win3 = String(tercero ?? '').replace(/\D/g, '');
     const ch1 = win1.slice(-2).padStart(2, '0');
     const ch2 = win2.slice(-2).padStart(2, '0');
     const ch3 = win3.slice(-2).padStart(2, '0');
-    const orders = await orderRepo.find({
+    const orders = await dataSource.getRepository(order_entity_1.Order).find({
         where: { status: 1, draw_id: drawId },
     });
-    for (const order of orders) {
-        let totalWin = 0;
-        const numbers = order.numbers || [];
-        const gameType = (order.game_type || '').toUpperCase();
-        const winBreakdown = [];
-        for (const bet of numbers) {
-            const num = String(bet.n ?? '');
-            const qty = Number(bet.q) || 0;
-            let lineWin = 0;
-            let matchInfo = '';
-            const numLen = num.replace(/\D/g, '').length;
-            if (numLen >= 4) {
-                const betNum = num.slice(-4).padStart(4, '0');
-                const isGordito = win2.length <= 2 && win3.length <= 2;
-                const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
-                const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
-                const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
-                lineWin = win1Val + win2Val + win3Val;
-                const matches = [];
-                if (win1Val > 0)
-                    matches.push('头奖');
-                if (win2Val > 0)
-                    matches.push('二奖');
-                if (win3Val > 0)
-                    matches.push('三奖');
-                if (matches.length > 0)
-                    matchInfo = matches.join('+');
+    await dataSource.transaction(async (manager) => {
+        for (const order of orders) {
+            let totalWin = 0;
+            const numbers = order.numbers || [];
+            const winBreakdown = [];
+            for (const bet of numbers) {
+                const num = String(bet.n ?? '');
+                const qty = Number(bet.q) || 0;
+                let lineWin = 0;
+                let matchInfo = '';
+                const numLen = num.replace(/\D/g, '').length;
+                if (numLen >= 4) {
+                    const betNum = num.slice(-4).padStart(4, '0');
+                    const isGordito = win2.length <= 2 && win3.length <= 2;
+                    const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
+                    const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
+                    const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
+                    lineWin = win1Val + win2Val + win3Val;
+                    const matches = [];
+                    if (win1Val > 0)
+                        matches.push('头奖');
+                    if (win2Val > 0)
+                        matches.push('二奖');
+                    if (win3Val > 0)
+                        matches.push('三奖');
+                    if (matches.length > 0)
+                        matchInfo = matches.join('+');
+                }
+                else if (numLen >= 2) {
+                    const betCh = num.slice(-2).padStart(2, '0');
+                    let winVal = 0;
+                    if (betCh === ch1) {
+                        winVal += CHANCE_RATE[0] * qty;
+                        matchInfo += (matchInfo ? '+' : '') + '头奖';
+                    }
+                    if (betCh === ch2) {
+                        winVal += CHANCE_RATE[1] * qty;
+                        matchInfo += (matchInfo ? '+' : '') + '二奖';
+                    }
+                    if (betCh === ch3) {
+                        winVal += CHANCE_RATE[2] * qty;
+                        matchInfo += (matchInfo ? '+' : '') + '三奖';
+                    }
+                    lineWin = winVal;
+                    if (matchInfo)
+                        matchInfo += '(14+3+2)';
+                }
+                totalWin += lineWin;
+                winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });
             }
-            else if (numLen >= 2) {
-                const betCh = num.slice(-2).padStart(2, '0');
-                let winVal = 0;
-                if (betCh === ch1) {
-                    winVal += CHANCE_RATE[0] * qty;
-                    matchInfo += (matchInfo ? '+' : '') + '头奖';
-                }
-                if (betCh === ch2) {
-                    winVal += CHANCE_RATE[1] * qty;
-                    matchInfo += (matchInfo ? '+' : '') + '二奖';
-                }
-                if (betCh === ch3) {
-                    winVal += CHANCE_RATE[2] * qty;
-                    matchInfo += (matchInfo ? '+' : '') + '三奖';
-                }
-                lineWin = winVal;
-                if (matchInfo)
-                    matchInfo += '(14+3+2)';
-            }
-            totalWin += lineWin;
-            winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });
+            const newStatus = totalWin > 0 ? 3 : 2;
+            await manager.update(order_entity_1.Order, order.order_id, {
+                draw_id: drawId,
+                win_amount: totalWin,
+                win_breakdown: winBreakdown,
+                status: newStatus,
+                settled_at: new Date(),
+            });
         }
-        const newStatus = totalWin > 0 ? 3 : 2;
-        await orderRepo.update(order.order_id, {
-            draw_id: drawId,
-            win_amount: totalWin,
-            win_breakdown: winBreakdown,
-            status: newStatus,
-            settled_at: new Date(),
-        });
-    }
+    });
 }
 function getNextDrawDatePanama(from) {
     let base;

@@ -63,6 +63,37 @@ async function findShopByNumber(shopRepo, number) {
 const draw_entity_1 = require("../../entities/draw.entity");
 const draw_day_service_1 = require("../draw/draw-day.service");
 const crypto = __importStar(require("crypto"));
+const common_2 = require("@nestjs/common");
+const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
+function parseOrderToken(token) {
+    if (!token)
+        return null;
+    const lastDot = token.lastIndexOf('.');
+    if (lastDot <= 0)
+        return null;
+    const payload = token.slice(0, lastDot);
+    const sig = token.slice(lastDot + 1);
+    const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
+    try {
+        const a = Buffer.from(sig), b = Buffer.from(expected);
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b))
+            return null;
+    }
+    catch {
+        return null;
+    }
+    try {
+        const decoded = Buffer.from(payload, 'base64').toString('utf8');
+        const colonIdx = decoded.indexOf(':');
+        if (colonIdx < 1)
+            return null;
+        const userId = parseInt(decoded.slice(0, colonIdx), 10);
+        return isNaN(userId) ? null : userId;
+    }
+    catch {
+        return null;
+    }
+}
 let OrderController = OrderController_1 = class OrderController {
     constructor(dataSource) {
         this.dataSource = dataSource;
@@ -277,6 +308,18 @@ let OrderController = OrderController_1 = class OrderController {
         const shopId = body?.shopId != null ? Number(body.shopId) : undefined;
         if (!shopId || isNaN(shopId)) {
             throw new common_1.BadRequestException('缺少 shopId');
+        }
+        const authHeader = (req.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
+        const shop = await this.dataSource.getRepository(shop_entity_1.Shop).findOne({ where: { shop_id: shopId } });
+        if (!shop)
+            throw new common_1.NotFoundException('店铺不存在');
+        if (shop.owner_id !== tokenUserId) {
+            throw new common_2.UnauthorizedException('无权操作此店铺');
         }
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         const order = await orderRepo.findOne({ where: { order_number: orderNumber } });

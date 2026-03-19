@@ -14,6 +14,30 @@ async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Pro
 import { Draw } from '../../entities/draw.entity';
 import { DrawDayService } from '../draw/draw-day.service';
 import * as crypto from 'crypto';
+import { UnauthorizedException } from '@nestjs/common';
+
+const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
+
+/** 解析并验证签名 token，返回 userId；验证失败返回 null */
+function parseOrderToken(token: string): number | null {
+  if (!token) return null;
+  const lastDot = token.lastIndexOf('.');
+  if (lastDot <= 0) return null;
+  const payload = token.slice(0, lastDot);
+  const sig = token.slice(lastDot + 1);
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
+  try {
+    const a = Buffer.from(sig), b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  } catch { return null; }
+  try {
+    const decoded = Buffer.from(payload, 'base64').toString('utf8');
+    const colonIdx = decoded.indexOf(':');
+    if (colonIdx < 1) return null;
+    const userId = parseInt(decoded.slice(0, colonIdx), 10);
+    return isNaN(userId) ? null : userId;
+  } catch { return null; }
+}
 
 interface CreateOrderDto {
   shopId?: number;
@@ -280,6 +304,21 @@ export class OrderController implements OnModuleInit {
     const shopId = body?.shopId != null ? Number(body.shopId) : undefined;
     if (!shopId || isNaN(shopId)) {
       throw new BadRequestException('缺少 shopId');
+    }
+
+    // 验证 Authorization token，确认操作者身份
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    // 验证 token 持有者是否是该店铺的 owner
+    const shop = await this.dataSource.getRepository(Shop).findOne({ where: { shop_id: shopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
     }
 
     const orderRepo = this.dataSource.getRepository(Order);

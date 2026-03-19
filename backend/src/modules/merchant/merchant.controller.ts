@@ -11,6 +11,11 @@ import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
 import { Repository } from 'typeorm';
 
+// ─── 登录限流（内存计数器，防暴力破解） ────────────────────────────────────────
+const loginFailMap = new Map<string, { count: number; until: number }>();
+const LOGIN_MAX_FAIL = 10;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15分钟
+
 // ─── Token 工具（HMAC-SHA256 签名） ─────────────────────────────────────────
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
 
@@ -284,6 +289,18 @@ export class MerchantController implements OnModuleInit {
     const account = String(dto.account ?? dto.accountNumber ?? '').trim().toLowerCase();
     if (!account) throw new UnauthorizedException('请输入账号或店号');
 
+    // 限流：同一 IP 连续失败超过阈值则锁定
+    const ip = (req.headers?.['x-forwarded-for'] || req.ip || 'unknown').toString().split(',')[0].trim();
+    const failEntry = loginFailMap.get(ip);
+    if (failEntry && failEntry.count >= LOGIN_MAX_FAIL) {
+      if (Date.now() < failEntry.until) {
+        const remainMin = Math.ceil((failEntry.until - Date.now()) / 60000);
+        throw new UnauthorizedException(`登录失败次数过多，请 ${remainMin} 分钟后再试`);
+      } else {
+        loginFailMap.delete(ip);
+      }
+    }
+
     const userRepo = this.dataSource.getRepository(User);
     const shopRepo = this.dataSource.getRepository(Shop);
     let user = await userRepo.createQueryBuilder('u')
@@ -312,8 +329,16 @@ export class MerchantController implements OnModuleInit {
       passwordOk = stored === sha || stored === dto.password;
     }
     if (!passwordOk) {
+      // 累加失败计数
+      const cur = loginFailMap.get(ip) ?? { count: 0, until: 0 };
+      cur.count++;
+      cur.until = Date.now() + LOGIN_LOCKOUT_MS;
+      loginFailMap.set(ip, cur);
       throw new UnauthorizedException('密码错误');
     }
+
+    // 登录成功：清除限流记录
+    loginFailMap.delete(ip);
 
     // 单设备登录：已有 session 且非强制登录 → 返回提示让前端确认
     if (user.session_token && !dto.force_login) {

@@ -4,7 +4,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { DataSource, Repository, In } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { Draw } from '../../entities/draw.entity';
@@ -33,6 +33,7 @@ export class SettlementService {
   private readonly logger = new Logger(SettlementService.name);
 
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Order)
     private readonly orderRepo: Repository<Order>,
     @InjectRepository(Shop)
@@ -77,31 +78,32 @@ export class SettlementService {
       results: [] as any[],
     };
 
+    // 先统计所有订单结算结果（无副作用）
     for (const order of orders) {
       const orderResult = this.settleOrder(order, winning);
       results.results.push(orderResult);
       results.totalSales += orderResult.sales;
       results.totalPayout += orderResult.payout;
-
-      if (orderResult.payout > 0) {
-        results.wins++;
-      }
-
-      // 更新订单状态（含 win_breakdown，供前端回退逻辑使用）
-      await this.orderRepo.update(order.order_id, {
-        status: orderResult.payout > 0 ? 3 : 2, // 3=已中奖 2=已开奖
-        win_amount: orderResult.payout,
-        win_breakdown: orderResult.wins,
-        settled_at: new Date(),
-      } as any);
+      if (orderResult.payout > 0) results.wins++;
     }
 
-    // 更新开奖期次状态
-    await this.drawRepo.update(drawId, { status: 'COMPLETED' as any });
+    // 用事务包装所有写操作，失败自动回滚
+    await this.dataSource.transaction(async (manager) => {
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i];
+        const orderResult = results.results[i];
+        await manager.update(Order, order.order_id, {
+          status: orderResult.payout > 0 ? 3 : 2, // 3=已中奖 2=已开奖
+          win_amount: orderResult.payout,
+          win_breakdown: orderResult.wins,
+          settled_at: new Date(),
+        } as any);
+      }
+      // 更新开奖期次状态
+      await manager.update(Draw, drawId, { status: 'COMPLETED' as any });
+    });
 
-    this.logger.log(
-      `结算完成: ${results.totalOrders}单, 销售额$${results.totalSales}, 赔付$${results.totalPayout}, 中奖${results.wins}单`,
-    );
+    this.logger.log(`结算完成: ${results.totalOrders}单, 销售额$${results.totalSales}, 赔付$${results.totalPayout}, 中奖${results.wins}单`);
 
     return results;
   }

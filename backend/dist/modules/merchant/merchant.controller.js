@@ -58,6 +58,9 @@ const draw_entity_1 = require("../../entities/draw.entity");
 const crypto = __importStar(require("crypto"));
 const bcrypt = __importStar(require("bcrypt"));
 const nodemailer = __importStar(require("nodemailer"));
+const loginFailMap = new Map();
+const LOGIN_MAX_FAIL = 10;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
 function createSignedToken(userId, accountNumber) {
     const payload = Buffer.from(`${userId}:${accountNumber}`).toString('base64');
@@ -277,6 +280,17 @@ let MerchantController = MerchantController_1 = class MerchantController {
         const account = String(dto.account ?? dto.accountNumber ?? '').trim().toLowerCase();
         if (!account)
             throw new common_1.UnauthorizedException('请输入账号或店号');
+        const ip = (req.headers?.['x-forwarded-for'] || req.ip || 'unknown').toString().split(',')[0].trim();
+        const failEntry = loginFailMap.get(ip);
+        if (failEntry && failEntry.count >= LOGIN_MAX_FAIL) {
+            if (Date.now() < failEntry.until) {
+                const remainMin = Math.ceil((failEntry.until - Date.now()) / 60000);
+                throw new common_1.UnauthorizedException(`登录失败次数过多，请 ${remainMin} 分钟后再试`);
+            }
+            else {
+                loginFailMap.delete(ip);
+            }
+        }
         const userRepo = this.dataSource.getRepository(user_entity_1.User);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         let user = await userRepo.createQueryBuilder('u')
@@ -302,8 +316,13 @@ let MerchantController = MerchantController_1 = class MerchantController {
             passwordOk = stored === sha || stored === dto.password;
         }
         if (!passwordOk) {
+            const cur = loginFailMap.get(ip) ?? { count: 0, until: 0 };
+            cur.count++;
+            cur.until = Date.now() + LOGIN_LOCKOUT_MS;
+            loginFailMap.set(ip, cur);
             throw new common_1.UnauthorizedException('密码错误');
         }
+        loginFailMap.delete(ip);
         if (user.session_token && !dto.force_login) {
             return {
                 has_active_session: true,

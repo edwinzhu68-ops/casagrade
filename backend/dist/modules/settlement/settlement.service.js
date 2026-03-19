@@ -21,7 +21,8 @@ const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
 const draw_entity_1 = require("../../entities/draw.entity");
 let SettlementService = SettlementService_1 = class SettlementService {
-    constructor(orderRepo, shopRepo, drawRepo) {
+    constructor(dataSource, orderRepo, shopRepo, drawRepo) {
+        this.dataSource = dataSource;
         this.orderRepo = orderRepo;
         this.shopRepo = shopRepo;
         this.drawRepo = drawRepo;
@@ -51,17 +52,22 @@ let SettlementService = SettlementService_1 = class SettlementService {
             results.results.push(orderResult);
             results.totalSales += orderResult.sales;
             results.totalPayout += orderResult.payout;
-            if (orderResult.payout > 0) {
+            if (orderResult.payout > 0)
                 results.wins++;
-            }
-            await this.orderRepo.update(order.order_id, {
-                status: orderResult.payout > 0 ? 3 : 2,
-                win_amount: orderResult.payout,
-                win_breakdown: orderResult.wins,
-                settled_at: new Date(),
-            });
         }
-        await this.drawRepo.update(drawId, { status: 'COMPLETED' });
+        await this.dataSource.transaction(async (manager) => {
+            for (let i = 0; i < orders.length; i++) {
+                const order = orders[i];
+                const orderResult = results.results[i];
+                await manager.update(order_entity_1.Order, order.order_id, {
+                    status: orderResult.payout > 0 ? 3 : 2,
+                    win_amount: orderResult.payout,
+                    win_breakdown: orderResult.wins,
+                    settled_at: new Date(),
+                });
+            }
+            await manager.update(draw_entity_1.Draw, drawId, { status: 'COMPLETED' });
+        });
         this.logger.log(`结算完成: ${results.totalOrders}单, 销售额$${results.totalSales}, 赔付$${results.totalPayout}, 中奖${results.wins}单`);
         return results;
     }
@@ -320,10 +326,11 @@ let SettlementService = SettlementService_1 = class SettlementService {
 exports.SettlementService = SettlementService;
 exports.SettlementService = SettlementService = SettlementService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, typeorm_1.InjectRepository)(order_entity_1.Order)),
-    __param(1, (0, typeorm_1.InjectRepository)(shop_entity_1.Shop)),
-    __param(2, (0, typeorm_1.InjectRepository)(draw_entity_1.Draw)),
-    __metadata("design:paramtypes", [typeorm_2.Repository,
+    __param(1, (0, typeorm_1.InjectRepository)(order_entity_1.Order)),
+    __param(2, (0, typeorm_1.InjectRepository)(shop_entity_1.Shop)),
+    __param(3, (0, typeorm_1.InjectRepository)(draw_entity_1.Draw)),
+    __metadata("design:paramtypes", [typeorm_2.DataSource,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository])
 ], SettlementService);

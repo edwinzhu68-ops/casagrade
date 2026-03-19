@@ -1,13 +1,14 @@
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { Draw } from '../../entities/draw.entity';
 export declare class SettlementService {
+    private readonly dataSource;
     private readonly orderRepo;
     private readonly shopRepo;
     private readonly drawRepo;
     private readonly logger;
-    constructor(orderRepo: Repository<Order>, shopRepo: Repository<Shop>, drawRepo: Repository<Draw>);
+    constructor(dataSource: DataSource, orderRepo: Repository<Order>, shopRepo: Repository<Shop>, drawRepo: Repository<Draw>);
     settleDraw(drawId: number): Promise<{
         totalOrders: number;
         totalSales: number;
