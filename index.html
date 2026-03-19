@@ -1649,9 +1649,15 @@
 
     // 添加到列表
     function addToList() {
-      if (currentNumber.length !== maxDigits) {
+      if (currentNumber.length === 0) {
         openKeyboard('number');
         return;
+      }
+      // 位数不足时左补0（如 CHANCE 输入5 → 05，BILLETE 输入123 → 0123）
+      if (currentNumber.length < maxDigits) {
+        currentNumber = currentNumber.padStart(maxDigits, '0');
+        updateKeyboardDisplay();
+        updateUI();
       }
 
       let qty = currentQuantity === '' ? defaultQuantity : parseInt(currentQuantity);
