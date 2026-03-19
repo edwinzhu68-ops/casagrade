@@ -110,7 +110,7 @@ async function createTestShop(prefix) {
     shopName: `${prefix}Shop`,
   });
   if (!res.ok) return null;
-  const login = await api('POST', '/api/merchant/login', { accountNumber: account, password: 'Test1234' });
+  const login = await api('POST', '/api/merchant/login', { accountNumber: account, password: 'Test1234', force_login: true });
   if (!login.ok) return null;
   // 获取 shopId
   const shops = await api('GET', '/api/merchant/shops', null, { Authorization: `Bearer ${login.data.token}` });
@@ -166,7 +166,7 @@ async function testSettlement() {
     await api('POST', `/api/orders/${order.data.order_number}/confirm`, { shopId: shop.shopId }, h);
     await manualDraw(t.win.primer, t.win.segundo, t.win.tercero);
     await new Promise(r=>setTimeout(r,300));
-    const detail = await api('GET', `/api/orders/${order.data.order_number}`, h);
+    const detail = await api('GET', `/api/orders/${order.data.order_number}`, null, h);
     const actual = detail.data.win_amount || 0;
     if (Math.abs(actual - t.expect) < 0.01) {
       pass(`${t.desc} → ${actual} ✅`);
@@ -234,7 +234,7 @@ async function testConcurrentLimits() {
   await new Promise(r=>setTimeout(r,500));
   
   // 检查实际销售
-  const orders = await api('GET', `/api/shop/${shop.shopId}/orders`, h);
+  const orders = await api('GET', `/api/shop/${shop.shopId}/orders`, null, h);
   let total = 0;
   if (orders.ok && orders.data.orders) {
     for (const o of orders.data.orders) {
@@ -268,7 +268,7 @@ async function testTransactionIntegrity() {
   await manualDraw('1234','5678','9012');
   await new Promise(r=>setTimeout(r,500));
   
-  const check = await api('GET', `/api/shop/${shop.shopId}/orders`, h);
+  const check = await api('GET', `/api/shop/${shop.shopId}/orders`, null, h);
   let allOk = true;
   let won = 0;
   if (check.ok && check.data.orders) {
