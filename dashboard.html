@@ -2060,7 +2060,7 @@
     }
 
     async function batchSubExpiry(mainShopId) {
-      const input = prompt('为该大庄【全部小庄】设置到期日（YYYY-MM-DD），留空=清除限制：',
+      const input = prompt('为该大庄及其【全部小庄】统一设置到期日（YYYY-MM-DD），留空=清除限制：',
         new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10));
       if (input === null) return;
       const trimmed = input.trim();
@@ -2068,9 +2068,9 @@
       // 先获取小庄列表
       const res = await fetch(`${API_BASE}/api/admin/shops/${mainShopId}/sub-shops`, { headers: getAdminHeaders(true) });
       const data = await res.json();
-      const ids = (data.sub_shops || []).map(s => s.shop_id);
-      if (!ids.length) { showToast('该大庄暂无小庄', 'error'); return; }
-      if (!confirm(`确定为 ${ids.length} 家小庄统一设置到期日「${trimmed || '无限制'}」？`)) return;
+      const ids = [mainShopId, ...(data.sub_shops || []).map(s => s.shop_id)];
+      if (ids.length <= 1) { showToast('该大庄暂无小庄', 'error'); return; }
+      if (!confirm(`确定为大庄及其 ${ids.length - 1} 家小庄（共 ${ids.length} 家）统一设置到期日「${trimmed || '无限制'}」？`)) return;
       await applyShopSubscription(ids, trimmed || null);
       // 刷新展开的小庄列表
       const el = document.getElementById(`sub-list-${mainShopId}`);
