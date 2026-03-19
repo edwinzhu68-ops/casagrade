@@ -385,8 +385,9 @@
             <button onclick="setShopSort('account_number')" id="sort-btn-account_number" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300">账号</button>
             <button onclick="setShopSort('total_orders')" id="sort-btn-total_orders" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300">订单数</button>
             <button onclick="setShopSort('total_sales')" id="sort-btn-total_sales" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300">销售额</button>
-            <button onclick="loadShopList()" class="ml-auto px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 text-gray-300">刷新</button>
-            <button onclick="openLogsModal()" class="ml-2 px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white">📜 日志</button>
+            <button onclick="editAllShopsExpiry()" class="ml-auto px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white">📅 全部续期</button>
+            <button onclick="loadShopList()" class="ml-1 px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 text-gray-300">刷新</button>
+            <button onclick="openLogsModal()" class="ml-1 px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white">📜 日志</button>
           </div>
           <div id="shop-list-table" class="space-y-1.5 text-xs">
             <p class="text-gray-500 text-center py-4">点击刷新加载</p>
@@ -1294,7 +1295,22 @@
           if (pendingDrawId != null) {
             currentPeriodOrders = allOrders.filter(o => o.draw_id == pendingDrawId);
           } else {
-            currentPeriodOrders = [];
+            // 没有pending期时，显示最新一期已开奖的订单（而不是空）
+            try {
+              const latestRes = await fetch(`${API_BASE}/api/draw/latest`);
+              const latestData = await latestRes.json().catch(() => ({}));
+              const latestDrawId = latestData.draw && (latestData.draw.drawId != null || latestData.draw.draw_id != null)
+                ? (latestData.draw.drawId != null ? latestData.draw.drawId : latestData.draw.draw_id)
+                : null;
+              if (latestDrawId != null) {
+                currentPeriodOrders = allOrders.filter(o => o.draw_id == latestDrawId);
+              } else {
+                currentPeriodOrders = [];
+              }
+            } catch (e) {
+              console.error('load latest draw orders failed', e);
+              currentPeriodOrders = [];
+            }
           }
         } catch (e) {
           console.error('load current period orders failed', e);
@@ -1810,6 +1826,16 @@
         const inactiveTag = inactive >= 3
           ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${inactive >= 10 ? 'bg-red-900/60 text-red-300' : 'bg-yellow-900/60 text-yellow-300'}">${inactive}期未下单</span>`
           : '';
+        // 订阅到期日
+        const expiry = s.subscription_expires_at ? new Date(s.subscription_expires_at) : null;
+        const now = new Date();
+        const expired = expiry && expiry < now;
+        const daysLeft = expiry ? Math.ceil((expiry - now) / 86400000) : null;
+        const expiryStr = expiry ? fmtDate(expiry) : '无';
+        const expiryColor = expired ? 'text-red-400 font-bold' : (daysLeft !== null && daysLeft <= 14 ? 'text-yellow-400' : 'text-gray-400');
+        const expiryLabel = expired ? `${expiryStr}（已过期）` : (daysLeft !== null && daysLeft <= 14 ? `${expiryStr}（剩${daysLeft}天）` : expiryStr);
+        // ISO日期用于input[date]默认值
+        const expiryISO = expiry ? expiry.toISOString().slice(0,10) : '';
         return `
           <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1">
             <div class="flex items-center gap-2 flex-wrap">
@@ -1820,9 +1846,12 @@
               <button onclick="confirmDeleteAccount('${acct}','${s.shop_number}')"
                 class="ml-auto px-2 py-0.5 rounded text-[10px] bg-red-900/50 hover:bg-red-800 text-red-300">删除</button>
             </div>
-            <div class="flex gap-4 text-gray-400">
+            <div class="flex gap-4 text-gray-400 flex-wrap items-center">
               <span>订单 <span class="text-white font-mono">${s.total_orders}</span></span>
               <span>销售额 <span class="text-green-400 font-mono">${Math.round(s.total_sales)}</span></span>
+              <span class="${expiryColor} text-[11px]">到期 ${expiryLabel}</span>
+              <button onclick="editShopExpiry(${s.shop_id},'${expiryISO}')"
+                class="px-2 py-0.5 rounded text-[10px] bg-blue-900/50 hover:bg-blue-800 text-blue-300">改到期日</button>
             </div>
           </div>`;
       }).join('');
@@ -1852,6 +1881,50 @@
       } catch (e) {
         el.innerHTML = '<p class="text-red-400 text-center py-4">加载失败</p>';
       }
+    }
+
+    async function editShopExpiry(shopId, currentISO) {
+      const defaultVal = currentISO || new Date().toISOString().slice(0, 10);
+      const input = prompt(`设置到期日期（格式 YYYY-MM-DD），留空则清除限制：`, defaultVal);
+      if (input === null) return; // 取消
+      const trimmed = input.trim();
+      if (trimmed !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        showToast('日期格式错误，请用 YYYY-MM-DD', 'error'); return;
+      }
+      await applyShopSubscription([shopId], trimmed || null);
+    }
+
+    async function editAllShopsExpiry() {
+      const input = prompt('为【全部店铺】设置到期日期（格式 YYYY-MM-DD），留空则清除所有限制：',
+        new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10));
+      if (input === null) return;
+      const trimmed = input.trim();
+      if (trimmed !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        showToast('日期格式错误，请用 YYYY-MM-DD', 'error'); return;
+      }
+      const ids = shopListData.map(s => s.shop_id).filter(Boolean);
+      if (!ids.length) { showToast('暂无店铺数据，请先刷新', 'error'); return; }
+      if (!confirm(`确定将 ${ids.length} 家店铺的到期日统一设为「${trimmed || '无限制'}」？`)) return;
+      await applyShopSubscription(ids, trimmed || null);
+    }
+
+    async function applyShopSubscription(shopIds, expiresAt) {
+      let ok = 0, fail = 0;
+      for (const id of shopIds) {
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/shops/${id}/subscription`, {
+            method: 'PATCH',
+            headers: { ...getAdminHeaders(true), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expires_at: expiresAt }),
+          });
+          const data = await res.json();
+          data.success ? ok++ : fail++;
+        } catch { fail++; }
+      }
+      showToast(fail === 0
+        ? (shopIds.length === 1 ? `到期日已设为 ${expiresAt || '无限制'}` : `全部 ${ok} 家店铺已更新`)
+        : `完成：${ok} 成功 / ${fail} 失败`, fail === 0 ? 'success' : 'error');
+      loadShopList();
     }
 
     async function toggleShopStatus(shopId, newStatus) {
