@@ -1653,11 +1653,16 @@
         openKeyboard('number');
         return;
       }
-      // 位数不足时左补0（如 CHANCE 输入5 → 05，BILLETE 输入123 → 0123）
+      // CHANCE 位数不足时左补0（如输入5 → 05）；BILLETE 必须输满4位
       if (currentNumber.length < maxDigits) {
-        currentNumber = currentNumber.padStart(maxDigits, '0');
-        updateKeyboardDisplay();
-        updateUI();
+        if (gameType === 'CHANCE') {
+          currentNumber = currentNumber.padStart(maxDigits, '0');
+          updateKeyboardDisplay();
+          updateUI();
+        } else {
+          openKeyboard('number');
+          return;
+        }
       }
 
       let qty = currentQuantity === '' ? defaultQuantity : parseInt(currentQuantity);
