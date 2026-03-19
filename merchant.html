@@ -139,7 +139,7 @@
           <button type="button" id="btn-lang-toggle" onclick="toggleMerchantLang()" class="w-14 h-10 flex items-center justify-center text-2xl rounded-lg hover:bg-gray-700" title="" data-i18n-title="lang_switch_title">🇵🇦</button>
           <h1 class="font-bold text-center flex-1">
             <span id="shop-number" class="text-3xl font-black tracking-widest text-red-400">-----</span>
-            <div id="subscription-expires" class="text-xs text-gray-400 mt-0.5 hidden"></div>
+            <div id="subscription-expires" class="hidden text-xs text-red-400 mt-0.5"></div>
             <div class="flex justify-center mt-1">
               <span id="draw-status-badge" class="hidden text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400"></span>
             </div>
@@ -658,8 +658,8 @@
         printer_connect_fail: '连接失败',
         printer_warning_disconnected: '🖨️ 打印机未连接，点击重连',
         printer_disconnected_warn: '🖨️ 打印机已断开，点击重连',
-        subscription_expired: '已过期 {date}',
-        subscription_expires: '到期 {date}',
+        subscription_expired: '有效期到 {date}（已过期）',
+        subscription_expires: '有效期到 {date}',
         alert_card_code_empty: '请输入卡密',
         alert_activate_fail: '激活失败',
         alert_request_fail: '请求失败',
@@ -882,8 +882,8 @@
         printer_connect_fail: 'Error de conexión',
         printer_warning_disconnected: '🖨️ Impresora no conectada, toca Reconectar',
         printer_disconnected_warn: '🖨️ Impresora desconectada, toca Reconectar',
-        subscription_expired: 'Vencido {date}',
-        subscription_expires: 'Vence {date}',
+        subscription_expired: 'Válido hasta {date}（vencido）',
+        subscription_expires: 'Válido hasta {date}',
         alert_card_code_empty: 'Ingresa el código de tarjeta',
         alert_activate_fail: 'Error al activar',
         alert_request_fail: 'Error en la solicitud',
@@ -3016,15 +3016,22 @@
 
     // 设置：显示到期日
     function showSubscriptionExpiry(shop) {
-      const el = document.getElementById('subscription-expires');
-      if (!el) return;
       const expires = shop && shop.subscription_expires_at ? new Date(shop.subscription_expires_at) : null;
-      if (!expires) { el.classList.add('hidden'); return; }
-      const expired = expires < new Date();
-      el.classList.remove('hidden');
-      const dateStr = fmtDate(expires);
-      el.textContent = expired ? t('subscription_expired').replace('{date}', dateStr) : t('subscription_expires').replace('{date}', dateStr);
-      el.className = `text-xs mt-0.5 ${expired ? 'text-red-400' : 'text-gray-400'}`;
+      const now = new Date();
+      const expired = expires ? expires < now : false;
+      const daysLeft = expires ? Math.ceil((expires - now) / 86400000) : null;
+      const show = expires && (expired || daysLeft <= 14); // 有到期日 且（已过期 或 剩余≤14天）才显示
+      const dateStr = expires ? fmtDate(expires) : '-----';
+      const text = t('subscription_expires').replace('{date}', dateStr)
+        + (expired ? '（已过期）' : daysLeft !== null && daysLeft <= 14 ? `（剩 ${daysLeft} 天）` : '');
+      for (const id of ['subscription-expires', 'subscription-expires-modal']) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (!show) { el.classList.add('hidden'); continue; }
+        el.classList.remove('hidden');
+        el.textContent = text;
+        el.className = `text-xs mt-0.5 ${id === 'subscription-expires-modal' ? 'mb-2 ' : ''}${expired ? 'text-red-500 font-bold' : 'text-red-400'}`;
+      }
     }
 
     function openPoster() {
@@ -3039,6 +3046,8 @@
 
     function openSettings() {
       document.getElementById('modal-settings').classList.remove('hidden');
+      // 展示订阅到期日
+      showSubscriptionExpiry(currentShop || null);
       // 恢复打印开关状态
       const enabled = localStorage.getItem('lottery_print_enabled') === '1';
       document.getElementById('print-toggle').checked = enabled;
@@ -3163,7 +3172,32 @@
         <button onclick="document.getElementById('modal-settings').classList.add('hidden')" class="text-gray-400 hover:text-white text-2xl leading-none">×</button>
       </div>
       <div class="space-y-4 overflow-y-auto px-6 pb-6">
-        <!-- 打印设置 -->
+        <!-- 1. 充值卡密（最重要：续费才能继续使用） -->
+        <div class="border border-yellow-600/50 rounded-xl p-3">
+          <p class="text-sm font-bold mb-1" data-i18n="card_section_title">🎫 充值卡密</p>
+          <p id="subscription-expires-modal" class="hidden text-xs mt-0.5 mb-2 text-red-400"></p>
+          <input type="text" id="settings-card-code"
+            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2 tracking-widest uppercase"
+            maxlength="20" autocomplete="off" spellcheck="false"
+            data-i18n-placeholder="card_code_placeholder" placeholder="输入卡密，如 MMXX-XXXX-XXXX" />
+          <button id="btn-activate-card" onclick="activateCard()"
+            class="w-full bg-yellow-600 hover:bg-yellow-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_activate">
+            激活
+          </button>
+          <p id="activate-result" class="text-xs text-center mt-2 hidden"></p>
+        </div>
+
+        <!-- 2. 宣传海报（直接带来客户） -->
+        <div class="border border-green-700 rounded-xl p-3">
+          <p class="text-sm font-bold mb-1">📄 <span data-i18n="poster_title">店铺宣传海报</span></p>
+          <p class="text-xs text-gray-400 mb-3" data-i18n="poster_desc">客户扫码直接进入您的店铺下单，无需输入店号</p>
+          <button onclick="openPoster(); closeModal('modal-settings')"
+            class="w-full bg-green-700 hover:bg-green-600 py-2 rounded-xl text-sm font-bold" data-i18n="btn_view_poster">
+            🔗 查看 / 打印海报
+          </button>
+        </div>
+
+        <!-- 3. 打印设置（日常操作） -->
         <div class="border border-gray-600 rounded-xl p-3">
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm font-bold" data-i18n="print_section_title">🖨️ 蓝牙热敏打印</p>
@@ -3185,7 +3219,8 @@
 • 自动重连失败时（点击上方按钮）</p>
           </div>
         </div>
-        <!-- 添加到桌面 -->
+
+        <!-- 4. 添加到桌面（便捷性） -->
         <div class="border border-gray-600 rounded-xl p-3">
           <p class="text-sm font-bold mb-1" data-i18n="homescreen_title">📲 桌面快捷方式</p>
           <p class="text-xs text-gray-500 mb-3" data-i18n="homescreen_desc">添加后从桌面图标打开，打印机自动重连，无需每次手动配对。</p>
@@ -3195,7 +3230,7 @@
           </button>
         </div>
 
-        <!-- 修改密码 -->
+        <!-- 5. 修改密码（账号安全） -->
         <div class="border border-gray-600 rounded-xl p-3">
           <p class="text-sm font-bold mb-3" data-i18n="pwd_section_title">🔑 修改密码</p>
           <input type="password" id="settings-cur-pwd" placeholder="当前密码"
@@ -3211,26 +3246,7 @@
           <p id="change-pwd-result" class="text-xs text-center mt-2 hidden"></p>
         </div>
 
-        <!-- 宣传海报 -->
-        <div class="border border-green-700 rounded-xl p-3">
-          <p class="text-sm font-bold mb-1">📄 <span data-i18n="poster_title">店铺宣传海报</span></p>
-          <p class="text-xs text-gray-400 mb-3" data-i18n="poster_desc">客户扫码直接进入您的店铺下单，无需输入店号</p>
-          <button onclick="openPoster(); closeModal('modal-settings')"
-            class="w-full bg-green-700 hover:bg-green-600 py-2 rounded-xl text-sm font-bold" data-i18n="btn_view_poster">
-            🔗 查看 / 打印海报
-          </button>
-        </div>
-
-        <!-- 当前登录设备 -->
-        <div class="border border-gray-600 rounded-xl p-3">
-          <p class="text-sm font-bold mb-2" data-i18n="device_section_title">📱 当前登录设备</p>
-          <div id="device-info-box" class="text-xs text-gray-400 space-y-1 leading-relaxed">
-            <p><span data-i18n="device_login_time">登录时间</span>：<span id="device-login-at">—</span></p>
-            <p class="break-all"><span data-i18n="device_label">设备</span>：<span id="device-ua">—</span></p>
-          </div>
-        </div>
-
-        <!-- 修改邮箱 -->
+        <!-- 6. 修改邮箱（账号找回） -->
         <div class="border border-gray-600 rounded-xl p-3">
           <p class="text-sm font-bold mb-3" data-i18n="email_section_title">📧 修改/绑定邮箱</p>
           <input type="password" id="settings-email-cur-pwd" placeholder="当前密码（验证用）"
@@ -3244,7 +3260,16 @@
           <p id="change-email-result" class="text-xs text-center mt-2 hidden"></p>
         </div>
 
-        <!-- 使用说明 -->
+        <!-- 7. 当前登录设备（仅供参考） -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <p class="text-sm font-bold mb-2" data-i18n="device_section_title">📱 当前登录设备</p>
+          <div id="device-info-box" class="text-xs text-gray-400 space-y-1 leading-relaxed">
+            <p><span data-i18n="device_login_time">登录时间</span>：<span id="device-login-at">—</span></p>
+            <p class="break-all"><span data-i18n="device_label">设备</span>：<span id="device-ua">—</span></p>
+          </div>
+        </div>
+
+        <!-- 8. 使用说明（参考文档，放最后） -->
         <a href="guide.html" target="_blank" class="flex items-center justify-center gap-2 w-full border border-blue-500/40 bg-blue-900/20 hover:bg-blue-900/40 rounded-xl py-3 text-blue-400 font-bold text-sm" data-i18n="link_guide">
           📖 使用说明
         </a>
