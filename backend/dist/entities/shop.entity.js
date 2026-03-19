@@ -81,6 +81,8 @@ __decorate([
     __metadata("design:type", Date)
 ], Shop.prototype, "updated_at", void 0);
 exports.Shop = Shop = __decorate([
-    (0, typeorm_1.Entity)('shops')
+    (0, typeorm_1.Entity)('shops'),
+    (0, typeorm_1.Index)(['owner_id']),
+    (0, typeorm_1.Index)(['status'])
 ], Shop);
 //# sourceMappingURL=shop.entity.js.map

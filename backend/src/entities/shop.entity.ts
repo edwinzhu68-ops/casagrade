@@ -1,7 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { User } from './user.entity';
 
 @Entity('shops')
+@Index(['owner_id'])   // WHERE owner_id=? 查用户名下的店铺
+@Index(['status'])     // WHERE status='active'
 export class Shop {
   @PrimaryGeneratedColumn()
   shop_id: number;

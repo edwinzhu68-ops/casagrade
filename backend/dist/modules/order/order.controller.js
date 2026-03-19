@@ -57,8 +57,11 @@ async function findShopByNumber(shopRepo, number) {
     const byPrimary = await shopRepo.findOne({ where: { shop_number: number } });
     if (byPrimary)
         return byPrimary;
-    const all = await shopRepo.find();
-    return all.find(s => (s.shop_aliases || []).includes(number)) ?? null;
+    const safe = number.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    return shopRepo
+        .createQueryBuilder('s')
+        .where(`s.shop_aliases LIKE :pattern`, { pattern: `%"${safe}"%` })
+        .getOne() ?? null;
 }
 const draw_entity_1 = require("../../entities/draw.entity");
 const draw_day_service_1 = require("../draw/draw-day.service");
@@ -243,19 +246,22 @@ let OrderController = OrderController_1 = class OrderController {
         const limitChance = shop.limit_chance;
         const limitBillete = shop.limit_billete;
         if (currentDraw && (limitChance != null || limitBillete != null)) {
-            const orderRepo2 = this.dataSource.getRepository(order_entity_1.Order);
-            const existingOrders = await orderRepo2
-                .createQueryBuilder('o')
-                .where('o.draw_id = :drawId', { drawId: currentDraw.draw_id })
-                .andWhere('o.status != :canceled', { canceled: -1 })
-                .getMany();
-            const soldMap = {};
-            for (const eo of existingOrders) {
-                for (const item of (eo.numbers || [])) {
-                    const key = String(item.n);
-                    soldMap[key] = (soldMap[key] || 0) + (item.q || 0);
-                }
+            const dbType = this.dataSource.options.type;
+            let soldRows = [];
+            if (dbType === 'postgres') {
+                soldRows = await this.dataSource.query(`SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+           FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+           WHERE draw_id = $1 AND status != -1
+           GROUP BY item->>'n'`, [currentDraw.draw_id]);
             }
+            else {
+                soldRows = await this.dataSource.query(`SELECT json_extract(value, '$.n') AS num,
+                  SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+           FROM orders, json_each(numbers)
+           WHERE draw_id = ? AND status != -1
+           GROUP BY json_extract(value, '$.n')`, [currentDraw.draw_id]);
+            }
+            const soldMap = Object.fromEntries(soldRows.map(r => [r.num, Number(r.qty)]));
             const overLimitItems = [];
             for (const item of numbers) {
                 const numStr = String(item.n).replace(/\D/g, '');

@@ -20,25 +20,46 @@ const draw_entity_1 = require("./entities/draw.entity");
 const user_entity_1 = require("./entities/user.entity");
 const shop_binding_entity_1 = require("./entities/shop-binding.entity");
 const card_code_entity_1 = require("./entities/card-code.entity");
+const database_init_service_1 = require("./services/database-init.service");
+function getTypeOrmConfig() {
+    const dbType = (process.env.DB_TYPE || 'sqlite');
+    const common = {
+        entities: [order_entity_1.Order, shop_entity_1.Shop, draw_entity_1.Draw, user_entity_1.User, shop_binding_entity_1.ShopBinding, card_code_entity_1.CardCode],
+        synchronize: process.env.NODE_ENV !== 'production',
+        logging: false,
+    };
+    if (dbType === 'postgres') {
+        return {
+            ...common,
+            type: 'postgres',
+            host: process.env.DB_HOST || 'localhost',
+            port: Number(process.env.DB_PORT) || 5432,
+            username: process.env.DB_USERNAME || 'postgres',
+            password: process.env.DB_PASSWORD || '',
+            database: process.env.DB_DATABASE || 'lottery',
+            ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+        };
+    }
+    return {
+        ...common,
+        type: 'sqlite',
+        database: process.env.DATABASE_PATH || 'lottery.db',
+    };
+}
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forRoot({
-                type: 'sqlite',
-                database: process.env.DATABASE_PATH || 'lottery.db',
-                entities: [order_entity_1.Order, shop_entity_1.Shop, draw_entity_1.Draw, user_entity_1.User, shop_binding_entity_1.ShopBinding, card_code_entity_1.CardCode],
-                synchronize: process.env.NODE_ENV !== 'production',
-                logging: false,
-            }),
+            typeorm_1.TypeOrmModule.forRoot(getTypeOrmConfig()),
             order_module_1.OrderModule,
             draw_module_1.DrawModule,
             merchant_module_1.MerchantModule,
             settlement_module_1.SettlementModule,
             admin_module_1.AdminModule,
         ],
+        providers: [database_init_service_1.DatabaseInitService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

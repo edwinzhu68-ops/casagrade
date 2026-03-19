@@ -111,6 +111,9 @@ __decorate([
     __metadata("design:type", Date)
 ], Order.prototype, "redeemed_at", void 0);
 exports.Order = Order = __decorate([
-    (0, typeorm_1.Entity)('orders')
+    (0, typeorm_1.Entity)('orders'),
+    (0, typeorm_1.Index)(['draw_id', 'status']),
+    (0, typeorm_1.Index)(['shop_id', 'draw_id']),
+    (0, typeorm_1.Index)(['shop_id', 'status'])
 ], Order);
 //# sourceMappingURL=order.entity.js.map

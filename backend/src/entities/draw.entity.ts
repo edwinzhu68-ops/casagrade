@@ -1,6 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
 @Entity('draws')
+@Index(['status'])              // WHERE status='pending' / 'completed'
+@Index(['status', 'draw_id'])   // ORDER BY draw_id DESC WHERE status=?
 export class Draw {
   @PrimaryGeneratedColumn()
   draw_id: number;

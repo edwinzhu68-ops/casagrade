@@ -66,11 +66,15 @@ function parseSignedToken(token: string): { userId: number; accountNumber: strin
 // ────────────────────────────────────────────────────────────────────────────
 
 /** 按店号查找店铺，同时检查主号和别名 */
+/** 按店号查找店铺，同时检查主号和别名（避免全表扫描） */
 async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Promise<Shop | null> {
   const byPrimary = await shopRepo.findOne({ where: { shop_number: number } });
   if (byPrimary) return byPrimary;
-  const all = await shopRepo.find();
-  return all.find(s => (s.shop_aliases || []).includes(number)) ?? null;
+  const safe = number.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  return shopRepo
+    .createQueryBuilder('s')
+    .where(`s.shop_aliases LIKE :pattern`, { pattern: `%"${safe}"%` })
+    .getOne() ?? null;
 }
 
 interface LoginDto {
@@ -925,17 +929,31 @@ export class MerchantController implements OnModuleInit {
 
     if (bindings.length === 0) return { draw_id: targetDrawId, sub_shops: [] };
 
-    const result = await Promise.all(bindings.map(async (b) => {
-      const sub = await shopRepo.findOne({ where: { shop_id: b.sub_shop_id } });
+    // 批量查询替代 N+1：2 次查询取代 bindings.length × 2 次查询
+    const subShopIds = bindings.map(b => b.sub_shop_id);
 
-      // 查该分店铺指定期次的有效订单（paid/settled/won = status 1,2,3）
-      const whereClause: any = {
-        shop_id: b.sub_shop_id,
-      };
-      if (targetDrawId) whereClause.draw_id = targetDrawId;
+    const [subShops, allOrders] = await Promise.all([
+      shopRepo.find({ where: { shop_id: In(subShopIds) } }),
+      orderRepo.find({
+        where: {
+          shop_id: In(subShopIds),
+          ...(targetDrawId ? { draw_id: targetDrawId } : {}),
+          status: In([1, 2, 3]),
+        },
+        select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status'] as any,
+      }),
+    ]);
 
-      const orders = await orderRepo.find({ where: whereClause });
-      const validOrders = orders.filter(o => [1, 2, 3].includes(Number(o.status)));
+    const subShopMap = new Map(subShops.map(s => [s.shop_id, s]));
+    const ordersByShop = new Map<number, typeof allOrders>();
+    for (const o of allOrders) {
+      if (!ordersByShop.has(o.shop_id)) ordersByShop.set(o.shop_id, []);
+      ordersByShop.get(o.shop_id)!.push(o);
+    }
+
+    const result = bindings.map(b => {
+      const sub = subShopMap.get(b.sub_shop_id);
+      const validOrders = ordersByShop.get(b.sub_shop_id) ?? [];
 
       const totalSales = validOrders.reduce((sum, o) => sum + Number(o.amount), 0);
       const totalPayout = validOrders.reduce((sum, o) => sum + Number(o.win_amount || 0), 0);
@@ -954,13 +972,11 @@ export class MerchantController implements OnModuleInit {
         commission_rate: commissionRate,
         total_sales: Math.round(totalSales * 100) / 100,
         total_payout: Math.round(totalPayout * 100) / 100,
-        // 小庄固定佣金（稳赚，不看输赢）
         sub_commission: Math.round(xiaozhuangCommission * 100) / 100,
-        // 大庄净得（承担赔付风险）
         main_net_profit: Math.round(dazhuangNet * 100) / 100,
         order_count: validOrders.length,
       };
-    }));
+    });
 
     // 汇总
     const totalMainNet = result.reduce((s, r) => s + r.main_net_profit, 0);
@@ -1013,22 +1029,35 @@ export class MerchantController implements OnModuleInit {
 
     const subShopIds = bindings.map(b => b.sub_shop_id);
 
-    const history = await Promise.all(completedDraws.map(async (draw) => {
-      const allOrders = await orderRepo.find({ where: { draw_id: draw.draw_id } });
-      const validOrders = allOrders.filter(o =>
-        subShopIds.includes(o.shop_id) && [1, 2, 3].includes(Number(o.status))
-      );
+    // 一次性加载所有历史期订单，内存分组，替代 N+1（每期一次查询）
+    const drawIds = completedDraws.map(d => d.draw_id);
+    const allHistoryOrders = await orderRepo.find({
+      where: {
+        draw_id: In(drawIds),
+        shop_id: In(subShopIds),
+        status: In([1, 2, 3]),
+      },
+      select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status'] as any,
+    });
+
+    const ordersByDraw = new Map<number, typeof allHistoryOrders>();
+    for (const o of allHistoryOrders) {
+      if (!ordersByDraw.has(o.draw_id)) ordersByDraw.set(o.draw_id, []);
+      ordersByDraw.get(o.draw_id)!.push(o);
+    }
+
+    const commissionRateMap = new Map(bindings.map(b => [b.sub_shop_id, Number(b.commission_rate)]));
+
+    const history = completedDraws.map(draw => {
+      const validOrders = ordersByDraw.get(draw.draw_id) ?? [];
 
       const totalSales = validOrders.reduce((s, o) => s + Number(o.amount), 0);
       const totalPayout = validOrders.reduce((s, o) => s + Number(o.win_amount || 0), 0);
 
-      // 按各小庄佣金率分别计算佣金
       let totalCommission = 0;
-      for (const b of bindings) {
-        const subSales = validOrders
-          .filter(o => o.shop_id === b.sub_shop_id)
-          .reduce((s, o) => s + Number(o.amount), 0);
-        totalCommission += subSales * Number(b.commission_rate);
+      for (const o of validOrders) {
+        const rate = commissionRateMap.get(o.shop_id) ?? 0;
+        totalCommission += Number(o.amount) * rate;
       }
       const mainNet = totalSales - totalPayout - totalCommission;
 
@@ -1041,7 +1070,7 @@ export class MerchantController implements OnModuleInit {
         main_net_profit: Math.round(mainNet * 100) / 100,
         order_count: validOrders.length,
       };
-    }));
+    });
 
     return { history };
   }

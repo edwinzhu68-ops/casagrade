@@ -110,8 +110,11 @@ async function findShopByNumber(shopRepo, number) {
     const byPrimary = await shopRepo.findOne({ where: { shop_number: number } });
     if (byPrimary)
         return byPrimary;
-    const all = await shopRepo.find();
-    return all.find(s => (s.shop_aliases || []).includes(number)) ?? null;
+    const safe = number.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    return shopRepo
+        .createQueryBuilder('s')
+        .where(`s.shop_aliases LIKE :pattern`, { pattern: `%"${safe}"%` })
+        .getOne() ?? null;
 }
 let MerchantController = MerchantController_1 = class MerchantController {
     constructor(dataSource) {
@@ -770,15 +773,28 @@ let MerchantController = MerchantController_1 = class MerchantController {
         });
         if (bindings.length === 0)
             return { draw_id: targetDrawId, sub_shops: [] };
-        const result = await Promise.all(bindings.map(async (b) => {
-            const sub = await shopRepo.findOne({ where: { shop_id: b.sub_shop_id } });
-            const whereClause = {
-                shop_id: b.sub_shop_id,
-            };
-            if (targetDrawId)
-                whereClause.draw_id = targetDrawId;
-            const orders = await orderRepo.find({ where: whereClause });
-            const validOrders = orders.filter(o => [1, 2, 3].includes(Number(o.status)));
+        const subShopIds = bindings.map(b => b.sub_shop_id);
+        const [subShops, allOrders] = await Promise.all([
+            shopRepo.find({ where: { shop_id: (0, typeorm_1.In)(subShopIds) } }),
+            orderRepo.find({
+                where: {
+                    shop_id: (0, typeorm_1.In)(subShopIds),
+                    ...(targetDrawId ? { draw_id: targetDrawId } : {}),
+                    status: (0, typeorm_1.In)([1, 2, 3]),
+                },
+                select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status'],
+            }),
+        ]);
+        const subShopMap = new Map(subShops.map(s => [s.shop_id, s]));
+        const ordersByShop = new Map();
+        for (const o of allOrders) {
+            if (!ordersByShop.has(o.shop_id))
+                ordersByShop.set(o.shop_id, []);
+            ordersByShop.get(o.shop_id).push(o);
+        }
+        const result = bindings.map(b => {
+            const sub = subShopMap.get(b.sub_shop_id);
+            const validOrders = ordersByShop.get(b.sub_shop_id) ?? [];
             const totalSales = validOrders.reduce((sum, o) => sum + Number(o.amount), 0);
             const totalPayout = validOrders.reduce((sum, o) => sum + Number(o.win_amount || 0), 0);
             const commissionRate = Number(b.commission_rate);
@@ -796,7 +812,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
                 main_net_profit: Math.round(dazhuangNet * 100) / 100,
                 order_count: validOrders.length,
             };
-        }));
+        });
         const totalMainNet = result.reduce((s, r) => s + r.main_net_profit, 0);
         const totalSalesAll = result.reduce((s, r) => s + r.total_sales, 0);
         const totalCommission = result.reduce((s, r) => s + r.sub_commission, 0);
@@ -832,17 +848,30 @@ let MerchantController = MerchantController_1 = class MerchantController {
         if (bindings.length === 0)
             return { history: [] };
         const subShopIds = bindings.map(b => b.sub_shop_id);
-        const history = await Promise.all(completedDraws.map(async (draw) => {
-            const allOrders = await orderRepo.find({ where: { draw_id: draw.draw_id } });
-            const validOrders = allOrders.filter(o => subShopIds.includes(o.shop_id) && [1, 2, 3].includes(Number(o.status)));
+        const drawIds = completedDraws.map(d => d.draw_id);
+        const allHistoryOrders = await orderRepo.find({
+            where: {
+                draw_id: (0, typeorm_1.In)(drawIds),
+                shop_id: (0, typeorm_1.In)(subShopIds),
+                status: (0, typeorm_1.In)([1, 2, 3]),
+            },
+            select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status'],
+        });
+        const ordersByDraw = new Map();
+        for (const o of allHistoryOrders) {
+            if (!ordersByDraw.has(o.draw_id))
+                ordersByDraw.set(o.draw_id, []);
+            ordersByDraw.get(o.draw_id).push(o);
+        }
+        const commissionRateMap = new Map(bindings.map(b => [b.sub_shop_id, Number(b.commission_rate)]));
+        const history = completedDraws.map(draw => {
+            const validOrders = ordersByDraw.get(draw.draw_id) ?? [];
             const totalSales = validOrders.reduce((s, o) => s + Number(o.amount), 0);
             const totalPayout = validOrders.reduce((s, o) => s + Number(o.win_amount || 0), 0);
             let totalCommission = 0;
-            for (const b of bindings) {
-                const subSales = validOrders
-                    .filter(o => o.shop_id === b.sub_shop_id)
-                    .reduce((s, o) => s + Number(o.amount), 0);
-                totalCommission += subSales * Number(b.commission_rate);
+            for (const o of validOrders) {
+                const rate = commissionRateMap.get(o.shop_id) ?? 0;
+                totalCommission += Number(o.amount) * rate;
             }
             const mainNet = totalSales - totalPayout - totalCommission;
             return {
@@ -854,7 +883,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
                 main_net_profit: Math.round(mainNet * 100) / 100,
                 order_count: validOrders.length,
             };
-        }));
+        });
         return { history };
     }
     async bindingPendingCount(shopId) {

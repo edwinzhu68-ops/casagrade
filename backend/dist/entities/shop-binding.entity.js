@@ -54,6 +54,8 @@ __decorate([
     __metadata("design:type", Date)
 ], ShopBinding.prototype, "updated_at", void 0);
 exports.ShopBinding = ShopBinding = __decorate([
-    (0, typeorm_1.Entity)('shop_bindings')
+    (0, typeorm_1.Entity)('shop_bindings'),
+    (0, typeorm_1.Index)(['main_shop_id', 'status']),
+    (0, typeorm_1.Index)(['sub_shop_id'])
 ], ShopBinding);
 //# sourceMappingURL=shop-binding.entity.js.map

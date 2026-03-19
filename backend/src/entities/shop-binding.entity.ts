@@ -1,7 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Shop } from './shop.entity';
 
 @Entity('shop_bindings')
+@Index(['main_shop_id', 'status'])   // 大庄查所有活跃分店
+@Index(['sub_shop_id'])              // 分店查自己归属（sub_shop_id 已有 unique，补普通索引兼容）
 export class ShopBinding {
   @PrimaryGeneratedColumn()
   binding_id: number;

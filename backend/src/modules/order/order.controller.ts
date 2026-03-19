@@ -4,12 +4,16 @@ import { DataSource, Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 
-/** 按店号查找店铺，同时检查主号和别名 */
+/** 按店号查找店铺，同时检查主号和别名（避免全表扫描） */
 async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Promise<Shop | null> {
   const byPrimary = await shopRepo.findOne({ where: { shop_number: number } });
   if (byPrimary) return byPrimary;
-  const all = await shopRepo.find();
-  return all.find(s => (s.shop_aliases || []).includes(number)) ?? null;
+  // simple-json 别名数组存储为 ["123","456"]，用 LIKE + 引号确保精确匹配，不加载全表
+  const safe = number.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  return shopRepo
+    .createQueryBuilder('s')
+    .where(`s.shop_aliases LIKE :pattern`, { pattern: `%"${safe}"%` })
+    .getOne() ?? null;
 }
 import { Draw } from '../../entities/draw.entity';
 import { DrawDayService } from '../draw/draw-day.service';
@@ -218,21 +222,30 @@ export class OrderController implements OnModuleInit {
     const limitChance = (shop as any).limit_chance as number | null;
     const limitBillete = (shop as any).limit_billete as number | null;
     if (currentDraw && (limitChance != null || limitBillete != null)) {
-      const orderRepo2 = this.dataSource.getRepository(Order);
-      const existingOrders = await orderRepo2
-        .createQueryBuilder('o')
-        .where('o.draw_id = :drawId', { drawId: currentDraw.draw_id })
-        .andWhere('o.status != :canceled', { canceled: -1 })
-        .getMany();
-
-      // 统计当期每个号码已售合计
-      const soldMap: Record<string, number> = {};
-      for (const eo of existingOrders) {
-        for (const item of (eo.numbers || [])) {
-          const key = String(item.n);
-          soldMap[key] = (soldMap[key] || 0) + (item.q || 0);
-        }
+      // 用数据库聚合代替加载全部订单到内存：让DB统计每个号码的已售总量
+      const dbType = (this.dataSource.options as any).type as string;
+      let soldRows: { num: string; qty: string }[] = [];
+      if (dbType === 'postgres') {
+        soldRows = await this.dataSource.query(
+          `SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+           FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+           WHERE draw_id = $1 AND status != -1
+           GROUP BY item->>'n'`,
+          [currentDraw.draw_id],
+        );
+      } else {
+        soldRows = await this.dataSource.query(
+          `SELECT json_extract(value, '$.n') AS num,
+                  SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+           FROM orders, json_each(numbers)
+           WHERE draw_id = ? AND status != -1
+           GROUP BY json_extract(value, '$.n')`,
+          [currentDraw.draw_id],
+        );
       }
+      const soldMap: Record<string, number> = Object.fromEntries(
+        soldRows.map(r => [r.num, Number(r.qty)]),
+      );
 
       // 校验本次下单每个号码，收集所有超限号码
       const overLimitItems: Array<{ n: string | number; alreadySold: number; limit: number }> = [];

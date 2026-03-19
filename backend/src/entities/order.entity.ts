@@ -1,8 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Shop } from './shop.entity';
 import { Draw } from './draw.entity';
 
 @Entity('orders')
+@Index(['draw_id', 'status'])    // 开奖结算：WHERE draw_id=? AND status=1
+@Index(['shop_id', 'draw_id'])   // 老板端按期查订单
+@Index(['shop_id', 'status'])    // 结算统计
 export class Order {
   @PrimaryGeneratedColumn()
   order_id: number;

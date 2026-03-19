@@ -51,6 +51,8 @@ __decorate([
     __metadata("design:type", Date)
 ], Draw.prototype, "created_at", void 0);
 exports.Draw = Draw = __decorate([
-    (0, typeorm_1.Entity)('draws')
+    (0, typeorm_1.Entity)('draws'),
+    (0, typeorm_1.Index)(['status']),
+    (0, typeorm_1.Index)(['status', 'draw_id'])
 ], Draw);
 //# sourceMappingURL=draw.entity.js.map
