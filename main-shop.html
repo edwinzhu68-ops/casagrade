@@ -103,9 +103,32 @@
       </div>
     </div>
 
+    <!-- ===== 批量注册小庄 ===== -->
+    <div class="bg-gray-800 rounded-2xl border border-purple-700/50 px-4 py-4">
+      <p class="text-sm font-bold mb-3">👥 批量注册小庄</p>
+      <div class="mb-2">
+        <p class="text-[11px] text-gray-400 mb-1">注册数量（最多10）</p>
+        <input id="batch-count" type="number" min="1" max="10" value="1"
+          class="w-32 bg-gray-700 rounded-xl px-3 py-2 text-sm font-mono text-center" />
+      </div>
+      <button onclick="batchCreateSubs()" id="btn-batch-create"
+        class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-xl text-sm font-bold transition">
+        批量注册并绑定
+      </button>
+      <p class="text-xs text-gray-500 mt-1">店号从5位数自动分配，密码随机生成（店号+2字母），注册后立即绑定</p>
+      <!-- 注册结果 -->
+      <div id="batch-result" class="hidden mt-3">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs text-green-400 font-bold" id="batch-result-title"></p>
+          <button onclick="copyBatchResult()" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded-lg">📋 复制全部</button>
+        </div>
+        <div id="batch-result-list" class="space-y-1 max-h-48 overflow-y-auto"></div>
+      </div>
+    </div>
+
     <!-- ===== 绑定小庄（内联输入）===== -->
     <div class="bg-gray-800 rounded-2xl border border-gray-700 px-4 py-3">
-      <p class="text-sm font-bold mb-2" data-i18n="section_bind">🔗 绑定小庄</p>
+      <p class="text-sm font-bold mb-2" data-i18n="section_bind">🔗 绑定已有小庄</p>
       <div class="flex gap-2">
         <input id="bind-sub-number" type="text" data-i18n-ph="bind_placeholder" placeholder="输入小庄店号"
           class="flex-1 bg-gray-700 rounded-xl px-3 py-2 text-sm font-mono" />
@@ -755,6 +778,53 @@ async function loadHistory() {
   } catch (e) {
     listEl.innerHTML = `<div class="text-red-400 text-sm py-4 text-center">${e.message}</div>`;
   }
+}
+
+// ─── 批量注册小庄 ───
+let _batchCreated = [];
+async function batchCreateSubs() {
+  const count = parseInt(document.getElementById('batch-count').value) || 1;
+  const password = '';
+  const btn = document.getElementById('btn-batch-create');
+  const resultDiv = document.getElementById('batch-result');
+  const resultTitle = document.getElementById('batch-result-title');
+  const resultList = document.getElementById('batch-result-list');
+  if (count < 1 || count > 10) { alert('单次最多注册10个\n如需更多请联系 WhatsApp：68040864'); return; }
+  btn.disabled = true;
+  btn.textContent = '注册中…';
+  resultDiv.classList.add('hidden');
+  try {
+    const res = await fetch(`${API_BASE}/api/merchant/binding/batch-create-subs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ mainShopId: shopId, count, password: password || undefined }),
+    });
+    const data = await res.json();
+    if (!data.success) { alert(data.message || '注册失败'); return; }
+    _batchCreated = data.created || [];
+    resultTitle.textContent = `✓ 成功注册 ${_batchCreated.length} 个小庄`;
+    resultList.innerHTML = _batchCreated.map(c => `
+      <div class="flex items-center justify-between bg-gray-700/60 rounded-lg px-3 py-1.5 text-xs font-mono">
+        <span class="text-purple-300 w-20">店号 ${c.shopNumber}</span>
+        <span class="text-gray-300">账号: ${c.account}</span>
+        <span class="text-yellow-300">密码: ${c.password}</span>
+      </div>`).join('');
+    resultDiv.classList.remove('hidden');
+    // 刷新当期数据，让新小庄出现在列表
+    if (typeof loadData === 'function') loadData();
+  } catch (e) { alert('请求失败'); }
+  finally { btn.disabled = false; btn.textContent = '批量注册并绑定'; }
+}
+
+function copyBatchResult() {
+  if (!_batchCreated.length) return;
+  const text = _batchCreated.map(c => `店号:${c.shopNumber} 账号:${c.account} 密码:${c.password}`).join('\n');
+  navigator.clipboard?.writeText(text).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+  alert(`已复制 ${_batchCreated.length} 条账号信息`);
 }
 
 // ─── 绑定小庄 ───

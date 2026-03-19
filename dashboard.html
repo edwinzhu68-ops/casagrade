@@ -110,6 +110,7 @@
           <!-- LNB官网爬取结果 -->
           <div id="lnb-draw-result" class="hidden text-sm bg-gray-900/60 rounded-lg p-3 space-y-1 font-mono mb-2">
             <div class="text-yellow-400 font-bold text-xs mb-1">🌐 LNB官网 (lnb.gob.pa)</div>
+            <div><span class="text-gray-400">Fecha</span> <span id="lnb-date" class="text-gray-300"></span></div>
             <div><span class="text-gray-400">Primer Premio</span> <span id="lnb-primer" class="text-yellow-300 font-bold"></span></div>
             <div><span class="text-gray-400">Segundo Premio</span> <span id="lnb-segundo" class="text-yellow-300 font-bold"></span></div>
             <div><span class="text-gray-400">Tercer Premio</span> <span id="lnb-tercero" class="text-yellow-300 font-bold"></span></div>
@@ -1212,9 +1213,10 @@
         const d = json.data;
         lastLnbDraw = d;
 
-        document.getElementById('lnb-primer').textContent  = d.primer  || '----';
-        document.getElementById('lnb-segundo').textContent = d.segundo || '----';
-        document.getElementById('lnb-tercero').textContent = d.tercero || '----';
+        document.getElementById('lnb-date').textContent    = d.drawDate || '—';
+        document.getElementById('lnb-primer').textContent  = d.primer   || '----';
+        document.getElementById('lnb-segundo').textContent = d.segundo  || '----';
+        document.getElementById('lnb-tercero').textContent = d.tercero  || '----';
         block.classList.remove('hidden');
 
         compareDrawSources();
