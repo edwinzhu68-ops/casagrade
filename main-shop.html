@@ -796,7 +796,7 @@ async function batchCreateSubs() {
   try {
     const res = await fetch(`${API}/merchant/binding/batch-create-subs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: getMainHeaders(true),
       body: JSON.stringify({ mainShopId: currentShopId, count, password: password || undefined }),
     });
     const data = await res.json();
