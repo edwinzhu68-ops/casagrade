@@ -729,18 +729,16 @@ let MerchantController = MerchantController_1 = class MerchantController {
         const usedShopNumbers = new Set(allShops.map(s => s.shop_number));
         const allUsers = await userRepo.find({ select: ['account_number'] });
         const usedAccounts = new Set(allUsers.map(u => u.account_number));
-        let next = 10000;
-        const allExisting5digit = allShops
+        const allExistingNums = allShops
             .map(s => parseInt(s.shop_number, 10))
-            .filter(n => n >= 10000 && n <= 99999);
-        if (allExisting5digit.length > 0)
-            next = Math.max(...allExisting5digit) + 1;
+            .filter(n => n >= 10000 && !isNaN(n));
+        let next = allExistingNums.length > 0 ? Math.max(...allExistingNums) + 1 : 10000;
         const created = [];
         for (let i = 0; i < n; i++) {
             while (usedShopNumbers.has(String(next)) || usedAccounts.has(String(next)))
                 next++;
-            if (next > 99999)
-                throw new common_1.BadRequestException('5位数店号已用尽');
+            if (next > 9999999999)
+                throw new common_1.BadRequestException('店号已用尽');
             const shopNumber = String(next);
             const accountNumber = shopNumber;
             const customPwd = (password || '').trim();

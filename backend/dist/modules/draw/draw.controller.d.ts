@@ -42,6 +42,7 @@ export declare class DrawController {
             primer: string;
             segundo: string;
             tercero: string;
+            drawDate: string;
             source: string;
         };
         error?: undefined;
