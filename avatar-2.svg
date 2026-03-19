@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <!-- 夜空深蓝紫背景 -->
+    <radialGradient id="bg" cx="40%" cy="35%" r="80%">
+      <stop offset="0%"   stop-color="#1a0a3e"/>
+      <stop offset="50%"  stop-color="#0d0a2e"/>
+      <stop offset="100%" stop-color="#04020f"/>
+    </radialGradient>
+
+    <!-- 霓虹光晕滤镜 -->
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- 强霓虹光晕（背景光斑用） -->
+    <filter id="bigGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+
+    <!-- 文字霓虹滤镜 -->
+    <filter id="textNeon" x="-20%" y="-60%" width="140%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景 -->
+  <circle cx="250" cy="250" r="250" fill="url(#bg)"/>
+
+  <!-- 背景霓虹光斑 -->
+  <circle cx="130" cy="160" r="50" fill="#7c3aed" filter="url(#bigGlow)" opacity="0.6"/>
+  <circle cx="370" cy="180" r="40" fill="#2563eb" filter="url(#bigGlow)" opacity="0.5"/>
+  <circle cx="300" cy="360" r="45" fill="#9333ea" filter="url(#bigGlow)" opacity="0.4"/>
+  <circle cx="130" cy="350" r="35" fill="#1d4ed8" filter="url(#bigGlow)" opacity="0.4"/>
+
+  <!-- 背景虚化数字 -->
+  <text x="55"  y="200" font-family="Impact" font-size="110" fill="#a855f7" opacity="0.12" filter="url(#neonGlow)">88</text>
+  <text x="280" y="420" font-family="Impact" font-size="95"  fill="#60a5fa" opacity="0.10" filter="url(#neonGlow)">23</text>
+  <text x="135" y="410" font-family="Impact" font-size="85"  fill="#a855f7" opacity="0.08" filter="url(#neonGlow)">01</text>
+
+  <!-- 装饰细圈 -->
+  <circle cx="250" cy="250" r="238" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.4"/>
+  <circle cx="250" cy="250" r="232" fill="none" stroke="#60a5fa" stroke-width="0.5" opacity="0.3"/>
+
+  <!-- 主文字霓虹光 -->
+  <text x="250" y="295" text-anchor="middle" font-family="Impact" font-size="80"
+    fill="#c4b5fd" opacity="0.5" letter-spacing="5"
+    filter="url(#bigGlow)"
+    transform="translate(250,295) scale(0.96,1) translate(-250,-295)">CASAGRADE</text>
+
+  <!-- 主文字 -->
+  <text x="250" y="295" text-anchor="middle" font-family="Impact" font-size="80"
+    fill="#ffffff" letter-spacing="5"
+    stroke="#c4b5fd" stroke-width="1.5" paint-order="stroke"
+    filter="url(#textNeon)"
+    transform="translate(250,295) scale(0.96,1) translate(-250,-295)">CASAGRADE</text>
+
+</svg>

@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <!-- 亮红渐变，中心亮边缘深，立体球感 -->
+    <radialGradient id="bg" cx="42%" cy="38%" r="72%">
+      <stop offset="0%"   stop-color="#c0200a"/>
+      <stop offset="45%"  stop-color="#8b0e0e"/>
+      <stop offset="100%" stop-color="#280404"/>
+    </radialGradient>
+
+    <!-- 金色边框渐变 -->
+    <linearGradient id="goldRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#f5e27a"/>
+      <stop offset="30%"  stop-color="#c8952a"/>
+      <stop offset="60%"  stop-color="#f0d060"/>
+      <stop offset="100%" stop-color="#a87020"/>
+    </linearGradient>
+
+    <!-- 文字发光滤镜 -->
+    <filter id="textGlow" x="-20%" y="-60%" width="140%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- 扫光滤镜 -->
+    <linearGradient id="scanLine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="40%"  stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="60%"  stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <circle cx="250" cy="250" r="250" fill="url(#bg)"/>
+
+  <!-- 背景数字（斜角错落，适度可见） -->
+  <text x="30"  y="195" font-family="Impact" font-size="115" fill="#ffffff" opacity="0.09" transform="rotate(-15,80,160)">88</text>
+  <text x="295" y="430" font-family="Impact" font-size="100" fill="#ffffff" opacity="0.08" transform="rotate(10,330,390)">23</text>
+  <text x="120" y="415" font-family="Impact" font-size="90"  fill="#ffffff" opacity="0.07" transform="rotate(-8,160,385)">01</text>
+  <text x="320" y="150" font-family="Impact" font-size="75"  fill="#ffffff" opacity="0.06" transform="rotate(12,355,125)">7</text>
+
+  <!-- 金色边框 -->
+  <circle cx="250" cy="250" r="240" fill="none" stroke="url(#goldRing)" stroke-width="3"/>
+  <circle cx="250" cy="250" r="233" fill="none" stroke="url(#goldRing)" stroke-width="0.8" opacity="0.4"/>
+
+  <!-- 横向扫光线 -->
+  <rect x="0" y="268" width="500" height="7" rx="3" fill="url(#scanLine)" opacity="0.6"/>
+  <rect x="0" y="280" width="500" height="3" rx="1.5" fill="url(#scanLine)" opacity="0.3"/>
+
+  <!-- 五角星点缀 -->
+  <text x="68"  y="278" font-family="Arial" font-size="16" fill="#f0d060" opacity="0.7">★</text>
+  <text x="420" y="278" font-family="Arial" font-size="16" fill="#f0d060" opacity="0.7">★</text>
+
+  <!-- 文字外发光层 -->
+  <text x="250" y="295" text-anchor="middle" font-family="Impact" font-size="80"
+    fill="#ff6666" opacity="0.35" letter-spacing="8"
+    filter="url(#textGlow)"
+    transform="translate(250,295) scale(0.96,1) translate(-250,-295)">CASAGRADE</text>
+
+  <!-- 主文字 -->
+  <text x="250" y="295" text-anchor="middle" font-family="Impact" font-size="80"
+    fill="#ffffff" letter-spacing="8"
+    stroke="#ffffff" stroke-width="1.5" paint-order="stroke"
+    transform="translate(250,295) scale(0.96,1) translate(-250,-295)">CASAGRADE</text>
+
+</svg>
