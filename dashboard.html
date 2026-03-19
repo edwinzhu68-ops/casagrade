@@ -107,6 +107,15 @@
             <!-- 准备开奖提示：日期匹配今天且号码未出时显示 -->
             <div id="fb-preparing" class="hidden mt-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-yellow-300 text-xs text-center"></div>
           </div>
+          <!-- LNB官网爬取结果 -->
+          <div id="lnb-draw-result" class="hidden text-sm bg-gray-900/60 rounded-lg p-3 space-y-1 font-mono mb-2">
+            <div class="text-yellow-400 font-bold text-xs mb-1">🌐 LNB官网 (lnb.gob.pa)</div>
+            <div><span class="text-gray-400">Primer Premio</span> <span id="lnb-primer" class="text-yellow-300 font-bold"></span></div>
+            <div><span class="text-gray-400">Segundo Premio</span> <span id="lnb-segundo" class="text-yellow-300 font-bold"></span></div>
+            <div><span class="text-gray-400">Tercer Premio</span> <span id="lnb-tercero" class="text-yellow-300 font-bold"></span></div>
+          </div>
+          <!-- 两源对比结果横幅 -->
+          <div id="compare-banner" class="hidden rounded-lg p-3 text-center font-bold text-sm mb-2"></div>
           <!-- 开奖就绪横幅：号码完整且期次匹配时显示 -->
           <div id="draw-ready-banner" class="hidden rounded-xl px-4 py-4 mb-2 text-center" style="background:#16a34a;border:3px solid #4ade80;animation:drawReadyPulse 1s ease-in-out infinite;">
             <div class="text-white font-bold text-2xl mb-1">✅ 可以发送！</div>
@@ -1073,9 +1082,12 @@
       if (hasDash(d.primer) || hasDash(d.segundo) || hasDash(d.tercero)) return false;
       const p = digits(d.primer), s = digits(d.segundo), t = digits(d.tercero);
       const type = (d.drawType || '').toUpperCase();
-      // GORDITO 判断
+      // GORDITO 判断：
+      // 主判断：drawType 含 GORDITO
+      // 兜底：头奖≥4位 + 二奖已出且≤2位 + 三奖已出现至少1位
+      // （三奖开始出现说明二奖已开完，二奖是2位可确认为 GORDITO）
       const isGordito = type.includes('GORDITO') ||
-        (p.length >= 4 && s.length > 0 && s.length <= 2 && t.length > 0 && t.length <= 2);
+        (p.length >= 4 && s.length > 0 && s.length <= 2 && t.length >= 1);
       if (isGordito) return p.length >= 4 && s.length >= 2 && t.length >= 2;
       // 普通开奖：头奖位数决定要求
       const req = p.length >= 5 ? 5 : 4;
@@ -1101,7 +1113,15 @@
       lastFirebaseDraw = d;
       document.getElementById('fb-date').textContent = d.drawDate || '—';
       document.getElementById('fb-hora').textContent = d.drawHora || '—';
-      document.getElementById('fb-type').textContent = d.drawType || '—';
+      // 若头奖≥4位、二奖≤2位、三奖已出现 → 自动识别为 GORDITO（与 isFirebaseDrawComplete 兜底逻辑一致）
+      const _s = String(d.segundo || '').replace(/\D/g, '');
+      const _p = String(d.primer  || '').replace(/\D/g, '');
+      const _t = String(d.tercero || '').replace(/\D/g, '');
+      const detectedGordito = _p.length >= 4 && _s.length > 0 && _s.length <= 2 && _t.length >= 1;
+      const displayType = detectedGordito && !(d.drawType || '').toUpperCase().includes('GORDITO')
+        ? (d.drawType ? d.drawType + ' (GORDITO检测)' : 'GORDITO检测')
+        : (d.drawType || '—');
+      document.getElementById('fb-type').textContent = displayType;
       document.getElementById('fb-primer').textContent = d.primer !== '' && d.primer != null ? String(d.primer) : '----';
       document.getElementById('fb-segundo').textContent = d.segundo !== '' && d.segundo != null ? String(d.segundo) : '----';
       document.getElementById('fb-tercero').textContent = d.tercero !== '' && d.tercero != null ? String(d.tercero) : '----';
@@ -1172,8 +1192,68 @@
         if (!res.ok) throw new Error(json.message || json.error || '拉取失败');
         if (!json.success || !json.data) throw new Error('数据格式异常');
         applyFirebaseToUI(json.data, fillForm);
+        // 手动点击「拉取一次」时同时拉取 LNB 官网进行对比（轮询模式不调用，避免频繁爬取）
+        if (fillForm !== false) {
+          await fetchLnbDraw();
+        }
       } catch (err) {
         if (fillForm) showToast('拉取 Firebase 开奖失败: ' + err.message, 'error');
+      }
+    }
+
+    let lastLnbDraw = null;
+
+    async function fetchLnbDraw() {
+      const block = document.getElementById('lnb-draw-result');
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/fetch-lnb`, { headers: getAdminHeaders(false) });
+        const json = await res.json();
+        if (!json.success || !json.data) throw new Error(json.error || 'LNB返回数据异常');
+        const d = json.data;
+        lastLnbDraw = d;
+
+        document.getElementById('lnb-primer').textContent  = d.primer  || '----';
+        document.getElementById('lnb-segundo').textContent = d.segundo || '----';
+        document.getElementById('lnb-tercero').textContent = d.tercero || '----';
+        block.classList.remove('hidden');
+
+        compareDrawSources();
+      } catch (e) {
+        // 在 LNB 区块内持久显示错误，不依赖会消失的 toast
+        block.classList.remove('hidden');
+        block.innerHTML = `<div class="text-yellow-400 font-bold text-xs mb-1">🌐 LNB官网 (lnb.gob.pa)</div>
+          <div class="text-red-400 text-xs">❌ 拉取失败：${e.message}</div>`;
+      }
+    }
+
+    function compareDrawSources() {
+      if (!lastFirebaseDraw || !lastLnbDraw) return;
+
+      const fb = lastFirebaseDraw;
+      const lnb = lastLnbDraw;
+
+      const digits = s => String(s || '').replace(/\D/g, '');
+      const match1 = digits(fb.primer)  === digits(lnb.primer);
+      const match2 = digits(fb.segundo) === digits(lnb.segundo);
+      const match3 = digits(fb.tercero) === digits(lnb.tercero);
+      const allMatch = match1 && match2 && match3;
+
+      const banner = document.getElementById('compare-banner');
+      banner.classList.remove('hidden');
+
+      if (allMatch) {
+        banner.className = 'rounded-lg p-3 text-center font-bold text-sm mb-2 bg-green-800 text-green-200';
+        banner.textContent = '✅ 两个数据源号码一致，可以发送';
+      } else {
+        banner.className = 'rounded-lg p-3 text-center font-bold text-sm mb-2 bg-red-800 border-2 border-red-400 text-red-200';
+        const diffs = [];
+        if (!match1) diffs.push(`1奖：Firebase=${digits(fb.primer)} vs LNB=${digits(lnb.primer)}`);
+        if (!match2) diffs.push(`2奖：Firebase=${digits(fb.segundo)} vs LNB=${digits(lnb.segundo)}`);
+        if (!match3) diffs.push(`3奖：Firebase=${digits(fb.tercero)} vs LNB=${digits(lnb.tercero)}`);
+        banner.textContent = '🚨 号码不一致！' + diffs.join(' / ');
+        setTimeout(() => {
+          alert('⚠️ 数据源不一致！\n\n' + diffs.join('\n') + '\n\n请核实后再发送开奖结果！');
+        }, 100);
       }
     }
 
@@ -1836,13 +1916,19 @@
         const expiryLabel = expired ? `${expiryStr}（已过期）` : (daysLeft !== null && daysLeft <= 14 ? `${expiryStr}（剩${daysLeft}天）` : expiryStr);
         // ISO日期用于input[date]默认值
         const expiryISO = expiry ? expiry.toISOString().slice(0,10) : '';
+        // 小庄绑定数量
+        const subCount = s.sub_shop_count || 0;
+        const subTag = subCount > 0
+          ? `<button onclick="toggleSubShops(${s.shop_id}, this)" class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300">小庄 ${subCount} 家 ▸</button>`
+          : '';
         return `
-          <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1">
+          <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1" id="shop-row-${s.shop_id}">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="font-mono font-bold text-white w-16 shrink-0">${s.shop_number}</span>
               <span class="text-gray-300 truncate">${acct}</span>
               <span class="text-gray-500 text-[11px] shrink-0">${regDate}</span>
               ${inactiveTag}
+              ${subTag}
               <button onclick="confirmDeleteAccount('${acct}','${s.shop_number}')"
                 class="ml-auto px-2 py-0.5 rounded text-[10px] bg-red-900/50 hover:bg-red-800 text-red-300">删除</button>
             </div>
@@ -1853,6 +1939,8 @@
               <button onclick="editShopExpiry(${s.shop_id},'${expiryISO}')"
                 class="px-2 py-0.5 rounded text-[10px] bg-blue-900/50 hover:bg-blue-800 text-blue-300">改到期日</button>
             </div>
+            <!-- 小庄展开列表（默认隐藏） -->
+            <div id="sub-list-${s.shop_id}" class="hidden mt-1 pl-2 border-l-2 border-purple-700/40 space-y-1"></div>
           </div>`;
       }).join('');
     }
@@ -1880,6 +1968,64 @@
         renderShopList();
       } catch (e) {
         el.innerHTML = '<p class="text-red-400 text-center py-4">加载失败</p>';
+      }
+    }
+
+    async function toggleSubShops(shopId, btn) {
+      const el = document.getElementById(`sub-list-${shopId}`);
+      if (!el) return;
+      const isOpen = !el.classList.contains('hidden');
+      if (isOpen) {
+        el.classList.add('hidden');
+        btn.textContent = btn.textContent.replace('▾', '▸');
+        return;
+      }
+      btn.textContent = btn.textContent.replace('▸', '▾') ;
+      el.innerHTML = '<p class="text-gray-500 text-[11px] py-1">加载中…</p>';
+      el.classList.remove('hidden');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/shops/${shopId}/sub-shops`, { headers: getAdminHeaders(true) });
+        const data = await res.json();
+        const subs = data.sub_shops || [];
+        if (!subs.length) { el.innerHTML = '<p class="text-gray-500 text-[11px] py-1">暂无小庄</p>'; return; }
+        // 批量续期按钮
+        const batchBtn = `<button onclick="batchSubExpiry(${shopId})" class="text-[10px] px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white ml-auto">📅 批量续期</button>`;
+        el.innerHTML = `<div class="flex items-center mb-1">${batchBtn}</div>` + subs.map(s => {
+          const expiry = s.subscription_expires_at ? new Date(s.subscription_expires_at) : null;
+          const now = new Date();
+          const expired = expiry && expiry < now;
+          const expiryStr = expiry ? fmtDate(expiry) : '无';
+          const color = expired ? 'text-red-400' : 'text-gray-400';
+          const expiryISO = expiry ? expiry.toISOString().slice(0,10) : '';
+          return `<div class="flex items-center gap-2 text-[11px] bg-gray-800/60 rounded px-2 py-1">
+            <span class="font-mono text-purple-300 w-16 shrink-0">${s.shop_number}</span>
+            <span class="${color} flex-1">到期 ${expiryStr}${expired ? '（已过期）':''}</span>
+            <button onclick="editShopExpiry(${s.shop_id},'${expiryISO}')" class="text-blue-400 hover:text-blue-200">改</button>
+          </div>`;
+        }).join('');
+      } catch (e) { el.innerHTML = '<p class="text-red-400 text-[11px] py-1">加载失败</p>'; }
+    }
+
+    async function batchSubExpiry(mainShopId) {
+      const input = prompt('为该大庄【全部小庄】设置到期日（YYYY-MM-DD），留空=清除限制：',
+        new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10));
+      if (input === null) return;
+      const trimmed = input.trim();
+      if (trimmed !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) { showToast('日期格式错误', 'error'); return; }
+      // 先获取小庄列表
+      const res = await fetch(`${API_BASE}/api/admin/shops/${mainShopId}/sub-shops`, { headers: getAdminHeaders(true) });
+      const data = await res.json();
+      const ids = (data.sub_shops || []).map(s => s.shop_id);
+      if (!ids.length) { showToast('该大庄暂无小庄', 'error'); return; }
+      if (!confirm(`确定为 ${ids.length} 家小庄统一设置到期日「${trimmed || '无限制'}」？`)) return;
+      await applyShopSubscription(ids, trimmed || null);
+      // 刷新展开的小庄列表
+      const el = document.getElementById(`sub-list-${mainShopId}`);
+      if (el && !el.classList.contains('hidden')) {
+        const btn = el.closest('[id^="shop-row-"]')?.querySelector('button[onclick*="toggleSubShops"]');
+        // 重新加载
+        el.innerHTML = '<p class="text-gray-500 text-[11px] py-1">刷新中…</p>';
+        setTimeout(() => toggleSubShops(mainShopId, btn || {}), 500);
       }
     }
 
