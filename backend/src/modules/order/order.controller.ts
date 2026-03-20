@@ -843,10 +843,16 @@ export class BetStatusController {
       isDrawWindow = true;
     }
 
+    let stopSellAt: number | undefined;
+    if (minutesUntilDraw !== undefined) {
+      stopSellAt = Date.now() + minutesUntilDraw * 60 * 1000;
+    }
+
     const base = {
       status: 'ok' as const,
       canBet,
       minutesUntilDraw,
+      stopSellAt,
       currentPeriodDate,
       isDrawWindow,
       confirmedDrawDay,
