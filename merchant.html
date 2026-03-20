@@ -297,6 +297,10 @@
         </div>
         <button onclick="closeModal('modal-chance')" class="text-gray-400">✕</button>
       </div>
+      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
+        <span id="chance-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+      </div>
 
       <div id="chance-grid" class="grid grid-cols-10 gap-1 text-xs">
       </div>
@@ -315,6 +319,10 @@
           </div>
         </div>
         <button onclick="closeModal('modal-billete')" class="text-gray-400">✕</button>
+      </div>
+      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
+        <span id="billete-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
       </div>
 
       <div id="billete-list" class="space-y-1 max-h-96 overflow-y-auto">
@@ -1995,6 +2003,12 @@
         }
       }
 
+      var chSalesEl = document.getElementById('chance-modal-sales');
+      if (chSalesEl) {
+        var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
+        chSalesEl.textContent = '$' + total.toFixed(2);
+      }
+
       document.getElementById('modal-chance').classList.remove('hidden');
     }
 
@@ -2054,6 +2068,12 @@
           btnNum.className = 'px-2 py-0.5 rounded-full bg-blue-600 text-white';
           btnQty.className = 'px-2 py-0.5 rounded-full bg-gray-700 text-gray-200';
         }
+      }
+
+      var biSalesEl = document.getElementById('billete-modal-sales');
+      if (biSalesEl) {
+        var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
+        biSalesEl.textContent = '$' + total.toFixed(2);
       }
 
       document.getElementById('modal-billete').classList.remove('hidden');
