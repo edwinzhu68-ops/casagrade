@@ -732,8 +732,7 @@
         pwa_title: '📲 添加到桌面',
         pwa_btn_install: '立即添加',
         pwa_installed: '✅ 已安装到桌面，请从桌面图标打开。',
-        pwa_ios_guide: 'iOS 操作步骤：<br>1. 点底部 <span class="font-bold text-white">分享</span> 按钮（方块向上箭头）<br>2. 向下滚动，点 <span class="font-bold text-white">添加到主屏幕</span>',
-        pwa_manual_guide: '操作步骤：<br>1. 点浏览器右上角 <span class="font-bold text-white">⋮ 菜单</span><br>2. 点击 <span class="font-bold text-white">添加到主屏幕</span>（或"安装应用"）'
+        pwa_guide_label: '选择你的浏览器：'
       },
       es: {
         lang_switch_title: 'Cambiar a español',
@@ -956,8 +955,7 @@
         pwa_title: '📲 Añadir al inicio',
         pwa_btn_install: 'Añadir ahora',
         pwa_installed: '✅ Ya está instalada. Ábrela desde el icono del escritorio.',
-        pwa_ios_guide: 'Pasos en iOS:<br>1. Toca el botón de <span class="font-bold text-white">compartir</span> (cuadrado con flecha) en la parte inferior<br>2. Desplázate y toca <span class="font-bold text-white">Añadir a pantalla de inicio</span>',
-        pwa_manual_guide: 'Pasos:<br>1. Toca el <span class="font-bold text-white">⋮ menú</span> en la esquina superior derecha del navegador<br>2. Toca <span class="font-bold text-white">Añadir a pantalla de inicio</span> (o "Instalar app")'
+        pwa_guide_label: 'Elige tu navegador:'
       }
     };
 
@@ -1255,7 +1253,7 @@
         msg += '两者均可登录，密码相同。请牢记。';
         showToast(msg, 'success');
         // 注册成功后提示添加到桌面
-        setTimeout(() => showPwaPrompt('register'), 400);
+        setTimeout(() => triggerMerchantPwaInstall(), 400);
       } catch (err) {
         showToast(err.message || (t('alert_register_fail') || '注册失败'), 'error');
       }
@@ -2527,25 +2525,52 @@
      *  reason: 'register' | 'print' | 'manual'
      */
     function showPwaPrompt(reason) {
+      const lang = getMerchantLang();
       const titles = {
-        register: '📲 添加到桌面',
-        print:    '📲 添加到桌面，蓝牙才能自动重连',
-        manual:   '📲 添加到桌面',
+        register: lang === 'zh' ? '📲 添加到桌面' : '📲 Añadir al inicio',
+        print:    lang === 'zh' ? '📲 添加到桌面（蓝牙自动重连）' : '📲 Añadir al inicio (reconexión Bluetooth)',
+        manual:   lang === 'zh' ? '📲 添加到桌面' : '📲 Añadir al inicio',
       };
       const descs = {
-        register: '下次直接点桌面图标打开，无需输入网址，打开更快。',
-        print:    '从桌面图标打开时，打印机自动重连，无需每次手动配对。',
-        manual:   '桌面图标直接打开 · 打印机自动重连 · 无需输入网址',
+        register: lang === 'zh' ? '下次直接点桌面图标打开，无需输入网址。' : 'Ábrela directo desde el ícono, sin escribir la dirección.',
+        print:    lang === 'zh' ? '从桌面图标打开时，打印机自动重连。' : 'Al abrir desde el ícono, la impresora se reconecta automáticamente.',
+        manual:   lang === 'zh' ? '桌面图标直接打开 · 打印机自动重连 · 无需输入网址' : 'Acceso directo · reconexión de impresora · sin escribir URL',
       };
-      document.getElementById('pwa-prompt-title').textContent = titles[reason] || titles.manual;
-      document.getElementById('pwa-prompt-desc').textContent  = descs[reason]  || descs.manual;
+      const titleEl = document.getElementById('pwa-prompt-title');
+      const descEl  = document.getElementById('pwa-prompt-desc');
+      if (titleEl) titleEl.textContent = titles[reason] || titles.manual;
+      if (descEl)  descEl.textContent  = descs[reason]  || descs.manual;
 
       const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
-      const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
-      document.getElementById('pwa-prompt-ios').classList.toggle('hidden', !isIOS);
-      document.getElementById('pwa-prompt-manual').classList.toggle('hidden', isIOS || isInstalled || !!_pwaInstallPrompt);
-      document.getElementById('pwa-prompt-btn-install').classList.toggle('hidden', isIOS || isInstalled || !_pwaInstallPrompt);
-      document.getElementById('pwa-prompt-installed').classList.toggle('hidden', !isInstalled);
+      const isInstalled = (function() {
+        try { return window.matchMedia('(display-mode: standalone)').matches || (isIOS && !!navigator.standalone); }
+        catch(e) { return false; }
+      })();
+
+      const installedEl = document.getElementById('pwa-prompt-installed');
+      const nativeWrap  = document.getElementById('pwa-prompt-native-wrap');
+      const guidesEl    = document.getElementById('pwa-prompt-guides');
+
+      if (installedEl) installedEl.classList.toggle('hidden', !isInstalled);
+      if (nativeWrap) nativeWrap.classList.toggle('hidden', !_pwaInstallPrompt || isInstalled);
+      if (guidesEl) guidesEl.classList.toggle('hidden', isInstalled);
+
+      // 自动展开当前设备对应的品牌指引
+      const ua = navigator.userAgent;
+      let autoId = null;
+      if (/iP(hone|ad|od)/i.test(ua)) autoId = 'merchant-guide-ios';
+      else if (/SamsungBrowser/i.test(ua)) autoId = 'merchant-guide-samsung';
+      else if (/HuaweiBrowser|HMSCore|HUAWEI/i.test(ua)) autoId = 'merchant-guide-huawei';
+      else if (/MiuiBrowser|XiaoMi/i.test(ua)) autoId = 'merchant-guide-xiaomi';
+      else if (/OppoBrowser|OPPO|HeyTap/i.test(ua)) autoId = 'merchant-guide-oppo';
+      else if (/VivoBrowser|vivo/i.test(ua)) autoId = 'merchant-guide-vivo';
+      else if (/Chrome/i.test(ua)) autoId = 'merchant-guide-chrome';
+
+      document.querySelectorAll('#pwa-prompt-guides details').forEach(d => d.removeAttribute('open'));
+      if (autoId) {
+        const el = document.getElementById(autoId);
+        if (el) el.setAttribute('open', '');
+      }
 
       document.getElementById('modal-pwa-prompt').classList.remove('hidden');
     }
@@ -2554,15 +2579,46 @@
       document.getElementById('modal-pwa-prompt').classList.add('hidden');
     }
 
+    // 点"添加到桌面"按钮：能直接安装就直接安装，不能就弹手动指引
+    async function triggerMerchantPwaInstall() {
+      const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+      const isInstalled = (function() {
+        try { return window.matchMedia('(display-mode: standalone)').matches || (isIOS && !!navigator.standalone); }
+        catch(e) { return false; }
+      })();
+      if (isInstalled) { showPwaPrompt('manual'); return; }
+      if (_pwaInstallPrompt) {
+        try {
+          _pwaInstallPrompt.prompt();
+          const { outcome } = await _pwaInstallPrompt.userChoice;
+          _pwaInstallPrompt = null;
+          if (outcome === 'accepted') {
+            const btn = document.getElementById('btn-add-homescreen');
+            if (btn) btn.classList.add('hidden');
+          }
+        } catch (e) {
+          _pwaInstallPrompt = null;
+          showPwaPrompt('manual');
+        }
+        return;
+      }
+      showPwaPrompt('manual');
+    }
+
     async function triggerPwaInstall() {
       if (!_pwaInstallPrompt) return;
-      _pwaInstallPrompt.prompt();
-      const { outcome } = await _pwaInstallPrompt.userChoice;
-      _pwaInstallPrompt = null;
-      closePwaPrompt();
-      if (outcome === 'accepted') {
-        const btn = document.getElementById('btn-add-homescreen');
-        if (btn) btn.classList.add('hidden');
+      try {
+        _pwaInstallPrompt.prompt();
+        const { outcome } = await _pwaInstallPrompt.userChoice;
+        _pwaInstallPrompt = null;
+        closePwaPrompt();
+        if (outcome === 'accepted') {
+          const btn = document.getElementById('btn-add-homescreen');
+          if (btn) btn.classList.add('hidden');
+        }
+      } catch (e) {
+        _pwaInstallPrompt = null;
+        closePwaPrompt();
       }
     }
 
@@ -3225,7 +3281,7 @@
         <div class="border border-gray-600 rounded-xl p-3">
           <p class="text-sm font-bold mb-1" data-i18n="homescreen_title">📲 桌面快捷方式</p>
           <p class="text-xs text-gray-500 mb-3" data-i18n="homescreen_desc">添加后从桌面图标打开，打印机自动重连，无需每次手动配对。</p>
-          <button id="btn-add-homescreen" onclick="showPwaPrompt('manual')"
+          <button id="btn-add-homescreen" onclick="triggerMerchantPwaInstall()"
             class="w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_add_homescreen">
             📲 添加到桌面
           </button>
@@ -3321,35 +3377,96 @@
 
   <!-- PWA 添加到桌面提示 -->
   <div id="modal-pwa-prompt" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
-    <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-5">
-      <h3 id="pwa-prompt-title" class="text-base font-bold mb-2" data-i18n="pwa_title">📲 添加到桌面</h3>
-      <p id="pwa-prompt-desc" class="text-sm text-gray-400 mb-4 leading-relaxed"></p>
-      <!-- iOS 手动指引 -->
-      <div id="pwa-prompt-ios" class="hidden mb-3 bg-gray-700/60 rounded-xl p-3 text-xs text-gray-300 leading-relaxed" data-i18n-html="pwa_ios_guide">
-        iOS 操作步骤：<br>
-        1. 点底部 <span class="font-bold text-white">分享</span> 按钮（方块向上箭头）<br>
-        2. 向下滚动，点 <span class="font-bold text-white">添加到主屏幕</span>
-      </div>
-      <!-- Android 手动操作指引（无原生安装提示时） -->
-      <div id="pwa-prompt-manual" class="hidden mb-3 bg-gray-700/60 rounded-xl p-3 text-xs text-gray-300 leading-relaxed" data-i18n-html="pwa_manual_guide">
-        操作步骤：<br>
-        1. 点浏览器右上角 <span class="font-bold text-white">⋮ 菜单</span><br>
-        2. 点击 <span class="font-bold text-white">添加到主屏幕</span>（或"安装应用"）
-      </div>
-      <!-- 已安装提示 -->
+    <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-5 max-h-[85vh] overflow-y-auto">
+      <h3 id="pwa-prompt-title" class="text-base font-bold mb-1" data-i18n="pwa_title">📲 添加到桌面</h3>
+      <p id="pwa-prompt-desc" class="text-sm text-gray-400 mb-3 leading-relaxed"></p>
+
+      <!-- 已安装 -->
       <div id="pwa-prompt-installed" class="hidden mb-3 bg-green-900/40 rounded-xl p-3 text-xs text-green-300" data-i18n="pwa_installed">
         ✅ 已安装到桌面，请从桌面图标打开。
       </div>
-      <div class="flex gap-3">
+
+      <!-- 原生安装按钮 -->
+      <div id="pwa-prompt-native-wrap" class="hidden mb-3">
         <button id="pwa-prompt-btn-install" onclick="triggerPwaInstall()"
-          class="flex-1 bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-sm" data-i18n="pwa_btn_install">
+          class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-sm" data-i18n="pwa_btn_install">
           立即添加
         </button>
-        <button onclick="closePwaPrompt()"
-          class="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold text-sm text-gray-300" data-i18n="btn_later">
-          以后再说
-        </button>
       </div>
+
+      <!-- 各品牌手动指引 -->
+      <div id="pwa-prompt-guides" class="space-y-2 mb-3">
+        <p class="text-xs font-bold text-gray-300" data-i18n="pwa_guide_label">选择你的浏览器：</p>
+
+        <details id="merchant-guide-ios" class="bg-gray-700/60 rounded-xl">
+          <summary class="px-3 py-2 text-xs font-bold text-gray-200 cursor-pointer">🍎 iPhone / iPad (Safari)</summary>
+          <div class="px-3 pb-3 text-xs text-gray-300 leading-relaxed">
+            1. 点底部中间的 <span class="font-bold text-white">分享</span> 按钮（方框+箭头↑）<br>
+            2. 向下滑，点 <span class="font-bold text-white">添加到主屏幕</span><br>
+            3. 点右上角 <span class="font-bold text-white">添加</span>
+          </div>
+        </details>
+
+        <details id="merchant-guide-chrome" class="bg-gray-700/60 rounded-xl">
+          <summary class="px-3 py-2 text-xs font-bold text-gray-200 cursor-pointer">🌐 Chrome (Android / PC)</summary>
+          <div class="px-3 pb-3 text-xs text-gray-300 leading-relaxed">
+            1. 点 <span class="font-bold text-white">⋮</span> 菜单（右上角或右下角的三个点）<br>
+            2. 点 <span class="font-bold text-white">添加到主屏幕</span> 或 <span class="font-bold text-white">安装应用</span><br>
+            3. 点 <span class="font-bold text-white">添加</span> 确认
+          </div>
+        </details>
+
+        <details id="merchant-guide-samsung" class="bg-gray-700/60 rounded-xl">
+          <summary class="px-3 py-2 text-xs font-bold text-gray-200 cursor-pointer">📱 Samsung Internet</summary>
+          <div class="px-3 pb-3 text-xs text-gray-300 leading-relaxed">
+            1. 点右下角 <span class="font-bold text-white">☰</span>（三条横线）<br>
+            2. 点 <span class="font-bold text-white">添加页面到</span> → <span class="font-bold text-white">主屏幕</span><br>
+            3. 点 <span class="font-bold text-white">添加</span> 确认
+          </div>
+        </details>
+
+        <details id="merchant-guide-huawei" class="bg-gray-700/60 rounded-xl">
+          <summary class="px-3 py-2 text-xs font-bold text-gray-200 cursor-pointer">📱 Huawei / 华为浏览器</summary>
+          <div class="px-3 pb-3 text-xs text-gray-300 leading-relaxed">
+            1. 点右下角 <span class="font-bold text-white">⋯⋯</span>（四个点）<br>
+            2. 点 <span class="font-bold text-white">添加至桌面</span><br>
+            3. 弹窗中点确认<br>
+            <span class="text-gray-400 mt-1 block">💡 如果用华为 Chrome，按上面 Chrome 的步骤操作。</span>
+          </div>
+        </details>
+
+        <details id="merchant-guide-xiaomi" class="bg-gray-700/60 rounded-xl">
+          <summary class="px-3 py-2 text-xs font-bold text-gray-200 cursor-pointer">📱 Xiaomi / 小米浏览器</summary>
+          <div class="px-3 pb-3 text-xs text-gray-300 leading-relaxed">
+            1. 点底部 <span class="font-bold text-white">☰</span>（三条横线）<br>
+            2. 点 <span class="font-bold text-white">工具箱</span> → <span class="font-bold text-white">添加快捷方式</span><br>
+            3. 选 <span class="font-bold text-white">手机桌面</span>
+          </div>
+        </details>
+
+        <details id="merchant-guide-oppo" class="bg-gray-700/60 rounded-xl">
+          <summary class="px-3 py-2 text-xs font-bold text-gray-200 cursor-pointer">📱 OPPO</summary>
+          <div class="px-3 pb-3 text-xs text-gray-300 leading-relaxed">
+            1. 点右下角 <span class="font-bold text-white">☰</span><br>
+            2. 点 <span class="font-bold text-white">工具箱</span> → <span class="font-bold text-white">添加快捷方式</span><br>
+            3. 选 <span class="font-bold text-white">手机桌面</span>
+          </div>
+        </details>
+
+        <details id="merchant-guide-vivo" class="bg-gray-700/60 rounded-xl">
+          <summary class="px-3 py-2 text-xs font-bold text-gray-200 cursor-pointer">📱 vivo</summary>
+          <div class="px-3 pb-3 text-xs text-gray-300 leading-relaxed">
+            1. 点底部 <span class="font-bold text-white">☰</span>（三条横线）<br>
+            2. 点 <span class="font-bold text-white">添加书签</span> → <span class="font-bold text-white">手机桌面</span><br>
+            3. 弹窗中点确认
+          </div>
+        </details>
+      </div>
+
+      <button onclick="closePwaPrompt()"
+        class="w-full bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold text-sm text-gray-300" data-i18n="btn_later">
+        知道了
+      </button>
     </div>
   </div>
 
