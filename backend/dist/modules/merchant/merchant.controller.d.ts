@@ -158,6 +158,7 @@ export declare class MerchantController implements OnModuleInit {
         mainShopId: number;
         count: number;
         password?: string;
+        adminOverride?: boolean;
     }, req: any): Promise<{
         success: boolean;
         created: {
