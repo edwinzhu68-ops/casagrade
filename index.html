@@ -328,10 +328,7 @@
             <span class="text-gray-600 font-medium" data-i18n="pay_total">Total</span>
             <span class="text-2xl font-bold text-green-600">$<span id="pay-amount">0</span></span>
           </div>
-          <div class="mt-2 flex items-center justify-between text-[11px] text-gray-500">
-            <span data-i18n="pay_valid">Válido 30 min, se cancela si no se paga.</span>
-            <span id="pay-countdown" class="font-mono font-bold text-orange-600">30:00</span>
-          </div>
+          <div id="pay-stop-sell-hint" class="hidden mt-2 text-center text-[11px] text-orange-600 font-medium"></div>
         </div>
 
         <div class="text-center py-2">
@@ -567,7 +564,7 @@
         pay_order_note: 'El número de pedido es tu comprobante para cobrar el premio. Consérvalo.',
         pay_numbers_label: 'Números y cantidades',
         pay_total: 'Total',
-        pay_valid: 'Válido 30 min, se cancela si no se paga.',
+        pay_stopped: 'Ventas cerradas.',
         pay_waiting: 'Esperando pago',
         pay_waiting_note: 'Después de que el cajero escanee, el estado se actualizará.',
         btn_whatsapp: 'Enviar imagen del pedido al banquero',
@@ -647,7 +644,7 @@
         pay_order_note: '订单号是您的兑奖凭证，请妥善保存。',
         pay_numbers_label: '号码和数量',
         pay_total: '合计',
-        pay_valid: '30分钟内有效，超时自动取消。',
+        pay_stopped: '已停售。',
         pay_waiting: '等待付款',
         pay_waiting_note: '收银员扫码后状态将自动更新。',
         btn_whatsapp: '将订单图片发给收银员',
@@ -881,7 +878,6 @@
     // 保存订单：返回店铺页，订单保留在未付款列表，不调用取消接口；清空当前选号以便继续下一单
     function goBackSaveOrder() {
       stopStatusPolling();
-      stopPayCountdown();
       betList = [];
       currentNumber = '';
       currentQuantity = '';
@@ -910,7 +906,6 @@
       var orderNumber = (orderIdEl ? orderIdEl.textContent : '').trim();
       if (!orderNumber || orderNumber === '------') {
         stopStatusPolling();
-        stopPayCountdown();
         currentOrderId = null;
         currentOrderHash = null;
         showPage('page-shop');
@@ -938,7 +933,6 @@
         showToast('No se pudo conectar al servidor. Verifica tu red.' + (e && e.message ? ' ' + e.message : ''), 'error');
       }
       stopStatusPolling();
-      stopPayCountdown();
       currentOrderId = null;
       currentOrderHash = null;
       showPage('page-shop');
@@ -966,9 +960,9 @@
         const now = Date.now();
         list = list.filter(function (o) {
           if (!o || o.clientId !== clientId) return false;
-          // 过滤超时订单（超过 30 分钟）
-          const end = o.endMs || (o.ts ? o.ts + 30 * 60 * 1000 : now + 1);
-          return end > now;
+          var ssAt = o.stopSellAt || (o.endMs ? o.endMs : null);
+          if (ssAt && ssAt <= now) return false;
+          return true;
         });
         // 写回（去掉已超时的）
         try { localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(list)); } catch (e) {}
@@ -1057,9 +1051,8 @@
         if (!Array.isArray(list)) list = [];
         var one = list.find(function (o) { return String(o.order_number || o.orderNumber || '') === String(num); });
         if (one) {
-          // 超时订单直接静默删除，不跳转不弹窗
-          var endMs = one.endMs || (one.ts ? one.ts + 30 * 60 * 1000 : 0);
-          if (endMs && endMs <= Date.now()) {
+          var ssAt = one.stopSellAt || (one.endMs ? one.endMs : null);
+          if (ssAt && ssAt <= Date.now()) {
             removePendingOrderByNumber(num);
             renderClientPendingOrders();
             return;
@@ -1177,10 +1170,8 @@
         var payDetail = document.getElementById('pay-order-detail');
         if (payDetail) payDetail.innerHTML = '<p class="text-gray-400">-</p>';
       }
-      // 优先用存储的 endMs，否则从 ts 推算
-      const orderEndMs = pendingInfo.endMs || (pendingInfo.ts ? pendingInfo.ts + 30 * 60 * 1000 : Date.now() + 30 * 60 * 1000);
-      if (orderEndMs <= Date.now()) {
-        // 已超时，静默删除，回首页
+      const ssAt = pendingInfo.stopSellAt || (pendingInfo.endMs ? pendingInfo.endMs : null);
+      if (ssAt && ssAt <= Date.now()) {
         removePendingOrder(orderNumber);
         renderClientPendingOrders();
         return;
@@ -1197,7 +1188,6 @@
       }, 'pay-qr');
       var payShopEl = document.getElementById('pay-shop-number');
       if (payShopEl) payShopEl.textContent = orderShopNumber;
-      startPayCountdown(orderEndMs);
       startStatusPolling(orderNumber);
       showPage('page-pay');
       loadAndShowDrawNumbers(0); // 待付款状态，不显示开奖号
@@ -1484,11 +1474,8 @@
         // 用后端返回的停售时间戳或 minutesUntilStop/minutesUntilDraw 推算
         if (typeof d.stopSellAt === 'number') {
           stopSellAtTimestamp = d.stopSellAt;
-        } else if (typeof d.minutesUntilStop === 'number') {
-          stopSellAtTimestamp = Date.now() + d.minutesUntilStop * 60000;
         } else if (typeof d.minutesUntilDraw === 'number') {
-          // 停售 = 开奖前 5 分钟
-          stopSellAtTimestamp = Date.now() + (d.minutesUntilDraw - 5) * 60000;
+          stopSellAtTimestamp = Date.now() + d.minutesUntilDraw * 60000;
         }
         updateBetStatusUI();
         // 临近停售（<=10分钟）或开奖窗口时加快轮询到 5 秒，平时 30 秒
@@ -1891,10 +1878,6 @@
             '<div class="flex justify-between"><span class="font-mono">' + b.number + ' × ' + b.quantity + '</span><span>$' + (b.quantity * b.unitPrice).toFixed(2) + '</span></div>'
           ).join('');
         }
-        // 启动 30 分钟倒计时（到点未付款订单会被后端取消）
-        const newOrderEndMs = Date.now() + 30 * 60 * 1000;
-        startPayCountdown(newOrderEndMs);
-
         // 生成付款&兑奖共用二维码（付款页）
         const qrInfo = {
           orderId: currentOrderId,
@@ -1949,7 +1932,7 @@
             shop_number: currentShop.shop_number,
             shopId: currentShop.shop_id,
             ts: Date.now(),
-            endMs: newOrderEndMs,
+            stopSellAt: stopSellAtTimestamp || null,
             created_at: orderCreatedAt,
           });
           localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(pendingList));
@@ -2004,36 +1987,6 @@
 
     // 轮询订单状态
     let pollingInterval = null;
-    let payCountdownInterval = null;
-
-    function startPayCountdown(endMs) {
-      if (payCountdownInterval) clearInterval(payCountdownInterval);
-      if (!endMs) endMs = Date.now() + 30 * 60 * 1000;
-      const el = document.getElementById('pay-countdown');
-      if (!el) return;
-      function tick() {
-        const left = Math.max(0, endMs - Date.now());
-        if (left <= 0) {
-          clearInterval(payCountdownInterval);
-          payCountdownInterval = null;
-          el.textContent = '0:00';
-          checkOrderCanceledAndRedirect();
-          return;
-        }
-        const m = Math.floor(left / 60000);
-        const s = Math.floor((left % 60000) / 1000);
-        el.textContent = m + ':' + String(s).padStart(2, '0');
-      }
-      tick();
-      payCountdownInterval = setInterval(tick, 1000);
-    }
-
-    function stopPayCountdown() {
-      if (payCountdownInterval) {
-        clearInterval(payCountdownInterval);
-        payCountdownInterval = null;
-      }
-    }
 
     function removePendingOrder(orderNumber) {
       try {
@@ -2046,28 +1999,6 @@
       } catch (e) {}
     }
 
-    async function checkOrderCanceledAndRedirect(orderNumber) {
-      if (!orderNumber) {
-        const el = document.getElementById('pay-order-id');
-        orderNumber = el ? el.textContent : '';
-      }
-      if (!orderNumber || orderNumber === '------') {
-        showPage('page-shop');
-        return;
-      }
-      try {
-        const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
-        const data = await res.json();
-        const canceled = data.status === -1 || data.status === 'canceled';
-        if (canceled) {
-          showToast('El pedido ha sido cancelado por tiempo. Por favor, realiza un nuevo pedido.', 'warning');
-        } else {
-          showToast('Tiempo agotado. El pedido puede haber sido cancelado. Por favor, verifica o realiza un nuevo pedido.', 'warning');
-        }
-      } catch (e) {}
-      showPage('page-shop');
-    }
-
     function startStatusPolling(orderNumber) {
       if (pollingInterval) clearInterval(pollingInterval);
 
@@ -2076,7 +2007,6 @@
           const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
           if (res.status === 404) {
             stopStatusPolling();
-            stopPayCountdown();
             showPage('page-home');
             return;
           }
@@ -2084,7 +2014,6 @@
           const isPaid = data.status === 1 || data.status === 'paid';
           if (isPaid) {
             stopStatusPolling();
-            stopPayCountdown();
             showConfirmedState(orderNumber, data.amount);
           }
         } catch (err) {
