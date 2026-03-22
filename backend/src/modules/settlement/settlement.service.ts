@@ -556,13 +556,40 @@ export class SettlementService {
    * 最近 N 期历史结算记录（按开奖期次聚合，仅含本店有订单的期次）
    * 只统计已完成开奖的期次；订单含已付款/已开奖/已中奖（1,2,3）
    * 日期统一为 DD-MM-YYYY；若某期本店无订单则跳过该期（不占条数）
+   *
+   * @param lotteryKind NACIONAL=仅全国 Lotería；TICA|NICA=仅该店该店内彩；不传=旧行为（全国+店内混排）
    */
-  async getHistoryForShop(shopId: number, limit: number = 7) {
-    const draws = await this.drawRepo.find({
-      where: [{ status: 'completed' }, { status: 'COMPLETED' }],
-      order: { draw_id: 'DESC' },
-      take: Math.max(limit * 2, 20), // 多取一些，过滤掉本店无订单的期次后仍能凑满 limit 条（含已归档期）
-    });
+  async getHistoryForShop(shopId: number, limit: number = 7, lotteryKind?: string) {
+    const takeN = Math.max(limit * 2, 20);
+    const st = ['completed', 'COMPLETED'];
+    const k = lotteryKind ? String(lotteryKind).toUpperCase() : '';
+
+    let draws: Draw[];
+    if (k === 'TICA' || k === 'NICA') {
+      draws = await this.drawRepo
+        .createQueryBuilder('d')
+        .where('d.status IN (:...st)', { st })
+        .andWhere('d.shop_id = :sid', { sid: shopId })
+        .andWhere('d.lottery_type = :lt', { lt: k })
+        .orderBy('d.draw_id', 'DESC')
+        .take(takeN)
+        .getMany();
+    } else if (k === 'NACIONAL') {
+      draws = await this.drawRepo
+        .createQueryBuilder('d')
+        .where('d.status IN (:...st)', { st })
+        .andWhere('d.shop_id IS NULL')
+        .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+        .orderBy('d.draw_id', 'DESC')
+        .take(takeN)
+        .getMany();
+    } else {
+      draws = await this.drawRepo.find({
+        where: [{ status: 'completed' }, { status: 'COMPLETED' }],
+        order: { draw_id: 'DESC' },
+        take: takeN,
+      });
+    }
 
     const result: {
       drawId?: number;
@@ -574,13 +601,33 @@ export class SettlementService {
     }[] = [];
 
     for (const draw of draws) {
-      const orders = await this.orderRepo.find({
-        where: {
-          shop_id: shopId,
-          draw_id: draw.draw_id,
-          status: In([1, 2, 3]),
-        },
-      });
+      let orders: Order[];
+      if (k === 'NACIONAL') {
+        orders = await this.orderRepo
+          .createQueryBuilder('o')
+          .where('o.shop_id = :sid', { sid: shopId })
+          .andWhere('o.draw_id = :did', { did: draw.draw_id })
+          .andWhere('o.status IN (:...stt)', { stt: [1, 2, 3] })
+          .andWhere('(o.lottery_type = :lt OR o.lottery_type IS NULL)', { lt: 'NACIONAL' })
+          .getMany();
+      } else if (k === 'TICA' || k === 'NICA') {
+        orders = await this.orderRepo.find({
+          where: {
+            shop_id: shopId,
+            draw_id: draw.draw_id,
+            status: In([1, 2, 3]),
+            lottery_type: k,
+          },
+        });
+      } else {
+        orders = await this.orderRepo.find({
+          where: {
+            shop_id: shopId,
+            draw_id: draw.draw_id,
+            status: In([1, 2, 3]),
+          },
+        });
+      }
 
       if (orders.length === 0) continue; // 本店该期无订单，不展示
 

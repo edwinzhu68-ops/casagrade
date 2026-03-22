@@ -44,16 +44,19 @@ export class SettlementController {
 
   /**
    * 最近 N 期历史结算（给 result.html 用）
-   * GET /api/settlement/history?shopId=1&limit=7
+   * GET /api/settlement/history?shopId=1&limit=20&lotteryKind=NACIONAL|TICA|NICA
    */
   @Get('history')
   async getHistory(
     @Query('shopId') shopId: string,
     @Query('limit') limit: string = '7',
+    /** NACIONAL=仅全国；TICA|NICA=仅该店该店内彩；不传=兼容旧客户端（混排） */
+    @Query('lotteryKind') lotteryKind?: string,
   ) {
     const result = await this.settlementService.getHistoryForShop(
       Number(shopId),
       Number(limit) || 7,
+      lotteryKind ? String(lotteryKind).toUpperCase() : undefined,
     );
     return {
       success: true,
