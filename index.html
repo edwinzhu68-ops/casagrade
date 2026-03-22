@@ -941,6 +941,78 @@
         clientPendingOrdersPollInterval = null;
       }
     }
+
+    /**
+     * 老板端 PATCH 改单（未付款/已付款改号码）后：同步本地「待付款」条目的金额与 hash，并刷新顾客端付款页（若在付款页）。
+     * @returns {boolean} 是否改写了 localStorage 待付款列表
+     */
+    function syncUnpaidOrderFromServer(orderNumber, data) {
+      var mutated = false;
+      try {
+        var newAmt = Number(data.amount != null ? data.amount : 0);
+        var newHash = data.order_hash != null ? data.order_hash : (data.orderHash != null ? data.orderHash : null);
+        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        for (var j = 0; j < list.length; j++) {
+          var row = list[j];
+          if (!row || row.clientId !== clientId) continue;
+          var on = (row.order_number != null ? row.order_number : row.orderNumber || '').toString();
+          if (on !== String(orderNumber)) continue;
+          var oldAmt = Number(row.amount != null ? row.amount : 0);
+          var oldHash = row.orderHash || row.order_hash || null;
+          if (oldAmt !== newAmt) {
+            row.amount = newAmt;
+            mutated = true;
+          }
+          if (newHash != null && String(oldHash) !== String(newHash)) {
+            row.orderHash = newHash;
+            row.order_hash = newHash;
+            mutated = true;
+          }
+          list[j] = row;
+          break;
+        }
+        if (mutated) {
+          localStorage.setItem(CLIENT_PENDING_ORDERS_KEY, JSON.stringify(list));
+          try { renderClientPendingOrders(); } catch (eR) {}
+        }
+        clientSyncPayPageIfOpen(orderNumber, data);
+      } catch (e) {}
+      return mutated;
+    }
+
+    /** 当前在付款页且单号一致时，用 GET 订单最新数据刷新金额、明细、二维码 */
+    function clientSyncPayPageIfOpen(orderNumber, data) {
+      try {
+        var payPage = document.getElementById('page-pay');
+        if (!payPage || payPage.classList.contains('hidden')) return;
+        var idEl = document.getElementById('pay-order-id');
+        if (!idEl || String(idEl.textContent || '').trim() !== String(orderNumber)) return;
+        var amt = Number(data.amount != null ? data.amount : 0);
+        var payAmtEl = document.getElementById('pay-amount');
+        if (payAmtEl) payAmtEl.textContent = amt.toFixed(2);
+        if (data.order_id != null) currentOrderId = data.order_id;
+        if (data.order_hash != null) currentOrderHash = data.order_hash;
+        else if (data.orderHash != null) currentOrderHash = data.orderHash;
+        var gt = data.game_type != null ? data.game_type : data.gameType;
+        renderOrderDetailFromApi(data.numbers, gt, 'pay-order-detail');
+        var sid = data.shopId != null ? data.shopId : (data.shop_id != null ? data.shop_id : (currentShop && currentShop.shop_id));
+        var ltRaw = data.lottery_type != null ? data.lottery_type : (data.lotteryType != null ? data.lotteryType : clientLotteryMode);
+        var lk = canonicalClientOrderLotteryType(ltRaw);
+        try { updateClientOrderLotteryKindBadge(lk, 'pay'); } catch (eB) {}
+        syncDrawAtSecondaryRowsVisibility(lk);
+        renderPaymentQR({
+          orderId: currentOrderId,
+          orderNumber: String(orderNumber),
+          orderHash: currentOrderHash,
+          amount: amt,
+          shopId: sid,
+          lotteryKind: lk
+        }, 'pay-qr');
+      } catch (e) {}
+    }
+
     async function pollPendingOrdersStatus() {
       var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
       var list = raw ? JSON.parse(raw) : [];
@@ -962,7 +1034,10 @@
           if (!res.ok) continue;
           var data = await res.json();
           var isPaid = data.status === 1 || data.status === 'paid';
-          if (!isPaid) continue;
+          if (!isPaid) {
+            if (syncUnpaidOrderFromServer(orderNumber, data)) changed = true;
+            continue;
+          }
           removePendingOrderByNumber(orderNumber);
           var paidInfo = {
             clientId: clientId,
@@ -1393,7 +1468,8 @@
         orderNumber: orderNumber,
         orderHash: currentOrderHash,
         amount: amount,
-        shopId: orderShopId
+        shopId: orderShopId,
+        lotteryKind: ltForBadge
       }, 'pay-qr');
       var payShopEl = document.getElementById('pay-shop-number');
       if (payShopEl) payShopEl.textContent = orderShopNumber;
@@ -2295,7 +2371,8 @@
           orderNumber,
           orderHash: currentOrderHash,
           amount: totalAmount,
-          shopId: currentShop.shop_id
+          shopId: currentShop.shop_id,
+          lotteryKind: clientLotteryMode
         };
         renderPaymentQR(qrInfo, 'pay-qr');
         var payShopEl = document.getElementById('pay-shop-number');
@@ -2366,11 +2443,15 @@
       }
     }
 
-    // 生成二维码：包含订单号 + 防伪hash，既可用于付款也可用于兑奖
+    // 生成二维码：Lotería / TICA / NICA 同一套逻辑；载荷含 lotteryKind 便于收银端核对。热敏打印建议稍大模块 + 高纠错。
     function renderPaymentQR(info, targetId = 'pay-qr') {
       const qrContainer = document.getElementById(targetId);
       if (!qrContainer) return;
       qrContainer.innerHTML = '';
+
+      var lk = info.lotteryKind != null ? String(info.lotteryKind).toUpperCase()
+        : (info.lottery_type != null ? String(info.lottery_type).toUpperCase() : '');
+      if (lk !== 'TICA' && lk !== 'NICA') lk = 'NACIONAL';
 
       const payload = {
         type: 'lottery_order',
@@ -2378,11 +2459,12 @@
         orderNumber: info.orderNumber,
         orderHash: info.orderHash,
         amount: info.amount,
-        shopId: info.shopId
+        shopId: info.shopId,
+        lotteryKind: lk
       };
       const text = JSON.stringify(payload);
 
-      const placeholderSvg = '<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="block"><rect width="200" height="200" fill="#fff"/><rect x="10" y="10" width="50" height="50" fill="#000"/><rect x="65" y="10" width="8" height="8" fill="#000"/><rect x="78" y="10" width="8" height="8" fill="#000"/><rect x="140" y="10" width="50" height="50" fill="#000"/><rect x="10" y="65" width="8" height="8" fill="#000"/><rect x="23" y="65" width="8" height="8" fill="#000"/><rect x="65" y="65" width="70" height="70" fill="#000" opacity="0.15"/><rect x="78" y="78" width="44" height="44" fill="#fff"/><rect x="85" y="85" width="8" height="8" fill="#000"/><rect x="98" y="85" width="8" height="8" fill="#000"/><rect x="85" y="98" width="8" height="8" fill="#000"/><rect x="98" y="98" width="8" height="8" fill="#000"/><rect x="10" y="140" width="50" height="50" fill="#000"/><rect x="140" y="65" width="8" height="8" fill="#000"/><rect x="153" y="65" width="8" height="8" fill="#000"/><rect x="140" y="140" width="50" height="50" fill="#000"/></svg>';
+      const placeholderSvg = '<svg width="220" height="220" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" class="block"><rect width="220" height="220" fill="#fff"/><rect x="11" y="11" width="55" height="55" fill="#000"/><rect x="72" y="11" width="9" height="9" fill="#000"/><rect x="86" y="11" width="9" height="9" fill="#000"/><rect x="154" y="11" width="55" height="55" fill="#000"/><rect x="11" y="72" width="9" height="9" fill="#000"/><rect x="25" y="72" width="9" height="9" fill="#000"/><rect x="72" y="72" width="77" height="77" fill="#000" opacity="0.15"/><rect x="86" y="86" width="49" height="49" fill="#fff"/><rect x="94" y="94" width="9" height="9" fill="#000"/><rect x="108" y="94" width="9" height="9" fill="#000"/><rect x="94" y="108" width="9" height="9" fill="#000"/><rect x="108" y="108" width="9" height="9" fill="#000"/><rect x="11" y="154" width="55" height="55" fill="#000"/><rect x="154" y="72" width="9" height="9" fill="#000"/><rect x="168" y="72" width="9" height="9" fill="#000"/><rect x="154" y="154" width="55" height="55" fill="#000"/></svg>';
       var QR = typeof QRCode !== 'undefined' ? QRCode : (typeof qrcode !== 'undefined' ? qrcode : null);
       if (!QR || typeof QR.toCanvas !== 'function') {
         qrContainer.innerHTML = placeholderSvg;
@@ -2393,7 +2475,12 @@
       qrContainer.appendChild(canvas);
 
       try {
-        QR.toCanvas(canvas, text, { width: 200, margin: 1 }, function (err) {
+        QR.toCanvas(canvas, text, {
+          width: 220,
+          margin: 2,
+          errorCorrectionLevel: 'H',
+          color: { dark: '#000000', light: '#ffffff' }
+        }, function (err) {
           if (err) qrContainer.innerHTML = placeholderSvg;
         });
       } catch (e) {
@@ -2431,11 +2518,13 @@
           }
           const data = await res.json();
           const isPaid = data.status === 1 || data.status === 'paid';
-          if (isPaid) {
-            stopStatusPolling();
-            var ltPoll = data.lottery_type != null ? data.lottery_type : data.lotteryType;
-            showConfirmedState(orderNumber, data.amount, ltPoll);
+          if (!isPaid) {
+            syncUnpaidOrderFromServer(orderNumber, data);
+            return;
           }
+          stopStatusPolling();
+          var ltPoll = data.lottery_type != null ? data.lottery_type : data.lotteryType;
+          showConfirmedState(orderNumber, data.amount, ltPoll);
         } catch (err) {
           console.error(err);
         }
@@ -2519,7 +2608,7 @@
       } catch (ePl2) {}
 
       renderPaymentQR(
-        { orderId: currentOrderId, orderNumber, orderHash: currentOrderHash, amount, shopId: orderShopId },
+        { orderId: currentOrderId, orderNumber, orderHash: currentOrderHash, amount, shopId: orderShopId, lotteryKind: orderLt },
         'confirmed-qr'
       );
       try { updateClientOrderLotteryKindBadge(orderLt, 'confirmed'); } catch (eBc) {}
@@ -3085,13 +3174,17 @@
           renderOrderDetailFromApi(initialNumbers, info.game_type, 'confirmed-order-detail');
         }
 
+        var _lkOpen = (info.lottery_type != null && String(info.lottery_type).trim() !== '')
+          ? canonicalClientOrderLotteryType(info.lottery_type)
+          : 'NACIONAL';
         renderPaymentQR(
           {
             orderId: info.orderId != null ? info.orderId : null,
             orderNumber: orderNumber != null ? orderNumber : info.orderNumber,
             orderHash: info.orderHash != null ? info.orderHash : null,
             amount: info.amount,
-            shopId: info.shopId != null ? info.shopId : null
+            shopId: info.shopId != null ? info.shopId : null,
+            lotteryKind: _lkOpen
           },
           'confirmed-qr'
         );

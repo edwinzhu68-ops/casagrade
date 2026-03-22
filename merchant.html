@@ -518,9 +518,10 @@
   </div>
 
   <!-- 订单详情弹窗（z 高于本期订单弹窗，点单号时详情盖在本期订单上） -->
-  <div id="modal-order" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)closeModal('modal-order')">
-    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md">
-      <div class="text-center mb-4">
+  <div id="modal-order" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)closeOrderDetailModal()">
+    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+      <button type="button" onclick="closeOrderDetailModal()" class="absolute top-3 right-3 z-10 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white text-2xl leading-none rounded-lg hover:bg-gray-700/80" data-i18n-title="modal_close_x" title="关闭" aria-label="Close">&times;</button>
+      <div class="text-center mb-4 pr-10">
         <div class="text-4xl mb-2">📝</div>
         <h2 class="text-xl font-bold" data-i18n="order_detail_title">订单详情</h2>
       </div>
@@ -532,11 +533,16 @@
         </div>
         <div class="flex justify-between mb-2">
           <span class="text-gray-400" data-i18n="amount_label">金额</span>
-          <span class="text-3xl font-bold text-green-400"><span id="detail-amount">0</span></span>
+          <span class="text-3xl font-bold text-green-400">$<span id="detail-amount">0</span></span>
         </div>
-        <div class="border-t border-gray-600 pt-2 mt-2">
+        <div id="detail-numbers-view-wrap" class="border-t border-gray-600 pt-2 mt-2">
           <p class="text-gray-400 text-sm mb-2" data-i18n="numbers_label">号码</p>
           <div id="detail-numbers" class="font-mono text-sm space-y-1"></div>
+        </div>
+        <div id="detail-numbers-edit-wrap" class="hidden border-t border-gray-600 pt-2 mt-2">
+          <p class="text-gray-400 text-xs mb-2" data-i18n="order_edit_hint">修改号码与数量后保存；金额按票价自动重算（不换单号）。</p>
+          <div id="detail-edit-rows" class="space-y-2 max-h-52 overflow-y-auto"></div>
+          <button type="button" onclick="addDetailEditRow('', 1)" class="mt-2 w-full py-2 rounded-lg bg-gray-600/80 text-sm font-bold text-white" data-i18n="order_edit_add_line">+ 添加一行</button>
         </div>
         <div id="detail-win-section" class="hidden mt-2 pt-2 border-t border-gray-600">
           <p class="text-gray-400 text-sm mb-1" data-i18n="win_amount_label">中奖金额</p>
@@ -544,17 +550,21 @@
           <p class="text-gray-400 text-xs mt-2 mb-1" data-i18n="win_numbers_label">中奖号码</p>
           <div id="detail-win-breakdown" class="font-mono text-sm space-y-0.5 text-emerald-200"></div>
         </div>
-        <div class="mt-2 pt-2 border-t border-gray-600">
+        <div id="detail-status-row" class="mt-2 pt-2 border-t border-gray-600">
           <span class="text-gray-400" data-i18n="status_label">状态</span>: <span id="detail-status" class="font-bold"></span>
         </div>
       </div>
 
-      <div class="flex gap-3">
-        <button onclick="closeModal('modal-order')" class="flex-1 bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="close">关闭</button>
-        <button id="modal-btn-print" onclick="printCurrentOrder()" class="hidden flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold">🖨️</button>
-        <button id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 bg-red-700 text-white py-4 rounded-xl font-bold" data-i18n="btn_delete">🗑 删除</button>
-        <button id="modal-btn-confirm-pay" onclick="confirmPayment()" class="hidden flex-1 bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_confirm_pay">确认收款</button>
-        <button id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 bg-amber-500 text-white py-4 rounded-xl font-bold" data-i18n="redeem_title">兑奖</button>
+      <div id="modal-order-actions-edit" class="hidden flex gap-3 flex-wrap">
+        <button type="button" onclick="cancelOrderDetailEdit()" class="flex-1 min-w-[40%] bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="order_edit_cancel">取消编辑</button>
+        <button type="button" onclick="saveOrderDetailEdit()" class="flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="order_edit_save">保存修改</button>
+      </div>
+      <div id="modal-order-actions-normal" class="flex gap-3 flex-wrap">
+        <button type="button" id="modal-btn-modify" onclick="enterOrderDetailEdit()" class="hidden flex-1 min-w-[30%] bg-amber-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_modify_order">修改</button>
+        <button type="button" id="modal-btn-print" onclick="printCurrentOrder()" class="hidden flex-1 min-w-[30%] bg-blue-600 text-white py-4 rounded-xl font-bold">🖨️</button>
+        <button type="button" id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 min-w-[30%] bg-red-700 text-white py-4 rounded-xl font-bold" data-i18n="btn_delete">🗑 删除</button>
+        <button type="button" id="modal-btn-confirm-pay" onclick="confirmPayment()" class="hidden flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_confirm_pay">确认收款</button>
+        <button type="button" id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 min-w-[40%] bg-amber-500 text-white py-4 rounded-xl font-bold" data-i18n="redeem_title">兑奖</button>
       </div>
     </div>
   </div>
@@ -941,6 +951,16 @@
         reg_whatsapp_btn: '加入 WhatsApp 客服群',
         btn_reconnect: '重连',
         btn_delete: '🗑 删除',
+        btn_modify_order: '✏️ 修改',
+        modal_close_x: '关闭',
+        order_edit_hint: '待付款/已付款均可改：保存后金额按票价重算。顾客在付款页会随轮询自动更新明细与二维码；已开奖/已中奖不可改。',
+        order_edit_add_line: '+ 添加一行',
+        order_edit_cancel: '取消编辑',
+        order_edit_save: '保存修改',
+        alert_order_update_ok: '订单已更新',
+        alert_order_update_fail: '更新订单失败',
+        alert_order_edit_need_login: '请先登录后再修改订单',
+        alert_order_edit_empty: '请至少填写一行有效号码',
         no_orders: '暂无订单',
         delete_confirm_title: '确认删除订单？',
         delete_confirm_desc: '此操作无法撤回，订单将被永久删除。',
@@ -1222,6 +1242,16 @@
         reg_whatsapp_btn: 'Unirse al grupo de WhatsApp',
         btn_reconnect: 'Reconectar',
         btn_delete: '🗑 Eliminar',
+        btn_modify_order: '✏️ Editar',
+        modal_close_x: 'Cerrar',
+        order_edit_hint: 'Pendientes o pagados: guarde y el monto se recalcula. El cliente en pago se actualiza al sondear. No tras sorteo/premio.',
+        order_edit_add_line: '+ Añadir línea',
+        order_edit_cancel: 'Cancelar edición',
+        order_edit_save: 'Guardar cambios',
+        alert_order_update_ok: 'Pedido actualizado',
+        alert_order_update_fail: 'No se pudo actualizar el pedido',
+        alert_order_edit_need_login: 'Inicie sesión para editar',
+        alert_order_edit_empty: 'Agregue al menos una línea válida',
         no_orders: 'Sin pedidos',
         delete_confirm_title: '¿Confirmar eliminación?',
         delete_confirm_desc: 'Esta acción no se puede deshacer. El pedido será eliminado permanentemente.',
@@ -1352,6 +1382,7 @@
     let authToken = null;
     applyMerchantLang();
     let currentOrder = null;
+    let orderDetailEditMode = false;
     let lastUnpaidOrders = [];
     /** 与当前工作台彩种一致的订单子集，供待兑奖列表筛选 */
     let lastWorkbenchScopedOrders = [];
@@ -3585,6 +3616,7 @@
     }
 
     function showOrderDetail(order, hashFromQR) {
+      exitOrderDetailEdit();
       currentOrder = order;
       currentOrder._hash = hashFromQR || null;
       var statusColors = ['text-orange-400', 'text-green-400', 'text-blue-400', 'text-purple-400'];
@@ -3645,12 +3677,15 @@
         winSection.classList.add('hidden');
       }
 
-      // 按钮显隐：未付款→确认付款，已中奖未兑→兑奖，其余隐藏
+      // 按钮显隐：未付款→确认付款，已中奖未兑→兑奖；待付款/已付款可修改（已开奖/已中奖后端拒绝）
       var isPending = order.status === 0 || order.status === 'pending';
       var isWonNotRedeemed = isWon && !(order.redeemed_at && order.redeemed_at !== '' && order.redeemed_at !== 'null');
+      var canModifyOrder = isPending || order.status === 1 || order.status === 'paid';
       document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
       document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
       document.getElementById('modal-btn-print').classList.toggle('hidden', !_printerChar);
+      var modBtn = document.getElementById('modal-btn-modify');
+      if (modBtn) modBtn.classList.toggle('hidden', !canModifyOrder);
 
       document.getElementById('modal-order').classList.remove('hidden');
     }
@@ -3760,8 +3795,194 @@
 
     function closeModal(id) {
       document.getElementById(id).classList.add('hidden');
-      if (id === 'modal-order') { currentOrder = null; paymentInProgress = false; }
+      if (id === 'modal-order') {
+        exitOrderDetailEdit();
+        currentOrder = null;
+        paymentInProgress = false;
+      }
       if (id === 'modal-redeem') { currentRedeemOrder = null; redeemInProgress = false; }
+    }
+
+    function closeOrderDetailModal() {
+      closeModal('modal-order');
+    }
+
+    function exitOrderDetailEdit() {
+      orderDetailEditMode = false;
+      var ne = document.getElementById('modal-order-actions-edit');
+      var nn = document.getElementById('modal-order-actions-normal');
+      if (ne) ne.classList.add('hidden');
+      if (nn) nn.classList.remove('hidden');
+      var vw = document.getElementById('detail-numbers-view-wrap');
+      var ew = document.getElementById('detail-numbers-edit-wrap');
+      if (vw) vw.classList.remove('hidden');
+      if (ew) {
+        ew.classList.add('hidden');
+        var er = document.getElementById('detail-edit-rows');
+        if (er) er.innerHTML = '';
+      }
+    }
+
+    function bindDetailEditInputs() {
+      var rows = document.querySelectorAll('#detail-edit-rows .detail-edit-row');
+      rows.forEach(function (row) {
+        var ni = row.querySelector('.detail-edit-n');
+        var qi = row.querySelector('.detail-edit-q');
+        if (ni) ni.oninput = function () { updateDetailEditAmountPreview(); };
+        if (qi) qi.oninput = function () { updateDetailEditAmountPreview(); };
+      });
+    }
+
+    function appendOneDetailEditRow(n, q) {
+      var container = document.getElementById('detail-edit-rows');
+      if (!container) return;
+      var div = document.createElement('div');
+      div.className = 'detail-edit-row flex gap-2 items-center';
+      var qv = Math.max(1, Math.min(999, parseInt(q, 10) || 1));
+      div.innerHTML = '<input type="text" class="detail-edit-n flex-1 min-w-0 px-2 py-2 bg-gray-800 rounded-lg font-mono text-sm border border-gray-600" maxlength="10" value="' + esc(String(n || '')) + '">' +
+        '<input type="number" class="detail-edit-q w-16 px-1 py-2 bg-gray-800 rounded-lg text-sm border border-gray-600" min="1" max="999" value="' + qv + '">' +
+        '<button type="button" class="detail-edit-remove shrink-0 text-red-400 px-2 text-lg leading-none" onclick="removeDetailEditRow(this)">&times;</button>';
+      container.appendChild(div);
+    }
+
+    function renderDetailEditRowsFromOrder() {
+      var container = document.getElementById('detail-edit-rows');
+      if (!container || !currentOrder) return;
+      container.innerHTML = '';
+      var nums = currentOrder.numbers || [];
+      if (nums.length === 0) {
+        appendOneDetailEditRow('', 1);
+      } else {
+        nums.forEach(function (n) {
+          var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
+          var qty = Number(n.q != null ? n.q : (n.quantity != null ? n.quantity : 1)) || 1;
+          appendOneDetailEditRow(numVal, qty);
+        });
+      }
+      bindDetailEditInputs();
+      updateDetailEditAmountPreview();
+    }
+
+    function addDetailEditRow(n, q) {
+      appendOneDetailEditRow(n != null ? n : '', q != null ? q : 1);
+      bindDetailEditInputs();
+      updateDetailEditAmountPreview();
+    }
+
+    function removeDetailEditRow(btn) {
+      var row = btn && btn.closest ? btn.closest('.detail-edit-row') : null;
+      var container = document.getElementById('detail-edit-rows');
+      if (!row || !container) return;
+      row.remove();
+      if (!container.querySelector('.detail-edit-row')) {
+        appendOneDetailEditRow('', 1);
+        bindDetailEditInputs();
+      }
+      updateDetailEditAmountPreview();
+    }
+
+    function collectDetailEditLines() {
+      var rows = document.querySelectorAll('#detail-edit-rows .detail-edit-row');
+      var out = [];
+      rows.forEach(function (row) {
+        var ni = row.querySelector('.detail-edit-n');
+        var qi = row.querySelector('.detail-edit-q');
+        if (!ni || !qi) return;
+        var n = String(ni.value || '').trim();
+        var q = parseInt(qi.value, 10) || 0;
+        if (!n) return;
+        out.push({ n: n, q: Math.max(1, Math.min(999, q <= 0 ? 1 : q)) });
+      });
+      return out;
+    }
+
+    function updateDetailEditAmountPreview() {
+      var lines = collectDetailEditLines();
+      var priceBillete = 1;
+      var priceChance = 0.25;
+      try { var _pb = parseFloat(localStorage.getItem('price_billete')); if (!isNaN(_pb) && _pb > 0) priceBillete = _pb; } catch (e) {}
+      try { var _pc = parseFloat(localStorage.getItem('price_chance')); if (!isNaN(_pc) && _pc > 0) priceChance = _pc; } catch (e) {}
+      var total = 0;
+      lines.forEach(function (item) {
+        var numLen = String(item.n).replace(/\D/g, '').length;
+        var unit = numLen >= 4 ? priceBillete : priceChance;
+        total += unit * item.q;
+      });
+      total = Math.round(total * 100) / 100;
+      var el = document.getElementById('detail-amount');
+      if (el) el.textContent = total.toFixed(2);
+    }
+
+    function enterOrderDetailEdit() {
+      if (!currentOrder) return;
+      orderDetailEditMode = true;
+      var nn = document.getElementById('modal-order-actions-normal');
+      var ne = document.getElementById('modal-order-actions-edit');
+      if (nn) nn.classList.add('hidden');
+      if (ne) ne.classList.remove('hidden');
+      var vw = document.getElementById('detail-numbers-view-wrap');
+      var ew = document.getElementById('detail-numbers-edit-wrap');
+      if (vw) vw.classList.add('hidden');
+      if (ew) ew.classList.remove('hidden');
+      var winSection = document.getElementById('detail-win-section');
+      if (winSection) winSection.classList.add('hidden');
+      renderDetailEditRowsFromOrder();
+    }
+
+    function cancelOrderDetailEdit() {
+      if (!currentOrder) {
+        exitOrderDetailEdit();
+        return;
+      }
+      var h = currentOrder._hash;
+      exitOrderDetailEdit();
+      showOrderDetail(currentOrder, h);
+    }
+
+    async function saveOrderDetailEdit() {
+      if (!currentOrder || !currentShop) return;
+      var token = authToken || localStorage.getItem('lottery_token');
+      if (!token) {
+        showToast(t('alert_order_edit_need_login'), 'error');
+        return;
+      }
+      var lines = collectDetailEditLines();
+      if (lines.length === 0) {
+        showToast(t('alert_order_edit_empty'), 'error');
+        return;
+      }
+      var num = currentOrder.order_number || currentOrder.orderNumber;
+      if (!num) return;
+      try {
+        var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(num)), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ shopId: currentShop.shop_id, numbers: lines })
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          showToast(pickApiBilingualMessage(data) || (data && data.message) || t('alert_order_update_fail'), 'error');
+          return;
+        }
+        showToast(t('alert_order_update_ok'), 'success');
+        var fresh = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(num))).then(function (r) { return r.ok ? r.json() : null; });
+        if (fresh) {
+          showOrderDetail(fresh, currentOrder._hash);
+          // 与「确认收款」一致：已启用打印且已连接时，用最新订单数据自动出票
+          try {
+            autoPrintOrder(fresh);
+          } catch (ePrint) {}
+        } else {
+          exitOrderDetailEdit();
+        }
+        try { loadDashboard(); } catch (eLd) {}
+        try {
+          var pf = document.getElementById('period-order-filter');
+          renderPeriodOrderList(pf && pf.value ? pf.value : '');
+        } catch (ePer) {}
+      } catch (err) {
+        showToast(err.message || t('alert_order_update_fail'), 'error');
+      }
     }
 
     async function confirmPayment() {
