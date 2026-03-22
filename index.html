@@ -2621,6 +2621,8 @@
       var isWon = winAmt > 0;
       var s = o.status;
       var wonByStatus = s === 'won' || s === 3 || s === '3' || (typeof s === 'string' && s.trim().toLowerCase() === 'won');
+      // 已兑奖的订单（含中奖已兑奖）一律视为历史，显示 ↩ 按钮
+      if (clientOrderIsRedeemed(o)) return true;
       if (isWon || wonByStatus) return false;
       var settled = s === 'settled' || s === 2 || s === '2' ||
         (typeof s === 'string' && s.trim().toLowerCase() === 'settled');
