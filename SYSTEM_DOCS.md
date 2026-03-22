@@ -101,6 +101,26 @@ pending → (开奖) → completed → (clear-settlement) → archived_at=NOW()
 
 **Why分两步**：completed到archived之间给商户时间兑奖，不被新期冲掉
 
+### TICA / NICA（店内彩种）期次与结算页（与全国 Lotería 不同）
+
+业务规则（`result.html` TICA/NICA 工作台已按此展示）：
+
+1. **「开奖结果」区块**：始终展示 **上一已结算期** 的三个开奖号（上期）。当前正在销售的期号还没有开奖号时，这里仍是上一期的号码。
+2. **店主录入的三个两位数**：针对 **`/api/local-lottery/current` 返回的当前销售期**（例如第 10 期正在接单）。点击确认开奖并调用 `POST /api/local-lottery/settle` 后：
+   - 第 10 期应立即完成结算（订单状态更新、赔付计算）；
+   - 系统应 **自动创建下一销售期**（例如第 11 期）用于新单；
+   - **结算页主统计区**（销售额 / 总赔付 / 利润 / 下方已付款订单列表）应对应 **刚结算完的那一期（第 10 期）**，而不是新开第 11 期的单子。
+3. **再次开奖**：店主再录入时，结算的是第 11 期，创建第 12 期；页面统计变为第 11 期，**第 10 期进入历史**。
+
+**后端建议**
+
+- `GET /api/local-lottery/current`：仅返回 **当前开放接单** 的 `draw_id`（新期）。
+- 可选：`GET /api/local-lottery/last-settled?shopId=&kind=` 返回 **上一已结算期** 的 `draw_id` + `n1,n2,n3`，供前端优先展示（与订单推导一致时更稳）。
+- `settle` 响应建议带 `completed_draw_id`（或等价字段）及三个开奖号，便于前端立即刷新 UI。
+- 前端 `result.html` 会**依次尝试**：`POST /api/local-lottery/settle`、`POST /api/shop/local-lottery/settle`、`POST /api/merchant/local-lottery/settle`（至少实现其一；请求体含 `shopId, kind, n1, n2, n3`）。
+
+前端在无 `last-settled`、响应体不完整时，会用「小于当前 `draw_id` 的已付款订单中最大的 `draw_id`」推断上一期，并用 `sessionStorage` 缓存最近一次 settle 的号码作兜底。
+
 ### 订单状态
 ```
 0(待付) → 1(已付) → 2(未中奖) / 3(已中奖) → redeemed_at=NOW()

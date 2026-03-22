@@ -42,6 +42,19 @@
       <button id="btn-lang-main" onclick="toggleMainLang()" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-gray-700 transition">🇨🇳 中文</button>
       <div id="refresh-dot" class="w-2 h-2 rounded-full bg-gray-600"></div>
       </div>
+    </div>
+
+  <!-- 彩种切换（与门店工作台数据口径一致；仅顶部，无底部导航） -->
+  <div id="main-workbench-row" class="hidden max-w-2xl mx-auto px-4 pt-3">
+    <p class="text-[11px] text-gray-500 mb-1.5 text-center" data-i18n="workbench_hint">汇总范围随彩种切换；不含其他彩种订单</p>
+    <div class="flex rounded-xl overflow-hidden border border-gray-600 bg-gray-800/90 shadow-inner">
+      <button type="button" id="main-tab-nacional" onclick="setMainWorkbenchKind('NACIONAL')" data-i18n="tab_loteria"
+        class="flex-1 py-2.5 text-xs font-bold bg-green-600 text-white">Lotería</button>
+      <button type="button" id="main-tab-tica" onclick="setMainWorkbenchKind('TICA')" data-i18n="tab_tica"
+        class="hidden flex-1 py-2.5 text-xs font-bold text-gray-400 bg-gray-800">TICA</button>
+      <button type="button" id="main-tab-nica" onclick="setMainWorkbenchKind('NICA')" data-i18n="tab_nica"
+        class="hidden flex-1 py-2.5 text-xs font-bold text-gray-400 bg-gray-800">NICA</button>
+    </div>
   </div>
 
   <div class="max-w-2xl mx-auto px-4 pt-4 space-y-5">
@@ -310,6 +323,10 @@ const MAIN_T = {
     history_period_label: 'Sorteo',
     badge_fixed_suffix: ' (datos fijos)',
     refresh_time_suffix: ' Actualizado',
+    workbench_hint: 'Los totales cambian según la pestaña; no mezcla otras loterías.',
+    tab_loteria: 'Lotería',
+    tab_tica: 'TICA',
+    tab_nica: 'NICA',
   },
   zh: {
     page_title: '🎰 大庄管理中心',
@@ -360,6 +377,10 @@ const MAIN_T = {
     history_period_label: '第',
     badge_fixed_suffix: '（数据已固定）',
     refresh_time_suffix: ' 更新',
+    workbench_hint: '汇总随彩种切换，不含其他彩种订单。',
+    tab_loteria: 'Lotería',
+    tab_tica: 'TICA',
+    tab_nica: 'NICA',
   }
 };
 function getMainLang() { return localStorage.getItem(MAIN_LANG_KEY) || 'es'; }
@@ -380,10 +401,30 @@ function applyMainLang() {
   });
   var btn = document.getElementById('btn-lang-main');
   if (btn) btn.textContent = tm('lang_toggle');
+  try { syncMainWorkbenchTabs(); } catch (e) {}
 }
 // ─────────────────────────────────────────────────────────
 
-const API = 'https://api.casagrade.com/api';
+const API = (function resolveMainShopApiBase() {
+  try {
+    var saved = localStorage.getItem('lottery_api_base');
+    if (saved != null && String(saved).trim() !== '') {
+      var b = String(saved).trim().replace(/\/$/, '');
+      return b.replace(/\/api\/?$/i, '');
+    }
+  } catch (e) {}
+  if (typeof location !== 'undefined') {
+    var h = location.hostname || '';
+    if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:3000';
+    if (location.protocol === 'file:') return 'http://localhost:3000';
+  }
+  return 'https://api.casagrade.com';
+})() + '/api';
+
+const MAIN_SHOP_WORKBENCH_KEY = 'main_shop_workbench_kind';
+let mainWorkbenchKind = 'NACIONAL';
+let mainShopTicaEnabled = false;
+let mainShopNicaEnabled = false;
 
 function getMainHeaders(includeJson = false) {
   const token = localStorage.getItem('lottery_token') || '';
@@ -420,6 +461,82 @@ let mainBilleteSales = {};
 let shopNumberData = {}; // { shopId: { chance: {}, billete: {}, name: '' } }
 let currentShopDetail = null; // 当前弹窗展示的店铺数据
 
+const MERCHANT_SHOP_LOCAL_FLAGS_KEY = 'merchant_shop_local_flags';
+
+function mergeMainShopLocalFlags(shop) {
+  if (!shop || shop.shop_id == null) return;
+  try {
+    var raw = localStorage.getItem(MERCHANT_SHOP_LOCAL_FLAGS_KEY);
+    if (!raw) return;
+    var j = JSON.parse(raw);
+    if (!j || Number(j.shop_id) !== Number(shop.shop_id)) return;
+    shop.tica_enabled = !!(shop.tica_enabled || j.tica_enabled);
+    shop.nica_enabled = !!(shop.nica_enabled || j.nica_enabled);
+  } catch (e) {}
+}
+
+function normalizeMainWorkbenchKind() {
+  var k = (mainWorkbenchKind || 'NACIONAL').toUpperCase();
+  if (k !== 'NACIONAL' && k !== 'TICA' && k !== 'NICA') k = 'NACIONAL';
+  if (k === 'TICA' && !mainShopTicaEnabled) k = 'NACIONAL';
+  if (k === 'NICA' && !mainShopNicaEnabled) k = 'NACIONAL';
+  mainWorkbenchKind = k;
+  try { sessionStorage.setItem(MAIN_SHOP_WORKBENCH_KEY, k); } catch (e) {}
+}
+
+function syncMainWorkbenchTabs() {
+  var row = document.getElementById('main-workbench-row');
+  var bL = document.getElementById('main-tab-nacional');
+  var bT = document.getElementById('main-tab-tica');
+  var bN = document.getElementById('main-tab-nica');
+  if (!row || !bL) return;
+  var any = mainShopTicaEnabled || mainShopNicaEnabled;
+  row.classList.toggle('hidden', !any);
+  if (bT) {
+    bT.classList.toggle('hidden', !mainShopTicaEnabled);
+    bT.className = 'flex-1 py-2.5 text-xs font-bold ' + (mainWorkbenchKind === 'TICA'
+      ? 'bg-blue-600 text-white'
+      : 'text-gray-400 bg-gray-800 hover:bg-gray-700');
+  }
+  if (bN) {
+    bN.classList.toggle('hidden', !mainShopNicaEnabled);
+    bN.className = 'flex-1 py-2.5 text-xs font-bold ' + (mainWorkbenchKind === 'NICA'
+      ? 'bg-purple-600 text-white'
+      : 'text-gray-400 bg-gray-800 hover:bg-gray-700');
+  }
+  bL.className = 'flex-1 py-2.5 text-xs font-bold ' + (mainWorkbenchKind === 'NACIONAL'
+    ? 'bg-green-600 text-white'
+    : 'text-gray-400 bg-gray-800 hover:bg-gray-700');
+}
+
+function initMainWorkbenchSession() {
+  try {
+    if (!sessionStorage.getItem(MAIN_SHOP_WORKBENCH_KEY)) {
+      var m = sessionStorage.getItem('merchant_workbench_kind');
+      if (m && ['NACIONAL', 'TICA', 'NICA'].indexOf(String(m).toUpperCase()) !== -1) {
+        sessionStorage.setItem(MAIN_SHOP_WORKBENCH_KEY, String(m).toUpperCase());
+      }
+    }
+    var k = sessionStorage.getItem(MAIN_SHOP_WORKBENCH_KEY) || 'NACIONAL';
+    mainWorkbenchKind = String(k).toUpperCase();
+  } catch (e) {
+    mainWorkbenchKind = 'NACIONAL';
+  }
+  normalizeMainWorkbenchKind();
+}
+
+function setMainWorkbenchKind(next) {
+  var k = String(next || 'NACIONAL').toUpperCase();
+  if (k !== 'NACIONAL' && k !== 'TICA' && k !== 'NICA') k = 'NACIONAL';
+  if (k === 'TICA' && !mainShopTicaEnabled) k = 'NACIONAL';
+  if (k === 'NICA' && !mainShopNicaEnabled) k = 'NACIONAL';
+  mainWorkbenchKind = k;
+  try { sessionStorage.setItem(MAIN_SHOP_WORKBENCH_KEY, k); } catch (e) {}
+  syncMainWorkbenchTabs();
+  loadCurrentData();
+  loadHistory();
+}
+
 // ─── Toast ───
 function showToast(msg, icon = '✅', duration = 2000) {
   document.getElementById('toast-icon').textContent = icon;
@@ -428,48 +545,77 @@ function showToast(msg, icon = '✅', duration = 2000) {
   setTimeout(() => document.getElementById('modal-toast').classList.add('hidden'), duration);
 }
 
+const MAIN_SHOP_CACHE_JSON_KEY = 'main_shop_cache_json';
+
 // ─── 自动登录（复用 merchant.html 的登录状态与 session）───
 async function autoLogin() {
   const token = localStorage.getItem('lottery_token');
   const sessionToken = localStorage.getItem('lottery_session_token') || '';
   if (!token) {
     document.getElementById('page-unauth').classList.remove('hidden');
+    document.getElementById('page-main').classList.add('hidden');
     return;
   }
+  document.getElementById('page-unauth').classList.add('hidden');
+  document.getElementById('page-main').classList.remove('hidden');
+  try {
+    var cached = JSON.parse(localStorage.getItem(MAIN_SHOP_CACHE_JSON_KEY) || 'null');
+    if (cached && cached.shop_id != null) {
+      currentShopId = cached.shop_id;
+      currentShopNumber = cached.shop_number || '';
+      currentShopName = cached.shop_name || '';
+      document.getElementById('hdr-shop-number').textContent = currentShopNumber;
+      document.getElementById('hdr-shop-name').textContent = currentShopName;
+      initMainWorkbenchSession();
+      normalizeMainWorkbenchKind();
+      syncMainWorkbenchTabs();
+      startAutoRefresh();
+      loadCurrentData();
+      loadHistory();
+    }
+  } catch (e) {}
+
   try {
     const sr = await fetch(`${API}/merchant/shops`, {
       headers: getMainHeaders()
     });
     if (sr.status === 401) {
-      // 与老板端逻辑一致：SESSION_EXPIRED 时清理本地登录状态
-      let d = {};
-      try { d = await sr.json(); } catch (e) {}
-      if (d.message === 'SESSION_EXPIRED') {
-        localStorage.removeItem('lottery_token');
-        localStorage.removeItem('lottery_session_token');
-        localStorage.removeItem('lottery_login_at');
-        localStorage.removeItem('lottery_login_ua');
-      }
-      document.getElementById('page-unauth').classList.remove('hidden');
+      // 保留本地 token，不跳回「请先登录」页
       return;
     }
     const sd = await safeJson(sr);
-    if (!sd.shops || sd.shops.length === 0) throw new Error('无店铺');
+    if (!sd.shops || sd.shops.length === 0) {
+      return;
+    }
 
     const shop = sd.shops[0];
     currentShopId = shop.shop_id;
     currentShopNumber = shop.shop_number;
     currentShopName = shop.shop_name || '';
+    try {
+      localStorage.setItem(MAIN_SHOP_CACHE_JSON_KEY, JSON.stringify({
+        shop_id: currentShopId,
+        shop_number: currentShopNumber,
+        shop_name: currentShopName,
+      }));
+    } catch (e2) {}
+    mergeMainShopLocalFlags(shop);
+    mainShopTicaEnabled = !!shop.tica_enabled;
+    mainShopNicaEnabled = !!shop.nica_enabled;
+    initMainWorkbenchSession();
+    normalizeMainWorkbenchKind();
+    syncMainWorkbenchTabs();
 
     document.getElementById('hdr-shop-number').textContent = currentShopNumber;
     document.getElementById('hdr-shop-name').textContent = currentShopName;
+    document.getElementById('page-unauth').classList.add('hidden');
     document.getElementById('page-main').classList.remove('hidden');
 
     loadCurrentData();
     loadHistory();
     startAutoRefresh();
   } catch (e) {
-    document.getElementById('page-unauth').classList.remove('hidden');
+    /* 有 token 时保持已展示的 main，不强制未登录页 */
   }
 }
 
@@ -487,25 +633,41 @@ let currentDrawStatus = 'pending';
 async function loadCurrentData() {
   const dot = document.getElementById('refresh-dot');
   if (dot) { dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse'; }
+  if (currentShopId == null || currentShopId === '') return;
 
   try {
-    const r = await fetch(`${API}/merchant/binding/sub-shop-data?mainShopId=${currentShopId}&drawId=0`, {
+    const r = await fetch(`${API}/merchant/binding/sub-shop-data?mainShopId=${currentShopId}&drawId=0&lotteryKind=${encodeURIComponent(mainWorkbenchKind)}`, {
       headers: getMainHeaders()
     });
     const d = await safeJson(r);
     currentDrawStatus = d.draw_status || 'pending';
     const currentDrawId = d.draw_id || 0;
 
-    // 状态角标 + 期次日期（统一 DD-MM-YYYY，支持中西文）
+    // 状态角标：全国 Lotería 带开奖日期；TICA/NICA 与日期无关，仅显示进行中/已开奖
     const badge = document.getElementById('draw-status-badge');
     if (badge) {
-      const dateStr = d.draw_date ? formatDateDDMM(d.draw_date) : '';
       const inProgress = currentDrawStatus === 'pending';
       const baseText = tm(inProgress ? 'badge_in_progress' : 'badge_draw_done');
-      let text = baseText + (dateStr ? ' · ' + dateStr : '');
-      if (!inProgress) text += tm('badge_fixed_suffix');
-      badge.textContent = text;
-      badge.className = 'ml-2 text-xs px-2 py-0.5 rounded-full ' + (inProgress ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400');
+      if (mainWorkbenchKind === 'TICA' || mainWorkbenchKind === 'NICA') {
+        // 与全国「开奖日期」角标同尺寸：显示 TICA/NICA 名称 + 当前期号或状态
+        const isT = mainWorkbenchKind === 'TICA';
+        const periodBit = (currentDrawId && Number(currentDrawId) > 0) ? ('#' + currentDrawId) : '';
+        const mid = periodBit || baseText;
+        let text = mainWorkbenchKind + ' · ' + mid;
+        if (!inProgress) text += tm('badge_fixed_suffix');
+        badge.textContent = text;
+        badge.className = 'ml-2 text-xs px-2 py-0.5 rounded-full ' + (
+          isT
+            ? (inProgress ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-950/60 text-blue-200')
+            : (inProgress ? 'bg-purple-900/50 text-purple-200' : 'bg-purple-950/60 text-purple-200')
+        );
+      } else {
+        const dateStr = d.draw_date ? formatDateDDMM(d.draw_date) : '';
+        let text = baseText + (dateStr ? ' · ' + dateStr : '');
+        if (!inProgress) text += tm('badge_fixed_suffix');
+        badge.textContent = text;
+        badge.className = 'ml-2 text-xs px-2 py-0.5 rounded-full ' + (inProgress ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400');
+      }
     }
 
     // 汇总卡片
@@ -556,7 +718,7 @@ async function loadCurrentData() {
 
     // 号码汇总（传入 draw_id 保证按当期过滤）
     if (d.sub_shops && d.sub_shops.length > 0) {
-      loadNumberSummary(d.sub_shops, currentDrawId);
+      loadNumberSummary(d.sub_shops, currentDrawId, mainWorkbenchKind);
     } else {
       renderNumberTop('main-chance-top', {});
       renderNumberTop('main-billete-top', {});
@@ -586,10 +748,12 @@ async function loadCurrentData() {
 
 
 // ─── 号码汇总 ───
-async function loadNumberSummary(subShops, drawId) {
+async function loadNumberSummary(subShops, drawId, lotteryKind) {
   const chanceSales = {};
   const billeteSales = {};
   shopNumberData = {};
+  const lk = (lotteryKind || mainWorkbenchKind || 'NACIONAL').toUpperCase();
+  const lkParam = lk === 'NACIONAL' ? '&lotteryKind=NACIONAL' : ('&lotteryKind=' + encodeURIComponent(lk));
   try {
     await Promise.all(subShops.map(async s => {
       const shopId = s.sub_shop_id || s.shopId;
@@ -597,14 +761,27 @@ async function loadNumberSummary(subShops, drawId) {
       const shopChance = {};
       const shopBillete = {};
       try {
-        const drawParam = drawId ? `&drawId=${drawId}` : '';
-        const r = await fetch(`${API}/shop/${shopId}/orders?limit=500${drawParam}`);
+        let drawParam = '';
+        if (lk === 'NACIONAL') {
+          if (drawId) drawParam = '&drawId=' + encodeURIComponent(drawId);
+        } else {
+          const pd = s.period_draw_id != null ? s.period_draw_id : null;
+          if (pd == null || Number(pd) <= 0) return;
+          drawParam = '&drawId=' + encodeURIComponent(pd);
+        }
+        const r = await fetch(`${API}/shop/${shopId}/orders?limit=500${drawParam}${lkParam}`, {
+          headers: getMainHeaders(),
+        });
         if (!r.ok) return;
         const d = await safeJson(r);
         const orders = d.orders || [];
         orders.forEach(order => {
           const isPaid = order.status === 1 || order.status === 'paid';
           if (!isPaid) return;
+          var olt = String(order.lottery_type || 'NACIONAL').toUpperCase();
+          if (lk === 'NACIONAL') {
+            if (olt !== 'NACIONAL' && olt !== '' && olt !== 'NULL') return;
+          } else if (olt !== lk) return;
           const list = order.numbers || order.bet_numbers || [];
           list.forEach(n => {
             const q = Number(n.q != null ? n.q : n.quantity) || 0;
@@ -744,8 +921,9 @@ function renderNumberTop(containerId, sales) {
 // ─── 历史记录 ───
 async function loadHistory() {
   const listEl = document.getElementById('history-list');
+  if (currentShopId == null || currentShopId === '') return;
   try {
-    const r = await fetch(`${API}/merchant/binding/history?mainShopId=${currentShopId}&limit=20`, {
+    const r = await fetch(`${API}/merchant/binding/history?mainShopId=${currentShopId}&limit=20&lotteryKind=${encodeURIComponent(mainWorkbenchKind)}`, {
       headers: getMainHeaders()
     });
     const d = await safeJson(r);
@@ -760,11 +938,13 @@ async function loadHistory() {
       const periodText = lang === 'zh'
         ? `第 ${h.draw_id} 期`
         : `${tm('history_period_label')} ${h.draw_id}`;
+      const isLocalKind = mainWorkbenchKind === 'TICA' || mainWorkbenchKind === 'NICA';
+      const dateSpan = isLocalKind ? '' : `<span class="text-xs text-gray-500 ml-2">${dateStr}</span>`;
       return `<div class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3">
         <div class="flex items-center justify-between">
           <div>
             <span class="text-sm font-semibold text-gray-300">${periodText}</span>
-            <span class="text-xs text-gray-500 ml-2">${dateStr}</span>
+            ${dateSpan}
           </div>
           <span class="text-xs text-gray-500">${tm('history_status_done')}</span>
         </div>

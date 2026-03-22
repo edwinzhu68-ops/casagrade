@@ -16,6 +16,7 @@
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     .hidden { display: none !important; }
+    #local-lottery-settings-details summary::-webkit-details-marker { display: none; }
   </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
@@ -132,7 +133,7 @@
   </div>
 
   <!-- 收银台主页 -->
-  <div id="page-cashier" class="hidden min-h-screen pb-20">
+  <div id="page-cashier" class="hidden min-h-screen pb-28">
     <header class="bg-gray-800 p-3 sticky top-0 z-10">
       <div class="max-w-2xl mx-auto">
         <div class="flex items-center justify-between mb-2">
@@ -143,6 +144,7 @@
             <div class="flex justify-center mt-1">
               <span id="draw-status-badge" class="hidden text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400"></span>
             </div>
+            <p id="merchant-mode-chip" class="hidden text-center text-[11px] text-purple-300 mt-1 font-bold tracking-wide"></p>
           </h1>
           <div class="flex items-center gap-3 justify-end">
             <button onclick="openSettings()" class="text-gray-400 hover:text-white text-sm flex items-center gap-1" data-i18n="settings_short">
@@ -171,12 +173,10 @@
     <main class="max-w-2xl mx-auto p-3 space-y-4">
       <!-- 顶部操作区：扫码收款/兑奖 + 结算 -->
       <div class="grid grid-cols-2 gap-3">
-        <button onclick="openScanDirect()" class="w-full bg-gradient-to-r from-green-500 to-green-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex flex-col items-center justify-center">
-          <span class="text-2xl mb-1">📷</span>
-          <span data-i18n="scan_pay">扫码</span>
+        <button onclick="openScanDirect()" class="w-full bg-gradient-to-r from-green-500 to-green-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center">
+          <span data-i18n="scan_pay">📷 扫码</span>
         </button>
-        <button onclick="openSettlement()" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex flex-col items-center justify-center gap-1">
-          <span class="text-2xl">📊</span>
+        <button onclick="openSettlement()" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center px-2">
           <span data-i18n="settlement">开奖结算</span>
         </button>
       </div>
@@ -280,7 +280,41 @@
       <!-- 隐藏的绑定状态区（仍需保留供 JS 更新角标） -->
       <div id="binding-status-area" class="hidden"></div>
 
+      <!-- TICA / NICA：可折叠；顾客端开关（放在工作台最下方） -->
+      <details id="local-lottery-settings-details" class="bg-gray-800 rounded-2xl border border-purple-900/40 group open:ring-1 open:ring-purple-500/30">
+        <summary class="font-bold cursor-pointer list-none flex justify-between items-center gap-2 p-4 select-none">
+          <span class="flex flex-wrap items-center gap-x-1 gap-y-1"><span data-i18n="local_lottery_settings_title">TICA / NICA</span> <span class="text-gray-400 font-normal text-xs" data-i18n="local_lottery_settings_subtitle">（两套独立彩种 · 顾客端入口 · 点击展开）</span><span id="merchant-local-lottery-summary-chips" class="text-[10px] font-bold"></span></span>
+          <span class="text-gray-400 text-sm transition-transform group-open:rotate-180">▼</span>
+        </summary>
+        <div class="px-4 pb-4 space-y-3 border-t border-gray-700/60 pt-3">
+          <div id="merchant-local-lottery-status-banner" class="hidden rounded-xl border border-amber-500/50 bg-amber-950/40 px-3 py-2.5 text-xs leading-relaxed text-amber-100 space-y-2.5">
+            <p class="text-[11px] font-bold text-amber-200/95" data-i18n="local_lottery_banner_title">顾客端开通状态（本机记录）</p>
+            <label class="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="shop-enable-tica" onchange="updateMerchantLocalLotteryClientStatusLines()" class="mt-0.5 w-4 h-4 rounded border-amber-600/60 bg-gray-900/50 shrink-0 accent-emerald-500" />
+              <span class="min-w-0 flex-1">
+                <span id="merchant-tica-client-line" class="block text-[13px] sm:text-sm text-gray-100"></span>
+                <span id="merchant-tica-client-ever" class="hidden block text-[10px] text-amber-300/90 mt-1 leading-snug"></span>
+              </span>
+            </label>
+            <label class="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="shop-enable-nica" onchange="updateMerchantLocalLotteryClientStatusLines()" class="mt-0.5 w-4 h-4 rounded border-amber-600/60 bg-gray-900/50 shrink-0 accent-emerald-500" />
+              <span class="min-w-0 flex-1">
+                <span id="merchant-nica-client-line" class="block text-[13px] sm:text-sm text-gray-100"></span>
+                <span id="merchant-nica-client-ever" class="hidden block text-[10px] text-amber-300/90 mt-1 leading-snug"></span>
+              </span>
+            </label>
+          </div>
+          <p class="text-xs text-gray-400">TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。</p>
+          <button type="button" onclick="saveLocalLotteryShopSettings()" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm">保存 TICA / NICA 设置</button>
+        </div>
+      </details>
+
     </main>
+
+    <!-- 底部：Lotería / TICA / NICA 工作台切换（开通后出现） -->
+    <nav id="merchant-workbench-nav" class="hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-950/95 border-t border-gray-700 backdrop-blur-sm pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <div class="max-w-2xl mx-auto px-2 py-2 flex gap-2 justify-center flex-wrap" id="merchant-workbench-nav-inner"></div>
+    </nav>
   </div>
 
 
@@ -493,7 +527,25 @@
         setTimeout(function() { el.parentNode && el.parentNode.removeChild(el); }, 300);
       }, 3500);
     }
-    const API_BASE = 'https://api.casagrade.com';
+    // 与顾客端 index.html 一致：本地打开用本机 API，避免收银台仍打线上而收不到 localhost:3000 的订单
+    var API_BASE = (function () {
+      function normalizeBase(s) {
+        s = String(s || '').trim().replace(/\/$/, '');
+        if (/\/api$/i.test(s)) s = s.replace(/\/api$/i, '');
+        return s;
+      }
+      try {
+        var saved = localStorage.getItem('lottery_api_base');
+        if (saved !== null && saved !== '') return normalizeBase(saved);
+      } catch (e) {}
+      if (typeof location !== 'undefined') {
+        var h = location.hostname || '';
+        if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:3000';
+        if (location.protocol === 'file:') return 'http://localhost:3000';
+      }
+      return 'https://api.casagrade.com';
+    })();
+    try { window.API_BASE = API_BASE; } catch (e) {}
     const DEBUG = false; // 上线设为 false，调试时可改为 true
 
     /** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
@@ -590,6 +642,18 @@
         alert_need_cashier: '请先登录收银台，再进入开奖结算。',
         alert_no_shop_info: '当前没有可用的店铺信息，请重新登录收银台。',
         alert_limits_saved: '限额和单价已保存',
+        alert_local_lottery_saved: 'TICA / NICA 设置已保存',
+        local_lottery_settings_title: 'TICA / NICA',
+        local_lottery_settings_subtitle: '（两套独立彩种 · 顾客端入口 · 点击展开）',
+        local_lottery_banner_title: '顾客端开通状态（本机记录）',
+        local_lottery_client_on_prefix: '已向顾客显示',
+        local_lottery_client_off_prefix: '已向顾客关闭',
+        local_lottery_ever_note: '曾在顾客端开通（本机永久标记，仅便于核对）',
+        local_lottery_line_on: '<span class="text-emerald-300 font-bold">● 已向顾客显示</span> · {name}',
+        local_lottery_line_off_ever: '<span class="text-amber-300 font-bold">● 当前已关闭顾客端入口</span> · {name} · <span class="underline decoration-amber-400">曾在顾客端开通（永久标记）</span>',
+        local_lottery_line_never: '<span class="text-gray-400">○ 从未向顾客开通</span> · {name}',
+        local_lottery_summary_chip_on: '{name}·开',
+        local_lottery_summary_chip_ever: '{name}·曾开',
         alert_wrong_shop: '此订单不是在此店买的',
         alert_already_redeemed: '该订单已兑奖',
         alert_order_not_found: '订单不存在',
@@ -604,8 +668,9 @@
         status_order_2: '已开奖',
         status_order_3: '已中奖',
         status_unknown: '未知',
-        scan_pay: '扫码',
+        scan_pay: '📷 扫码',
         settlement: '开奖结算',
+        shop_label: '店号',
         period_sales: '本期销售额',
         period_orders: '本期订单',
         period_orders_list: '本期订单',
@@ -619,11 +684,14 @@
         close: '关闭',
         pending_confirm: '等待付款',
         pending_title: '等待付款',
-        pending_hint: '点击订单号确认收款 · 输入尾数可筛订单',
+        pending_hint: '列表含全国 / TICA / NICA 未付款（与上方彩种切换无关）· 点单号确认收款 · 尾数筛选',
         pending_filter_placeholder: '最后4位',
         period_order_filter_placeholder: '最后4位',
         no_pending: '暂无未付款订单',
+        lot_tag_loteria: 'Lotería',
         no_match_pending: '无匹配订单',
+        pending_suffix_still_unpaid: '本店仍有 {n} 单未付款',
+        btn_clear_suffix: '清空尾数',
         wait_redeem: '等待兑奖',
         redeem_hint: '输入尾数筛选 · 点击订单完成兑奖',
         redeem_placeholder: '只需输入最后面四位数',
@@ -636,7 +704,7 @@
         modal_order_placeholder: '请输入订单号',
         cancel: '取消',
         btn_query: '查询',
-        btn_scan_qr: '📷 扫码',
+        btn_scan_qr: '📷 相机',
         scan_aim_hint: '将顾客的付款/兑奖二维码对准框内',
         scan_close_camera: '关闭摄像头',
         alert_no_camera: '未检测到摄像头或浏览器不支持',
@@ -813,6 +881,18 @@
         alert_need_cashier: 'Inicia sesión en la caja antes de ver el resultado.',
         alert_no_shop_info: 'No hay datos de tienda. Vuelve a iniciar sesión.',
         alert_limits_saved: 'Límites y precios guardados',
+        alert_local_lottery_saved: 'Configuración TICA / NICA guardada',
+        local_lottery_settings_title: 'TICA / NICA',
+        local_lottery_settings_subtitle: '(dos juegos independientes · entrada en app · toca para expandir)',
+        local_lottery_banner_title: 'Estado en app del cliente (registro local)',
+        local_lottery_client_on_prefix: 'Visible para clientes',
+        local_lottery_client_off_prefix: 'Cerrado para clientes',
+        local_lottery_ever_note: 'Activado antes (marca permanente en este dispositivo)',
+        local_lottery_line_on: '<span class="text-emerald-300 font-bold">● Visible para clientes</span> · {name}',
+        local_lottery_line_off_ever: '<span class="text-amber-300 font-bold">● Cerrado ahora</span> · {name} · <span class="underline decoration-amber-400">Activado antes (marca permanente)</span>',
+        local_lottery_line_never: '<span class="text-gray-400">○ Nunca activado para clientes</span> · {name}',
+        local_lottery_summary_chip_on: '{name}·ON',
+        local_lottery_summary_chip_ever: '{name}·EX',
         alert_wrong_shop: 'Este pedido no es de esta tienda',
         alert_already_redeemed: 'Este pedido ya fue cobrado',
         alert_order_not_found: 'Pedido no encontrado',
@@ -827,8 +907,9 @@
         status_order_2: 'Sorteado',
         status_order_3: 'Premiado',
         status_unknown: '—',
-        scan_pay: 'Escanear QR',
+        scan_pay: '📷 Escanear QR',
         settlement: 'Resultado y liquidación',
+        shop_label: 'Tienda',
         period_sales: 'Ventas del periodo',
         period_orders: 'Pedidos del periodo',
         period_orders_list: 'Pedidos del periodo',
@@ -842,11 +923,14 @@
         close: 'Cerrar',
         pending_confirm: 'Esperando pago',
         pending_title: 'Esperando pago',
-        pending_hint: 'Toca el pedido para confirmar · Escribe los últimos dígitos para filtrar',
+        pending_hint: 'Incluye Lotería / TICA / NICA sin pagar (independiente de la pestaña) · Toca para cobrar · Filtro por dígitos',
         pending_filter_placeholder: 'Últimos 4',
         period_order_filter_placeholder: 'Últimos 4',
         no_pending: 'Sin pedidos pendientes',
+        lot_tag_loteria: 'Lotería',
         no_match_pending: 'Ningún pedido coincide',
+        pending_suffix_still_unpaid: 'Aún hay {n} pedido(s) sin pagar',
+        btn_clear_suffix: 'Limpiar filtro',
         wait_redeem: 'Pendiente de cobro',
         redeem_hint: 'Últimos dígitos para filtrar · Toca para cobrar premio',
         redeem_placeholder: 'Últimos 4 dígitos del número',
@@ -859,7 +943,7 @@
         modal_order_placeholder: 'Número de pedido',
         cancel: 'Cancelar',
         btn_query: 'Buscar',
-        btn_scan_qr: '📷 Escanear QR',
+        btn_scan_qr: '📷 Cámara',
         scan_aim_hint: 'Apunta el QR de pago o premio del cliente al recuadro',
         scan_close_camera: 'Cerrar cámara',
         alert_no_camera: 'No hay cámara o el navegador no la admite',
@@ -970,6 +1054,19 @@
     function getMerchantLang() {
       return localStorage.getItem(MERCHANT_LANG_KEY) || 'es';
     }
+    /** 后端双语错误：message=西语，messageZh=中文 */
+    function pickApiBilingualMessage(data) {
+      if (!data || typeof data !== 'object') return '';
+      var lang = getMerchantLang();
+      if (lang === 'zh' && data.messageZh != null && String(data.messageZh).trim() !== '') {
+        return String(data.messageZh);
+      }
+      if (data.message != null) {
+        if (typeof data.message === 'string') return data.message;
+        if (Array.isArray(data.message)) return data.message.map(String).join(', ');
+      }
+      return '';
+    }
     (function initMerchantLang() {
       if (!localStorage.getItem(MERCHANT_LANG_KEY)) localStorage.setItem(MERCHANT_LANG_KEY, 'es');
     })();
@@ -1032,6 +1129,7 @@
         var key = el.getAttribute('data-i18n-html');
         if (MERCHANT_T[lang] && MERCHANT_T[lang][key]) el.innerHTML = MERCHANT_T[lang][key];
       });
+      try { refreshMerchantLocalLotteryStatusBanner(); } catch (e) {}
     }
     function t(key) { return (MERCHANT_T[getMerchantLang()] && MERCHANT_T[getMerchantLang()][key]) ? MERCHANT_T[getMerchantLang()][key] : key; }
 
@@ -1040,6 +1138,8 @@
     applyMerchantLang();
     let currentOrder = null;
     let lastUnpaidOrders = [];
+    /** 与当前工作台彩种一致的订单子集，供待兑奖列表筛选 */
+    let lastWorkbenchScopedOrders = [];
     let currentRedeemOrder = null;
     let redeemInProgress = false;
     let paymentInProgress = false;
@@ -1055,6 +1155,239 @@
     let chanceSales = {};
     let billeteSales = {};
     let limits = { chance: 50, billete: 10 };
+    const MERCHANT_WORKBENCH_KEY = 'merchant_workbench_kind';
+    /** 与 result.html 共用：备份 TICA/NICA 开关，避免返回收银台时接口短暂未带字段导致底部入口消失 */
+    const MERCHANT_SHOP_LOCAL_FLAGS_KEY = 'merchant_shop_local_flags';
+
+    function mergeMerchantShopLocalFlags(shop) {
+      if (!shop || shop.shop_id == null) return;
+      try {
+        var raw = localStorage.getItem(MERCHANT_SHOP_LOCAL_FLAGS_KEY);
+        if (!raw) return;
+        var j = JSON.parse(raw);
+        if (!j || Number(j.shop_id) !== Number(shop.shop_id)) return;
+        shop.tica_enabled = !!(shop.tica_enabled || j.tica_enabled);
+        shop.nica_enabled = !!(shop.nica_enabled || j.nica_enabled);
+      } catch (e) {}
+    }
+    function persistMerchantShopLocalFlags(shop) {
+      if (!shop || shop.shop_id == null) return;
+      try {
+        var prev = {};
+        try {
+          var raw0 = localStorage.getItem(MERCHANT_SHOP_LOCAL_FLAGS_KEY);
+          if (raw0) prev = JSON.parse(raw0) || {};
+        } catch (e2) {}
+        var sameShop = prev && Number(prev.shop_id) === Number(shop.shop_id);
+        /** 曾在顾客端保存为「开」则永久保留标记（仅本机），便于核对；不因再次关闭而消失 */
+        var ticaEver = (sameShop && !!prev.tica_client_ever_on) || !!shop.tica_enabled;
+        var nicaEver = (sameShop && !!prev.nica_client_ever_on) || !!shop.nica_enabled;
+        localStorage.setItem(MERCHANT_SHOP_LOCAL_FLAGS_KEY, JSON.stringify({
+          shop_id: shop.shop_id,
+          tica_enabled: !!shop.tica_enabled,
+          nica_enabled: !!shop.nica_enabled,
+          tica_client_ever_on: !!ticaEver,
+          nica_client_ever_on: !!nicaEver,
+        }));
+      } catch (e) {}
+    }
+
+    function readMerchantShopLocalFlagsParsed() {
+      try {
+        var raw = localStorage.getItem(MERCHANT_SHOP_LOCAL_FLAGS_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    /** 主行文案：随勾选实时变化；「曾开通」小字仍读本地标记 */
+    function updateMerchantLocalLotteryClientStatusLines() {
+      var tCb = document.getElementById('shop-enable-tica');
+      var nCb = document.getElementById('shop-enable-nica');
+      var tLine = document.getElementById('merchant-tica-client-line');
+      var nLine = document.getElementById('merchant-nica-client-line');
+      if (tLine && tCb) {
+        var on = !!tCb.checked;
+        tLine.innerHTML = on
+          ? ('<span class="text-emerald-300 font-bold">● ' + esc(t('local_lottery_client_on_prefix')) + '</span> · TICA')
+          : ('<span class="text-gray-400 font-bold">○ ' + esc(t('local_lottery_client_off_prefix')) + '</span> · TICA');
+      }
+      if (nLine && nCb) {
+        var on2 = !!nCb.checked;
+        nLine.innerHTML = on2
+          ? ('<span class="text-emerald-300 font-bold">● ' + esc(t('local_lottery_client_on_prefix')) + '</span> · NICA')
+          : ('<span class="text-gray-400 font-bold">○ ' + esc(t('local_lottery_client_off_prefix')) + '</span> · NICA');
+      }
+    }
+
+    /** 折叠标题角标 + 展开后横幅（勾选在横幅内，与主文案合一） */
+    function refreshMerchantLocalLotteryStatusBanner() {
+      var banner = document.getElementById('merchant-local-lottery-status-banner');
+      var chips = document.getElementById('merchant-local-lottery-summary-chips');
+      if (chips) chips.innerHTML = '';
+      if (!banner) return;
+      if (!currentShop) {
+        banner.classList.add('hidden');
+        return;
+      }
+      mergeMerchantShopLocalFlags(currentShop);
+      var j = readMerchantShopLocalFlagsParsed();
+      if (!j || Number(j.shop_id) !== Number(currentShop.shop_id)) j = {};
+      var tOnSaved = !!currentShop.tica_enabled;
+      var nOnSaved = !!currentShop.nica_enabled;
+      var tEver = !!(j.tica_client_ever_on || tOnSaved);
+      var nEver = !!(j.nica_client_ever_on || nOnSaved);
+
+      banner.classList.remove('hidden');
+      updateMerchantLocalLotteryClientStatusLines();
+
+      var tCb = document.getElementById('shop-enable-tica');
+      var nCb = document.getElementById('shop-enable-nica');
+      var tChecked = tCb ? !!tCb.checked : tOnSaved;
+      var nChecked = nCb ? !!nCb.checked : nOnSaved;
+
+      var tEverEl = document.getElementById('merchant-tica-client-ever');
+      if (tEverEl) {
+        if (!tChecked && tEver) {
+          tEverEl.textContent = t('local_lottery_ever_note');
+          tEverEl.classList.remove('hidden');
+        } else {
+          tEverEl.textContent = '';
+          tEverEl.classList.add('hidden');
+        }
+      }
+      var nEverEl = document.getElementById('merchant-nica-client-ever');
+      if (nEverEl) {
+        if (!nChecked && nEver) {
+          nEverEl.textContent = t('local_lottery_ever_note');
+          nEverEl.classList.remove('hidden');
+        } else {
+          nEverEl.textContent = '';
+          nEverEl.classList.add('hidden');
+        }
+      }
+
+      if (chips) {
+        var parts = [];
+        if (tOnSaved) parts.push('<span class="rounded-full bg-emerald-700/80 text-white px-1.5 py-0.5">' + t('local_lottery_summary_chip_on').replace(/\{name\}/g, 'TICA') + '</span>');
+        else if (tEver) parts.push('<span class="rounded-full bg-amber-700/80 text-amber-100 px-1.5 py-0.5">' + t('local_lottery_summary_chip_ever').replace(/\{name\}/g, 'TICA') + '</span>');
+        if (nOnSaved) parts.push('<span class="rounded-full bg-emerald-700/80 text-white px-1.5 py-0.5">' + t('local_lottery_summary_chip_on').replace(/\{name\}/g, 'NICA') + '</span>');
+        else if (nEver) parts.push('<span class="rounded-full bg-amber-700/80 text-amber-100 px-1.5 py-0.5">' + t('local_lottery_summary_chip_ever').replace(/\{name\}/g, 'NICA') + '</span>');
+        chips.innerHTML = parts.length ? ' ' + parts.join(' ') : '';
+      }
+    }
+    /** 当前收银工作台彩种：NACIONAL | TICA | NICA */
+    let merchantWorkbenchKind = 'NACIONAL';
+    /** loadDashboard 并发调用时递增，避免 TICA/NICA 的 local-lottery/current 异步回填互相覆盖 */
+    let merchantDashboardLoadGeneration = 0;
+    let merchantLocalDrawTica = null;
+    let merchantLocalDrawNica = null;
+    /** 全国台：/api/draw/pending 的当前销售期 drawId（供「上期待兑奖」用 N-1） */
+    let merchantPendingNationalDrawId = null;
+
+    /**
+     * 与结算页一致：current 表示「正在销售」期号 N 时，待兑奖/中奖金额统计用上一期 N-1（已开奖、可能仍有未兑奖）。
+     */
+    function merchantRedeemWinsDrawIdForStats() {
+      if (merchantWorkbenchKind === 'NACIONAL') {
+        if (merchantPendingNationalDrawId == null || merchantPendingNationalDrawId === '') return null;
+        var n = Number(merchantPendingNationalDrawId);
+        if (!isFinite(n) || n <= 1) return null;
+        return n - 1;
+      }
+      if (merchantWorkbenchKind === 'TICA') {
+        var ld = merchantLocalDrawTica && (merchantLocalDrawTica.draw_id != null ? merchantLocalDrawTica.draw_id : merchantLocalDrawTica.drawId);
+        if (ld == null || ld === '') return null;
+        var nt = Number(ld);
+        if (!isFinite(nt) || nt <= 1) return null;
+        return nt - 1;
+      }
+      if (merchantWorkbenchKind === 'NICA') {
+        var ld2 = merchantLocalDrawNica && (merchantLocalDrawNica.draw_id != null ? merchantLocalDrawNica.draw_id : merchantLocalDrawNica.drawId);
+        if (ld2 == null || ld2 === '') return null;
+        var nn = Number(ld2);
+        if (!isFinite(nn) || nn <= 1) return null;
+        return nn - 1;
+      }
+      return null;
+    }
+
+    function getOrderLotteryType(o) {
+      var lt = o && (o.lottery_type != null ? o.lottery_type : (o.lotteryType != null ? o.lotteryType : 'NACIONAL'));
+      return String(lt).toUpperCase();
+    }
+    function orderMatchesMerchantWorkbench(o, wb) {
+      var t = getOrderLotteryType(o);
+      if (wb === 'NACIONAL') return t === 'NACIONAL' || t === '' || t === 'NULL';
+      if (wb === 'TICA') return t === 'TICA';
+      if (wb === 'NICA') return t === 'NICA';
+      return true;
+    }
+    /** 待付款列表角标：区分全国 / TICA / NICA */
+    function orderPendingLotteryBadgeHtml(o) {
+      // 勿用变量名 t：会遮蔽全局 i18n 函数 t()，导致 Lotería 分支抛错、待付款列表整段无法渲染
+      var lotType = getOrderLotteryType(o);
+      if (lotType === 'TICA') {
+        return '<span class="inline-block text-[10px] px-1 rounded bg-blue-600/50 text-blue-100 mr-1 font-bold align-middle">TICA</span>';
+      }
+      if (lotType === 'NICA') {
+        return '<span class="inline-block text-[10px] px-1 rounded bg-purple-600/50 text-purple-100 mr-1 font-bold align-middle">NICA</span>';
+      }
+      return '<span class="inline-block text-[10px] px-1 rounded bg-green-600/50 text-green-100 mr-1 font-bold align-middle">' + t('lot_tag_loteria') + '</span>';
+    }
+    function getMerchantWorkbenchKind() {
+      if (currentShop) mergeMerchantShopLocalFlags(currentShop);
+      var k = (sessionStorage.getItem(MERCHANT_WORKBENCH_KEY) || 'NACIONAL').toUpperCase();
+      if (k !== 'NACIONAL' && k !== 'TICA' && k !== 'NICA') k = 'NACIONAL';
+      if (k === 'TICA' && !(currentShop && currentShop.tica_enabled)) k = 'NACIONAL';
+      if (k === 'NICA' && !(currentShop && currentShop.nica_enabled)) k = 'NACIONAL';
+      return k;
+    }
+    function setMerchantWorkbenchKind(next) {
+      var k = String(next || 'NACIONAL').toUpperCase();
+      if (k !== 'NACIONAL' && k !== 'TICA' && k !== 'NICA') k = 'NACIONAL';
+      sessionStorage.setItem(MERCHANT_WORKBENCH_KEY, k);
+      merchantWorkbenchKind = k;
+      renderMerchantWorkbenchNav();
+      loadDashboard();
+    }
+    function renderMerchantWorkbenchNav() {
+      var nav = document.getElementById('merchant-workbench-nav');
+      var inner = document.getElementById('merchant-workbench-nav-inner');
+      if (!nav || !inner) return;
+      if (!currentShop) {
+        nav.classList.add('hidden');
+        return;
+      }
+      mergeMerchantShopLocalFlags(currentShop);
+      var hasT = !!currentShop.tica_enabled;
+      var hasN = !!currentShop.nica_enabled;
+      if (!hasT && !hasN) {
+        nav.classList.add('hidden');
+        return;
+      }
+      nav.classList.remove('hidden');
+      var k = getMerchantWorkbenchKind();
+      merchantWorkbenchKind = k;
+      var btns = [];
+      function pill(active) {
+        return 'flex-1 min-w-[104px] max-w-[200px] py-2.5 rounded-xl font-bold text-sm transition ' +
+          (active ? 'bg-green-600 text-white shadow-lg' : 'bg-gray-800 text-gray-200 border border-gray-600 hover:bg-gray-700');
+      }
+      if (k === 'NACIONAL') {
+        if (hasT) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'TICA\')">TICA</button>');
+        if (hasN) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NICA\')">NICA</button>');
+      } else if (k === 'TICA') {
+        btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NACIONAL\')">LOTERÍA</button>');
+        if (hasN) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NICA\')">NICA</button>');
+      } else if (k === 'NICA') {
+        btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NACIONAL\')">LOTERÍA</button>');
+        if (hasT) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'TICA\')">TICA</button>');
+      }
+      inner.innerHTML = btns.join('');
+    }
 
     // 订单显示用中奖金额：优先用后端 win_amount；仅当 win_amount 为 0 时用 win_breakdown 之和兜底
     function getOrderWinAmount(order) {
@@ -1066,6 +1399,46 @@
         }
       }
       return w;
+    }
+
+    const MERCHANT_LAST_SHOP_JSON_KEY = 'merchant_last_shop_json';
+
+    function persistMerchantLastShop(shop) {
+      if (!shop || shop.shop_id == null) return;
+      try {
+        localStorage.setItem(MERCHANT_LAST_SHOP_JSON_KEY, JSON.stringify({
+          shop_id: shop.shop_id,
+          shop_number: shop.shop_number,
+          shop_name: shop.shop_name || '',
+          tica_enabled: !!shop.tica_enabled,
+          nica_enabled: !!shop.nica_enabled,
+        }));
+        localStorage.setItem('main_shop_cache_json', JSON.stringify({
+          shop_id: shop.shop_id,
+          shop_number: shop.shop_number,
+          shop_name: shop.shop_name || '',
+        }));
+      } catch (e) {}
+    }
+
+    function tryRestoreMerchantFromCache() {
+      try {
+        var raw = localStorage.getItem(MERCHANT_LAST_SHOP_JSON_KEY);
+        if (!raw) return false;
+        var s = JSON.parse(raw);
+        if (!s || s.shop_id == null) return false;
+        currentShop = s;
+        authToken = localStorage.getItem('lottery_token') || authToken;
+        document.getElementById('page-login').classList.add('hidden');
+        document.getElementById('page-cashier').classList.remove('hidden');
+        document.getElementById('shop-number').textContent = s.shop_number || t('shop_not_set');
+        applyMerchantLang();
+        loadDashboard();
+        startCountdown();
+        loadBindingStatus();
+        checkPrinterOnLogin();
+        return true;
+      } catch (e) { return false; }
     }
 
     // 检查是否已登录：有 token 则尝试拉取店铺并进入收银台（保存登录信息仅控制下次打开是否自动进入）
@@ -1084,6 +1457,7 @@
       // 有 token 就尝试用其拉取店铺并进入（从结算页返回时也能直接进收银台）
       if (savedToken) {
         authToken = savedToken;
+        tryRestoreMerchantFromCache();
         const savedSessionToken = localStorage.getItem('lottery_session_token') || '';
         fetch(`${API_BASE}/api/merchant/shops`, {
           headers: {
@@ -1094,14 +1468,8 @@
           if (r.status === 401) {
             r.json().then(d => {
               if (d.message === 'SESSION_EXPIRED') {
-                // 账号已在另一台设备登录，自动退出
-                currentShop = null;
-                authToken = null;
-                localStorage.removeItem('lottery_token');
-                localStorage.removeItem('lottery_session_token');
-                localStorage.removeItem('lottery_login_at');
-                localStorage.removeItem('lottery_login_ua');
-                showToast('您的账号已在另一台设备登录，请重新登录。', 'warning');
+                // 保留本地 token 与缓存，避免返回工作台时反复出现登录页；若接口拒绝再手动退出
+                showToast('会话可能已在其他设备更新；如无法收款请在设置中退出后重新登录。', 'warning');
               }
             }).catch(() => {});
             return null;
@@ -1111,6 +1479,8 @@
           if (!data) return;
           if (data.shops && data.shops.length > 0) {
             currentShop = data.shops[0];
+            mergeMerchantShopLocalFlags(currentShop);
+            persistMerchantLastShop(currentShop);
             if (currentShop && currentShop.shop_number) localStorage.setItem('lottery_shop_number', currentShop.shop_number);
             // 更新设备信息
             if (data.last_login_at) localStorage.setItem('lottery_login_at', data.last_login_at);
@@ -1122,6 +1492,7 @@
             limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
             document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
             document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
+            syncLocalLotteryFeatureCheckboxes();
             document.getElementById('page-login').classList.add('hidden');
             document.getElementById('page-cashier').classList.remove('hidden');
             applyMerchantLang();
@@ -1135,6 +1506,36 @@
       applyMerchantLang();
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible' && currentShop) loadDashboard();
+      });
+      // 从开奖结算页返回（含浏览器后退缓存）：重新拉店铺并渲染底部 TICA/NICA 入口
+      window.addEventListener('pageshow', function (ev) {
+        var cashier = document.getElementById('page-cashier');
+        if (!cashier || cashier.classList.contains('hidden')) return;
+        if (!authToken || !currentShop) return;
+        mergeMerchantShopLocalFlags(currentShop);
+        renderMerchantWorkbenchNav();
+        var st = localStorage.getItem('lottery_session_token') || '';
+        fetch(`${API_BASE}/api/merchant/shops`, {
+          headers: { 'Authorization': 'Bearer ' + authToken, 'X-Session-Token': st },
+        })
+          .then(function (r) { return r.status === 401 ? null : r.json(); })
+          .then(function (data) {
+            if (!data || !data.shops || !currentShop) return;
+            var match = data.shops.find(function (s) { return Number(s.shop_id) === Number(currentShop.shop_id); });
+            if (!match) match = data.shops[0];
+            if (match && Number(match.shop_id) === Number(currentShop.shop_id)) {
+              currentShop.tica_enabled = !!match.tica_enabled;
+              currentShop.nica_enabled = !!match.nica_enabled;
+              mergeMerchantShopLocalFlags(currentShop);
+              persistMerchantShopLocalFlags(currentShop);
+              syncLocalLotteryFeatureCheckboxes();
+            }
+            renderMerchantWorkbenchNav();
+            if (ev.persisted && currentShop) loadDashboard();
+          })
+          .catch(function () {
+            renderMerchantWorkbenchNav();
+          });
       });
       // 不点退出则一直保持登录；仅退出登录时清除 token
     })();
@@ -1340,6 +1741,8 @@
         }
 
         currentShop = shopsData.shops[0];
+        mergeMerchantShopLocalFlags(currentShop);
+        persistMerchantLastShop(currentShop);
         if (currentShop && currentShop.shop_number) localStorage.setItem('lottery_shop_number', currentShop.shop_number);
         localStorage.setItem('lottery_token', data.token);
         localStorage.setItem('merchant_account', account);
@@ -1359,6 +1762,7 @@
         limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
         document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
         document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
+        syncLocalLotteryFeatureCheckboxes();
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-cashier').classList.remove('hidden');
 
@@ -1402,6 +1806,8 @@
       localStorage.removeItem('lottery_login_at');
       localStorage.removeItem('lottery_login_ua');
       localStorage.removeItem('lottery_shop_number');
+      localStorage.removeItem(MERCHANT_LAST_SHOP_JSON_KEY);
+      localStorage.removeItem('main_shop_cache_json');
       if (countdownInterval) clearInterval(countdownInterval);
       document.getElementById('merchant-account').value = '';
       document.getElementById('merchant-password').value = '';
@@ -1427,6 +1833,10 @@
         sn: currentShop.shop_number || '',
         sname: currentShop.shop_name || ''
       });
+      var wb = getMerchantWorkbenchKind();
+      if (wb === 'TICA') params.set('kind', 'TICA');
+      else if (wb === 'NICA') params.set('kind', 'NICA');
+      sessionStorage.setItem(MERCHANT_WORKBENCH_KEY, wb);
       const url = 'result.html?' + params.toString();
       window.location.href = url;
     }
@@ -1449,7 +1859,7 @@
         });
         if (!res.ok) {
           let errMsg = '保存失败 (HTTP ' + res.status + ')';
-          try { const d = await res.json(); errMsg = d.message || errMsg; } catch(e) {}
+          try { const d = await res.json(); errMsg = pickApiBilingualMessage(d) || d.message || d.error || errMsg; } catch(e) {}
           throw new Error(errMsg);
         }
         limits.chance = newChance;
@@ -1461,6 +1871,57 @@
         showToast(t('alert_limits_saved'), 'success');
       } catch (err) {
         showToast(err.message || t('alert_save_limits_fail'), 'error');
+      }
+    }
+
+    function syncLocalLotteryFeatureCheckboxes() {
+      var t = document.getElementById('shop-enable-tica');
+      var n = document.getElementById('shop-enable-nica');
+      if (!currentShop) return;
+      mergeMerchantShopLocalFlags(currentShop);
+      if (t) t.checked = !!currentShop.tica_enabled;
+      if (n) n.checked = !!currentShop.nica_enabled;
+      try { refreshMerchantLocalLotteryStatusBanner(); } catch (e) {}
+    }
+
+    async function saveLocalLotteryShopSettings() {
+      if (!currentShop || !authToken) {
+        showToast(t('alert_no_shop_info'), 'error');
+        return;
+      }
+      var tEl = document.getElementById('shop-enable-tica');
+      var nEl = document.getElementById('shop-enable-nica');
+      mergeMerchantShopLocalFlags(currentShop);
+      var nextT = !!(tEl && tEl.checked);
+      var nextN = !!(nEl && nEl.checked);
+      // 关闭顾客端入口不再弹确认框，说明见横幅「顾客端开通状态（本机记录）」文案
+      try {
+        var sessionToken = localStorage.getItem('lottery_session_token') || '';
+        // 使用已有 PATCH /api/shop/:id/limits（扩展支持 tica/nica），避免线上未挂载 local-lottery 时出现 Cannot PATCH
+        var res = await fetch(`${API_BASE}/api/shop/${encodeURIComponent(currentShop.shop_id)}/limits`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + authToken,
+            'X-Session-Token': sessionToken,
+          },
+          body: JSON.stringify({
+            ticaEnabled: !!(tEl && tEl.checked),
+            nicaEnabled: !!(nEl && nEl.checked),
+          }),
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) throw new Error(pickApiBilingualMessage(data) || data.error || ('HTTP ' + res.status));
+        if (data.tica_enabled !== undefined) currentShop.tica_enabled = !!data.tica_enabled;
+        else currentShop.tica_enabled = !!(tEl && tEl.checked);
+        if (data.nica_enabled !== undefined) currentShop.nica_enabled = !!data.nica_enabled;
+        else currentShop.nica_enabled = !!(nEl && nEl.checked);
+        persistMerchantShopLocalFlags(currentShop);
+        syncLocalLotteryFeatureCheckboxes();
+        renderMerchantWorkbenchNav();
+        showToast(t('alert_local_lottery_saved'), 'success');
+      } catch (err) {
+        showToast(err.message || '保存失败', 'error');
       }
     }
 
@@ -1627,7 +2088,7 @@
       try {
         if (raw.length >= 4) {
           var suffix = raw.slice(-4);
-          var res = await fetch(`${API_BASE}/api/shop/${currentShop.shop_id}/orders?status=won&suffix=${encodeURIComponent(suffix)}&limit=50`);
+          var res = await fetch(`${API_BASE}/api/shop/orders?shopId=${encodeURIComponent(currentShop.shop_id)}&status=won&suffix=${encodeURIComponent(suffix)}&limit=50`);
           var data = await res.json();
           var orders = (data.orders || []).filter(function(o) { 
               var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
@@ -1724,88 +2185,211 @@
       countdownInterval = setInterval(updateCountdown, 1000);
     }
 
+    /** 拉取本店某一本地彩种的「当前销售期」；禁用缓存并校验响应 kind，避免与另一彩种串数据 */
+    async function fetchLocalLotteryCurrentForMerchant(shopId, kind) {
+      var k = String(kind || '').toUpperCase();
+      if (k !== 'TICA' && k !== 'NICA') return null;
+      var _ts = Date.now() + '_' + k + '_' + Math.random().toString(36).slice(2, 8);
+      var url = `${API_BASE}/api/local-lottery/current?shopId=${encodeURIComponent(shopId)}&kind=${encodeURIComponent(k)}&_=${encodeURIComponent(_ts)}`;
+      var headers = { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' };
+      try {
+        if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+        var st = localStorage.getItem('lottery_session_token') || '';
+        if (st) headers['X-Session-Token'] = st;
+      } catch (eH) {}
+      var res = await fetch(url, { cache: 'no-store', headers: headers });
+      if (!res.ok) return null;
+      var data = await res.json().catch(function () { return null; });
+      if (!data || typeof data !== 'object') return null;
+      var rk = data.kind != null ? String(data.kind).toUpperCase()
+        : (data.lotteryKind != null ? String(data.lotteryKind).toUpperCase()
+          : (data.lottery_kind != null ? String(data.lottery_kind).toUpperCase() : null));
+      if (rk && rk !== k) {
+        console.warn('local-lottery/current kind mismatch, expected', k, 'got', rk, data);
+        return null;
+      }
+      return data;
+    }
+
     // 加载仪表盘（本期 = 待开奖期；开奖日期展示与客户端 /api/bet-status 保持一致）
     async function loadDashboard() {
       if (!currentShop) return;
 
-      try {
-        const [ordersRes, pendingRes, latestRes, statusRes] = await Promise.all([
-          fetch(`${API_BASE}/api/shop/${currentShop.shop_id}/orders?limit=500`),
-          fetch(`${API_BASE}/api/draw/pending`),
-          fetch(`${API_BASE}/api/draw/latest`),
-          fetch(`${API_BASE}/api/bet-status`).catch(() => null)
-        ]);
-        const data = await ordersRes.json();
-        const pendingData = await pendingRes.json().catch(() => ({}));
-        const latestData = await latestRes.json().catch(() => ({}));
-        const statusData = statusRes ? await statusRes.json().catch(() => ({})) : {};
+      var shopKey = currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId;
+      var sid = Number(shopKey);
+      if (!shopKey || isNaN(sid) || sid <= 0) {
+        console.error('loadDashboard: invalid shop id', currentShop);
+        showToast(getMerchantLang() === 'zh' ? '店铺 ID 无效，请重新登录' : 'ID de tienda inválido, vuelva a iniciar sesión', 'error');
+        return;
+      }
 
-        allOrders = data.orders || [];
+      var dashGen = ++merchantDashboardLoadGeneration;
+
+      try {
+        // 订单列表单独拉取并校验：避免 draw/pending 等任一失败导致整页不更新；并明确提示 API 地址错误
+        const ordersUrl = `${API_BASE}/api/shop/orders?shopId=${encodeURIComponent(sid)}&limit=500`;
+        const ordersRes = await fetch(ordersUrl);
+        var ordersPayload = {};
+        try {
+          ordersPayload = await ordersRes.json();
+        } catch (e) {
+          ordersPayload = {};
+        }
+        if (!ordersRes.ok) {
+          var errTxt = (ordersPayload && (ordersPayload.message || ordersPayload.error)) ? (ordersPayload.message || ordersPayload.error) : ('HTTP ' + ordersRes.status);
+          showToast((getMerchantLang() === 'zh' ? '拉取订单失败: ' : 'Error al cargar pedidos: ') + errTxt + ' · ' + API_BASE, 'error');
+          console.error('GET shop orders failed', ordersUrl, ordersRes.status, ordersPayload);
+          return;
+        }
+        allOrders = ordersPayload.orders || [];
+        if (dashGen !== merchantDashboardLoadGeneration) return;
+
+        const [pendingRes, latestRes, statusRes] = await Promise.all([
+          fetch(`${API_BASE}/api/draw/pending`).catch(function () { return null; }),
+          fetch(`${API_BASE}/api/draw/latest`).catch(function () { return null; }),
+          fetch(`${API_BASE}/api/bet-status`).catch(function () { return null; }),
+        ]);
+        const pendingData = pendingRes && pendingRes.ok ? await pendingRes.json().catch(function () { return {}; }) : {};
+        const latestData = latestRes && latestRes.ok ? await latestRes.json().catch(function () { return {}; }) : {};
+        const statusData = statusRes && statusRes.ok ? await statusRes.json().catch(function () { return {}; }) : {};
+        if (dashGen !== merchantDashboardLoadGeneration) return;
+
+        merchantWorkbenchKind = getMerchantWorkbenchKind();
+        sessionStorage.setItem(MERCHANT_WORKBENCH_KEY, merchantWorkbenchKind);
+
+        var nextLocalTica = null;
+        var nextLocalNica = null;
+        if (currentShop.tica_enabled) {
+          try {
+            nextLocalTica = await fetchLocalLotteryCurrentForMerchant(sid, 'TICA');
+          } catch (eT) {}
+          if (dashGen !== merchantDashboardLoadGeneration) return;
+        }
+        if (currentShop.nica_enabled) {
+          try {
+            nextLocalNica = await fetchLocalLotteryCurrentForMerchant(sid, 'NICA');
+          } catch (eN) {}
+          if (dashGen !== merchantDashboardLoadGeneration) return;
+        }
+        merchantLocalDrawTica = currentShop.tica_enabled ? nextLocalTica : null;
+        merchantLocalDrawNica = currentShop.nica_enabled ? nextLocalNica : null;
+        if (dashGen !== merchantDashboardLoadGeneration) return;
+
         const pendingDrawId = pendingData.draw && (pendingData.draw.drawId != null || pendingData.draw.draw_id != null)
           ? (pendingData.draw.drawId != null ? pendingData.draw.drawId : pendingData.draw.draw_id)
           : null;
-        // 从待开奖期拿开奖日期和时间，计算停售时间戳（开奖前 5 分钟）
+        merchantPendingNationalDrawId = pendingDrawId;
+        // 从待开奖期拿开奖日期和时间，计算停售时间戳（开奖前 5 分钟）——仅全国 Lotería 工作台使用
         const pendingDrawDate = pendingData.draw && (pendingData.draw.drawDate || pendingData.draw.draw_date);
         const pendingDrawTime = pendingData.draw && (pendingData.draw.drawTime || pendingData.draw.draw_time);
-        if (pendingDrawDate) currentDrawDate = pendingDrawDate;
-        if (pendingDrawDate && pendingDrawTime) {
-          const drawMs = new Date(`${pendingDrawDate}T${pendingDrawTime}`).getTime();
-          if (!isNaN(drawMs)) merchantStopSellAt = drawMs - 5 * 60 * 1000;
+        if (merchantWorkbenchKind === 'NACIONAL') {
+          if (pendingDrawDate) currentDrawDate = pendingDrawDate;
+          if (pendingDrawDate && pendingDrawTime) {
+            const drawMs = new Date(`${pendingDrawDate}T${pendingDrawTime}`).getTime();
+            if (!isNaN(drawMs)) merchantStopSellAt = drawMs - 5 * 60 * 1000;
+          }
         }
         const latestDrawId = latestData.draw && latestData.draw.drawId != null ? latestData.draw.drawId : null;
         const currentPeriodLabel = statusData && statusData.currentPeriodDate
           ? statusData.currentPeriodDate
           : (pendingDrawDate || '');
 
-        // 本期订单 = 属于「当前待开奖期」的订单。
-        // 兼容部分订单 draw_id 仍为 null 的情况：将最近 7 天内、draw_id 为空且已付款的订单也纳入本期，避免漏单。
-        // 若当前没有待开奖期（已发送开奖结果且未配置下一期开奖时间），则不再显示「本期订单」，等待下次待开奖期出现。
-        if (pendingDrawId != null) {
-          const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-          periodOrders = allOrders.filter(function (o) {
-            const createdMs = o.created_at ? new Date(o.created_at).getTime() : 0;
-            const s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
-            const isPaidLike = s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
-            if (o.draw_id == pendingDrawId) return true;
-            if ((o.draw_id == null || o.draw_id === '') && isPaidLike && createdMs && createdMs >= sevenDaysAgo) {
-              return true;
-            }
-            return false;
-          });
+        var scopedOrders = (allOrders || []).filter(function (o) { return orderMatchesMerchantWorkbench(o, merchantWorkbenchKind); });
+
+        // 本期订单：全国期用待开奖 draw_id；TICA/NICA 用本店 local-lottery/current 的 draw_id
+        if (merchantWorkbenchKind === 'NACIONAL') {
+          if (pendingDrawId != null) {
+            const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            periodOrders = scopedOrders.filter(function (o) {
+              const createdMs = o.created_at ? new Date(o.created_at).getTime() : 0;
+              const s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
+              const isPaidLike = s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
+              if (o.draw_id == pendingDrawId) return true;
+              if ((o.draw_id == null || o.draw_id === '') && isPaidLike && createdMs && createdMs >= sevenDaysAgo) {
+                return true;
+              }
+              return false;
+            });
+          } else {
+            periodOrders = [];
+          }
+        } else if (merchantWorkbenchKind === 'TICA') {
+          var ldT = merchantLocalDrawTica && (merchantLocalDrawTica.draw_id != null ? merchantLocalDrawTica.draw_id : merchantLocalDrawTica.drawId);
+          periodOrders = ldT != null
+            ? scopedOrders.filter(function (o) {
+              var od = o.draw_id != null ? o.draw_id : o.drawId;
+              return od == ldT;
+            })
+            : [];
         } else {
-          // 无待开奖期：本期订单清空，避免在开奖后或空档期继续把旧单算作“本期”
-          periodOrders = [];
+          var ldN = merchantLocalDrawNica && (merchantLocalDrawNica.draw_id != null ? merchantLocalDrawNica.draw_id : merchantLocalDrawNica.drawId);
+          periodOrders = ldN != null
+            ? scopedOrders.filter(function (o) {
+              var od = o.draw_id != null ? o.draw_id : o.drawId;
+              return od == ldN;
+            })
+            : [];
         }
-        // 本期已确认订单（付款/结算/中奖，用于本期销售额、已付款数、热门号码统计），兼容多种 status 写法
+
         ordersForCurrentDraw = periodOrders.filter(function (o) {
           const s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
           return s === 'paid' || s === 1 ||
                  s === 2 || s === 'settled' ||
                  s === 3 || s === 'won';
         });
-        drawCompleted = (latestDrawId != null);
+        drawCompleted = merchantWorkbenchKind === 'NACIONAL' ? (latestDrawId != null) : false;
 
-        // 更新期次状态角标（与客户端一致：显示「开奖日期 · YYYY-MM-DD」）
+        var modeChip = document.getElementById('merchant-mode-chip');
+        if (modeChip) {
+          modeChip.classList.add('hidden');
+          modeChip.textContent = '';
+        }
+
+        // 更新期次状态角标
         const statusBadge = document.getElementById('draw-status-badge');
         if (statusBadge) {
-          const labelDate = currentPeriodLabel;
-          if (labelDate) {
-            statusBadge.textContent = `${t('fecha_sorteo')} · ${labelDate}`;
-            statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
+          if (merchantWorkbenchKind === 'NACIONAL') {
+            const labelDate = currentPeriodLabel;
+            if (labelDate) {
+              statusBadge.textContent = `${t('fecha_sorteo')} · ${labelDate}`;
+              statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
+              statusBadge.classList.remove('hidden');
+            } else {
+              statusBadge.classList.add('hidden');
+            }
+          } else if (merchantWorkbenchKind === 'TICA' || merchantWorkbenchKind === 'NICA') {
+            // TICA/NICA：占位与全国「开奖日期」角标同字号（text-xs pill），显示彩种名 + 当前销售期号
+            var ldLocal = merchantWorkbenchKind === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
+            var dId = ldLocal && (ldLocal.draw_id != null ? ldLocal.draw_id : ldLocal.drawId);
+            var hasId = dId != null && String(dId).trim() !== '';
+            var mid = hasId ? ('#' + dId) : t('badge_in_progress');
+            statusBadge.textContent = merchantWorkbenchKind + ' · ' + mid;
+            if (merchantWorkbenchKind === 'TICA') {
+              statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300';
+            } else {
+              statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-200';
+            }
             statusBadge.classList.remove('hidden');
           } else {
             statusBadge.classList.add('hidden');
           }
         }
 
-        // 未付款订单：不再限制 30 分钟窗口，历史未付款也列出，方便对账
-        const unpaidOrders = allOrders.filter(o =>
-          (o.status === 'pending' || o.status === 0)
-        );
-        // 待兑奖订单（用于显示中奖金额，与结算页区分：这里只显示本店待兑付的金额）
-        const redeemPendingOrders = allOrders.filter(function (o) { 
+        if (merchantWorkbenchKind !== 'NACIONAL') {
+          var cdb = document.getElementById('draw-countdown');
+          if (cdb) cdb.classList.add('hidden');
+        }
+
+        // 待付款：本店全部未付（含全国+TICA+NICA）。勿用 scopedOrders，否则停留在 Lotería 台时收不到 TICA/NICA 单
+        const unpaidOrders = (allOrders || []).filter(isMerchantOrderUnpaid);
+        // 中奖金额：与结算页一致 —— 正在销售 N 期时，只统计「上期 N-1」未兑奖中奖单（勿累加历史期）
+        var redeemStatsDrawId = merchantRedeemWinsDrawIdForStats();
+        const redeemPendingOrders = scopedOrders.filter(function (o) {
           var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
-          return (o.status === 3 || o.status === 'won') && !redeemed; 
+          if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
+          if (redeemStatsDrawId == null) return false;
+          var oDraw = o.draw_id != null ? o.draw_id : o.drawId;
+          return Number(oDraw) === Number(redeemStatsDrawId);
         });
         // 中奖金额：只统计正数，显示为整数金额（不带小数）
         const totalWinsPending = redeemPendingOrders.reduce(function (sum, o) {
@@ -1837,7 +2421,11 @@
         // 未付款订单（存一份供尾数筛选）
         lastUnpaidOrders = unpaidOrders;
         var filterVal = (document.getElementById('pending-filter-input') && document.getElementById('pending-filter-input').value) ? document.getElementById('pending-filter-input').value.trim() : '';
-        renderPendingOrders(unpaidOrders, filterVal, allOrders);
+        lastWorkbenchScopedOrders = scopedOrders;
+        renderPendingOrders(unpaidOrders, filterVal, scopedOrders);
+
+        persistMerchantShopLocalFlags(currentShop);
+        renderMerchantWorkbenchNav();
 
       } catch (err) {
         console.error(err);
@@ -1859,6 +2447,7 @@
       }
       if (paidOrders.length === 0 && !drawCompleted) {
         paidOrders = (allOrders || []).filter(function (o) {
+          if (!orderMatchesMerchantWorkbench(o, merchantWorkbenchKind)) return false;
           var s = o.status;
           return s === 'paid' || s === 1;
         });
@@ -2085,17 +2674,34 @@
       return s.length >= 4 ? s.slice(-4) : s;
     }
 
+    /** 与 GET /api/shop/orders 返回一致：未付款为 pending；兼容数字 0 / 字符串 */
+    function isMerchantOrderUnpaid(o) {
+      if (!o) return false;
+      var s = o.status;
+      if (s === 0 || s === '0') return true;
+      if (typeof s === 'string' && s.toLowerCase() === 'pending') return true;
+      return false;
+    }
+
+    function clearPendingSuffixFilter() {
+      var inputEl = document.getElementById('pending-filter-input');
+      if (inputEl) inputEl.value = '';
+      var redeemSrc = (lastWorkbenchScopedOrders && lastWorkbenchScopedOrders.length) ? lastWorkbenchScopedOrders : allOrders;
+      renderPendingOrders(lastUnpaidOrders || [], '', redeemSrc);
+    }
+
     // 输入尾数即时筛选未确认列表（只匹配订单号尾数，支持后4位）
     function filterPendingBySuffix(value) {
       var suffix = (value || '').trim().replace(/\D/g, '');
       var inputEl = document.getElementById('pending-filter-input');
       if (inputEl) inputEl.value = suffix;
-      renderPendingOrders(lastUnpaidOrders || [], suffix, allOrders);
+      var redeemSrc = (lastWorkbenchScopedOrders && lastWorkbenchScopedOrders.length) ? lastWorkbenchScopedOrders : allOrders;
+      renderPendingOrders(lastUnpaidOrders || [], suffix, redeemSrc);
     }
 
     // 未付款订单 + 等待兑奖；suffixFilter 按订单号尾数筛；allOrdersForRedeem 用于从全部订单里筛待兑奖（不传则用 orders）
     function renderPendingOrders(orders, suffixFilter, allOrdersForRedeem) {
-      var pending = (orders || []).filter(function (o) { return o.status === 0 || o.status === 'pending'; });
+      var pending = (orders || []).filter(isMerchantOrderUnpaid);
       var totalUnpaid = pending.length;
       var suf = suffixFilter !== undefined && suffixFilter !== '' ? String(suffixFilter).replace(/\D/g, '') : '';
       if (suf) {
@@ -2105,22 +2711,42 @@
           return last4.includes(suf) || num.includes(suf);
         });
       }
-      var redeemList = (allOrdersForRedeem && allOrdersForRedeem.length) ? allOrdersForRedeem : (orders || []);
-      var redeemPending = redeemList.filter(function (o) { 
+      var redeemOrdersSrc = (allOrdersForRedeem && allOrdersForRedeem.length) ? allOrdersForRedeem : (orders || []);
+      var redeemDrawId = merchantRedeemWinsDrawIdForStats();
+      var redeemPending = redeemOrdersSrc.filter(function (o) {
         var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
-        return (o.status === 3 || o.status === 'won') && !redeemed; 
+        if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
+        if (!orderMatchesMerchantWorkbench(o, merchantWorkbenchKind)) return false;
+        if (redeemDrawId == null) return false;
+        var oDraw = o.draw_id != null ? o.draw_id : o.drawId;
+        return Number(oDraw) === Number(redeemDrawId);
       });
 
       var unpaidCountEl = document.getElementById('unpaid-count');
-      if (unpaidCountEl) unpaidCountEl.textContent = '(' + totalUnpaid + ')';
+      if (unpaidCountEl) {
+        // 有尾数筛选时显示「可见数/总数」，避免上方（4）与下方列表为空不一致
+        if (suf && totalUnpaid > 0) {
+          unpaidCountEl.textContent = '(' + pending.length + '/' + totalUnpaid + ')';
+        } else {
+          unpaidCountEl.textContent = '(' + totalUnpaid + ')';
+        }
+      }
       var badge = document.getElementById('unpaid-count-badge');
       if (badge) badge.textContent = '(' + pending.length + ')';
 
       var container = document.getElementById('pending-list');
       if (container) {
         if (pending.length === 0) {
-          var emptyMsg = suf ? (t('no_match_pending') || '无匹配订单') : (t('no_pending') || '暂无未付款订单');
-          container.innerHTML = '<p class="text-gray-500 text-sm">' + emptyMsg + '</p>';
+          if (suf && totalUnpaid > 0) {
+            var hint = (t('pending_suffix_still_unpaid') || '本店仍有 {n} 单未付款').replace(/\{n\}/g, String(totalUnpaid));
+            var btn = t('btn_clear_suffix') || '清空尾数';
+            container.innerHTML = '<div class="text-gray-500 text-sm space-y-2">' +
+              '<p>' + (t('no_match_pending') || '无匹配订单') + ' · ' + hint + '</p>' +
+              '<button type="button" onclick="clearPendingSuffixFilter()" class="text-blue-400 hover:text-blue-300 font-bold text-sm underline">' + btn + '</button></div>';
+          } else {
+            var emptyMsg = suf ? (t('no_match_pending') || '无匹配订单') : (t('no_pending') || '暂无未付款订单');
+            container.innerHTML = '<p class="text-gray-500 text-sm">' + emptyMsg + '</p>';
+          }
         } else {
           container.innerHTML = pending.map(function (order) {
             var fullNum = order.order_number || order.orderNumber;
@@ -2128,6 +2754,7 @@
             var numLen = (order.numbers && order.numbers.length) ? order.numbers.length : 0;
             return '<div class="bg-gray-700 rounded-xl p-3 flex justify-between items-center">' +
               '<div onclick="viewOrder(\'' + safeFull + '\')" class="flex-1 cursor-pointer">' +
+              orderPendingLotteryBadgeHtml(order) +
               '<span class="font-mono font-bold">单号 ' + orderLast4(fullNum) + '</span>' +
               '<span class="text-gray-400 ml-2">' + numLen + '个号</span></div>' +
               '<div class="text-right">' +
@@ -2138,10 +2765,10 @@
         }
       }
 
-      var redeemList = document.getElementById('redeem-pending-list');
-      if (redeemList) {
+      var redeemListEl = document.getElementById('redeem-pending-list');
+      if (redeemListEl) {
         if (redeemPending.length > 0) {
-          redeemList.innerHTML = redeemPending.map(function (order) {
+          redeemListEl.innerHTML = redeemPending.map(function (order) {
             var fullNum = order.order_number || order.orderNumber;
             var safeFull = String(fullNum || '').replace(/'/g, "\\'");
             var winAmt = getOrderWinAmount(order);
@@ -2151,7 +2778,7 @@
               '</div>';
           }).join('');
         } else {
-          redeemList.innerHTML = '<p class="text-gray-500 text-sm">' + (t('no_redeem') || '暂无待兑奖订单') + '</p>';
+          redeemListEl.innerHTML = '<p class="text-gray-500 text-sm">' + (t('no_redeem') || '暂无待兑奖订单') + '</p>';
         }
       }
     }
