@@ -9,7 +9,7 @@ import { Draw } from '../../entities/draw.entity';
 import { findNationalLastCompletedDraw, findNationalPendingDraw } from '../../utils/draw-queries';
 import { LocalLotteryService } from '../local-lottery/local-lottery.service';
 import * as crypto from 'crypto';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
 import { Repository } from 'typeorm';
 

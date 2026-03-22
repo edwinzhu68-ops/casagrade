@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Query, Body, Param, Req, UseGuard
 import { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Order } from '../../entities/order.entity';
