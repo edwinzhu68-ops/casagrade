@@ -2586,7 +2586,9 @@
           if (merchantWorkbenchKind === 'NACIONAL') {
             const labelDate = currentPeriodLabel;
             if (labelDate) {
-              statusBadge.textContent = `${t('fecha_sorteo')} · ${labelDate}`;
+              var natPn = pendingData.draw && (pendingData.draw.periodNo != null ? pendingData.draw.periodNo : pendingData.draw.period_no);
+              var natPnStr = (natPn != null && String(natPn).trim() !== '') ? (' #' + natPn) : '';
+              statusBadge.textContent = `${t('fecha_sorteo')}${natPnStr} · ${labelDate}`;
               statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
               statusBadge.classList.remove('hidden');
             } else {
@@ -2596,8 +2598,9 @@
             // TICA/NICA：占位与全国「开奖日期」角标同字号（text-xs pill），显示彩种名 + 当前销售期号
             var ldLocal = merchantWorkbenchKind === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
             var dId = ldLocal && (ldLocal.draw_id != null ? ldLocal.draw_id : ldLocal.drawId);
+            var pNoLocal = ldLocal && (ldLocal.period_no != null ? ldLocal.period_no : ldLocal.periodNo);
             var hasId = dId != null && String(dId).trim() !== '';
-            var mid = hasId ? ('#' + dId) : t('badge_in_progress');
+            var mid = hasId ? ('#' + (pNoLocal != null && String(pNoLocal).trim() !== '' ? pNoLocal : dId)) : t('badge_in_progress');
             statusBadge.textContent = merchantWorkbenchKind + ' · ' + mid;
             if (merchantWorkbenchKind === 'TICA') {
               statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300';
