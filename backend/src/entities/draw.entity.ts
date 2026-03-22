@@ -4,8 +4,17 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
 @Index(['status'])              // WHERE status='pending' / 'completed'
 @Index(['status', 'draw_id'])   // ORDER BY draw_id DESC WHERE status=?
 export class Draw {
+  /** 全局主键（自增），用于订单外键；勿与「展示期号」混用 */
   @PrimaryGeneratedColumn()
   draw_id: number;
+
+  /**
+   * 展示期号：在各自范围内从 1 递增，与 draw_id 无关。
+   * - 全国 Lotería：仅统计 shop_id IS NULL 的 NACIONAL 行
+   * - 店内 TICA/NICA：按 shop_id + lottery_type 各自递增
+   */
+  @Column({ type: 'int', nullable: true })
+  period_no: number | null;
 
   @Column({ type: 'date', nullable: true })
   draw_date: Date;

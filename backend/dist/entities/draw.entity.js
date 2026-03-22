@@ -19,6 +19,10 @@ __decorate([
     __metadata("design:type", Number)
 ], Draw.prototype, "draw_id", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Number)
+], Draw.prototype, "period_no", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'date', nullable: true }),
     __metadata("design:type", Date)
 ], Draw.prototype, "draw_date", void 0);

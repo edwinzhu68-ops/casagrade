@@ -1,11 +1,15 @@
 import { Controller, Get, Post, Body, Inject, Logger, UseGuards, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { IsNull, In } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
 import { DrawDayService } from './draw-day.service';
-import { findNationalLastCompletedDraw, findNationalPendingDraw } from '../../utils/draw-queries';
+import {
+  findNationalLastCompletedDraw,
+  findNationalLatestCompletedUnarchivedDraw,
+  findNationalPendingDraw,
+} from '../../utils/draw-queries';
+import { getNextPeriodNoForScope } from '../../utils/draw-period-no';
 
 /**
  * 中奖规则以你说的为准，不做其它查询。
@@ -383,10 +387,9 @@ export class DrawController {
    */
   @Get('latest')
   async getLatestDraw() {
-    const draw = await this.dataSource.getRepository(Draw).findOne({
-      where: { status: In(['COMPLETED', 'completed']), archived_at: IsNull() },
-      order: { draw_id: 'DESC' },
-    });
+    const drawRepo = this.dataSource.getRepository(Draw);
+    // 仅全国 Lotería + 未归档；勿用全表 MAX(draw_id)，否则店内 TICA/NICA 先结算会抢走「latest」导致结算页日期/期号错、订单为 0
+    const draw = await findNationalLatestCompletedUnarchivedDraw(drawRepo);
 
     if (!draw) {
       return {
@@ -421,6 +424,7 @@ export class DrawController {
     return {
       draw: {
         drawId: draw.draw_id,
+        periodNo: (draw as any).period_no ?? null,
         primer: winning.primer || winning.primeras || '',
         segundo: winning.segundo || winning.segundas || '',
         tercero: winning.tercero || winning.terceras || winning.ultimas || '',
@@ -445,6 +449,7 @@ export class DrawController {
     return {
       draw: {
         drawId: draw.draw_id,
+        periodNo: (draw as any).period_no ?? null,
         drawTime: draw.draw_time,
         drawDate: drawDateStr,
         status: draw.status,
@@ -516,6 +521,7 @@ export class DrawController {
         if (updatePayload.draw_date) draw.draw_date = updatePayload.draw_date as Date;
       }
     } else {
+      const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
       draw = drawRepo.create({
         draw_date: (updatePayload.draw_date as Date) || new Date(),
         draw_time: (updatePayload.draw_time as string) || '15:00:00',
@@ -524,11 +530,12 @@ export class DrawController {
         is_manual_override: true,
         lottery_type: 'NACIONAL',
         shop_id: null,
+        period_no: periodNo,
       });
       await drawRepo.save(draw);
     }
 
-    this.logger.log(`开奖时间设置: draw_time=${(draw as any).draw_time}, draw_date=${(draw as any).draw_date}, 期次: ${draw.draw_id}`);
+    this.logger.log(`开奖时间设置: draw_time=${(draw as any).draw_time}, draw_date=${(draw as any).draw_date}, 期次: ${draw.draw_id} period_no=${(draw as any).period_no}`);
 
     return {
       success: true,
@@ -588,6 +595,7 @@ export class DrawController {
       if (updateFields.draw_date) (draw as any).draw_date = updateFields.draw_date;
     } else {
       // 无待开奖期次或 draw_id 无效时，新建一条已开奖记录并保存（避免 update(undefined) 报 Empty criteria）
+      const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
       draw = drawRepo.create({
         draw_date: new Date(),
         draw_time: dto.drawTime || new Date().toTimeString().split(' ')[0],
@@ -595,6 +603,7 @@ export class DrawController {
         winning_numbers: JSON.stringify(winningNumbers),
         lottery_type: 'NACIONAL',
         shop_id: null,
+        period_no: periodNo,
       });
       await drawRepo.save(draw);
     }
@@ -681,6 +690,7 @@ export class DrawController {
       return { success: true, drawId: pending.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
     } else {
       // 不存在 pending 期时，新建一期
+      const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
       const next = drawRepo.create({
         draw_date: nextDateStr as any,
         draw_time: '15:00:00',
@@ -689,6 +699,7 @@ export class DrawController {
         is_manual_override: false,
         lottery_type: 'NACIONAL',
         shop_id: null,
+        period_no: periodNo,
       });
       await drawRepo.save(next);
       this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
@@ -720,6 +731,7 @@ export class DrawController {
 
     const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
 
+    const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
     const next = drawRepo.create({
       draw_date: nextDateStr as any,
       draw_time: '15:00:00',
@@ -728,6 +740,7 @@ export class DrawController {
       is_manual_override: false,
       lottery_type: 'NACIONAL',
       shop_id: null,
+      period_no: periodNo,
     });
     await drawRepo.save(next);
     const nextDateDisplay = drawDateToDisplayString(nextDateStr);

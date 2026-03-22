@@ -1,5 +1,6 @@
 export declare class Draw {
     draw_id: number;
+    period_no: number | null;
     draw_date: Date;
     draw_time: string;
     winning_numbers: string;

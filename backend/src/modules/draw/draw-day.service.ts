@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
+import { getNextPeriodNoForScope } from '../../utils/draw-period-no';
 
 /**
  * 将日期"对齐"到最近的标准开奖日（周三或周日，含当天）。
@@ -168,6 +169,7 @@ export class DrawDayService implements OnModuleInit {
         const nextDraw = getNextDrawDatePanama(completedDateBase);
         const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
 
+        const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
         const next = drawRepo.create({
           draw_date: nextDateStr as any,
           draw_time: '15:00:00',
@@ -176,9 +178,12 @@ export class DrawDayService implements OnModuleInit {
           is_manual_override: false,
           lottery_type: 'NACIONAL',
           shop_id: null,
+          period_no: periodNo,
         });
         await drawRepo.save(next);
-        this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+        this.logger.log(
+          `次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}`,
+        );
       }
     } catch (e) {
       this.logger.error('tick 异常: ' + (e instanceof Error ? e.message : String(e)));

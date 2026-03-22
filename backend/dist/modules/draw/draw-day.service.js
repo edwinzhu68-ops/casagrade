@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("typeorm");
 const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
+const draw_period_no_1 = require("../../utils/draw-period-no");
 function snapToStandardDrawDay(date) {
     const day = date.getDay();
     if (day === 0 || day === 3)
@@ -53,7 +54,11 @@ function getPanamaNow() {
         hour: '2-digit', minute: '2-digit', hour12: false,
     }).formatToParts(now);
     const get = (type) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
-    return { y: get('year'), m: get('month'), d: get('day'), h: get('hour'), min: get('minute') };
+    let h = get('hour');
+    const min = get('minute');
+    if (h === 24)
+        h = 0;
+    return { y: get('year'), m: get('month'), d: get('day'), h, min };
 }
 function parseDrawTime(draw) {
     const timeStr = String(draw.draw_time || '').trim();
@@ -156,6 +161,7 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                 const completedDateBase = snapToStandardDrawDay(new Date(rawDate + 'T12:00:00'));
                 const nextDraw = getNextDrawDatePanama(completedDateBase);
                 const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+                const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
                 const next = drawRepo.create({
                     draw_date: nextDateStr,
                     draw_time: '15:00:00',
@@ -164,9 +170,10 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                     is_manual_override: false,
                     lottery_type: 'NACIONAL',
                     shop_id: null,
+                    period_no: periodNo,
                 });
                 await drawRepo.save(next);
-                this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+                this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}`);
             }
         }
         catch (e) {

@@ -25,7 +25,11 @@ function getPanamaNow() {
         hour: '2-digit', minute: '2-digit', hour12: false,
     }).formatToParts(now);
     const get = (type) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
-    return { y: get('year'), m: get('month'), d: get('day'), h: get('hour'), min: get('minute') };
+    let h = get('hour');
+    const min = get('minute');
+    if (h === 24)
+        h = 0;
+    return { y: get('year'), m: get('month'), d: get('day'), h, min };
 }
 let OrderCancelService = OrderCancelService_1 = class OrderCancelService {
     constructor(dataSource) {

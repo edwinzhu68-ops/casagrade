@@ -7,6 +7,8 @@
  */
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { Draw } from '../entities/draw.entity';
+import { backfillDrawPeriodNo } from '../utils/draw-period-no';
 
 @Injectable()
 export class DatabaseInitService implements OnModuleInit {
@@ -16,6 +18,7 @@ export class DatabaseInitService implements OnModuleInit {
 
   async onModuleInit() {
     await this.ensureTicaNicaColumns();
+    await this.ensureDrawPeriodNoColumn();
 
     const indexes: { name: string; sql: string }[] = [
       // ── orders ────────────────────────────────────────────────────────────
@@ -114,5 +117,19 @@ export class DatabaseInitService implements OnModuleInit {
         `UPDATE orders SET lottery_type = 'NACIONAL' WHERE lottery_type IS NULL`,
       );
     } catch {}
+  }
+
+  /** draws.period_no：各彩种/各店独立展示期号，与 draw_id 主键分离 */
+  private async ensureDrawPeriodNoColumn(): Promise<void> {
+    try {
+      await this.dataSource.query(`ALTER TABLE draws ADD COLUMN period_no integer`);
+    } catch {
+      /* 列已存在 */
+    }
+    try {
+      await backfillDrawPeriodNo(this.dataSource.getRepository(Draw), this.logger);
+    } catch (e) {
+      this.logger.warn(`period_no 回填跳过: ${(e as Error).message}`);
+    }
   }
 }

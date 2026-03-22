@@ -53,6 +53,7 @@ export declare class DrawController {
     } | {
         draw: {
             drawId: number;
+            periodNo: any;
             primer: any;
             segundo: any;
             tercero: any;
@@ -68,6 +69,7 @@ export declare class DrawController {
     } | {
         draw: {
             drawId: number;
+            periodNo: any;
             drawTime: string;
             drawDate: string;
             status: string;

@@ -7,6 +7,7 @@ import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { Draw } from '../../entities/draw.entity';
 import { findShopPendingLocalDraw } from '../../utils/draw-queries';
+import { getNextPeriodNoForScope } from '../../utils/draw-period-no';
 import { withShopLock } from '../../utils/shop-order-lock';
 import { SettlementService } from '../settlement/settlement.service';
 
@@ -60,6 +61,7 @@ export class LocalLotteryService {
 
     const panama = getPanamaYmd();
     const drawDateStr = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+    const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId, lotteryType: kind });
     d = drawRepo.create({
       draw_date: drawDateStr as any,
       draw_time: '12:00:00',
@@ -68,9 +70,10 @@ export class LocalLotteryService {
       is_manual_override: false,
       lottery_type: kind,
       shop_id: shopId,
+      period_no: periodNo,
     });
     await drawRepo.save(d);
-    this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} shop_id=${shopId}`);
+    this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} period_no=${periodNo} shop_id=${shopId}`);
     return d;
   }
 
@@ -78,6 +81,7 @@ export class LocalLotteryService {
     const draw = await this.ensureShopPendingDraw(shopId, kind);
     return {
       draw_id: draw.draw_id,
+      period_no: draw.period_no,
       shop_id: shopId,
       lottery_type: kind,
       status: draw.status,

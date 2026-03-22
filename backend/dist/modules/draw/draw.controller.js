@@ -16,12 +16,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminController = exports.DrawController = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("typeorm");
-const typeorm_2 = require("typeorm");
 const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
 const admin_token_guard_1 = require("../../guards/admin-token.guard");
 const draw_day_service_1 = require("./draw-day.service");
 const draw_queries_1 = require("../../utils/draw-queries");
+const draw_period_no_1 = require("../../utils/draw-period-no");
 const BILLETE_RATE = {
     exact: [2000, 600, 300],
     first3: [50, 20, 10],
@@ -309,10 +309,8 @@ let DrawController = DrawController_1 = class DrawController {
         }
     }
     async getLatestDraw() {
-        const draw = await this.dataSource.getRepository(draw_entity_1.Draw).findOne({
-            where: { status: (0, typeorm_2.In)(['COMPLETED', 'completed']), archived_at: (0, typeorm_2.IsNull)() },
-            order: { draw_id: 'DESC' },
-        });
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const draw = await (0, draw_queries_1.findNationalLatestCompletedUnarchivedDraw)(drawRepo);
         if (!draw) {
             return {
                 draw: null,
@@ -343,6 +341,7 @@ let DrawController = DrawController_1 = class DrawController {
         return {
             draw: {
                 drawId: draw.draw_id,
+                periodNo: draw.period_no ?? null,
                 primer: winning.primer || winning.primeras || '',
                 segundo: winning.segundo || winning.segundas || '',
                 tercero: winning.tercero || winning.terceras || winning.ultimas || '',
@@ -361,6 +360,7 @@ let DrawController = DrawController_1 = class DrawController {
         return {
             draw: {
                 drawId: draw.draw_id,
+                periodNo: draw.period_no ?? null,
                 drawTime: draw.draw_time,
                 drawDate: drawDateStr,
                 status: draw.status,
@@ -419,6 +419,7 @@ let DrawController = DrawController_1 = class DrawController {
             }
         }
         else {
+            const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
             draw = drawRepo.create({
                 draw_date: updatePayload.draw_date || new Date(),
                 draw_time: updatePayload.draw_time || '15:00:00',
@@ -427,10 +428,11 @@ let DrawController = DrawController_1 = class DrawController {
                 is_manual_override: true,
                 lottery_type: 'NACIONAL',
                 shop_id: null,
+                period_no: periodNo,
             });
             await drawRepo.save(draw);
         }
-        this.logger.log(`开奖时间设置: draw_time=${draw.draw_time}, draw_date=${draw.draw_date}, 期次: ${draw.draw_id}`);
+        this.logger.log(`开奖时间设置: draw_time=${draw.draw_time}, draw_date=${draw.draw_date}, 期次: ${draw.draw_id} period_no=${draw.period_no}`);
         return {
             success: true,
             drawId: draw.draw_id,
@@ -477,6 +479,7 @@ let DrawController = DrawController_1 = class DrawController {
                 draw.draw_date = updateFields.draw_date;
         }
         else {
+            const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
             draw = drawRepo.create({
                 draw_date: new Date(),
                 draw_time: dto.drawTime || new Date().toTimeString().split(' ')[0],
@@ -484,6 +487,7 @@ let DrawController = DrawController_1 = class DrawController {
                 winning_numbers: JSON.stringify(winningNumbers),
                 lottery_type: 'NACIONAL',
                 shop_id: null,
+                period_no: periodNo,
             });
             await drawRepo.save(draw);
         }
@@ -539,6 +543,7 @@ let DrawController = DrawController_1 = class DrawController {
             return { success: true, drawId: pending.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
         }
         else {
+            const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
             const next = drawRepo.create({
                 draw_date: nextDateStr,
                 draw_time: '15:00:00',
@@ -547,6 +552,7 @@ let DrawController = DrawController_1 = class DrawController {
                 is_manual_override: false,
                 lottery_type: 'NACIONAL',
                 shop_id: null,
+                period_no: periodNo,
             });
             await drawRepo.save(next);
             this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
@@ -566,6 +572,7 @@ let DrawController = DrawController_1 = class DrawController {
             .execute();
         const nextDraw = getNextDrawDatePanama();
         const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+        const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
         const next = drawRepo.create({
             draw_date: nextDateStr,
             draw_time: '15:00:00',
@@ -574,6 +581,7 @@ let DrawController = DrawController_1 = class DrawController {
             is_manual_override: false,
             lottery_type: 'NACIONAL',
             shop_id: null,
+            period_no: periodNo,
         });
         await drawRepo.save(next);
         const nextDateDisplay = drawDateToDisplayString(nextDateStr);
