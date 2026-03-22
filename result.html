@@ -2055,6 +2055,8 @@
         var pkHist = getResultPageKind();
         if (pkHist === 'TICA' || pkHist === 'NICA') {
           params.set('lotteryKind', pkHist);
+        } else {
+          params.set('lotteryKind', 'NACIONAL');
         }
         const res = await fetch(`${API_BASE}/api/settlement/history?` + params.toString(), {
           cache: 'no-store',
