@@ -28,6 +28,17 @@ interface ChanceResult {
   totalPayout: number;
 }
 
+/** 店内彩开奖号码 N1 N2 N3（两位） */
+export interface WinningN123 {
+  n1: string;
+  n2: string;
+  n3: string;
+}
+
+/** TICA / NICA 共用固定 Billete 奖金（方案迭代，不入库） */
+const SHOP_LOCAL_BILLETE_HEAD = 1000;
+const SHOP_LOCAL_BILLETE_SECOND = 200;
+
 @Injectable()
 export class SettlementService {
   private readonly logger = new Logger(SettlementService.name);
@@ -80,7 +91,7 @@ export class SettlementService {
 
     // 先统计所有订单结算结果（无副作用）
     for (const order of orders) {
-      const orderResult = this.settleOrder(order, winning);
+      const orderResult = this.settleOrderWithDrawResult(order, winning);
       results.results.push(orderResult);
       results.totalSales += orderResult.sales;
       results.totalPayout += orderResult.payout;
@@ -109,9 +120,110 @@ export class SettlementService {
   }
 
   /**
-   * 结算单个订单
+   * 店内 TICA/NICA：写入 N1N2N3 后对指定期次结算，并完成该期、创建下一期待开奖
    */
-  private settleOrder(order: Order, winning: DrawResult): {
+  async settleShopLotteryDraw(drawId: number): Promise<{
+    totalOrders: number;
+    totalSales: number;
+    totalPayout: number;
+    wins: number;
+    results: any[];
+  }> {
+    const draw = await this.drawRepo.findOne({ where: { draw_id: drawId } });
+    if (!draw) throw new Error('开奖期次不存在');
+    const lt = String((draw as any).lottery_type || 'NACIONAL').toUpperCase();
+    if (lt !== 'TICA' && lt !== 'NICA') {
+      throw new Error('该期次不是店内彩');
+    }
+    if (draw.status !== 'pending') {
+      throw new Error('该期次已结算或状态异常');
+    }
+    const n123 = this.parseWinningN123(draw.winning_numbers);
+    const winning = this.drawResultFromN123(n123);
+
+    const orders = await this.orderRepo.find({
+      where: { status: 1, draw_id: drawId },
+    });
+
+    const results = {
+      totalOrders: orders.length,
+      totalSales: 0,
+      totalPayout: 0,
+      wins: 0,
+      results: [] as any[],
+    };
+
+    // 方案迭代：TICA 与 NICA 结算完全相同（F/L 头二奖固定额 + Chance 与 Lotería 同逻辑）
+    for (const order of orders) {
+      const orderResult = this.settleTicaNicaOrder(order, n123, winning);
+      results.results.push(orderResult);
+      results.totalSales += orderResult.sales;
+      results.totalPayout += orderResult.payout;
+      if (orderResult.payout > 0) results.wins++;
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i];
+        const orderResult = results.results[i];
+        await manager.update(Order, order.order_id, {
+          status: orderResult.payout > 0 ? 3 : 2,
+          win_amount: orderResult.payout,
+          win_breakdown: orderResult.wins,
+          settled_at: new Date(),
+        } as any);
+      }
+      await manager.update(Draw, drawId, { status: 'completed' } as any);
+    });
+
+    this.logger.log(
+      `[${lt}] 店内结算完成 draw_id=${drawId}: ${results.totalOrders}单, 赔付$${results.totalPayout}`,
+    );
+    return results;
+  }
+
+  /**
+   * 解析 winning_numbers 中的 n1/n2/n3（兼容 JSON 字符串）
+   */
+  parseWinningN123(raw: string | null | undefined): WinningN123 {
+    if (raw == null || String(raw).trim() === '') {
+      throw new Error('缺少开奖号码 n1/n2/n3');
+    }
+    let obj: any = raw;
+    if (typeof raw === 'string') {
+      try {
+        obj = JSON.parse(raw);
+      } catch {
+        throw new Error('开奖号码格式无效');
+      }
+    }
+    const pad2 = (v: unknown) => {
+      const d = String(v ?? '').replace(/\D/g, '');
+      if (d.length === 0) return '';
+      return d.slice(-2).padStart(2, '0');
+    };
+    const n1 = pad2(obj?.n1);
+    const n2 = pad2(obj?.n2);
+    const n3 = pad2(obj?.n3);
+    if (!/^\d{2}$/.test(n1) || !/^\d{2}$/.test(n2) || !/^\d{2}$/.test(n3)) {
+      throw new Error('n1/n2/n3 须为两位数字');
+    }
+    return { n1, n2, n3 };
+  }
+
+  /** N1N2N3 → 与全国 Chance/Billete 后两位逻辑一致的 DrawResult */
+  drawResultFromN123(n: WinningN123): DrawResult {
+    return {
+      primer: n.n1,
+      segundo: n.n2,
+      tercero: n.n3,
+    };
+  }
+
+  /**
+   * 结算单个订单（仅全国 NACIONAL：Lotería Billete 阶梯 + Chance）
+   */
+  private settleOrderWithDrawResult(order: Order, winning: DrawResult): {
     orderId: number;
     gameType: string;
     sales: number;
@@ -120,7 +232,6 @@ export class SettlementService {
   } {
     const numbers = order.numbers as { n: string; q: number }[];
     const gameType = order.game_type;
-    // sales 直接使用订单总金额，不按号码行重复累加
     const sales = Number(order.amount);
 
     let payout = 0;
@@ -130,10 +241,8 @@ export class SettlementService {
       const numStr = num.n;
       const quantity = num.q;
 
-      // 按号码位数区分规则：4位是Billete，2位是Chance（不再按game_type字段区分）
       const numLen = numStr.replace(/\D/g, '').length;
       if (numLen >= 4) {
-        // Billete: 4位数字；赔付 = 赔率 × 张数（$1/张），与订单总金额无关
         const result = this.calculateBilletePayout(numStr, winning, quantity);
         if (result.totalPayout > 0) {
           wins.push({
@@ -144,7 +253,6 @@ export class SettlementService {
         }
         payout += result.totalPayout;
       } else if (numLen >= 2) {
-        // Chance: 2位数字，按「张数×赔率」计算，不是「金额×张数」
         const result = this.calculateChancePayout(numStr, winning, quantity);
         if (result.totalPayout > 0) {
           wins.push({
@@ -164,6 +272,84 @@ export class SettlementService {
       payout,
       wins,
     };
+  }
+
+  /**
+   * TICA / NICA（与方案迭代一致）：Billete 头/二奖固定金额；Chance 与 Lotería 相同（N1→primer…）
+   */
+  private settleTicaNicaOrder(order: Order, n123: WinningN123, chanceWinning: DrawResult): {
+    orderId: number;
+    gameType: string;
+    sales: number;
+    payout: number;
+    wins: any[];
+  } {
+    const numbers = order.numbers as { n: string; q: number }[];
+    const gameType = order.game_type;
+    const sales = Number(order.amount);
+    let payout = 0;
+    const wins: any[] = [];
+
+    for (const num of numbers) {
+      const numStr = num.n;
+      const quantity = num.q;
+      const numLen = numStr.replace(/\D/g, '').length;
+      if (numLen >= 4) {
+        const result = this.calculateTicaNicaBilletePayout(numStr, n123, quantity);
+        if (result.totalPayout > 0) {
+          wins.push({
+            number: numStr,
+            matches: result.matches,
+            payout: result.totalPayout,
+          });
+        }
+        payout += result.totalPayout;
+      } else if (numLen >= 2) {
+        const result = this.calculateChancePayout(numStr, chanceWinning, quantity);
+        if (result.totalPayout > 0) {
+          wins.push({
+            number: numStr,
+            matches: result.matches,
+            payout: result.totalPayout,
+          });
+        }
+        payout += result.totalPayout;
+      }
+    }
+
+    return {
+      orderId: order.order_id,
+      gameType,
+      sales,
+      payout,
+      wins,
+    };
+  }
+
+  /**
+   * TICA / NICA Billete（与方案一致）：前两位=F，后两位=L（四位票）
+   * 头奖：F===N1 且 (L===N2 或 L===N3)；二奖：F===N2 且 L===N3；头奖优先
+   */
+  private calculateTicaNicaBilletePayout(
+    num: string,
+    n123: WinningN123,
+    qty: number,
+  ): BilleteResult {
+    const padded = num.replace(/\D/g, '').slice(-4).padStart(4, '0');
+    const F = padded.slice(0, 2);
+    const L = padded.slice(2, 4);
+    const { n1, n2, n3 } = n123;
+    const matches: string[] = [];
+    let totalPayout = 0;
+
+    if (F === n1 && (L === n2 || L === n3)) {
+      matches.push(`TICA/NICA 头奖 F=${F} L=${L} x${SHOP_LOCAL_BILLETE_HEAD}`);
+      totalPayout += SHOP_LOCAL_BILLETE_HEAD * qty;
+    } else if (F === n2 && L === n3) {
+      matches.push(`TICA/NICA 二奖 F=${F} L=${L} x${SHOP_LOCAL_BILLETE_SECOND}`);
+      totalPayout += SHOP_LOCAL_BILLETE_SECOND * qty;
+    }
+    return { matches, totalPayout };
   }
 
   /**

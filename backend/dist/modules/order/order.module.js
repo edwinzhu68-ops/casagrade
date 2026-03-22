@@ -15,12 +15,13 @@ const order_cancel_service_1 = require("./order-cancel.service");
 const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
 const draw_module_1 = require("../draw/draw.module");
+const local_lottery_module_1 = require("../local-lottery/local-lottery.module");
 let OrderModule = class OrderModule {
 };
 exports.OrderModule = OrderModule;
 exports.OrderModule = OrderModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([order_entity_1.Order, shop_entity_1.Shop]), draw_module_1.DrawModule],
+        imports: [typeorm_1.TypeOrmModule.forFeature([order_entity_1.Order, shop_entity_1.Shop]), draw_module_1.DrawModule, local_lottery_module_1.LocalLotteryModule],
         controllers: [order_cancel_controller_1.OrderCancelController, order_controller_1.OrderController, order_controller_1.ShopController, order_controller_1.BetStatusController],
         providers: [order_cancel_service_1.OrderCancelService],
     })

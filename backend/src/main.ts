@@ -84,9 +84,20 @@ async function bootstrap() {
 
   const allowedOrigins = process.env.ALLOWED_ORIGINS;
   const isDev = process.env.NODE_ENV !== 'production';
-  const defaultOrigins = isDev
-    ? ['https://www.casagrade.com', 'https://casagrade.com', 'https://api.casagrade.com', 'http://localhost:3005', 'http://localhost:8080']
-    : ['https://www.casagrade.com', 'https://casagrade.com', 'https://api.casagrade.com'];
+  const localDevOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3005',
+    'http://127.0.0.1:3005',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ];
+  const prodOrigins = ['https://www.casagrade.com', 'https://casagrade.com', 'https://api.casagrade.com'];
+  // 本地用 NODE_ENV=production 跑 build 时，可加 ALLOW_LOCAL_CORS=1 放行 localhost 页面访问 API
+  const allowLocalCors = isDev || process.env.ALLOW_LOCAL_CORS === '1' || process.env.ALLOW_LOCAL_CORS === 'true';
+  const defaultOrigins = allowLocalCors ? [...prodOrigins, ...localDevOrigins] : prodOrigins;
   const origins = allowedOrigins
     ? allowedOrigins.split(',').map((s) => s.trim()).filter(Boolean)
     : defaultOrigins;

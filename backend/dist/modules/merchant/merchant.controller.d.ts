@@ -1,5 +1,6 @@
 import { OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { LocalLotteryService } from '../local-lottery/local-lottery.service';
 interface LoginDto {
     account?: string;
     accountNumber?: string;
@@ -17,8 +18,9 @@ interface RegisterDto {
 }
 export declare class MerchantController implements OnModuleInit {
     private readonly dataSource;
+    private readonly localLotteryService;
     private readonly logger;
-    constructor(dataSource: DataSource);
+    constructor(dataSource: DataSource, localLotteryService: LocalLotteryService);
     onModuleInit(): Promise<void>;
     private verifySession;
     register(dto: RegisterDto): Promise<{
@@ -63,19 +65,12 @@ export declare class MerchantController implements OnModuleInit {
             status: string;
             commission_rate: number;
             subscription_expires_at: Date;
-        }[];
-        last_login_at: Date;
-        last_login_ua: string;
-    } | {
-        shops: {
-            shop_id: number;
-            shop_number: string;
-            shop_name: string;
-            status: string;
-            commission_rate: number;
             limit_chance: any;
             limit_billete: any;
-            subscription_expires_at: Date;
+            tica_enabled: boolean;
+            nica_enabled: boolean;
+            accepting_tica_orders: boolean;
+            accepting_nica_orders: boolean;
         }[];
         last_login_at: Date;
         last_login_ua: string;
@@ -177,44 +172,21 @@ export declare class MerchantController implements OnModuleInit {
             commission_rate: number;
         }[];
     }>;
-    subShopData(mainShopId: string, drawId: string): Promise<{
-        draw_id: number;
-        sub_shops: any[];
-        draw_status?: undefined;
-        draw_date?: undefined;
-        summary?: undefined;
-    } | {
+    subShopData(mainShopId: string, drawId: string, lotteryKind?: string): Promise<{
         draw_id: number;
         draw_status: string;
         draw_date: Date;
-        sub_shops: {
-            binding_id: number;
-            sub_shop_id: number;
-            sub_shop_number: string;
-            sub_shop_name: string;
-            commission_rate: number;
-            total_sales: number;
-            total_payout: number;
-            sub_commission: number;
-            main_net_profit: number;
-            order_count: number;
-        }[];
+        lottery_kind: string;
+        sub_shops: any[];
         summary: {
             total_sales: number;
             total_commission_paid: number;
             main_total_net: number;
         };
     }>;
-    bindingHistory(mainShopId: string, limit: string): Promise<{
-        history: {
-            draw_id: number;
-            draw_date: Date;
-            total_sales: number;
-            total_payout: number;
-            total_commission: number;
-            main_net_profit: number;
-            order_count: number;
-        }[];
+    bindingHistory(mainShopId: string, limit: string, lotteryKind?: string): Promise<{
+        history: any[];
+        lottery_kind: string;
     }>;
     bindingPendingCount(shopId: string): Promise<{
         count: number;

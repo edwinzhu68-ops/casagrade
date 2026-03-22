@@ -8,40 +8,106 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var __param = (this && this.__param) || function (paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
-};
 var OrderCancelService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OrderCancelService = void 0;
 const common_1 = require("@nestjs/common");
-const typeorm_1 = require("@nestjs/typeorm");
-const typeorm_2 = require("typeorm");
+const typeorm_1 = require("typeorm");
 const order_entity_1 = require("../../entities/order.entity");
-const THIRTY_MIN_MS = 30 * 60 * 1000;
+const draw_entity_1 = require("../../entities/draw.entity");
 const INTERVAL_MS = 60 * 1000;
+const PANAMA_TZ = 'America/Panama';
+function getPanamaNow() {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: PANAMA_TZ,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(now);
+    const get = (type) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
+    return { y: get('year'), m: get('month'), d: get('day'), h: get('hour'), min: get('minute') };
+}
 let OrderCancelService = OrderCancelService_1 = class OrderCancelService {
-    constructor(orderRepo) {
-        this.orderRepo = orderRepo;
+    constructor(dataSource) {
+        this.dataSource = dataSource;
         this.logger = new common_1.Logger(OrderCancelService_1.name);
         this.timer = null;
     }
     onModuleInit() {
         this.timer = setInterval(() => this.cancelExpiredPendingOrders(), INTERVAL_MS);
-        this.logger.log('定时任务已启动：每 1 分钟检查超时未付款订单并自动取消');
+        this.logger.log('定时任务已启动：每 1 分钟检查停售后未付款订单并自动取消');
+    }
+    async isInStopSellPeriod() {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const draw = await drawRepo
+            .createQueryBuilder('d')
+            .where('d.status = :s', { s: 'pending' })
+            .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('(d.shop_id IS NULL)')
+            .orderBy('d.draw_id', 'DESC')
+            .getOne();
+        if (!draw)
+            return true;
+        const timeStr = String(draw.draw_time || '15:00').trim();
+        let drawHour = 15, drawMin = 0;
+        if (timeStr.includes('T')) {
+            const dt = new Date(timeStr);
+            if (!isNaN(dt.getTime())) {
+                drawHour = dt.getHours();
+                drawMin = dt.getMinutes();
+            }
+        }
+        else {
+            const p = timeStr.split(':').map(Number);
+            if (p.length >= 2 && !isNaN(p[0]) && !isNaN(p[1])) {
+                drawHour = p[0];
+                drawMin = p[1];
+            }
+        }
+        let dy, dm, dd;
+        if (timeStr.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+            dy = parseInt(timeStr.slice(0, 4), 10);
+            dm = parseInt(timeStr.slice(5, 7), 10);
+            dd = parseInt(timeStr.slice(8, 10), 10);
+        }
+        else if (draw.draw_date) {
+            const raw = draw.draw_date;
+            const d = typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(String(raw))
+                ? new Date(String(raw).substring(0, 10) + 'T12:00:00Z')
+                : new Date(raw);
+            dy = d.getUTCFullYear();
+            dm = d.getUTCMonth() + 1;
+            dd = d.getUTCDate();
+        }
+        else {
+            return false;
+        }
+        const stopSaleStart = drawHour * 60 + drawMin - 5;
+        const RESUME_MINS = 7 * 60;
+        const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+        const nextDay = new Date(`${drawDateISO}T12:00:00`);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const dayAfterISO = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}`;
+        const panama = getPanamaNow();
+        const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+        const totalMins = panama.h * 60 + panama.min;
+        return (drawDateISO === todayISO && totalMins >= stopSaleStart) ||
+            (dayAfterISO === todayISO && totalMins < RESUME_MINS);
     }
     async cancelExpiredPendingOrders() {
-        const deadline = new Date(Date.now() - THIRTY_MIN_MS);
         try {
-            const result = await this.orderRepo
+            if (!(await this.isInStopSellPeriod()))
+                return;
+            const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+            const result = await orderRepo
                 .createQueryBuilder()
                 .update(order_entity_1.Order)
                 .set({ status: -1, canceled_at: new Date() })
                 .where('status = :status', { status: 0 })
-                .andWhere('created_at < :deadline', { deadline })
+                .andWhere('(lottery_type IS NULL OR lottery_type = :nac)', { nac: 'NACIONAL' })
                 .execute();
             if (result.affected && result.affected > 0) {
-                this.logger.log(`自动取消 ${result.affected} 笔超时未付款订单`);
+                this.logger.log(`停售后自动取消 ${result.affected} 笔未付款订单`);
             }
         }
         catch (e) {
@@ -52,7 +118,6 @@ let OrderCancelService = OrderCancelService_1 = class OrderCancelService {
 exports.OrderCancelService = OrderCancelService;
 exports.OrderCancelService = OrderCancelService = OrderCancelService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, typeorm_1.InjectRepository)(order_entity_1.Order)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_1.DataSource])
 ], OrderCancelService);
 //# sourceMappingURL=order-cancel.service.js.map

@@ -5,6 +5,7 @@ import { DrawModule } from './modules/draw/draw.module';
 import { MerchantModule } from './modules/merchant/merchant.module';
 import { SettlementModule } from './modules/settlement/settlement.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { LocalLotteryModule } from './modules/local-lottery/local-lottery.module';
 import { Order } from './entities/order.entity';
 import { Shop } from './entities/shop.entity';
 import { Draw } from './entities/draw.entity';
@@ -52,6 +53,7 @@ function getTypeOrmConfig(): Parameters<typeof TypeOrmModule.forRoot>[0] {
     MerchantModule,
     SettlementModule,
     AdminModule,
+    LocalLotteryModule,
   ],
   providers: [DatabaseInitService],
 })

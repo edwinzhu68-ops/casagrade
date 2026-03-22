@@ -14,7 +14,15 @@ export class Draw {
   draw_time: string;
 
   @Column({ type: 'text', nullable: true })
-  winning_numbers: string; // JSON: {"primer":"1234","segundo":"5678","tercero":"9012"}
+  winning_numbers: string; // JSON: {"primer":"1234","segundo":"5678","tercero":"9012"} 或店内 {"n1":"01","n2":"02","n3":"03"}
+
+  /** NACIONAL=全国；TICA/NICA=店内彩（须带 shop_id） */
+  @Column({ length: 20, default: 'NACIONAL' })
+  lottery_type: string;
+
+  /** 店内彩归属店铺；全国期为 null */
+  @Column({ type: 'int', nullable: true })
+  shop_id: number | null;
 
   @Column({ length: 20, default: 'pending' })
   status: string; // pending / completed

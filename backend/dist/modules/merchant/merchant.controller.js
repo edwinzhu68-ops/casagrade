@@ -55,6 +55,8 @@ const shop_binding_entity_1 = require("../../entities/shop-binding.entity");
 const card_code_entity_1 = require("../../entities/card-code.entity");
 const order_entity_1 = require("../../entities/order.entity");
 const draw_entity_1 = require("../../entities/draw.entity");
+const draw_queries_1 = require("../../utils/draw-queries");
+const local_lottery_service_1 = require("../local-lottery/local-lottery.service");
 const crypto = __importStar(require("crypto"));
 const bcrypt = __importStar(require("bcrypt"));
 const nodemailer = __importStar(require("nodemailer"));
@@ -131,8 +133,9 @@ async function findShopByNumber(shopRepo, number) {
         .getOne() ?? null;
 }
 let MerchantController = MerchantController_1 = class MerchantController {
-    constructor(dataSource) {
+    constructor(dataSource, localLotteryService) {
         this.dataSource = dataSource;
+        this.localLotteryService = localLotteryService;
         this.logger = new common_1.Logger(MerchantController_1.name);
     }
     async onModuleInit() {
@@ -425,6 +428,12 @@ let MerchantController = MerchantController_1 = class MerchantController {
                             status: shopByNumber.status,
                             commission_rate: shopByNumber.commission_rate,
                             subscription_expires_at: shopByNumber.subscription_expires_at ?? null,
+                            limit_chance: shopByNumber.limit_chance ?? null,
+                            limit_billete: shopByNumber.limit_billete ?? null,
+                            tica_enabled: !!shopByNumber.tica_enabled,
+                            nica_enabled: !!shopByNumber.nica_enabled,
+                            accepting_tica_orders: shopByNumber.accepting_tica_orders !== false,
+                            accepting_nica_orders: shopByNumber.accepting_nica_orders !== false,
                         }],
                     last_login_at: currentUser?.last_login_at ?? null,
                     last_login_ua: currentUser?.last_login_ua ?? null,
@@ -445,6 +454,10 @@ let MerchantController = MerchantController_1 = class MerchantController {
                 limit_chance: shop.limit_chance ?? null,
                 limit_billete: shop.limit_billete ?? null,
                 subscription_expires_at: shop.subscription_expires_at ?? null,
+                tica_enabled: !!shop.tica_enabled,
+                nica_enabled: !!shop.nica_enabled,
+                accepting_tica_orders: shop.accepting_tica_orders !== false,
+                accepting_nica_orders: shop.accepting_nica_orders !== false,
             })),
             last_login_at: currentUser?.last_login_at ?? null,
             last_login_ua: currentUser?.last_login_ua ?? null,
@@ -799,42 +812,69 @@ let MerchantController = MerchantController_1 = class MerchantController {
         }));
         return { sub_shops: result };
     }
-    async subShopData(mainShopId, drawId) {
+    async subShopData(mainShopId, drawId, lotteryKind) {
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
+        const kind = (lotteryKind || 'NACIONAL').toString().toUpperCase();
+        if (kind !== 'NACIONAL' && kind !== 'TICA' && kind !== 'NICA') {
+            throw new common_1.BadRequestException('无效的 lotteryKind');
+        }
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const bindings = await bindingRepo.find({
+            where: { main_shop_id: Number(mainShopId), status: 'active' },
+        });
+        const emptyPayload = (drawIdVal, st, dt) => ({
+            draw_id: drawIdVal,
+            draw_status: st,
+            draw_date: dt,
+            lottery_kind: kind,
+            sub_shops: [],
+            summary: { total_sales: 0, total_commission_paid: 0, main_total_net: 0 },
+        });
+        if (bindings.length === 0)
+            return emptyPayload(null, 'pending', null);
+        const subShopIds = bindings.map(b => b.sub_shop_id);
         let targetDrawId = null;
         let drawStatus = 'pending';
         let drawDate = null;
-        if (drawId && Number(drawId) > 0) {
-            targetDrawId = Number(drawId);
-            const dr = await drawRepo.findOne({ where: { draw_id: targetDrawId } });
-            drawStatus = dr?.status ?? 'pending';
-            drawDate = dr?.draw_date ?? null;
-        }
-        else {
-            const completed = await drawRepo.findOne({
-                where: { status: (0, typeorm_1.In)(['completed', 'COMPLETED']) },
-                order: { draw_id: 'DESC' },
-            });
-            if (completed) {
-                const base = new Date(typeof completed.draw_date === 'string'
-                    ? completed.draw_date + 'T09:00:00'
-                    : completed.draw_date);
-                const archiveAt = new Date(base);
-                archiveAt.setDate(archiveAt.getDate() + 1);
-                archiveAt.setHours(9, 0, 0, 0);
-                const shouldArchive = completed.main_shop_archived || new Date() >= archiveAt;
-                if (!shouldArchive) {
-                    targetDrawId = completed.draw_id;
-                    drawStatus = 'completed';
-                    drawDate = completed.draw_date ?? null;
+        let allOrders = [];
+        const periodDrawBySub = new Map();
+        if (kind === 'NACIONAL') {
+            if (drawId && Number(drawId) > 0) {
+                targetDrawId = Number(drawId);
+                const dr = await drawRepo.findOne({ where: { draw_id: targetDrawId } });
+                drawStatus = dr?.status ?? 'pending';
+                drawDate = dr?.draw_date ?? null;
+            }
+            else {
+                const completed = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
+                if (completed) {
+                    const base = new Date(typeof completed.draw_date === 'string'
+                        ? completed.draw_date + 'T09:00:00'
+                        : completed.draw_date);
+                    const archiveAt = new Date(base);
+                    archiveAt.setDate(archiveAt.getDate() + 1);
+                    archiveAt.setHours(9, 0, 0, 0);
+                    const shouldArchive = completed.main_shop_archived || new Date() >= archiveAt;
+                    if (!shouldArchive) {
+                        targetDrawId = completed.draw_id;
+                        drawStatus = 'completed';
+                        drawDate = completed.draw_date ?? null;
+                    }
+                    else {
+                        const pending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+                        if (pending) {
+                            targetDrawId = pending.draw_id;
+                            drawStatus = 'pending';
+                            drawDate = pending.draw_date ?? null;
+                        }
+                    }
                 }
                 else {
-                    const pending = await drawRepo.findOne({ where: { status: 'pending' }, order: { draw_id: 'DESC' } });
+                    const pending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
                     if (pending) {
                         targetDrawId = pending.draw_id;
                         drawStatus = 'pending';
@@ -842,32 +882,51 @@ let MerchantController = MerchantController_1 = class MerchantController {
                     }
                 }
             }
-            else {
-                const pending = await drawRepo.findOne({ where: { status: 'pending' }, order: { draw_id: 'DESC' } });
-                if (pending) {
-                    targetDrawId = pending.draw_id;
-                    drawStatus = 'pending';
-                    drawDate = pending.draw_date ?? null;
-                }
-            }
-        }
-        const bindings = await bindingRepo.find({
-            where: { main_shop_id: Number(mainShopId), status: 'active' },
-        });
-        if (bindings.length === 0)
-            return { draw_id: targetDrawId, sub_shops: [] };
-        const subShopIds = bindings.map(b => b.sub_shop_id);
-        const [subShops, allOrders] = await Promise.all([
-            shopRepo.find({ where: { shop_id: (0, typeorm_1.In)(subShopIds) } }),
-            orderRepo.find({
+            allOrders = await orderRepo.find({
                 where: {
                     shop_id: (0, typeorm_1.In)(subShopIds),
                     ...(targetDrawId ? { draw_id: targetDrawId } : {}),
                     status: (0, typeorm_1.In)([1, 2, 3]),
                 },
-                select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status'],
-            }),
-        ]);
+                select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status', 'lottery_type'],
+            });
+            allOrders = allOrders.filter(o => {
+                const lt = String(o.lottery_type ?? 'NACIONAL').toUpperCase();
+                return lt === 'NACIONAL' || lt === '' || lt === 'NULL';
+            });
+        }
+        else {
+            const localKind = kind;
+            let mainPeriod = null;
+            try {
+                mainPeriod = await this.localLotteryService.ensureShopPendingDraw(Number(mainShopId), localKind, true);
+            }
+            catch {
+                mainPeriod = null;
+            }
+            targetDrawId = mainPeriod?.draw_id ?? null;
+            drawStatus = mainPeriod?.status || 'pending';
+            drawDate = mainPeriod?.draw_date ?? null;
+            await Promise.all(bindings.map(async (b) => {
+                try {
+                    const d = await this.localLotteryService.ensureShopPendingDraw(b.sub_shop_id, localKind, true);
+                    periodDrawBySub.set(b.sub_shop_id, d.draw_id);
+                }
+                catch {
+                    periodDrawBySub.set(b.sub_shop_id, null);
+                }
+            }));
+            const raw = await orderRepo.find({
+                where: {
+                    shop_id: (0, typeorm_1.In)(subShopIds),
+                    lottery_type: localKind,
+                    status: (0, typeorm_1.In)([1, 2, 3]),
+                },
+                select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status', 'lottery_type'],
+            });
+            allOrders = raw.filter(o => periodDrawBySub.get(o.shop_id) != null && o.draw_id === periodDrawBySub.get(o.shop_id));
+        }
+        const [subShops] = await Promise.all([shopRepo.find({ where: { shop_id: (0, typeorm_1.In)(subShopIds) } })]);
         const subShopMap = new Map(subShops.map(s => [s.shop_id, s]));
         const ordersByShop = new Map();
         for (const o of allOrders) {
@@ -883,6 +942,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
             const commissionRate = Number(b.commission_rate);
             const xiaozhuangCommission = totalSales * commissionRate;
             const dazhuangNet = totalSales * (1 - commissionRate) - totalPayout;
+            const pd = kind === 'NACIONAL' ? targetDrawId : periodDrawBySub.get(b.sub_shop_id) ?? null;
             return {
                 binding_id: b.binding_id,
                 sub_shop_id: b.sub_shop_id,
@@ -894,6 +954,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
                 sub_commission: Math.round(xiaozhuangCommission * 100) / 100,
                 main_net_profit: Math.round(dazhuangNet * 100) / 100,
                 order_count: validOrders.length,
+                period_draw_id: pd,
             };
         });
         const totalMainNet = result.reduce((s, r) => s + r.main_net_profit, 0);
@@ -903,6 +964,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
             draw_id: targetDrawId,
             draw_status: drawStatus,
             draw_date: drawDate,
+            lottery_kind: kind,
             sub_shops: result,
             summary: {
                 total_sales: Math.round(totalSalesAll * 100) / 100,
@@ -911,44 +973,103 @@ let MerchantController = MerchantController_1 = class MerchantController {
             },
         };
     }
-    async bindingHistory(mainShopId, limit) {
+    async bindingHistory(mainShopId, limit, lotteryKind) {
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
+        const kind = (lotteryKind || 'NACIONAL').toString().toUpperCase();
+        if (kind !== 'NACIONAL' && kind !== 'TICA' && kind !== 'NICA') {
+            throw new common_1.BadRequestException('无效的 lotteryKind');
+        }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
-        const { Not } = await Promise.resolve().then(() => __importStar(require('typeorm')));
-        const completedDraws = await drawRepo.find({
-            where: { status: (0, typeorm_1.In)(['completed', 'COMPLETED']), archived_at: Not((0, typeorm_1.IsNull)()) },
-            order: { draw_id: 'DESC' },
-            take: Number(limit) || 20,
-        });
-        if (completedDraws.length === 0)
-            return { history: [] };
         const bindings = await bindingRepo.find({
             where: { main_shop_id: Number(mainShopId), status: 'active' },
         });
         if (bindings.length === 0)
-            return { history: [] };
+            return { history: [], lottery_kind: kind };
         const subShopIds = bindings.map(b => b.sub_shop_id);
-        const drawIds = completedDraws.map(d => d.draw_id);
-        const allHistoryOrders = await orderRepo.find({
-            where: {
-                draw_id: (0, typeorm_1.In)(drawIds),
-                shop_id: (0, typeorm_1.In)(subShopIds),
-                status: (0, typeorm_1.In)([1, 2, 3]),
-            },
-            select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status'],
-        });
-        const ordersByDraw = new Map();
-        for (const o of allHistoryOrders) {
-            if (!ordersByDraw.has(o.draw_id))
-                ordersByDraw.set(o.draw_id, []);
-            ordersByDraw.get(o.draw_id).push(o);
-        }
         const commissionRateMap = new Map(bindings.map(b => [b.sub_shop_id, Number(b.commission_rate)]));
-        const history = completedDraws.map(draw => {
-            const validOrders = ordersByDraw.get(draw.draw_id) ?? [];
+        const lim = Number(limit) || 20;
+        if (kind === 'NACIONAL') {
+            const completedDraws = await drawRepo.find({
+                where: {
+                    status: (0, typeorm_1.In)(['completed', 'COMPLETED']),
+                    archived_at: (0, typeorm_1.Not)((0, typeorm_1.IsNull)()),
+                    shop_id: (0, typeorm_1.IsNull)(),
+                },
+                order: { draw_id: 'DESC' },
+                take: lim,
+            });
+            if (completedDraws.length === 0)
+                return { history: [], lottery_kind: kind };
+            const drawIds = completedDraws.map(d => d.draw_id);
+            let allHistoryOrders = await orderRepo.find({
+                where: {
+                    draw_id: (0, typeorm_1.In)(drawIds),
+                    shop_id: (0, typeorm_1.In)(subShopIds),
+                    status: (0, typeorm_1.In)([1, 2, 3]),
+                },
+                select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status', 'lottery_type'],
+            });
+            allHistoryOrders = allHistoryOrders.filter(o => {
+                const lt = String(o.lottery_type ?? 'NACIONAL').toUpperCase();
+                return lt === 'NACIONAL' || lt === '' || lt === 'NULL';
+            });
+            const ordersByDraw = new Map();
+            for (const o of allHistoryOrders) {
+                if (!ordersByDraw.has(o.draw_id))
+                    ordersByDraw.set(o.draw_id, []);
+                ordersByDraw.get(o.draw_id).push(o);
+            }
+            const history = completedDraws.map(draw => {
+                const validOrders = ordersByDraw.get(draw.draw_id) ?? [];
+                const totalSales = validOrders.reduce((s, o) => s + Number(o.amount), 0);
+                const totalPayout = validOrders.reduce((s, o) => s + Number(o.win_amount || 0), 0);
+                let totalCommission = 0;
+                for (const o of validOrders) {
+                    const rate = commissionRateMap.get(o.shop_id) ?? 0;
+                    totalCommission += Number(o.amount) * rate;
+                }
+                const mainNet = totalSales - totalPayout - totalCommission;
+                return {
+                    draw_id: draw.draw_id,
+                    draw_date: draw.draw_date,
+                    total_sales: Math.round(totalSales * 100) / 100,
+                    total_payout: Math.round(totalPayout * 100) / 100,
+                    total_commission: Math.round(totalCommission * 100) / 100,
+                    main_net_profit: Math.round(mainNet * 100) / 100,
+                    order_count: validOrders.length,
+                };
+            });
+            return { history, lottery_kind: kind };
+        }
+        const localKind = kind;
+        const localDraws = await drawRepo.find({
+            where: {
+                shop_id: (0, typeorm_1.In)(subShopIds),
+                lottery_type: localKind,
+                status: (0, typeorm_1.In)(['completed', 'COMPLETED']),
+                archived_at: (0, typeorm_1.Not)((0, typeorm_1.IsNull)()),
+            },
+            order: { draw_id: 'DESC' },
+            take: Math.min(Math.max(lim * 8, lim), 300),
+        });
+        const history = [];
+        for (const draw of localDraws) {
+            if (history.length >= lim)
+                break;
+            const validOrders = await orderRepo.find({
+                where: {
+                    draw_id: draw.draw_id,
+                    shop_id: draw.shop_id,
+                    lottery_type: localKind,
+                    status: (0, typeorm_1.In)([1, 2, 3]),
+                },
+                select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status'],
+            });
+            if (!validOrders.length)
+                continue;
             const totalSales = validOrders.reduce((s, o) => s + Number(o.amount), 0);
             const totalPayout = validOrders.reduce((s, o) => s + Number(o.win_amount || 0), 0);
             let totalCommission = 0;
@@ -957,17 +1078,18 @@ let MerchantController = MerchantController_1 = class MerchantController {
                 totalCommission += Number(o.amount) * rate;
             }
             const mainNet = totalSales - totalPayout - totalCommission;
-            return {
+            history.push({
                 draw_id: draw.draw_id,
                 draw_date: draw.draw_date,
+                sub_shop_id: draw.shop_id,
                 total_sales: Math.round(totalSales * 100) / 100,
                 total_payout: Math.round(totalPayout * 100) / 100,
                 total_commission: Math.round(totalCommission * 100) / 100,
                 main_net_profit: Math.round(mainNet * 100) / 100,
                 order_count: validOrders.length,
-            };
-        });
-        return { history };
+            });
+        }
+        return { history, lottery_kind: kind };
     }
     async bindingPendingCount(shopId) {
         if (!shopId)
@@ -1247,16 +1369,18 @@ __decorate([
     (0, common_1.Get)('binding/sub-shop-data'),
     __param(0, (0, common_1.Query)('mainShopId')),
     __param(1, (0, common_1.Query)('drawId')),
+    __param(2, (0, common_1.Query)('lotteryKind')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "subShopData", null);
 __decorate([
     (0, common_1.Get)('binding/history'),
     __param(0, (0, common_1.Query)('mainShopId')),
     __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('lotteryKind')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "bindingHistory", null);
 __decorate([
@@ -1293,6 +1417,7 @@ __decorate([
 ], MerchantController.prototype, "changeEmail", null);
 exports.MerchantController = MerchantController = MerchantController_1 = __decorate([
     (0, common_1.Controller)('merchant'),
-    __metadata("design:paramtypes", [typeorm_1.DataSource])
+    __metadata("design:paramtypes", [typeorm_1.DataSource,
+        local_lottery_service_1.LocalLotteryService])
 ], MerchantController);
 //# sourceMappingURL=merchant.controller.js.map

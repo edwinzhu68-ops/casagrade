@@ -113,10 +113,13 @@ export class DrawDayService implements OnModuleInit {
       const nowMins = panama.h * 60 + panama.min;
 
       const drawRepo = this.dataSource.getRepository(Draw);
-      const pending = await drawRepo.findOne({
-        where: { status: 'pending' },
-        order: { draw_id: 'DESC' },
-      });
+      const pending = await drawRepo
+        .createQueryBuilder('d')
+        .where('d.status = :s', { s: 'pending' })
+        .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+        .andWhere('(d.shop_id IS NULL)')
+        .orderBy('d.draw_id', 'DESC')
+        .getOne();
 
       if (pending) {
         // ── 有待开奖期：到点取消未付款订单（UPDATE 本身幂等，多次调用无害）──
@@ -131,10 +134,13 @@ export class DrawDayService implements OnModuleInit {
         // ── 无待开奖期（结果已发）：次日 07:00 全量归档 + 创建下一期 ──
         if (nowMins < 7 * 60) return;
 
-        const lastCompleted = await drawRepo.findOne({
-          where: { status: 'completed' },
-          order: { draw_id: 'DESC' },
-        });
+        const lastCompleted = await drawRepo
+          .createQueryBuilder('d')
+          .where('d.status = :s', { s: 'completed' })
+          .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+          .andWhere('(d.shop_id IS NULL)')
+          .orderBy('d.draw_id', 'DESC')
+          .getOne();
         if (!lastCompleted) return;
 
         // 确认今天 >= 已完成开奖日的次日（防止当天结算后立刻建下一期）
@@ -165,6 +171,8 @@ export class DrawDayService implements OnModuleInit {
           status: 'pending',
           winning_numbers: '',
           is_manual_override: false,
+          lottery_type: 'NACIONAL',
+          shop_id: null,
         });
         await drawRepo.save(next);
         this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);

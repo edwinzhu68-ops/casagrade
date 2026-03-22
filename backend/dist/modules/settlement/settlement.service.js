@@ -20,6 +20,8 @@ const typeorm_2 = require("typeorm");
 const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
 const draw_entity_1 = require("../../entities/draw.entity");
+const SHOP_LOCAL_BILLETE_HEAD = 1000;
+const SHOP_LOCAL_BILLETE_SECOND = 200;
 let SettlementService = SettlementService_1 = class SettlementService {
     constructor(dataSource, orderRepo, shopRepo, drawRepo) {
         this.dataSource = dataSource;
@@ -48,7 +50,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
             results: [],
         };
         for (const order of orders) {
-            const orderResult = this.settleOrder(order, winning);
+            const orderResult = this.settleOrderWithDrawResult(order, winning);
             results.results.push(orderResult);
             results.totalSales += orderResult.sales;
             results.totalPayout += orderResult.payout;
@@ -71,7 +73,88 @@ let SettlementService = SettlementService_1 = class SettlementService {
         this.logger.log(`结算完成: ${results.totalOrders}单, 销售额$${results.totalSales}, 赔付$${results.totalPayout}, 中奖${results.wins}单`);
         return results;
     }
-    settleOrder(order, winning) {
+    async settleShopLotteryDraw(drawId) {
+        const draw = await this.drawRepo.findOne({ where: { draw_id: drawId } });
+        if (!draw)
+            throw new Error('开奖期次不存在');
+        const lt = String(draw.lottery_type || 'NACIONAL').toUpperCase();
+        if (lt !== 'TICA' && lt !== 'NICA') {
+            throw new Error('该期次不是店内彩');
+        }
+        if (draw.status !== 'pending') {
+            throw new Error('该期次已结算或状态异常');
+        }
+        const n123 = this.parseWinningN123(draw.winning_numbers);
+        const winning = this.drawResultFromN123(n123);
+        const orders = await this.orderRepo.find({
+            where: { status: 1, draw_id: drawId },
+        });
+        const results = {
+            totalOrders: orders.length,
+            totalSales: 0,
+            totalPayout: 0,
+            wins: 0,
+            results: [],
+        };
+        for (const order of orders) {
+            const orderResult = this.settleTicaNicaOrder(order, n123, winning);
+            results.results.push(orderResult);
+            results.totalSales += orderResult.sales;
+            results.totalPayout += orderResult.payout;
+            if (orderResult.payout > 0)
+                results.wins++;
+        }
+        await this.dataSource.transaction(async (manager) => {
+            for (let i = 0; i < orders.length; i++) {
+                const order = orders[i];
+                const orderResult = results.results[i];
+                await manager.update(order_entity_1.Order, order.order_id, {
+                    status: orderResult.payout > 0 ? 3 : 2,
+                    win_amount: orderResult.payout,
+                    win_breakdown: orderResult.wins,
+                    settled_at: new Date(),
+                });
+            }
+            await manager.update(draw_entity_1.Draw, drawId, { status: 'completed' });
+        });
+        this.logger.log(`[${lt}] 店内结算完成 draw_id=${drawId}: ${results.totalOrders}单, 赔付$${results.totalPayout}`);
+        return results;
+    }
+    parseWinningN123(raw) {
+        if (raw == null || String(raw).trim() === '') {
+            throw new Error('缺少开奖号码 n1/n2/n3');
+        }
+        let obj = raw;
+        if (typeof raw === 'string') {
+            try {
+                obj = JSON.parse(raw);
+            }
+            catch {
+                throw new Error('开奖号码格式无效');
+            }
+        }
+        const pad2 = (v) => {
+            const d = String(v ?? '').replace(/\D/g, '');
+            if (d.length === 0)
+                return '';
+            return d.slice(-2).padStart(2, '0');
+        };
+        const n1 = pad2(obj?.n1);
+        const n2 = pad2(obj?.n2);
+        const n3 = pad2(obj?.n3);
+        if (!/^\d{2}$/.test(n1) || !/^\d{2}$/.test(n2) || !/^\d{2}$/.test(n3)) {
+            throw new Error('n1/n2/n3 须为两位数字');
+        }
+        return { n1, n2, n3 };
+    }
+    drawResultFromN123(n) {
+        return {
+            primer: n.n1,
+            segundo: n.n2,
+            tercero: n.n3,
+        };
+    }
+    settleOrderWithDrawResult(order, winning) {
         const numbers = order.numbers;
         const gameType = order.game_type;
         const sales = Number(order.amount);
@@ -111,6 +194,64 @@ let SettlementService = SettlementService_1 = class SettlementService {
             payout,
             wins,
         };
+    }
+    settleTicaNicaOrder(order, n123, chanceWinning) {
+        const numbers = order.numbers;
+        const gameType = order.game_type;
+        const sales = Number(order.amount);
+        let payout = 0;
+        const wins = [];
+        for (const num of numbers) {
+            const numStr = num.n;
+            const quantity = num.q;
+            const numLen = numStr.replace(/\D/g, '').length;
+            if (numLen >= 4) {
+                const result = this.calculateTicaNicaBilletePayout(numStr, n123, quantity);
+                if (result.totalPayout > 0) {
+                    wins.push({
+                        number: numStr,
+                        matches: result.matches,
+                        payout: result.totalPayout,
+                    });
+                }
+                payout += result.totalPayout;
+            }
+            else if (numLen >= 2) {
+                const result = this.calculateChancePayout(numStr, chanceWinning, quantity);
+                if (result.totalPayout > 0) {
+                    wins.push({
+                        number: numStr,
+                        matches: result.matches,
+                        payout: result.totalPayout,
+                    });
+                }
+                payout += result.totalPayout;
+            }
+        }
+        return {
+            orderId: order.order_id,
+            gameType,
+            sales,
+            payout,
+            wins,
+        };
+    }
+    calculateTicaNicaBilletePayout(num, n123, qty) {
+        const padded = num.replace(/\D/g, '').slice(-4).padStart(4, '0');
+        const F = padded.slice(0, 2);
+        const L = padded.slice(2, 4);
+        const { n1, n2, n3 } = n123;
+        const matches = [];
+        let totalPayout = 0;
+        if (F === n1 && (L === n2 || L === n3)) {
+            matches.push(`TICA/NICA 头奖 F=${F} L=${L} x${SHOP_LOCAL_BILLETE_HEAD}`);
+            totalPayout += SHOP_LOCAL_BILLETE_HEAD * qty;
+        }
+        else if (F === n2 && L === n3) {
+            matches.push(`TICA/NICA 二奖 F=${F} L=${L} x${SHOP_LOCAL_BILLETE_SECOND}`);
+            totalPayout += SHOP_LOCAL_BILLETE_SECOND * qty;
+        }
+        return { matches, totalPayout };
     }
     calculateBilletePayout(num, winning, qty) {
         const paddedNum = num.slice(-4).padStart(4, '0');

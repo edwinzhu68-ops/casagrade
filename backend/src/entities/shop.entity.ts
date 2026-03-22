@@ -49,6 +49,26 @@ export class Shop {
   @Column({ type: 'int', nullable: true })
   limit_billete: number | null;
 
+  /**
+   * 是否在顾客端展示 TICA（他国彩票品种之一；需店主开通）
+   */
+  @Column({ type: 'boolean', default: false })
+  tica_enabled: boolean;
+
+  /**
+   * 是否在顾客端展示 NICA（他国彩票品种之一；需店主开通）
+   */
+  @Column({ type: 'boolean', default: false })
+  nica_enabled: boolean;
+
+  /** 是否接受 TICA 下单（不影响全国停售；未开通时无效） */
+  @Column({ type: 'boolean', default: true })
+  accepting_tica_orders: boolean;
+
+  /** 是否接受 NICA 下单（不影响全国停售；未开通时无效） */
+  @Column({ type: 'boolean', default: true })
+  accepting_nica_orders: boolean;
+
   /** 订阅到期时间（null = 未激活或永久） */
   @Column({ type: 'datetime', nullable: true })
   subscription_expires_at: Date | null;

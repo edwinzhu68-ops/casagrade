@@ -3,6 +3,8 @@ export declare class Draw {
     draw_date: Date;
     draw_time: string;
     winning_numbers: string;
+    lottery_type: string;
+    shop_id: number | null;
     status: string;
     archived_at: Date | null;
     main_shop_archived: boolean;

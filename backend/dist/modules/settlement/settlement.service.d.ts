@@ -2,6 +2,16 @@ import { DataSource, Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { Draw } from '../../entities/draw.entity';
+interface DrawResult {
+    primer: string;
+    segundo: string;
+    tercero: string;
+}
+export interface WinningN123 {
+    n1: string;
+    n2: string;
+    n3: string;
+}
 export declare class SettlementService {
     private readonly dataSource;
     private readonly orderRepo;
@@ -16,7 +26,18 @@ export declare class SettlementService {
         wins: number;
         results: any[];
     }>;
-    private settleOrder;
+    settleShopLotteryDraw(drawId: number): Promise<{
+        totalOrders: number;
+        totalSales: number;
+        totalPayout: number;
+        wins: number;
+        results: any[];
+    }>;
+    parseWinningN123(raw: string | null | undefined): WinningN123;
+    drawResultFromN123(n: WinningN123): DrawResult;
+    private settleOrderWithDrawResult;
+    private settleTicaNicaOrder;
+    private calculateTicaNicaBilletePayout;
     private calculateBilletePayout;
     private calculateChancePayout;
     private parseDrawResult;
@@ -30,3 +51,4 @@ export declare class SettlementService {
         netProfit: number;
     }[]>;
 }
+export {};

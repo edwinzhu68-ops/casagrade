@@ -14,6 +14,7 @@ const draw_module_1 = require("./modules/draw/draw.module");
 const merchant_module_1 = require("./modules/merchant/merchant.module");
 const settlement_module_1 = require("./modules/settlement/settlement.module");
 const admin_module_1 = require("./modules/admin/admin.module");
+const local_lottery_module_1 = require("./modules/local-lottery/local-lottery.module");
 const order_entity_1 = require("./entities/order.entity");
 const shop_entity_1 = require("./entities/shop.entity");
 const draw_entity_1 = require("./entities/draw.entity");
@@ -58,6 +59,7 @@ exports.AppModule = AppModule = __decorate([
             merchant_module_1.MerchantModule,
             settlement_module_1.SettlementModule,
             admin_module_1.AdminModule,
+            local_lottery_module_1.LocalLotteryModule,
         ],
         providers: [database_init_service_1.DatabaseInitService],
     })

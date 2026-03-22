@@ -5,6 +5,7 @@ import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
 import { DrawDayService } from './draw-day.service';
+import { findNationalLastCompletedDraw, findNationalPendingDraw } from '../../utils/draw-queries';
 
 /**
  * 中奖规则以你说的为准，不做其它查询。
@@ -436,10 +437,7 @@ export class DrawController {
    */
   @Get('pending')
   async getPendingDraw() {
-    const draw = await this.dataSource.getRepository(Draw).findOne({
-      where: { status: 'pending' },
-      order: { draw_id: 'DESC' },
-    });
+    const draw = await findNationalPendingDraw(this.dataSource.getRepository(Draw));
     if (!draw) {
       return { draw: null, message: '暂无待开奖期' };
     }
@@ -474,10 +472,7 @@ export class DrawController {
   @UseGuards(AdminTokenGuard)
   async setDrawTime(@Body() dto: SetDrawTimeDto) {
     const drawRepo = this.dataSource.getRepository(Draw);
-    let draw = await drawRepo.findOne({
-      where: { status: 'pending' },
-      order: { draw_id: 'DESC' },
-    });
+    let draw = await findNationalPendingDraw(drawRepo);
 
     const updatePayload: Partial<Draw> = {};
     if (dto.drawTime != null && dto.drawTime !== '') {
@@ -527,6 +522,8 @@ export class DrawController {
         status: 'pending',
         winning_numbers: '',
         is_manual_override: true,
+        lottery_type: 'NACIONAL',
+        shop_id: null,
       });
       await drawRepo.save(draw);
     }
@@ -560,18 +557,12 @@ export class DrawController {
     };
     const drawRepo = this.dataSource.getRepository(Draw);
 
-    // 找到待开奖期次
-    let draw = await drawRepo.findOne({
-      where: { status: 'pending' },
-      order: { draw_id: 'DESC' },
-    });
+    // 找到全国待开奖期次
+    let draw = await findNationalPendingDraw(drawRepo);
 
     // 防重复开奖：无 pending 期时检查最近一期是否刚刚完成（60秒内），若是则拒绝
     if (!draw) {
-      const lastCompleted = await drawRepo.findOne({
-        where: { status: 'completed' },
-        order: { draw_id: 'DESC' },
-      });
+      const lastCompleted = await findNationalLastCompletedDraw(drawRepo);
       if (lastCompleted) {
         const completedAt = new Date((lastCompleted as any).updated_at || (lastCompleted as any).created_at);
         const secondsAgo = (Date.now() - completedAt.getTime()) / 1000;
@@ -602,6 +593,8 @@ export class DrawController {
         draw_time: dto.drawTime || new Date().toTimeString().split(' ')[0],
         status: 'completed',
         winning_numbers: JSON.stringify(winningNumbers),
+        lottery_type: 'NACIONAL',
+        shop_id: null,
       });
       await drawRepo.save(draw);
     }
@@ -654,16 +647,10 @@ export class DrawController {
   @UseGuards(AdminTokenGuard)
   async resetDrawTime() {
     const drawRepo = this.dataSource.getRepository(Draw);
-    const pending = await drawRepo.findOne({
-      where: { status: 'pending' },
-      order: { draw_id: 'DESC' },
-    });
+    const pending = await findNationalPendingDraw(drawRepo);
 
     // 以最近已完成开奖日为基准计算下次正常开奖日
-    const lastCompleted = await drawRepo.findOne({
-      where: { status: In(['COMPLETED', 'completed']) },
-      order: { draw_id: 'DESC' },
-    });
+    const lastCompleted = await findNationalLastCompletedDraw(drawRepo);
 
     let nextDraw: Date;
     if (lastCompleted && lastCompleted.draw_date) {
@@ -700,6 +687,8 @@ export class DrawController {
         status: 'pending',
         winning_numbers: '',
         is_manual_override: false,
+        lottery_type: 'NACIONAL',
+        shop_id: null,
       });
       await drawRepo.save(next);
       this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
@@ -716,12 +705,14 @@ export class DrawController {
   async resetPendingDraw() {
     const drawRepo = this.dataSource.getRepository(Draw);
 
-    // 取消所有 pending
+    // 仅取消全国 pending（不影响店内 TICA/NICA）
     await drawRepo
       .createQueryBuilder()
       .update(Draw)
       .set({ status: 'canceled' } as any)
       .where('status = :s', { s: 'pending' })
+      .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('(shop_id IS NULL)')
       .execute();
 
     // 以服务器当前巴拿马时间为基准计算下次正常开奖日
@@ -735,6 +726,8 @@ export class DrawController {
       status: 'pending',
       winning_numbers: '',
       is_manual_override: false,
+      lottery_type: 'NACIONAL',
+      shop_id: null,
     });
     await drawRepo.save(next);
     const nextDateDisplay = drawDateToDisplayString(nextDateStr);
@@ -756,11 +749,8 @@ export class DrawController {
     const drawRepo = this.dataSource.getRepository(Draw);
     const orderRepo = this.dataSource.getRepository(Order);
 
-    // 找最近一期已完成的开奖
-    const completed = await drawRepo.findOne({
-      where: { status: In(['COMPLETED', 'completed']) },
-      order: { draw_id: 'DESC' },
-    });
+    // 找最近一期全国已完成开奖
+    const completed = await findNationalLastCompletedDraw(drawRepo);
     if (!completed) {
       return { success: false, error: '没有可回滚的已完成开奖' };
     }
@@ -775,11 +765,8 @@ export class DrawController {
       return { success: false, error: `已有 ${redeemed} 笔订单完成兑奖，无法回滚` };
     }
 
-    // 先找出自动创建的下一期 pending（draw_id 比 completed 大），稍后删除
-    const nextPending = await drawRepo.findOne({
-      where: { status: 'pending' },
-      order: { draw_id: 'DESC' },
-    });
+    // 先找出全国下一期 pending（draw_id 比 completed 大），稍后删除
+    const nextPending = await findNationalPendingDraw(drawRepo);
     const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
 
     // 重置已结算订单（status 2/3）回 status=1，清除结算字段

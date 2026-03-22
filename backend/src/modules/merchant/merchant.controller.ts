@@ -1,11 +1,13 @@
 import { Controller, Post, Get, Delete, Patch, Body, Param, Query, Inject, Logger, Req, UnauthorizedException, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
-import { DataSource, In, IsNull } from 'typeorm';
+import { DataSource, In, IsNull, Not } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { Shop } from '../../entities/shop.entity';
 import { ShopBinding } from '../../entities/shop-binding.entity';
 import { CardCode } from '../../entities/card-code.entity';
 import { Order } from '../../entities/order.entity';
 import { Draw } from '../../entities/draw.entity';
+import { findNationalLastCompletedDraw, findNationalPendingDraw } from '../../utils/draw-queries';
+import { LocalLotteryService } from '../local-lottery/local-lottery.service';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import * as nodemailer from 'nodemailer';
@@ -114,7 +116,10 @@ interface RegisterDto {
 export class MerchantController implements OnModuleInit {
   private readonly logger = new Logger(MerchantController.name);
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly localLotteryService: LocalLotteryService,
+  ) {}
 
   /** 生产环境 synchronize=false，启动时手动补列（SQLite ADD COLUMN 幂等） */
   async onModuleInit() {
@@ -465,6 +470,12 @@ export class MerchantController implements OnModuleInit {
             status: shopByNumber.status,
             commission_rate: shopByNumber.commission_rate,
             subscription_expires_at: shopByNumber.subscription_expires_at ?? null,
+            limit_chance: (shopByNumber as any).limit_chance ?? null,
+            limit_billete: (shopByNumber as any).limit_billete ?? null,
+            tica_enabled: !!(shopByNumber as any).tica_enabled,
+            nica_enabled: !!(shopByNumber as any).nica_enabled,
+            accepting_tica_orders: (shopByNumber as any).accepting_tica_orders !== false,
+            accepting_nica_orders: (shopByNumber as any).accepting_nica_orders !== false,
           }],
           last_login_at: currentUser?.last_login_at ?? null,
           last_login_ua: currentUser?.last_login_ua ?? null,
@@ -487,6 +498,10 @@ export class MerchantController implements OnModuleInit {
         limit_chance: (shop as any).limit_chance ?? null,
         limit_billete: (shop as any).limit_billete ?? null,
         subscription_expires_at: shop.subscription_expires_at ?? null,
+        tica_enabled: !!(shop as any).tica_enabled,
+        nica_enabled: !!(shop as any).nica_enabled,
+        accepting_tica_orders: (shop as any).accepting_tica_orders !== false,
+        accepting_nica_orders: (shop as any).accepting_nica_orders !== false,
       })),
       last_login_at: currentUser?.last_login_at ?? null,
       last_login_ua: currentUser?.last_login_ua ?? null,
@@ -966,98 +981,144 @@ export class MerchantController implements OnModuleInit {
   }
 
   /**
-   * GET /merchant/binding/sub-shop-data?mainShopId=&drawId=
+   * GET /merchant/binding/sub-shop-data?mainShopId=&drawId=&lotteryKind=
    * 主店铺获取指定期次各分店铺的销售/利润/佣金数据
-   * drawId 为 0 或不传 = 当前期次
+   * drawId 为 0 或不传 = 当前期次（仅全国 Lotería）
+   * lotteryKind=NACIONAL|TICA|NICA，默认 NACIONAL；TICA/NICA 与结算页一致按各店当期店内彩期统计
    */
   @Get('binding/sub-shop-data')
   async subShopData(
     @Query('mainShopId') mainShopId: string,
     @Query('drawId') drawId: string,
+    @Query('lotteryKind') lotteryKind?: string,
   ) {
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
+
+    const kind = (lotteryKind || 'NACIONAL').toString().toUpperCase();
+    if (kind !== 'NACIONAL' && kind !== 'TICA' && kind !== 'NICA') {
+      throw new BadRequestException('无效的 lotteryKind');
+    }
 
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
     const shopRepo = this.dataSource.getRepository(Shop);
     const orderRepo = this.dataSource.getRepository(Order);
     const drawRepo = this.dataSource.getRepository(Draw);
 
-    // 获取期次：大庄管理中心在开奖第二天 09:00 后才切换到下一期
+    const bindings = await bindingRepo.find({
+      where: { main_shop_id: Number(mainShopId), status: 'active' },
+    });
+
+    const emptyPayload = (drawIdVal: number | null, st: string, dt: Date | null) => ({
+      draw_id: drawIdVal,
+      draw_status: st,
+      draw_date: dt,
+      lottery_kind: kind,
+      sub_shops: [] as any[],
+      summary: { total_sales: 0, total_commission_paid: 0, main_total_net: 0 },
+    });
+
+    if (bindings.length === 0) return emptyPayload(null, 'pending', null);
+
+    const subShopIds = bindings.map(b => b.sub_shop_id);
+
     let targetDrawId: number | null = null;
     let drawStatus: string = 'pending';
     let drawDate: Date | null = null;
+    let allOrders: Order[] = [];
+    /** 各小庄当前店内彩期 draw_id，供大庄页号码汇总请求 */
+    const periodDrawBySub = new Map<number, number | null>();
 
-    if (drawId && Number(drawId) > 0) {
-      targetDrawId = Number(drawId);
-      const dr = await drawRepo.findOne({ where: { draw_id: targetDrawId } });
-      drawStatus = dr?.status ?? 'pending';
-      drawDate = dr?.draw_date ?? null;
-    } else {
-      // 最近一期已完成（不管是否 archived）
-      const completed = await drawRepo.findOne({
-        where: { status: In(['completed', 'COMPLETED']) },
-        order: { draw_id: 'DESC' },
-      });
+    if (kind === 'NACIONAL') {
+      if (drawId && Number(drawId) > 0) {
+        targetDrawId = Number(drawId);
+        const dr = await drawRepo.findOne({ where: { draw_id: targetDrawId } });
+        drawStatus = dr?.status ?? 'pending';
+        drawDate = dr?.draw_date ?? null;
+      } else {
+        const completed = await findNationalLastCompletedDraw(drawRepo);
 
-      if (completed) {
-        // 已手动归档（管理员按钮触发）则直接切换，否则按开奖日 +1 天 09:00 自动判断
-        const base = new Date(
-          typeof completed.draw_date === 'string'
-            ? completed.draw_date + 'T09:00:00'
-            : completed.draw_date,
-        );
-        const archiveAt = new Date(base);
-        archiveAt.setDate(archiveAt.getDate() + 1);
-        archiveAt.setHours(9, 0, 0, 0);
+        if (completed) {
+          const base = new Date(
+            typeof completed.draw_date === 'string'
+              ? completed.draw_date + 'T09:00:00'
+              : completed.draw_date,
+          );
+          const archiveAt = new Date(base);
+          archiveAt.setDate(archiveAt.getDate() + 1);
+          archiveAt.setHours(9, 0, 0, 0);
 
-        const shouldArchive = (completed as any).main_shop_archived || new Date() >= archiveAt;
+          const shouldArchive = (completed as any).main_shop_archived || new Date() >= archiveAt;
 
-        if (!shouldArchive) {
-          // 还没到归档时间：显示已完成期次数据
-          targetDrawId = completed.draw_id;
-          drawStatus = 'completed';
-          drawDate = completed.draw_date ?? null;
+          if (!shouldArchive) {
+            targetDrawId = completed.draw_id;
+            drawStatus = 'completed';
+            drawDate = completed.draw_date ?? null;
+          } else {
+            const pending = await findNationalPendingDraw(drawRepo);
+            if (pending) {
+              targetDrawId = pending.draw_id;
+              drawStatus = 'pending';
+              drawDate = pending.draw_date ?? null;
+            }
+          }
         } else {
-          // 已归档：切换到最新进行中期次
-          const pending = await drawRepo.findOne({ where: { status: 'pending' }, order: { draw_id: 'DESC' } });
+          const pending = await findNationalPendingDraw(drawRepo);
           if (pending) {
             targetDrawId = pending.draw_id;
             drawStatus = 'pending';
             drawDate = pending.draw_date ?? null;
           }
         }
-      } else {
-        // 无已完成期次，显示进行中
-        const pending = await drawRepo.findOne({ where: { status: 'pending' }, order: { draw_id: 'DESC' } });
-        if (pending) {
-          targetDrawId = pending.draw_id;
-          drawStatus = 'pending';
-          drawDate = pending.draw_date ?? null;
-        }
       }
-    }
 
-    // 获取所有分店铺绑定
-    const bindings = await bindingRepo.find({
-      where: { main_shop_id: Number(mainShopId), status: 'active' },
-    });
-
-    if (bindings.length === 0) return { draw_id: targetDrawId, sub_shops: [] };
-
-    // 批量查询替代 N+1：2 次查询取代 bindings.length × 2 次查询
-    const subShopIds = bindings.map(b => b.sub_shop_id);
-
-    const [subShops, allOrders] = await Promise.all([
-      shopRepo.find({ where: { shop_id: In(subShopIds) } }),
-      orderRepo.find({
+      allOrders = await orderRepo.find({
         where: {
           shop_id: In(subShopIds),
           ...(targetDrawId ? { draw_id: targetDrawId } : {}),
           status: In([1, 2, 3]),
         },
-        select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status'] as any,
-      }),
-    ]);
+        select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status', 'lottery_type'] as any,
+      });
+      // 全国期：排除店内彩订单，避免混入 TICA/NICA
+      allOrders = allOrders.filter(o => {
+        const lt = String((o as any).lottery_type ?? 'NACIONAL').toUpperCase();
+        return lt === 'NACIONAL' || lt === '' || lt === 'NULL';
+      });
+    } else {
+      const localKind = kind as 'TICA' | 'NICA';
+      let mainPeriod: Draw | null = null;
+      try {
+        mainPeriod = await this.localLotteryService.ensureShopPendingDraw(Number(mainShopId), localKind, true);
+      } catch {
+        mainPeriod = null;
+      }
+      targetDrawId = mainPeriod?.draw_id ?? null;
+      drawStatus = (mainPeriod?.status as string) || 'pending';
+      drawDate = mainPeriod?.draw_date ?? null;
+
+      await Promise.all(
+        bindings.map(async b => {
+          try {
+            const d = await this.localLotteryService.ensureShopPendingDraw(b.sub_shop_id, localKind, true);
+            periodDrawBySub.set(b.sub_shop_id, d.draw_id);
+          } catch {
+            periodDrawBySub.set(b.sub_shop_id, null);
+          }
+        }),
+      );
+
+      const raw = await orderRepo.find({
+        where: {
+          shop_id: In(subShopIds),
+          lottery_type: localKind,
+          status: In([1, 2, 3]),
+        },
+        select: ['order_id', 'shop_id', 'draw_id', 'amount', 'win_amount', 'status', 'lottery_type'] as any,
+      });
+      allOrders = raw.filter(o => periodDrawBySub.get(o.shop_id) != null && o.draw_id === periodDrawBySub.get(o.shop_id));
+    }
+
+    const [subShops] = await Promise.all([shopRepo.find({ where: { shop_id: In(subShopIds) } })]);
 
     const subShopMap = new Map(subShops.map(s => [s.shop_id, s]));
     const ordersByShop = new Map<number, typeof allOrders>();
@@ -1074,10 +1135,10 @@ export class MerchantController implements OnModuleInit {
       const totalPayout = validOrders.reduce((sum, o) => sum + Number(o.win_amount || 0), 0);
       const commissionRate = Number(b.commission_rate);
 
-      // 小庄固定佣金 = 销售额 × 佣金率（与开奖结果无关，小庄稳赚）
       const xiaozhuangCommission = totalSales * commissionRate;
-      // 大庄净得 = 销售额 × (1 - 佣金率) - 赔付（大庄承担全部风险）
       const dazhuangNet = totalSales * (1 - commissionRate) - totalPayout;
+
+      const pd = kind === 'NACIONAL' ? targetDrawId : periodDrawBySub.get(b.sub_shop_id) ?? null;
 
       return {
         binding_id: b.binding_id,
@@ -1090,10 +1151,10 @@ export class MerchantController implements OnModuleInit {
         sub_commission: Math.round(xiaozhuangCommission * 100) / 100,
         main_net_profit: Math.round(dazhuangNet * 100) / 100,
         order_count: validOrders.length,
+        period_draw_id: pd,
       };
     });
 
-    // 汇总
     const totalMainNet = result.reduce((s, r) => s + r.main_net_profit, 0);
     const totalSalesAll = result.reduce((s, r) => s + r.total_sales, 0);
     const totalCommission = result.reduce((s, r) => s + r.sub_commission, 0);
@@ -1102,6 +1163,7 @@ export class MerchantController implements OnModuleInit {
       draw_id: targetDrawId,
       draw_status: drawStatus,
       draw_date: drawDate,
+      lottery_kind: kind,
       sub_shops: result,
       summary: {
         total_sales: Math.round(totalSalesAll * 100) / 100,
@@ -1112,63 +1174,125 @@ export class MerchantController implements OnModuleInit {
   }
 
   /**
-   * GET /merchant/binding/history?mainShopId=&limit=
+   * GET /merchant/binding/history?mainShopId=&limit=&lotteryKind=
    * 大庄获取历史已完成期次的汇总数据（每期合计，不含小庄明细）
+   * lotteryKind 默认 NACIONAL；TICA/NICA 仅店内彩已归档期次
    */
   @Get('binding/history')
   async bindingHistory(
     @Query('mainShopId') mainShopId: string,
     @Query('limit') limit: string,
+    @Query('lotteryKind') lotteryKind?: string,
   ) {
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
+
+    const kind = (lotteryKind || 'NACIONAL').toString().toUpperCase();
+    if (kind !== 'NACIONAL' && kind !== 'TICA' && kind !== 'NICA') {
+      throw new BadRequestException('无效的 lotteryKind');
+    }
 
     const drawRepo = this.dataSource.getRepository(Draw);
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
     const orderRepo = this.dataSource.getRepository(Order);
 
-    // 历史只显示已归档（admin 已清空结算）的期次
-    const { Not } = await import('typeorm');
-    const completedDraws = await drawRepo.find({
-      where: { status: In(['completed', 'COMPLETED']), archived_at: Not(IsNull()) },
-      order: { draw_id: 'DESC' },
-      take: Number(limit) || 20,
-    });
-
-    if (completedDraws.length === 0) return { history: [] };
-
     const bindings = await bindingRepo.find({
       where: { main_shop_id: Number(mainShopId), status: 'active' },
     });
 
-    if (bindings.length === 0) return { history: [] };
+    if (bindings.length === 0) return { history: [], lottery_kind: kind };
 
     const subShopIds = bindings.map(b => b.sub_shop_id);
+    const commissionRateMap = new Map(bindings.map(b => [b.sub_shop_id, Number(b.commission_rate)]));
+    const lim = Number(limit) || 20;
 
-    // 一次性加载所有历史期订单，内存分组，替代 N+1（每期一次查询）
-    const drawIds = completedDraws.map(d => d.draw_id);
-    const allHistoryOrders = await orderRepo.find({
-      where: {
-        draw_id: In(drawIds),
-        shop_id: In(subShopIds),
-        status: In([1, 2, 3]),
-      },
-      select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status'] as any,
-    });
+    if (kind === 'NACIONAL') {
+      const completedDraws = await drawRepo.find({
+        where: {
+          status: In(['completed', 'COMPLETED']),
+          archived_at: Not(IsNull()),
+          shop_id: IsNull(),
+        } as any,
+        order: { draw_id: 'DESC' },
+        take: lim,
+      });
 
-    const ordersByDraw = new Map<number, typeof allHistoryOrders>();
-    for (const o of allHistoryOrders) {
-      if (!ordersByDraw.has(o.draw_id)) ordersByDraw.set(o.draw_id, []);
-      ordersByDraw.get(o.draw_id)!.push(o);
+      if (completedDraws.length === 0) return { history: [], lottery_kind: kind };
+
+      const drawIds = completedDraws.map(d => d.draw_id);
+      let allHistoryOrders = await orderRepo.find({
+        where: {
+          draw_id: In(drawIds),
+          shop_id: In(subShopIds),
+          status: In([1, 2, 3]),
+        },
+        select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status', 'lottery_type'] as any,
+      });
+      allHistoryOrders = allHistoryOrders.filter(o => {
+        const lt = String((o as any).lottery_type ?? 'NACIONAL').toUpperCase();
+        return lt === 'NACIONAL' || lt === '' || lt === 'NULL';
+      });
+
+      const ordersByDraw = new Map<number, typeof allHistoryOrders>();
+      for (const o of allHistoryOrders) {
+        if (!ordersByDraw.has(o.draw_id)) ordersByDraw.set(o.draw_id, []);
+        ordersByDraw.get(o.draw_id)!.push(o);
+      }
+
+      const history = completedDraws.map(draw => {
+        const validOrders = ordersByDraw.get(draw.draw_id) ?? [];
+
+        const totalSales = validOrders.reduce((s, o) => s + Number(o.amount), 0);
+        const totalPayout = validOrders.reduce((s, o) => s + Number(o.win_amount || 0), 0);
+
+        let totalCommission = 0;
+        for (const o of validOrders) {
+          const rate = commissionRateMap.get(o.shop_id) ?? 0;
+          totalCommission += Number(o.amount) * rate;
+        }
+        const mainNet = totalSales - totalPayout - totalCommission;
+
+        return {
+          draw_id: draw.draw_id,
+          draw_date: draw.draw_date,
+          total_sales: Math.round(totalSales * 100) / 100,
+          total_payout: Math.round(totalPayout * 100) / 100,
+          total_commission: Math.round(totalCommission * 100) / 100,
+          main_net_profit: Math.round(mainNet * 100) / 100,
+          order_count: validOrders.length,
+        };
+      });
+
+      return { history, lottery_kind: kind };
     }
 
-    const commissionRateMap = new Map(bindings.map(b => [b.sub_shop_id, Number(b.commission_rate)]));
+    const localKind = kind as 'TICA' | 'NICA';
+    const localDraws = await drawRepo.find({
+      where: {
+        shop_id: In(subShopIds),
+        lottery_type: localKind,
+        status: In(['completed', 'COMPLETED']),
+        archived_at: Not(IsNull()),
+      } as any,
+      order: { draw_id: 'DESC' },
+      take: Math.min(Math.max(lim * 8, lim), 300),
+    });
 
-    const history = completedDraws.map(draw => {
-      const validOrders = ordersByDraw.get(draw.draw_id) ?? [];
+    const history: any[] = [];
+    for (const draw of localDraws) {
+      if (history.length >= lim) break;
+      const validOrders = await orderRepo.find({
+        where: {
+          draw_id: draw.draw_id,
+          shop_id: draw.shop_id,
+          lottery_type: localKind,
+          status: In([1, 2, 3]),
+        },
+        select: ['shop_id', 'draw_id', 'amount', 'win_amount', 'status'] as any,
+      });
+      if (!validOrders.length) continue;
 
       const totalSales = validOrders.reduce((s, o) => s + Number(o.amount), 0);
       const totalPayout = validOrders.reduce((s, o) => s + Number(o.win_amount || 0), 0);
-
       let totalCommission = 0;
       for (const o of validOrders) {
         const rate = commissionRateMap.get(o.shop_id) ?? 0;
@@ -1176,18 +1300,19 @@ export class MerchantController implements OnModuleInit {
       }
       const mainNet = totalSales - totalPayout - totalCommission;
 
-      return {
+      history.push({
         draw_id: draw.draw_id,
         draw_date: draw.draw_date,
+        sub_shop_id: draw.shop_id,
         total_sales: Math.round(totalSales * 100) / 100,
         total_payout: Math.round(totalPayout * 100) / 100,
         total_commission: Math.round(totalCommission * 100) / 100,
         main_net_profit: Math.round(mainNet * 100) / 100,
         order_count: validOrders.length,
-      };
-    });
+      });
+    }
 
-    return { history };
+    return { history, lottery_kind: kind };
   }
 
   /**

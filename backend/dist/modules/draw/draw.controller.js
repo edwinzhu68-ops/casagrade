@@ -21,6 +21,7 @@ const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
 const admin_token_guard_1 = require("../../guards/admin-token.guard");
 const draw_day_service_1 = require("./draw-day.service");
+const draw_queries_1 = require("../../utils/draw-queries");
 const BILLETE_RATE = {
     exact: [2000, 600, 300],
     first3: [50, 20, 10],
@@ -352,10 +353,7 @@ let DrawController = DrawController_1 = class DrawController {
         };
     }
     async getPendingDraw() {
-        const draw = await this.dataSource.getRepository(draw_entity_1.Draw).findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
+        const draw = await (0, draw_queries_1.findNationalPendingDraw)(this.dataSource.getRepository(draw_entity_1.Draw));
         if (!draw) {
             return { draw: null, message: '暂无待开奖期' };
         }
@@ -379,10 +377,7 @@ let DrawController = DrawController_1 = class DrawController {
     }
     async setDrawTime(dto) {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        let draw = await drawRepo.findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
+        let draw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         const updatePayload = {};
         if (dto.drawTime != null && dto.drawTime !== '') {
             updatePayload.draw_time = dto.drawTime;
@@ -430,6 +425,8 @@ let DrawController = DrawController_1 = class DrawController {
                 status: 'pending',
                 winning_numbers: '',
                 is_manual_override: true,
+                lottery_type: 'NACIONAL',
+                shop_id: null,
             });
             await drawRepo.save(draw);
         }
@@ -452,15 +449,9 @@ let DrawController = DrawController_1 = class DrawController {
             tercero: digits(tercero),
         };
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        let draw = await drawRepo.findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
+        let draw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         if (!draw) {
-            const lastCompleted = await drawRepo.findOne({
-                where: { status: 'completed' },
-                order: { draw_id: 'DESC' },
-            });
+            const lastCompleted = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
             if (lastCompleted) {
                 const completedAt = new Date(lastCompleted.updated_at || lastCompleted.created_at);
                 const secondsAgo = (Date.now() - completedAt.getTime()) / 1000;
@@ -491,6 +482,8 @@ let DrawController = DrawController_1 = class DrawController {
                 draw_time: dto.drawTime || new Date().toTimeString().split(' ')[0],
                 status: 'completed',
                 winning_numbers: JSON.stringify(winningNumbers),
+                lottery_type: 'NACIONAL',
+                shop_id: null,
             });
             await drawRepo.save(draw);
         }
@@ -521,14 +514,8 @@ let DrawController = DrawController_1 = class DrawController {
     }
     async resetDrawTime() {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const pending = await drawRepo.findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
-        const lastCompleted = await drawRepo.findOne({
-            where: { status: (0, typeorm_2.In)(['COMPLETED', 'completed']) },
-            order: { draw_id: 'DESC' },
-        });
+        const pending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        const lastCompleted = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
         let nextDraw;
         if (lastCompleted && lastCompleted.draw_date) {
             const base = new Date(typeof lastCompleted.draw_date === 'string'
@@ -558,6 +545,8 @@ let DrawController = DrawController_1 = class DrawController {
                 status: 'pending',
                 winning_numbers: '',
                 is_manual_override: false,
+                lottery_type: 'NACIONAL',
+                shop_id: null,
             });
             await drawRepo.save(next);
             this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
@@ -572,6 +561,8 @@ let DrawController = DrawController_1 = class DrawController {
             .update(draw_entity_1.Draw)
             .set({ status: 'canceled' })
             .where('status = :s', { s: 'pending' })
+            .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('(shop_id IS NULL)')
             .execute();
         const nextDraw = getNextDrawDatePanama();
         const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
@@ -581,6 +572,8 @@ let DrawController = DrawController_1 = class DrawController {
             status: 'pending',
             winning_numbers: '',
             is_manual_override: false,
+            lottery_type: 'NACIONAL',
+            shop_id: null,
         });
         await drawRepo.save(next);
         const nextDateDisplay = drawDateToDisplayString(nextDateStr);
@@ -592,10 +585,7 @@ let DrawController = DrawController_1 = class DrawController {
     async rollbackDraw() {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
-        const completed = await drawRepo.findOne({
-            where: { status: (0, typeorm_2.In)(['COMPLETED', 'completed']) },
-            order: { draw_id: 'DESC' },
-        });
+        const completed = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
         if (!completed) {
             return { success: false, error: '没有可回滚的已完成开奖' };
         }
@@ -607,10 +597,7 @@ let DrawController = DrawController_1 = class DrawController {
         if (redeemed > 0) {
             return { success: false, error: `已有 ${redeemed} 笔订单完成兑奖，无法回滚` };
         }
-        const nextPending = await drawRepo.findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
+        const nextPending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
         await orderRepo
             .createQueryBuilder()

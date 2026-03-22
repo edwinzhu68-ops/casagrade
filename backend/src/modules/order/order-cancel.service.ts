@@ -31,10 +31,13 @@ export class OrderCancelService implements OnModuleInit {
 
   private async isInStopSellPeriod(): Promise<boolean> {
     const drawRepo = this.dataSource.getRepository(Draw);
-    const draw = await drawRepo.findOne({
-      where: { status: 'pending' },
-      order: { draw_id: 'DESC' },
-    });
+    const draw = await drawRepo
+      .createQueryBuilder('d')
+      .where('d.status = :s', { s: 'pending' })
+      .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('(d.shop_id IS NULL)')
+      .orderBy('d.draw_id', 'DESC')
+      .getOne();
     if (!draw) return true;
 
     const timeStr = String(draw.draw_time || '15:00').trim();
@@ -88,6 +91,7 @@ export class OrderCancelService implements OnModuleInit {
         .update(Order)
         .set({ status: -1 as any, canceled_at: new Date() } as any)
         .where('status = :status', { status: 0 })
+        .andWhere('(lottery_type IS NULL OR lottery_type = :nac)', { nac: 'NACIONAL' })
         .execute();
       if (result.affected && result.affected > 0) {
         this.logger.log(`停售后自动取消 ${result.affected} 笔未付款订单`);

@@ -54,6 +54,10 @@ __decorate([
     __metadata("design:type", String)
 ], Order.prototype, "game_type", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ length: 20, default: 'NACIONAL' }),
+    __metadata("design:type", String)
+], Order.prototype, "lottery_type", void 0);
+__decorate([
     (0, typeorm_1.Column)({ default: 0 }),
     __metadata("design:type", Number)
 ], Order.prototype, "status", void 0);

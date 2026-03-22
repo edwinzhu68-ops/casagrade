@@ -110,10 +110,13 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
             const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
             const nowMins = panama.h * 60 + panama.min;
             const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-            const pending = await drawRepo.findOne({
-                where: { status: 'pending' },
-                order: { draw_id: 'DESC' },
-            });
+            const pending = await drawRepo
+                .createQueryBuilder('d')
+                .where('d.status = :s', { s: 'pending' })
+                .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                .andWhere('(d.shop_id IS NULL)')
+                .orderBy('d.draw_id', 'DESC')
+                .getOne();
             if (pending) {
                 const parsed = parseDrawTime(pending);
                 if (!parsed)
@@ -127,10 +130,13 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
             else {
                 if (nowMins < 7 * 60)
                     return;
-                const lastCompleted = await drawRepo.findOne({
-                    where: { status: 'completed' },
-                    order: { draw_id: 'DESC' },
-                });
+                const lastCompleted = await drawRepo
+                    .createQueryBuilder('d')
+                    .where('d.status = :s', { s: 'completed' })
+                    .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                    .andWhere('(d.shop_id IS NULL)')
+                    .orderBy('d.draw_id', 'DESC')
+                    .getOne();
                 if (!lastCompleted)
                     return;
                 const rawDate = String(lastCompleted.draw_date || '').slice(0, 10);
@@ -156,6 +162,8 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                     status: 'pending',
                     winning_numbers: '',
                     is_manual_override: false,
+                    lottery_type: 'NACIONAL',
+                    shop_id: null,
                 });
                 await drawRepo.save(next);
                 this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);

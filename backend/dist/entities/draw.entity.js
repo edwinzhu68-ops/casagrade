@@ -31,6 +31,14 @@ __decorate([
     __metadata("design:type", String)
 ], Draw.prototype, "winning_numbers", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ length: 20, default: 'NACIONAL' }),
+    __metadata("design:type", String)
+], Draw.prototype, "lottery_type", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Number)
+], Draw.prototype, "shop_id", void 0);
+__decorate([
     (0, typeorm_1.Column)({ length: 20, default: 'pending' }),
     __metadata("design:type", String)
 ], Draw.prototype, "status", void 0);

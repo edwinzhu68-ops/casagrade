@@ -35,6 +35,10 @@ export class Order {
   @Column({ length: 20 })
   game_type: string; // BILLETE / CHANCE
 
+  /** NACIONAL=全国；TICA/NICA=店内彩 */
+  @Column({ length: 20, default: 'NACIONAL' })
+  lottery_type: string;
+
   @Column({ default: 0 })
   status: number; // 0:未付款 1:已付款 2:已开奖 3:已中奖
 

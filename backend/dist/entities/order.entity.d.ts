@@ -17,6 +17,7 @@ export declare class Order {
     }[];
     amount: number;
     game_type: string;
+    lottery_type: string;
     status: number;
     draw_id: number;
     draw: Draw;

@@ -1,11 +1,11 @@
 import { OnModuleInit } from '@nestjs/common';
-import { Repository } from 'typeorm';
-import { Order } from '../../entities/order.entity';
+import { DataSource } from 'typeorm';
 export declare class OrderCancelService implements OnModuleInit {
-    private readonly orderRepo;
+    private readonly dataSource;
     private readonly logger;
     private timer;
-    constructor(orderRepo: Repository<Order>);
+    constructor(dataSource: DataSource);
     onModuleInit(): void;
+    private isInStopSellPeriod;
     cancelExpiredPendingOrders(): Promise<void>;
 }

@@ -65,16 +65,12 @@ async function findShopByNumber(shopRepo, number) {
 }
 const draw_entity_1 = require("../../entities/draw.entity");
 const draw_day_service_1 = require("../draw/draw-day.service");
+const local_lottery_service_1 = require("../local-lottery/local-lottery.service");
+const draw_queries_1 = require("../../utils/draw-queries");
+const shop_order_lock_1 = require("../../utils/shop-order-lock");
 const crypto = __importStar(require("crypto"));
 const common_2 = require("@nestjs/common");
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
-const shopOrderLocks = new Map();
-function withShopLock(shopId, fn) {
-    const prev = shopOrderLocks.get(shopId) ?? Promise.resolve();
-    const next = prev.then(() => fn());
-    shopOrderLocks.set(shopId, next.catch(() => { }));
-    return next;
-}
 function parseOrderToken(token) {
     if (!token)
         return null;
@@ -105,8 +101,9 @@ function parseOrderToken(token) {
     }
 }
 let OrderController = OrderController_1 = class OrderController {
-    constructor(dataSource) {
+    constructor(dataSource, localLotteryService) {
         this.dataSource = dataSource;
+        this.localLotteryService = localLotteryService;
         this.logger = new common_1.Logger(OrderController_1.name);
     }
     async onModuleInit() {
@@ -122,6 +119,19 @@ let OrderController = OrderController_1 = class OrderController {
         await qr.release();
     }
     async createOrder(dto, req) {
+        const kind = dto.lotteryKind;
+        if (kind === 'TICA' || kind === 'NICA') {
+            return this.localLotteryService.createOrder({
+                shopId: dto.shopId ?? dto.shop_id,
+                lotteryKind: kind,
+                numbers: dto.numbers,
+                amount: dto.amount,
+                gameType: dto.gameType || dto.game_type,
+                clientId: dto.clientId,
+                ipAddress: dto.ipAddress,
+                idempotency_key: dto.idempotency_key,
+            }, req);
+        }
         const shopId = dto.shopId ?? dto.shop_id;
         const numbers = dto.numbers;
         const amount = Number(dto.amount);
@@ -166,6 +176,7 @@ let OrderController = OrderController_1 = class OrderController {
                 .createQueryBuilder('o')
                 .where('o.idempotency_key = :k', { k: idempotencyKey })
                 .andWhere('o.shop_id = :s', { s: Number(shopId) })
+                .andWhere('(o.lottery_type IS NULL OR o.lottery_type = :nac)', { nac: 'NACIONAL' })
                 .andWhere('o.status != :canceled', { canceled: -1 })
                 .getOne();
             if (existing) {
@@ -196,10 +207,7 @@ let OrderController = OrderController_1 = class OrderController {
             throw new common_1.BadRequestException('Su suscripción ha vencido. Contacte al administrador para renovar.');
         }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const currentDraw = await drawRepo.findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
+        const currentDraw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         if (!currentDraw) {
             throw new common_1.BadRequestException('当前处于停售期，暂停下单');
         }
@@ -256,7 +264,7 @@ let OrderController = OrderController_1 = class OrderController {
         }
         const limitChance = shop.limit_chance;
         const limitBillete = shop.limit_billete;
-        return withShopLock(Number(shopId), async () => {
+        return (0, shop_order_lock_1.withShopLock)(Number(shopId), async () => {
             if (currentDraw && (limitChance != null || limitBillete != null)) {
                 const dbType = this.dataSource.options.type;
                 let soldRows = [];
@@ -301,6 +309,7 @@ let OrderController = OrderController_1 = class OrderController {
                 numbers,
                 amount,
                 game_type: gameTypeValue,
+                lottery_type: 'NACIONAL',
                 status: 0,
                 verification_code: verificationCode,
                 customer_info: { clientId },
@@ -376,6 +385,7 @@ let OrderController = OrderController_1 = class OrderController {
             amount: order.amount,
             numbers: order.numbers,
             game_type: order.game_type,
+            lottery_type: order.lottery_type ?? 'NACIONAL',
             status: statusMap[order.status] || 'pending',
             verification_code: order.verification_code,
             shopId: order.shop_id,
@@ -413,16 +423,16 @@ let OrderController = OrderController_1 = class OrderController {
             throw new common_1.BadRequestException('订单已超过30分钟未支付，已自动取消');
         }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const currentDraw = await drawRepo.findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
+        const orderLt = String(order.lottery_type || 'NACIONAL').toUpperCase();
+        const currentNational = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         const updatePayload = {
             status: 1,
             paid_at: new Date(),
         };
-        if (order.draw_id == null && currentDraw?.draw_id != null) {
-            updatePayload.draw_id = currentDraw.draw_id;
+        if (order.draw_id == null &&
+            currentNational?.draw_id != null &&
+            (orderLt === 'NACIONAL' || orderLt === '')) {
+            updatePayload.draw_id = currentNational.draw_id;
         }
         await orderRepo.update(order.order_id, updatePayload);
         this.logger.log(`订单确认: #${order.order_number}, 店铺: ${body.shopId}`);
@@ -516,58 +526,45 @@ __decorate([
 ], OrderController.prototype, "redeemOrder", null);
 exports.OrderController = OrderController = OrderController_1 = __decorate([
     (0, common_1.Controller)('orders'),
-    __metadata("design:paramtypes", [typeorm_1.DataSource])
+    __metadata("design:paramtypes", [typeorm_1.DataSource,
+        local_lottery_service_1.LocalLotteryService])
 ], OrderController);
 let ShopController = ShopController_1 = class ShopController {
     constructor(dataSource) {
         this.dataSource = dataSource;
         this.logger = new common_1.Logger(ShopController_1.name);
     }
-    async getShopByNumber(shopNumber) {
-        const shop = await findShopByNumber(this.dataSource.getRepository(shop_entity_1.Shop), shopNumber);
-        if (!shop) {
-            throw new common_1.NotFoundException('店铺不存在');
+    async listShopOrdersByQuery(shopId, limit = '100', status, suffix, drawId, lotteryKind) {
+        const id = parseInt(String(shopId || '').trim(), 10);
+        if (!shopId || isNaN(id) || id <= 0) {
+            throw new common_1.BadRequestException('缺少或无效的 shopId');
         }
-        return {
-            shop: {
-                shop_id: shop.shop_id,
-                shop_number: shop.shop_number,
-                shop_name: shop.shop_name,
-                status: shop.status,
-                commission_rate: shop.commission_rate,
-                limit_chance: shop.limit_chance ?? null,
-                limit_billete: shop.limit_billete ?? null,
-            },
-        };
+        return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
     }
-    async updateShopLimits(shopId, body) {
-        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
-        const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
-        if (!shop)
-            throw new common_1.NotFoundException('店铺不存在');
-        if (body.limitChance !== undefined)
-            shop.limit_chance = body.limitChance || null;
-        if (body.limitBillete !== undefined)
-            shop.limit_billete = body.limitBillete || null;
-        await shopRepo.save(shop);
-        return { success: true, limit_chance: shop.limit_chance, limit_billete: shop.limit_billete };
-    }
-    async getShopOrders(shopId, limit = '100', status, suffix, drawId) {
+    async buildShopOrdersList(shopIdNum, limit, status, suffix, drawId, lotteryKind) {
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
-        const shop = await shopRepo.findOne({
-            where: { shop_id: parseInt(shopId) },
-        });
+        let shop = await shopRepo.findOne({ where: { shop_id: shopIdNum } });
+        if (!shop) {
+            shop = await shopRepo.findOne({ where: { shop_number: String(shopIdNum) } });
+        }
         if (!shop) {
             throw new common_1.NotFoundException('店铺不存在');
         }
         const limitNum = Math.min(parseInt(limit, 10) || 100, 500);
         const query = orderRepo.createQueryBuilder('order')
-            .where('order.shop_id = :shopId', { shopId: parseInt(shopId, 10) })
+            .where('order.shop_id = :shopId', { shopId: shop.shop_id })
             .orderBy('order.created_at', 'DESC')
             .take(limitNum);
         if (drawId && Number(drawId) > 0) {
             query.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
+        }
+        const lk = (lotteryKind || '').toString().toUpperCase();
+        if (lk === 'TICA' || lk === 'NICA') {
+            query.andWhere('order.lottery_type = :lotteryTypeFilter', { lotteryTypeFilter: lk });
+        }
+        else if (lk === 'NACIONAL') {
+            query.andWhere('(order.lottery_type = :nac OR order.lottery_type IS NULL)', { nac: 'NACIONAL' });
         }
         if (status) {
             const statusMap = {
@@ -606,6 +603,7 @@ let ShopController = ShopController_1 = class ShopController {
                 numbers: order.numbers,
                 amount: order.amount,
                 game_type: order.game_type,
+                lottery_type: order.lottery_type ?? 'NACIONAL',
                 status: statusMap[order.status] || 'pending',
                 draw_id: order.draw_id ?? null,
                 win_amount: order.win_amount,
@@ -617,15 +615,70 @@ let ShopController = ShopController_1 = class ShopController {
             })),
         };
     }
+    async updateShopLimits(shopId, body) {
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
+        if (!shop)
+            throw new common_1.NotFoundException('店铺不存在');
+        if (body.limitChance !== undefined)
+            shop.limit_chance = body.limitChance || null;
+        if (body.limitBillete !== undefined)
+            shop.limit_billete = body.limitBillete || null;
+        if (body.ticaEnabled !== undefined)
+            shop.tica_enabled = !!body.ticaEnabled;
+        if (body.nicaEnabled !== undefined)
+            shop.nica_enabled = !!body.nicaEnabled;
+        await shopRepo.save(shop);
+        return {
+            success: true,
+            limit_chance: shop.limit_chance,
+            limit_billete: shop.limit_billete,
+            tica_enabled: shop.tica_enabled,
+            nica_enabled: shop.nica_enabled,
+        };
+    }
+    async getShopOrders(shopId, limit = '100', status, suffix, drawId, lotteryKind) {
+        const id = parseInt(String(shopId || '').trim(), 10);
+        if (isNaN(id) || id <= 0) {
+            throw new common_1.BadRequestException('无效的 shopId');
+        }
+        return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
+    }
+    async getShopByNumber(shopNumber) {
+        const shop = await findShopByNumber(this.dataSource.getRepository(shop_entity_1.Shop), shopNumber);
+        if (!shop) {
+            throw new common_1.NotFoundException('店铺不存在');
+        }
+        return {
+            shop: {
+                shop_id: shop.shop_id,
+                shop_number: shop.shop_number,
+                shop_name: shop.shop_name,
+                status: shop.status,
+                commission_rate: shop.commission_rate,
+                limit_chance: shop.limit_chance ?? null,
+                limit_billete: shop.limit_billete ?? null,
+                tica_enabled: !!shop.tica_enabled,
+                nica_enabled: !!shop.nica_enabled,
+                accepting_tica_orders: shop.accepting_tica_orders !== false,
+                accepting_nica_orders: shop.accepting_nica_orders !== false,
+            },
+        };
+    }
 };
 exports.ShopController = ShopController;
 __decorate([
-    (0, common_1.Get)(':shopNumber'),
-    __param(0, (0, common_1.Param)('shopNumber')),
+    (0, common_1.Get)('orders'),
+    __param(0, (0, common_1.Query)('shopId')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('status')),
+    __param(3, (0, common_1.Query)('suffix')),
+    __param(4, (0, common_1.Query)('drawId')),
+    __param(5, (0, common_1.Query)('lotteryKind')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
-], ShopController.prototype, "getShopByNumber", null);
+], ShopController.prototype, "listShopOrdersByQuery", null);
 __decorate([
     (0, common_1.Patch)(':shopId/limits'),
     __param(0, (0, common_1.Param)('shopId')),
@@ -641,10 +694,18 @@ __decorate([
     __param(2, (0, common_1.Query)('status')),
     __param(3, (0, common_1.Query)('suffix')),
     __param(4, (0, common_1.Query)('drawId')),
+    __param(5, (0, common_1.Query)('lotteryKind')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "getShopOrders", null);
+__decorate([
+    (0, common_1.Get)(':shopNumber'),
+    __param(0, (0, common_1.Param)('shopNumber')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ShopController.prototype, "getShopByNumber", null);
 exports.ShopController = ShopController = ShopController_1 = __decorate([
     (0, common_1.Controller)('shop'),
     __metadata("design:paramtypes", [typeorm_1.DataSource])
@@ -690,15 +751,15 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
     }
     async getBetStatus(shopId) {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        let draw = await drawRepo.findOne({
-            where: { status: 'pending' },
-            order: { draw_id: 'DESC' },
-        });
+        let draw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         if (!draw) {
-            draw = await drawRepo.findOne({
-                where: { status: 'completed' },
-                order: { draw_id: 'DESC' },
-            });
+            draw = await drawRepo
+                .createQueryBuilder('d')
+                .where('d.status = :s', { s: 'completed' })
+                .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                .andWhere('(d.shop_id IS NULL)')
+                .orderBy('d.draw_id', 'DESC')
+                .getOne();
         }
         let canBet = true;
         let minutesUntilDraw;
@@ -780,20 +841,22 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
             }
         }
         else {
-            const lastCompleted = await drawRepo.findOne({
-                where: { status: 'completed' },
-                order: { draw_id: 'DESC' },
-            });
+            const lastCompleted = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
             if (lastCompleted) {
                 currentPeriodDate = BetStatusController_1.formatDrawPeriodDate(lastCompleted);
             }
             canBet = false;
             isDrawWindow = true;
         }
+        let stopSellAt;
+        if (minutesUntilDraw !== undefined) {
+            stopSellAt = Date.now() + minutesUntilDraw * 60 * 1000;
+        }
         const base = {
             status: 'ok',
             canBet,
             minutesUntilDraw,
+            stopSellAt,
             currentPeriodDate,
             isDrawWindow,
             confirmedDrawDay,
@@ -802,18 +865,34 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
         if (!shopId) {
             return base;
         }
+        const sid = parseInt(shopId, 10);
+        const shopRow = await this.dataSource.getRepository(shop_entity_1.Shop).findOne({ where: { shop_id: sid } });
+        const localFlags = shopRow
+            ? {
+                ticaEnabled: !!shopRow.tica_enabled,
+                nicaEnabled: !!shopRow.nica_enabled,
+                acceptingTicaOrders: shopRow.accepting_tica_orders !== false,
+                acceptingNicaOrders: shopRow.accepting_nica_orders !== false,
+            }
+            : {
+                ticaEnabled: false,
+                nicaEnabled: false,
+                acceptingTicaOrders: false,
+                acceptingNicaOrders: false,
+            };
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const orders = await this.dataSource.getRepository(order_entity_1.Order)
             .createQueryBuilder('order')
-            .where('order.shop_id = :shopId', { shopId: parseInt(shopId) })
+            .where('order.shop_id = :shopId', { shopId: sid })
             .andWhere('order.created_at >= :yesterday', { yesterday })
             .orderBy('order.created_at', 'DESC')
             .take(50)
             .getMany();
         return {
             ...base,
-            shopId: parseInt(shopId),
+            ...localFlags,
+            shopId: sid,
             orderCount: orders.length,
             orders: orders.map((o) => ({
                 order_id: o.order_id,
