@@ -412,6 +412,7 @@
         load_fail: '加载失败',
         status_won: '已中奖',
         status_settled: '未中奖',
+        status_redeemed: '已兑奖',
         status_paid: '已付款',
         period_label_pending: '待开奖',
         period_label_current: '本期',
@@ -493,6 +494,7 @@
         load_fail: 'Error al cargar',
         status_won: 'Premiado',
         status_settled: 'Sin premio',
+        status_redeemed: 'Premio cobrado',
         status_paid: 'Pagado',
         period_label_pending: 'Por sortear',
         period_label_current: 'Período',
@@ -861,12 +863,12 @@
       var ra = o.redeemed_at != null ? o.redeemed_at : o.redeemedAt;
       return ra != null && String(ra).trim() !== '' && String(ra).toLowerCase() !== 'null' && String(ra).toLowerCase() !== 'undefined';
     }
-    /** 列表/弹窗状态文案：已兑奖的中奖单与未中奖一样显示 status_settled（样式由 rowClass 决定，本就已是灰行） */
+    /** 列表状态：未中奖=settled；已中奖未兑奖=won；已中奖已兑奖=redeemed（勿再用「未中奖」） */
     function orderStatusLabel(o) {
       var tier = orderStatusTier(o);
       if (tier === 1) return t('status_paid');
       if (tier === 2) return t('status_settled');
-      if (tier === 3) return orderIsRedeemed(o) ? t('status_settled') : t('status_won');
+      if (tier === 3) return orderIsRedeemed(o) ? t('status_redeemed') : t('status_won');
       return t('status_paid');
     }
     /** 已中奖且尚未兑付（历史期列表 / 弹窗提示用） */
@@ -2001,15 +2003,11 @@
           if (showWaitingForDraw && pendingDraw) {
             const raw = pendingDraw.draw_date || pendingDraw.drawDate || pendingDraw.drawTime;
             const str = fmtDate(raw);
-            var pnd = pendingDraw.periodNo != null ? pendingDraw.periodNo : pendingDraw.period_no;
-            var pndStr = (pnd != null && String(pnd).trim() !== '') ? (' #' + pnd) : '';
-            periodEl.textContent = str ? (' (' + t('period_label_pending') + pndStr + ' ' + str + ')') : '';
+            periodEl.textContent = str ? (' (' + t('period_label_pending') + ' ' + str + ')') : '';
           } else if (drawResult && (drawResult.drawDate || drawResult.drawTime)) {
             const raw = drawResult.drawDate || drawResult.drawTime;
             const str = fmtDate(raw);
-            var pnc = drawResult.periodNo != null ? drawResult.periodNo : drawResult.period_no;
-            var pncStr = (pnc != null && String(pnc).trim() !== '') ? (' #' + pnc) : '';
-            periodEl.textContent = str ? (' ' + t('period_label_current') + pncStr + ' ' + str) : '';
+            periodEl.textContent = str ? (' ' + t('period_label_current') + ' ' + str) : '';
           } else {
             periodEl.textContent = '';
           }
@@ -2444,7 +2442,7 @@
           redeemBtn.classList.remove('hidden');
           redeemBtn.onclick = function() { redeemFromResultDetail(data); };
         } else if (isWon && redeemed) {
-          statusRow.classList.remove('hidden'); statusEl.textContent = t('status_settled');
+          statusRow.classList.remove('hidden'); statusEl.textContent = t('status_redeemed');
           winRow.classList.remove('hidden'); winEl.textContent = getOrderWinAmount(data).toFixed(2);
           redeemBtn.classList.add('hidden');
         } else if (tier === 2) {
