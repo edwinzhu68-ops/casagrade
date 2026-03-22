@@ -60,5 +60,16 @@ app.use((req, res) => {
 
 const PORT = Number(process.env.PORT) || 8080;
 app.listen(PORT, () => {
-  console.log(`🚀 Frontend: http://localhost:${PORT}  (API → http://localhost:${BACKEND_PORT})`);
+  console.log('');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(`🌐 前端静态站（本目录）: http://localhost:${PORT}`);
+  console.log(`   磁盘路径: ${STATIC_DIR}`);
+  console.log(`   merchant.html: ${path.join(STATIC_DIR, 'merchant.html')}`);
+  console.log(`🔗 /api 会代理到后端: http://localhost:${BACKEND_PORT}`);
+  console.log('');
+  console.log('⚠️  仅运行 lottery-system/backend 的 npm run start:dev 不会出现本页。');
+  console.log('   后端默认只提供 API（3000）；8080 必须单独开本前端：');
+  console.log('   cd ~/lottery-preview && npm start');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('');
 });

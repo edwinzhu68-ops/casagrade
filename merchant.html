@@ -17,6 +17,9 @@
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     .hidden { display: none !important; }
     #local-lottery-settings-details summary::-webkit-details-marker { display: none; }
+    /* 代客下单九宫格：减少手机 300ms 点击延迟、避免误触缩放 */
+    .cashier-numpad, .cashier-numkey { touch-action: manipulation; }
+    .cashier-numkey { -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
@@ -30,6 +33,7 @@
         <div class="text-6xl mb-4">🧾</div>
         <h1 class="text-2xl font-bold" data-i18n="login_title">门店收银工作台</h1>
         <p class="text-gray-400 mt-2" data-i18n="login_subtitle">账号（字母+数字）或店号（纯数字），密码相同</p>
+        <p class="text-gray-500 text-xs mt-3 leading-relaxed" data-i18n="login_hint_cashier">登录后可见：扫码收款、代客下单（当场收款）、开奖结算等入口。</p>
       </div>
 
       <input type="text" id="merchant-account" placeholder="账号或店号（任选其一）" value=""
@@ -146,7 +150,7 @@
             </div>
             <p id="merchant-mode-chip" class="hidden text-center text-[11px] text-purple-300 mt-1 font-bold tracking-wide"></p>
           </h1>
-          <div class="flex items-center gap-3 justify-end">
+          <div class="flex items-center gap-2 sm:gap-3 justify-end flex-wrap">
             <button onclick="openSettings()" class="text-gray-400 hover:text-white text-sm flex items-center gap-1" data-i18n="settings_short">
               ⚙️ <span data-i18n="settings_short_label">设置</span>
             </button>
@@ -171,10 +175,13 @@
     </header>
 
     <main class="max-w-2xl mx-auto p-3 space-y-4">
-      <!-- 顶部操作区：扫码收款/兑奖 + 结算 -->
-      <div class="grid grid-cols-2 gap-3">
+      <!-- 顶部操作区：扫码收款/兑奖 + 代客下单 + 结算 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <button onclick="openScanDirect()" class="w-full bg-gradient-to-r from-green-500 to-green-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center">
           <span data-i18n="scan_pay">📷 扫码</span>
+        </button>
+        <button type="button" onclick="openCashierOrderModal()" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center px-2">
+          <span data-i18n="cashier_order_btn">🧾 代客下单</span>
         </button>
         <button onclick="openSettlement()" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center px-2">
           <span data-i18n="settlement">开奖结算</span>
@@ -399,6 +406,117 @@
 
       <div class="flex gap-3">
         <button onclick="closeScan()" class="flex-1 bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 代客下单：布局与交互对齐顾客端 index.html page-shop + keyboard-modal（深色主题） -->
+  <div id="modal-cashier-order" class="hidden fixed inset-0 bg-black/80 z-[55] flex items-center justify-center p-4" onclick="if(event.target===this)closeCashierOrderModal()">
+    <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden border border-gray-600 shadow-2xl" onclick="event.stopPropagation()">
+      <div class="relative shrink-0 mb-2 min-h-[2.75rem] px-0.5">
+        <button type="button" onclick="closeCashierOrderModal()" class="absolute right-0 top-1/2 -translate-y-1/2 z-20 text-gray-400 hover:text-white text-3xl leading-none font-light w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-700/80" data-i18n-title="cashier_modal_close" title="关闭" aria-label="Close">&times;</button>
+        <!-- 与设置里「蓝牙热敏打印」同款拨动小球；未连接时显示 -->
+        <div id="cashier-printer-toggle-wrap" class="hidden absolute right-12 top-1/2 -translate-y-1/2 z-10">
+          <label class="relative inline-flex items-center cursor-pointer" data-i18n-title="cashier_btn_activate_print" title="激活">
+            <input type="checkbox" id="cashier-print-quick-toggle" class="sr-only peer" onchange="onCashierPrinterQuickToggle(this.checked)">
+            <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-gray-800 peer-focus-visible:ring-blue-400 peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm"></div>
+          </label>
+        </div>
+        <div id="cashier-printer-banner" class="hidden pr-[5.5rem] pl-2 flex items-center justify-center min-h-[2.75rem]">
+          <p class="text-sm text-amber-200/95 text-center" data-i18n="cashier_order_printer_short">请连接打印机使用</p>
+        </div>
+      </div>
+
+      <div class="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pr-0.5">
+      <!-- Billete / Chance（单价与顾客端 localStorage 一致，标签由脚本刷新） -->
+      <div class="flex gap-2 mb-0 shrink-0">
+        <button type="button" id="cashier-btn-billete" onclick="setMerchantCashierGameType('BILLETE')"
+          class="flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm">Billete ($1)</button>
+        <button type="button" id="cashier-btn-chance" onclick="setMerchantCashierGameType('CHANCE')"
+          class="flex-1 bg-gray-700 text-gray-200 py-2 rounded-xl font-bold text-sm border border-gray-600">Chance ($0.25)</button>
+      </div>
+
+      <!-- 号码 / 数量：点击弹出底部九宫格（与顾客端相同流程） -->
+      <div class="bg-gray-700/70 rounded-xl shadow-inner p-3 mb-0 border border-gray-600 shrink-0">
+        <div class="flex gap-2">
+          <div id="cashier-display-number" onclick="cashierOpenKeyboard('number')" class="flex-1 text-center py-1.5 border-2 border-blue-500 rounded-lg cursor-pointer active:opacity-90">
+            <span class="text-gray-400 text-xs" data-i18n="label_number">号码</span>
+            <p id="cashier-display-number-text" class="text-xl font-mono font-bold text-white tracking-widest">____</p>
+          </div>
+          <div id="cashier-display-quantity" onclick="cashierOpenKeyboard('quantity')" class="flex-1 text-center py-1.5 border-2 border-gray-500 rounded-lg cursor-pointer active:opacity-90">
+            <span class="text-gray-400 text-xs" data-i18n="label_quantity">数量</span>
+            <p id="cashier-display-qty-text" class="text-xl font-mono font-bold text-white">1</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 已选号码：最新添加的排在最上，添加后滚到顶部便于核对 -->
+      <div class="bg-gray-700/70 rounded-xl shadow-inner p-3 border border-gray-600 flex-1 flex flex-col min-h-0">
+        <p class="text-xs text-gray-400 mb-2 shrink-0 font-medium" data-i18n="selected_numbers">已选号码</p>
+        <div id="cashier-order-lines" class="space-y-1.5 flex-1 min-h-[10rem] max-h-[min(58vh,26rem)] overflow-y-auto overscroll-contain rounded-lg bg-gray-900/25 p-2 border border-gray-600/50">
+          <p class="text-gray-500 text-sm text-center py-3" data-i18n="no_numbers_yet">还没有号码</p>
+        </div>
+      </div>
+      </div>
+
+      <!-- 合计 + 确认下单（逻辑仍走 submitMerchantCashierOrder：下单并确认收款） -->
+      <div class="bg-gray-900/50 rounded-xl p-3 space-y-2 border border-gray-600 shrink-0 mt-2">
+        <div class="flex justify-between items-center">
+          <span class="text-gray-300 text-sm">
+            <span data-i18n="total_label">共</span> <span id="cashier-total-count">0</span> <span data-i18n="total_bets_suffix">注</span>
+          </span>
+          <span class="text-base font-bold text-green-400">$<span id="cashier-order-total">0.00</span></span>
+        </div>
+        <button type="button" id="btn-cashier-submit" onclick="submitMerchantCashierOrder()"
+          class="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:text-gray-400 text-white py-3 rounded-xl font-bold text-lg shadow-lg" disabled>
+          <span data-i18n="btn_confirm_bet">确认下单</span>
+        </button>
+        <p id="cashier-submit-btn-hint" class="text-xs text-center text-amber-400 mt-0.5 hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 代客下单底部键盘（与 index.html keyboard-modal 一致：号码格 / 九宫格 / 添加） -->
+  <div id="cashier-keyboard-modal" class="hidden fixed inset-0 bg-black/50 z-[62] flex items-end"
+    onclick="if(event.target===this)cashierCloseKeyboard()">
+    <div class="bg-gray-800 rounded-t-3xl w-full max-w-md mx-auto p-4 pt-3 border-t border-gray-600 shadow-2xl" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between gap-2 mb-3">
+        <span class="w-10 shrink-0" aria-hidden="true"></span>
+        <p id="cashier-keyboard-title" class="text-lg font-bold text-blue-400 text-center flex-1 min-w-0 px-1" data-i18n="keyboard_number_title">Introduce el número de lotería</p>
+        <button type="button" onclick="cashierCloseKeyboard()" class="shrink-0 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white text-2xl leading-none rounded-lg hover:bg-gray-700/80" data-i18n-title="cashier_modal_close" title="关闭" aria-label="Close">&times;</button>
+      </div>
+      <div class="bg-gray-900/60 rounded-xl py-4 mb-4 border border-gray-600">
+        <div id="cashier-keyboard-display" class="flex justify-center gap-2"></div>
+      </div>
+      <div class="grid grid-cols-3 gap-1.5 cashier-numpad">
+        <button type="button" onclick="cashierKeyPress('1')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">1</button>
+        <button type="button" onclick="cashierKeyPress('2')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">2</button>
+        <button type="button" onclick="cashierKeyPress('3')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">3</button>
+        <button type="button" onclick="cashierKeyPress('4')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">4</button>
+        <button type="button" onclick="cashierKeyPress('5')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">5</button>
+        <button type="button" onclick="cashierKeyPress('6')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">6</button>
+        <button type="button" onclick="cashierKeyPress('7')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">7</button>
+        <button type="button" onclick="cashierKeyPress('8')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">8</button>
+        <button type="button" onclick="cashierKeyPress('9')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">9</button>
+        <button type="button" onclick="cashierKeyBackspace()" class="cashier-numkey bg-gray-600 hover:bg-gray-500 py-2.5 rounded-xl font-bold text-xl text-white">×</button>
+        <button type="button" onclick="cashierKeyPress('0')" class="cashier-numkey bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-bold text-xl text-white">0</button>
+        <button type="button" onclick="cashierAddToList()" class="cashier-numkey bg-orange-500 hover:bg-orange-400 text-white py-2.5 rounded-xl font-bold text-sm" data-i18n="btn_add">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 代客下单：超限（与顾客端 index.html over-limit-modal 同逻辑，可裁剪数量后继续提交） -->
+  <div id="modal-cashier-over-limit" class="hidden fixed inset-0 bg-black/80 z-[58] flex items-center justify-center p-4" onclick="if(event.target===this)closeCashierOverLimitModal(false)">
+    <div class="bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-5 border border-orange-600/40" onclick="event.stopPropagation()">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-2xl">⚠️</span>
+        <h3 class="text-lg font-bold text-orange-200" data-i18n="cashier_overlimit_title">超出销售限额</h3>
+      </div>
+      <p class="text-sm text-gray-400 mb-3" data-i18n="cashier_overlimit_msg">以下号码超出本期限额，确认后将按可售数量自动调低数量（与顾客端一致），然后继续提交。</p>
+      <div id="cashier-over-limit-list" class="space-y-2 mb-4 max-h-48 overflow-y-auto"></div>
+      <div class="flex gap-3">
+        <button type="button" onclick="closeCashierOverLimitModal(false)" class="flex-1 py-3 rounded-xl border border-gray-500 text-gray-200 font-bold" data-i18n="cashier_overlimit_cancel">取消</button>
+        <button type="button" onclick="closeCashierOverLimitModal(true)" class="flex-1 py-3 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold" data-i18n="cashier_overlimit_continue">继续提交</button>
       </div>
     </div>
   </div>
@@ -670,6 +788,48 @@
         status_unknown: '未知',
         scan_pay: '📷 扫码',
         settlement: '开奖结算',
+        cashier_order_btn: '🧾 代客下单',
+        cashier_order_title: '代客下单（当场收款）',
+        cashier_order_printer_short: '请连接打印机使用',
+        cashier_btn_activate_print: '激活',
+        cashier_modal_close: '关闭',
+        label_number: '号码',
+        label_quantity: '数量',
+        selected_numbers: '已选号码',
+        no_numbers_yet: '还没有号码',
+        total_label: '共',
+        total_bets_suffix: '注',
+        btn_confirm_bet: '确认下单',
+        keyboard_number_title: '输入彩票号码',
+        keyboard_qty_title: '输入购买数量',
+        btn_add: '添加',
+        cashier_game_billete: 'Billete',
+        cashier_game_chance: 'Chance',
+        cashier_number_label: '号码',
+        cashier_qty_label: '数量',
+        cashier_number_placeholder: '输入号码',
+        cashier_add_line: '添加',
+        cashier_lines_title: '已添加',
+        cashier_total: '合计',
+        cashier_submit: '一键生成并收款',
+        cashier_empty_lines: '请先添加至少一行号码',
+        cashier_need_4_digits: 'Billete 须输入满 4 位数字（与顾客端一致）',
+        cashier_need_2_digits: 'Chance 请输入 1～2 位数字（不足 2 位将左侧补 0，与顾客端一致）',
+        cashier_overlimit_title: '超出销售限额',
+        cashier_overlimit_msg: '以下号码超出本期限额。确认后将按可售数量自动调低本条数量（逻辑与顾客端下单页一致），然后再次提交。',
+        cashier_overlimit_continue: '继续提交',
+        cashier_overlimit_cancel: '取消',
+        cashier_overlimit_soldout: '已满',
+        cashier_overlimit_none: '调整后没有可提交的号码',
+        cashier_stop_sale: '当前不可下单（停售或未开售）',
+        cashier_confirm_partial: '订单已生成，但确认收款失败，请在「等待付款」里手动确认',
+        cashier_remove: '移除',
+        cashier_use_numpad: '与顾客端一致：Billete 固定 4 格、Chance 固定 2 格；下方九宫格输入（手机不弹系统键盘）。',
+        cashier_numpad_clear: '清空',
+        cashier_numpad_back: '退格',
+        cashier_qty_minus: '减',
+        cashier_qty_plus: '加',
+        login_hint_cashier: '登录后可见：扫码收款、代客下单（当场收款）、开奖结算等入口。',
         shop_label: '店号',
         period_sales: '本期销售额',
         period_orders: '本期订单',
@@ -909,6 +1069,48 @@
         status_unknown: '—',
         scan_pay: '📷 Escanear QR',
         settlement: 'Resultado y liquidación',
+        cashier_order_btn: '🧾 Pedido en mostrador',
+        cashier_order_title: 'Pedido en mostrador (cobrar ya)',
+        cashier_order_printer_short: 'Conecte la impresora',
+        cashier_btn_activate_print: 'Activar',
+        cashier_modal_close: 'Cerrar',
+        label_number: 'Número',
+        label_quantity: 'Cantidad',
+        selected_numbers: 'Números seleccionados',
+        no_numbers_yet: 'Sin números aún',
+        total_label: 'Total',
+        total_bets_suffix: 'apuestas',
+        btn_confirm_bet: 'Confirmar apuesta',
+        keyboard_number_title: 'Introduce el número de lotería',
+        keyboard_qty_title: 'Introduce la cantidad a comprar',
+        btn_add: 'Agregar',
+        cashier_game_billete: 'Billete',
+        cashier_game_chance: 'Chance',
+        cashier_number_label: 'Número',
+        cashier_qty_label: 'Cantidad',
+        cashier_number_placeholder: 'Número',
+        cashier_add_line: 'Añadir',
+        cashier_lines_title: 'Líneas',
+        cashier_total: 'Total',
+        cashier_submit: 'Crear y cobrar',
+        cashier_empty_lines: 'Añada al menos una línea',
+        cashier_need_4_digits: 'Billete: debe completar 4 dígitos (igual que la app cliente)',
+        cashier_need_2_digits: 'Chance: 1–2 dígitos (si falta, se rellena con 0 a la izquierda, igual que la app cliente)',
+        cashier_overlimit_title: 'Supera el límite de ventas',
+        cashier_overlimit_msg: 'Estos números superan el límite del periodo. Al confirmar se ajustará la cantidad al máximo vendible (misma lógica que la app cliente) y se volverá a enviar.',
+        cashier_overlimit_continue: 'Continuar',
+        cashier_overlimit_cancel: 'Cancelar',
+        cashier_overlimit_soldout: 'Agotado',
+        cashier_overlimit_none: 'Tras ajustar no quedan líneas válidas',
+        cashier_stop_sale: 'No se puede apostar ahora (venta cerrada)',
+        cashier_confirm_partial: 'Pedido creado, pero falló confirmar pago; confírmelo en «Esperando pago»',
+        cashier_remove: 'Quitar',
+        cashier_use_numpad: 'Igual que la app cliente: Billete 4 cifras, Chance 2 cifras; teclado abajo (sin teclado del sistema).',
+        cashier_numpad_clear: 'Borrar',
+        cashier_numpad_back: 'Borrar dígito',
+        cashier_qty_minus: 'Menos',
+        cashier_qty_plus: 'Más',
+        login_hint_cashier: 'Tras iniciar sesión verá: escanear QR, pedido en mostrador (cobro al instante), liquidación, etc.',
         shop_label: 'Tienda',
         period_sales: 'Ventas del periodo',
         period_orders: 'Pedidos del periodo',
@@ -1130,6 +1332,23 @@
         if (MERCHANT_T[lang] && MERCHANT_T[lang][key]) el.innerHTML = MERCHANT_T[lang][key];
       });
       try { refreshMerchantLocalLotteryStatusBanner(); } catch (e) {}
+      try {
+        var cm = document.getElementById('modal-cashier-order');
+        if (cm && !cm.classList.contains('hidden')) {
+          updateCashierBilleteChanceButtonLabels();
+          var kbm = document.getElementById('cashier-keyboard-modal');
+          if (kbm && !kbm.classList.contains('hidden')) {
+            var kt = document.getElementById('cashier-keyboard-title');
+            if (kt) {
+              kt.textContent = cashierKbIsQuantityMode ? t('keyboard_qty_title') : t('keyboard_number_title');
+              kt.className = 'text-lg font-bold ' + (cashierKbIsQuantityMode ? 'text-green-400' : 'text-blue-400');
+            }
+            cashierUpdateKeyboardDisplay();
+          }
+          cashierUpdateShopBetUi();
+          updateCashierPrinterBanner();
+        }
+      } catch (eCashLang) {}
     }
     function t(key) { return (MERCHANT_T[getMerchantLang()] && MERCHANT_T[getMerchantLang()][key]) ? MERCHANT_T[getMerchantLang()][key] : key; }
 
@@ -1154,8 +1373,28 @@
     let periodOrders = [];
     let chanceSales = {};
     let billeteSales = {};
+    /** 代客下单弹窗：BILLETE | CHANCE */
+    let merchantCashierGameType = 'BILLETE';
+    /** @type {{ n: string, q: number, isBi: boolean, unitPrice?: number }[]} */
+    let merchantCashierLines = [];
+    /** 添加号码后下一帧滚到该行并高亮，便于与输入框比对 */
+    let merchantCashierScrollToLastAfterRender = false;
+    /** 刚添加或合并数量后的那一行索引（-1 表示无） */
+    let merchantCashierHighlightLineIndex = -1;
+    let cashierOrderBusy = false;
+    /** 与 index.html showOverLimitModal 一致：服务端返回的可售余量映射 */
+    var _cashierOverLimitMap = {};
+    /** 与 index.html 键盘/输入状态一致 */
+    var cashierKbCurrentNumber = '';
+    var cashierKbCurrentQuantity = '';
+    var cashierKbIsQuantityMode = false;
+    var cashierKbMaxDigits = 4;
+    var cashierKbDefaultQuantity = 1;
+    var cashierLastBetSnap = { canBet: true, isDrawWindow: false, acceptingTicaOrders: true, acceptingNicaOrders: true };
     let limits = { chance: 50, billete: 10 };
     const MERCHANT_WORKBENCH_KEY = 'merchant_workbench_kind';
+    /** 开奖结算页「代客下单」跳转收银台后自动打开弹窗（与 result.html 共用 key） */
+    const MERCHANT_OPEN_CASHIER_ORDER_KEY = 'merchant_open_cashier_order_v1';
     /** 与 result.html 共用：备份 TICA/NICA 开关，避免返回收银台时接口短暂未带字段导致底部入口消失 */
     const MERCHANT_SHOP_LOCAL_FLAGS_KEY = 'merchant_shop_local_flags';
 
@@ -2426,6 +2665,7 @@
 
         persistMerchantShopLocalFlags(currentShop);
         renderMerchantWorkbenchNav();
+        scheduleMaybeOpenCashierOrder();
 
       } catch (err) {
         console.error(err);
@@ -2780,6 +3020,529 @@
         } else {
           redeemListEl.innerHTML = '<p class="text-gray-500 text-sm">' + (t('no_redeem') || '暂无待兑奖订单') + '</p>';
         }
+      }
+    }
+
+    function scheduleMaybeOpenCashierOrder() {
+      try {
+        if (sessionStorage.getItem(MERCHANT_OPEN_CASHIER_ORDER_KEY) !== '1') return;
+        sessionStorage.removeItem(MERCHANT_OPEN_CASHIER_ORDER_KEY);
+        setTimeout(function () {
+          if (currentShop) openCashierOrderModal();
+        }, 400);
+      } catch (eSch) {}
+    }
+
+    function setMerchantCashierGameType(gt) {
+      merchantCashierGameType = (String(gt || '').toUpperCase() === 'CHANCE') ? 'CHANCE' : 'BILLETE';
+      cashierKbMaxDigits = merchantCashierGameType === 'BILLETE' ? 4 : 2;
+      cashierKbCurrentNumber = '';
+      cashierKbCurrentQuantity = '';
+      var bBtn = document.getElementById('cashier-btn-billete');
+      var cBtn = document.getElementById('cashier-btn-chance');
+      var onCls = 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm';
+      var offCls = 'flex-1 bg-gray-700 text-gray-200 py-2 rounded-xl font-bold text-sm border border-gray-600';
+      if (bBtn) bBtn.className = merchantCashierGameType === 'BILLETE' ? onCls : offCls;
+      if (cBtn) cBtn.className = merchantCashierGameType === 'CHANCE' ? onCls : offCls;
+      updateCashierBilleteChanceButtonLabels();
+      cashierUpdateKeyboardDisplay();
+      cashierUpdateShopBetUi();
+    }
+
+    /** 与顾客端 initPrices：price_billete / price_chance */
+    function getCashierUnitPrices() {
+      var billete = 1.0;
+      var chance = 0.25;
+      try {
+        var pb = parseFloat(localStorage.getItem('price_billete') || '1');
+        var pc = parseFloat(localStorage.getItem('price_chance') || '0.25');
+        if (!isNaN(pb) && pb > 0) billete = pb;
+        if (!isNaN(pc) && pc > 0) chance = pc;
+      } catch (eP) {}
+      return { billete: billete, chance: chance };
+    }
+
+    function updateCashierBilleteChanceButtonLabels() {
+      var pr = getCashierUnitPrices();
+      var bBtn = document.getElementById('cashier-btn-billete');
+      var cBtn = document.getElementById('cashier-btn-chance');
+      if (bBtn) bBtn.textContent = 'Billete ($' + pr.billete.toFixed(2) + ')';
+      if (cBtn) cBtn.textContent = 'Chance ($' + pr.chance.toFixed(2) + ')';
+    }
+
+    async function refreshCashierBetSnap() {
+      if (!currentShop || currentShop.shop_id == null) return;
+      try {
+        var r = await fetch(API_BASE + '/api/bet-status?shopId=' + encodeURIComponent(currentShop.shop_id), { cache: 'no-store' });
+        if (r.ok) {
+          var j = await r.json().catch(function () { return null; });
+          if (j && typeof j === 'object') cashierLastBetSnap = j;
+        }
+      } catch (eR) {}
+    }
+
+    function cashierCanSubmitLikeClient() {
+      if (!currentShop) return false;
+      mergeMerchantShopLocalFlags(currentShop);
+      var wb = getMerchantWorkbenchKind();
+      var bd = cashierLastBetSnap || {};
+      if (wb === 'NACIONAL') return !!(bd.canBet && !bd.isDrawWindow);
+      if (wb === 'TICA') return !!(currentShop.tica_enabled && bd.acceptingTicaOrders !== false);
+      if (wb === 'NICA') return !!(currentShop.nica_enabled && bd.acceptingNicaOrders !== false);
+      return false;
+    }
+
+    function cashierOpenKeyboard(mode) {
+      cashierKbIsQuantityMode = mode === 'quantity';
+      var title = document.getElementById('cashier-keyboard-title');
+      if (title) {
+        title.textContent = cashierKbIsQuantityMode ? t('keyboard_qty_title') : t('keyboard_number_title');
+        title.className = 'text-lg font-bold ' + (cashierKbIsQuantityMode ? 'text-green-400' : 'text-blue-400');
+      }
+      var km = document.getElementById('cashier-keyboard-modal');
+      if (km) km.classList.remove('hidden');
+      cashierUpdateKeyboardDisplay();
+    }
+
+    function cashierCloseKeyboard() {
+      var km = document.getElementById('cashier-keyboard-modal');
+      if (km) km.classList.add('hidden');
+    }
+
+    function cashierUpdateKeyboardDisplay() {
+      var display = document.getElementById('cashier-keyboard-display');
+      if (!display) return;
+      display.innerHTML = '';
+      display.className = 'flex justify-center gap-2';
+      if (cashierKbIsQuantityMode) {
+        var digits = cashierKbCurrentQuantity || '_';
+        for (var i = 0; i < digits.length; i++) {
+          var box = document.createElement('span');
+          box.className = 'inline-flex w-10 h-12 items-center justify-center border-2 border-green-500 rounded-lg text-2xl font-mono font-bold text-green-300';
+          box.textContent = digits[i];
+          display.appendChild(box);
+        }
+      } else {
+        var pad = (cashierKbCurrentNumber || '').padEnd(cashierKbMaxDigits, '_');
+        for (var j = 0; j < cashierKbMaxDigits; j++) {
+          var box2 = document.createElement('span');
+          box2.className = 'inline-flex w-10 h-12 items-center justify-center border-2 border-blue-500 rounded-lg text-2xl font-mono font-bold text-blue-300';
+          box2.textContent = pad[j];
+          display.appendChild(box2);
+        }
+      }
+    }
+
+    function cashierKeyPress(num) {
+      if (cashierKbIsQuantityMode) {
+        if (cashierKbCurrentQuantity.length < 3) cashierKbCurrentQuantity += num;
+      } else {
+        if (cashierKbCurrentNumber.length < cashierKbMaxDigits) cashierKbCurrentNumber += num;
+        if (cashierKbCurrentNumber.length === cashierKbMaxDigits) {
+          setTimeout(function () { cashierOpenKeyboard('quantity'); }, 300);
+        }
+      }
+      cashierUpdateKeyboardDisplay();
+      cashierUpdateShopBetUi();
+    }
+
+    function cashierKeyBackspace() {
+      if (cashierKbIsQuantityMode) {
+        cashierKbCurrentQuantity = cashierKbCurrentQuantity.slice(0, -1);
+      } else {
+        cashierKbCurrentNumber = cashierKbCurrentNumber.slice(0, -1);
+      }
+      cashierUpdateKeyboardDisplay();
+      cashierUpdateShopBetUi();
+    }
+
+    function cashierAddToList() {
+      var currentNumber = cashierKbCurrentNumber;
+      if (currentNumber.length === 0) {
+        cashierOpenKeyboard('number');
+        return;
+      }
+      if (currentNumber.length < cashierKbMaxDigits) {
+        if (merchantCashierGameType === 'CHANCE') {
+          currentNumber = currentNumber.padStart(cashierKbMaxDigits, '0');
+          cashierKbCurrentNumber = currentNumber;
+          cashierUpdateKeyboardDisplay();
+          cashierUpdateShopBetUi();
+        } else {
+          cashierOpenKeyboard('number');
+          return;
+        }
+      }
+      var qty = cashierKbCurrentQuantity === '' ? cashierKbDefaultQuantity : parseInt(cashierKbCurrentQuantity, 10);
+      if (isNaN(qty) || qty < 1) qty = 1;
+      if (qty > 999) qty = 999;
+      var pr = getCashierUnitPrices();
+      var isBi = merchantCashierGameType === 'BILLETE';
+      var n = currentNumber.slice(-cashierKbMaxDigits).padStart(cashierKbMaxDigits, '0');
+      var unitPrice = isBi ? pr.billete : pr.chance;
+      var found = merchantCashierLines.find(function (x) { return x.n === n; });
+      if (found) {
+        found.q += qty;
+        var fi = merchantCashierLines.indexOf(found);
+        if (fi > 0) {
+          merchantCashierLines.splice(fi, 1);
+          merchantCashierLines.unshift(found);
+        }
+      } else {
+        merchantCashierLines.unshift({ n: n, q: qty, isBi: isBi, unitPrice: unitPrice });
+      }
+      merchantCashierHighlightLineIndex = 0;
+      merchantCashierScrollToLastAfterRender = true;
+      cashierKbCurrentNumber = '';
+      cashierKbCurrentQuantity = '';
+      cashierUpdateShopBetUi();
+      setTimeout(function () {
+        cashierCloseKeyboard();
+        setTimeout(function () { cashierOpenKeyboard('number'); }, 80);
+      }, 120);
+    }
+
+    function cashierUpdateShopBetUi() {
+      var dn = document.getElementById('cashier-display-number-text');
+      if (dn) dn.textContent = cashierKbCurrentNumber.padEnd(cashierKbMaxDigits, '_');
+      var dq = document.getElementById('cashier-display-qty-text');
+      if (dq) dq.textContent = cashierKbCurrentQuantity || String(cashierKbDefaultQuantity);
+      renderMerchantCashierLines();
+      var tc = document.getElementById('cashier-total-count');
+      if (tc) {
+        var totalBets = merchantCashierLines.reduce(function (s, b) { return s + b.q; }, 0);
+        tc.textContent = String(totalBets);
+      }
+      var sb = document.getElementById('btn-cashier-submit');
+      var hint = document.getElementById('cashier-submit-btn-hint');
+      var disabled = merchantCashierLines.length === 0 || !cashierCanSubmitLikeClient();
+      if (sb) sb.disabled = disabled;
+      if (hint) {
+        if (!disabled) {
+          hint.classList.add('hidden');
+          hint.textContent = '';
+        } else if (merchantCashierLines.length === 0) {
+          hint.classList.add('hidden');
+        } else if (getMerchantWorkbenchKind() === 'NACIONAL' && cashierLastBetSnap.isDrawWindow) {
+          hint.classList.remove('hidden');
+          hint.textContent = getMerchantLang() === 'zh' ? '开奖中，暂停销售' : 'Sorteo en curso · ventas suspendidas';
+        } else if (getMerchantWorkbenchKind() === 'NACIONAL' && !cashierLastBetSnap.canBet) {
+          hint.classList.remove('hidden');
+          hint.textContent = getMerchantLang() === 'zh' ? '当前不可下单' : 'No disponible ahora';
+        } else if (getMerchantWorkbenchKind() === 'TICA' && cashierLastBetSnap.acceptingTicaOrders === false) {
+          hint.classList.remove('hidden');
+          hint.textContent = getMerchantLang() === 'zh' ? 'TICA 当前不可下单' : 'TICA no disponible ahora';
+        } else if (getMerchantWorkbenchKind() === 'NICA' && cashierLastBetSnap.acceptingNicaOrders === false) {
+          hint.classList.remove('hidden');
+          hint.textContent = getMerchantLang() === 'zh' ? 'NICA 当前不可下单' : 'NICA no disponible ahora';
+        } else {
+          hint.classList.add('hidden');
+        }
+      }
+    }
+
+    function renderMerchantCashierLines() {
+      var ul = document.getElementById('cashier-order-lines');
+      var totalEl = document.getElementById('cashier-order-total');
+      if (!ul) return;
+      var pr = getCashierUnitPrices();
+      var total = merchantCashierLines.reduce(function (sum, line) {
+        var up = line.unitPrice != null && isFinite(Number(line.unitPrice))
+          ? Number(line.unitPrice)
+          : (line.isBi ? pr.billete : pr.chance);
+        return sum + line.q * up;
+      }, 0);
+      total = Math.round(total * 100) / 100;
+      if (merchantCashierLines.length === 0) {
+        merchantCashierScrollToLastAfterRender = false;
+        merchantCashierHighlightLineIndex = -1;
+        ul.innerHTML = '<p class="text-gray-500 text-sm text-center py-1">' + esc(t('no_numbers_yet')) + '</p>';
+      } else {
+        var hi = merchantCashierHighlightLineIndex;
+        if (hi < 0 || hi >= merchantCashierLines.length) hi = -1;
+        ul.innerHTML = merchantCashierLines.map(function (line, idx) {
+          var up = line.unitPrice != null && isFinite(Number(line.unitPrice))
+            ? Number(line.unitPrice)
+            : (line.isBi ? pr.billete : pr.chance);
+          var sub = line.q * up;
+          var isHi = hi >= 0 && idx === hi;
+          var rowCls = isHi
+            ? 'flex justify-between items-center rounded-lg px-3 py-2.5 ring-2 ring-amber-400/90 bg-amber-500/15 border border-amber-500/40 shadow-[0_0_12px_rgba(251,191,36,0.12)]'
+            : 'flex justify-between items-center bg-gray-600/50 rounded-lg px-3 py-2';
+          return '<div class="' + rowCls + '"' + (isHi ? ' data-cashier-last="1"' : '') + '>' +
+            '<span class="font-mono font-bold ' + (isHi ? 'text-amber-100 text-lg tracking-wider' : 'text-white') + '">' + esc(line.n) + '</span>' +
+            '<span class="text-gray-400 text-sm">× ' + line.q + '</span>' +
+            '<span class="text-green-300 text-sm font-bold">$' + sub.toFixed(2) + '</span>' +
+            '<button type="button" onclick="removeMerchantCashierLine(' + idx + ')" class="text-red-400 text-lg font-bold px-2" aria-label="×">✕</button></div>';
+        }).join('');
+        var doScroll = merchantCashierScrollToLastAfterRender;
+        merchantCashierScrollToLastAfterRender = false;
+        requestAnimationFrame(function () {
+          try {
+            if (doScroll) {
+              ul.scrollTop = 0;
+              var hiEl = ul.querySelector('[data-cashier-last="1"]');
+              if (hiEl) hiEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+          } catch (eSc) {}
+        });
+      }
+      if (totalEl) totalEl.textContent = total.toFixed(2);
+    }
+
+    function removeMerchantCashierLine(idx) {
+      var i = Number(idx);
+      if (!isFinite(i) || i < 0 || i >= merchantCashierLines.length) return;
+      merchantCashierLines.splice(i, 1);
+      if (i === merchantCashierHighlightLineIndex) merchantCashierHighlightLineIndex = -1;
+      else if (i < merchantCashierHighlightLineIndex) merchantCashierHighlightLineIndex--;
+      cashierUpdateShopBetUi();
+    }
+
+    function buildCashierOrderPayload() {
+      var pr = getCashierUnitPrices();
+      var numbers = merchantCashierLines.map(function (line) {
+        return { n: line.n, q: line.q };
+      });
+      var amount = merchantCashierLines.reduce(function (sum, line) {
+        var up = line.unitPrice != null && isFinite(Number(line.unitPrice))
+          ? Number(line.unitPrice)
+          : (line.isBi ? pr.billete : pr.chance);
+        return sum + line.q * up;
+      }, 0);
+      amount = Math.round(amount * 100) / 100;
+      return {
+        numbers: numbers,
+        amount: amount,
+        gameType: merchantCashierGameType,
+      };
+    }
+
+    function showCashierOverLimitModal(items, overMap) {
+      _cashierOverLimitMap = overMap || {};
+      var list = document.getElementById('cashier-over-limit-list');
+      if (!list) return;
+      list.innerHTML = (items || []).map(function (item) {
+        var canBuy = item.limit - item.alreadySold;
+        var tag = canBuy > 0
+          ? '<span class="text-orange-300 font-bold">→ ' + esc(String(canBuy)) + '</span>'
+          : '<span class="text-red-400 font-bold">' + esc(t('cashier_overlimit_soldout')) + '</span>';
+        return '<div class="flex justify-between items-center gap-2 bg-gray-700/80 rounded-xl px-3 py-2 text-sm">' +
+          '<span class="font-mono font-bold text-white">' + esc(String(item.n)) + '</span>' +
+          '<span class="text-xs text-gray-400 shrink-0">' + esc(String(item.alreadySold)) + '/' + esc(String(item.limit)) + '</span>' +
+          '<span class="shrink-0">' + tag + '</span></div>';
+      }).join('');
+      var m = document.getElementById('modal-cashier-over-limit');
+      if (m) m.classList.remove('hidden');
+      try { applyMerchantLang(); } catch (eA) {}
+    }
+
+    async function cashierPostOrdersAndConfirm(wb) {
+      var pack = buildCashierOrderPayload();
+      var idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2) + Date.now().toString(36);
+      var orderBody = {
+        shopId: currentShop.shop_id,
+        numbers: pack.numbers,
+        amount: pack.amount,
+        gameType: pack.gameType,
+        clientId: 'cashier_' + String(currentShop.shop_id) + '_' + Date.now(),
+        ipAddress: '127.0.0.1',
+        idempotency_key: idempotencyKey,
+      };
+      if (wb === 'TICA' || wb === 'NICA') orderBody.lotteryKind = wb;
+
+      const res = await fetch(API_BASE + '/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderBody),
+      });
+      const data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        if (data.overLimitItems && data.overLimitItems.length > 0) {
+          var overMap = {};
+          data.overLimitItems.forEach(function (item) {
+            overMap[String(item.n)] = item.limit - item.alreadySold;
+          });
+          showCashierOverLimitModal(data.overLimitItems, overMap);
+          return;
+        }
+        showToast(pickApiBilingualMessage(data) || data.error || t('alert_request_fail'), 'error');
+        return;
+      }
+      var orderNumber = data.order_number != null ? data.order_number : data.orderNumber;
+      if (!orderNumber) {
+        showToast(t('alert_order_id_missing'), 'error');
+        return;
+      }
+      const cres = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)) + '/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopId: currentShop.shop_id }),
+      });
+      if (!cres.ok) {
+        var err2 = await cres.json().catch(function () { return {}; });
+        showToast(pickApiBilingualMessage(err2) || err2.message || t('cashier_confirm_partial'), 'error');
+        await loadDashboard();
+        return;
+      }
+      showPaymentSuccessToast();
+      fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)))
+        .then(function (r) { return r.json(); })
+        .then(function (order) { autoPrintOrder(order); })
+        .catch(function () {});
+      closeCashierOrderModal();
+      await loadDashboard();
+    }
+
+    async function submitMerchantCashierOrderAfterOverLimitTrim() {
+      if (!currentShop || cashierOrderBusy) return;
+      mergeMerchantShopLocalFlags(currentShop);
+      var wb = getMerchantWorkbenchKind();
+      merchantWorkbenchKind = wb;
+      if (wb === 'TICA' && !currentShop.tica_enabled) {
+        showToast(getMerchantLang() === 'zh' ? '本店未开通 TICA' : 'TICA no disponible', 'warning');
+        return;
+      }
+      if (wb === 'NICA' && !currentShop.nica_enabled) {
+        showToast(getMerchantLang() === 'zh' ? '本店未开通 NICA' : 'NICA no disponible', 'warning');
+        return;
+      }
+      var betData2 = {};
+      try {
+        var betRes2 = await fetch(API_BASE + '/api/bet-status?shopId=' + encodeURIComponent(currentShop.shop_id), { cache: 'no-store' });
+        if (betRes2.ok) betData2 = await betRes2.json().catch(function () { return {}; });
+      } catch (eBet2) {}
+      if (!merchantCashierCanPlace(wb, betData2)) {
+        showToast(t('cashier_stop_sale'), 'warning');
+        return;
+      }
+      cashierOrderBusy = true;
+      var submitBtn2 = document.getElementById('btn-cashier-submit');
+      if (submitBtn2) submitBtn2.disabled = true;
+      try {
+        await cashierPostOrdersAndConfirm(wb);
+      } catch (errOt) {
+        console.error(errOt);
+        showToast(errOt.message || t('alert_request_fail'), 'error');
+      } finally {
+        cashierOrderBusy = false;
+        if (submitBtn2) submitBtn2.disabled = false;
+      }
+    }
+
+    function closeCashierOverLimitModal(confirmed) {
+      var mo = document.getElementById('modal-cashier-over-limit');
+      if (mo) mo.classList.add('hidden');
+      if (!confirmed) return;
+      merchantCashierLines = merchantCashierLines.map(function (line) {
+        var maxAllowed = _cashierOverLimitMap[String(line.n)];
+        if (maxAllowed === undefined) return line;
+        if (maxAllowed <= 0) return null;
+        var newQ = Math.min(line.q, maxAllowed);
+        if (newQ <= 0) return null;
+        return Object.assign({}, line, { q: newQ });
+      }).filter(Boolean);
+      merchantCashierHighlightLineIndex = -1;
+      if (merchantCashierLines.length === 0) {
+        showToast(t('cashier_overlimit_none'), 'warning');
+        cashierUpdateShopBetUi();
+        return;
+      }
+      cashierUpdateShopBetUi();
+      void submitMerchantCashierOrderAfterOverLimitTrim();
+    }
+
+    function merchantCashierCanPlace(wb, betData) {
+      var bd = betData || {};
+      if (wb === 'NACIONAL') {
+        return !!(bd.canBet && !bd.isDrawWindow);
+      }
+      if (wb === 'TICA') {
+        return !!(currentShop && currentShop.tica_enabled && bd.acceptingTicaOrders !== false);
+      }
+      if (wb === 'NICA') {
+        return !!(currentShop && currentShop.nica_enabled && bd.acceptingNicaOrders !== false);
+      }
+      return false;
+    }
+
+    async function openCashierOrderModal() {
+      if (!currentShop) {
+        showToast(getMerchantLang() === 'zh' ? '请先登录收银台' : 'Inicie sesión en el POS', 'error');
+        return;
+      }
+      mergeMerchantShopLocalFlags(currentShop);
+      merchantWorkbenchKind = getMerchantWorkbenchKind();
+      merchantCashierLines = [];
+      merchantCashierHighlightLineIndex = -1;
+      merchantCashierScrollToLastAfterRender = false;
+      cashierCloseKeyboard();
+      await refreshCashierBetSnap();
+      setMerchantCashierGameType('BILLETE');
+      try {
+        var ol = document.getElementById('modal-cashier-over-limit');
+        if (ol) ol.classList.add('hidden');
+      } catch (eOl) {}
+      var modal = document.getElementById('modal-cashier-order');
+      if (modal) modal.classList.remove('hidden');
+      try { applyMerchantLang(); } catch (eLang) {}
+      updateCashierBilleteChanceButtonLabels();
+      cashierUpdateShopBetUi();
+      updateCashierPrinterBanner();
+    }
+
+    function closeCashierOrderModal() {
+      cashierCloseKeyboard();
+      var modal = document.getElementById('modal-cashier-order');
+      if (modal) modal.classList.add('hidden');
+      try {
+        var ol = document.getElementById('modal-cashier-over-limit');
+        if (ol) ol.classList.add('hidden');
+      } catch (eO2) {}
+    }
+
+    async function submitMerchantCashierOrder() {
+      if (!currentShop || cashierOrderBusy) return;
+      if (merchantCashierLines.length === 0) {
+        showToast(t('cashier_empty_lines'), 'warning');
+        return;
+      }
+      mergeMerchantShopLocalFlags(currentShop);
+      var wb = getMerchantWorkbenchKind();
+      merchantWorkbenchKind = wb;
+      if (wb === 'TICA' && !currentShop.tica_enabled) {
+        showToast(getMerchantLang() === 'zh' ? '本店未开通 TICA' : 'TICA no disponible', 'warning');
+        return;
+      }
+      if (wb === 'NICA' && !currentShop.nica_enabled) {
+        showToast(getMerchantLang() === 'zh' ? '本店未开通 NICA' : 'NICA no disponible', 'warning');
+        return;
+      }
+
+      var betData = {};
+      try {
+        var betRes = await fetch(API_BASE + '/api/bet-status?shopId=' + encodeURIComponent(currentShop.shop_id), { cache: 'no-store' });
+        if (betRes.ok) betData = await betRes.json().catch(function () { return {}; });
+      } catch (eBet) {}
+
+      if (!merchantCashierCanPlace(wb, betData)) {
+        showToast(t('cashier_stop_sale'), 'warning');
+        return;
+      }
+
+      cashierOrderBusy = true;
+      var submitBtn = document.getElementById('btn-cashier-submit');
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        await cashierPostOrdersAndConfirm(wb);
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || t('alert_request_fail'), 'error');
+      } finally {
+        cashierOrderBusy = false;
+        if (submitBtn) submitBtn.disabled = false;
       }
     }
 
@@ -3356,15 +4119,68 @@
       showPrinterWarning(t('printer_warning_disconnected'));
     }
 
+    /** 代客下单弹窗：已连接则隐藏居中提示与拨动开关；否则显示并与设置开关状态同步 */
+    function updateCashierPrinterBanner() {
+      var banner = document.getElementById('cashier-printer-banner');
+      var toggleWrap = document.getElementById('cashier-printer-toggle-wrap');
+      var modal = document.getElementById('modal-cashier-order');
+      if (!modal || modal.classList.contains('hidden')) return;
+      if (!banner || !toggleWrap) return;
+      if (_printerChar) {
+        banner.classList.add('hidden');
+        toggleWrap.classList.add('hidden');
+      } else {
+        banner.classList.remove('hidden');
+        toggleWrap.classList.remove('hidden');
+        var qt = document.getElementById('cashier-print-quick-toggle');
+        if (qt) qt.checked = localStorage.getItem('lottery_print_enabled') === '1';
+      }
+    }
+
+    /** 代客下单顶部拨动：开 = 同设置里启用并连接；关 = 关闭自动打印（与 print-toggle 一致） */
+    async function onCashierPrinterQuickToggle(checked) {
+      try {
+        if (checked) {
+          await cashierConnectPrinterLikeSettings();
+          var qt = document.getElementById('cashier-print-quick-toggle');
+          if (qt) qt.checked = localStorage.getItem('lottery_print_enabled') === '1';
+        } else {
+          var pt = document.getElementById('print-toggle');
+          if (pt) pt.checked = false;
+          await onPrintToggle(false);
+        }
+      } catch (eQ) {}
+      updateCashierPrinterBanner();
+    }
+
+    /** 与设置里「蓝牙热敏打印」一致：未启用自动打印则先 onPrintToggle(true)；已启用则直接 connectPrinter */
+    async function cashierConnectPrinterLikeSettings() {
+      var enabled = localStorage.getItem('lottery_print_enabled') === '1';
+      try {
+        if (!enabled) {
+          var pt = document.getElementById('print-toggle');
+          if (pt) pt.checked = true;
+          await onPrintToggle(true);
+        } else {
+          await connectPrinter();
+        }
+      } catch (eCashP) {}
+      updateCashierPrinterBanner();
+    }
+
     function updatePrinterStatusUI() {
       const enabled = localStorage.getItem('lottery_print_enabled') === '1';
       const statusEl = document.getElementById('printer-status');
       const btnConnect = document.getElementById('btn-connect-printer');
-      if (!statusEl) return;
+      if (!statusEl) {
+        try { updateCashierPrinterBanner(); } catch (eB) {}
+        return;
+      }
       if (!enabled) {
         statusEl.textContent = t('printer_not_enabled');
         statusEl.className = 'text-xs text-gray-400';
         if (btnConnect) btnConnect.classList.add('hidden');
+        try { updateCashierPrinterBanner(); } catch (eB) {}
         return;
       }
       const unsupported = printUnsupportedReason();
@@ -3381,6 +4197,7 @@
         statusEl.className = 'text-xs text-yellow-400';
         if (btnConnect) btnConnect.classList.remove('hidden');
       }
+      try { updateCashierPrinterBanner(); } catch (eB2) {}
     }
 
     async function onPrintToggle(checked) {
@@ -3499,7 +4316,9 @@
       return a;
     }
 
-    /** 构建与客户端已付款页面一致的收据 */
+    /**
+     * 已确认订单热敏小票：工作台「确认收款」与「代客下单」确认后均走 autoPrintOrder → 此处，内容一致。
+     */
     function buildReceipt(order, shopNumber) {
       const buf = [];
       const push = (...b) => buf.push(...b);
@@ -3536,7 +4355,7 @@
       txt('si ganas.'); LF();
       LF();
 
-      // ── QR 码（简化版：只含订单号）──
+      // ── QR 码（简化版：只含订单号，与历史逻辑一致）──
       const simpleQR = orderNum;
       const qrBytes2 = encLatin1(simpleQR);
       const pL2 = (qrBytes2.length + 3) & 0xFF;
