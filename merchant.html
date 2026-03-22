@@ -413,20 +413,6 @@
   <!-- 代客下单：布局与交互对齐顾客端 index.html page-shop + keyboard-modal（深色主题） -->
   <div id="modal-cashier-order" class="hidden fixed inset-0 bg-black/80 z-[55] flex items-start justify-center p-3 pt-2 sm:p-4 sm:pt-4 overflow-y-auto overscroll-contain" onclick="if(event.target===this)closeCashierOrderModal()">
     <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[min(92vh,calc(100dvh-0.75rem))] sm:max-h-[90vh] mt-1 sm:mt-4 mb-4 flex flex-col overflow-hidden border border-gray-600 shadow-2xl shrink-0" onclick="event.stopPropagation()">
-      <div class="relative shrink-0 mb-2 min-h-[2.75rem] px-0.5">
-        <button type="button" onclick="closeCashierOrderModal()" class="absolute right-0 top-1/2 -translate-y-1/2 z-20 text-gray-400 hover:text-white text-3xl leading-none font-light w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-700/80" data-i18n-title="cashier_modal_close" title="关闭" aria-label="Close">&times;</button>
-        <!-- 与设置里「蓝牙热敏打印」同款拨动小球；未连接时显示 -->
-        <div id="cashier-printer-toggle-wrap" class="hidden absolute right-12 top-1/2 -translate-y-1/2 z-10">
-          <label class="relative inline-flex items-center cursor-pointer" data-i18n-title="cashier_btn_activate_print" title="激活">
-            <input type="checkbox" id="cashier-print-quick-toggle" class="sr-only peer" onchange="onCashierPrinterQuickToggle(this.checked)">
-            <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-gray-800 peer-focus-visible:ring-blue-400 peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm"></div>
-          </label>
-        </div>
-        <div id="cashier-printer-banner" class="hidden pr-[5.5rem] pl-2 flex items-center justify-center min-h-[2.75rem]">
-          <p class="text-sm text-amber-200/95 text-center" data-i18n="cashier_order_printer_short">请连接打印机使用</p>
-        </div>
-      </div>
-
       <div class="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pr-0.5">
       <!-- Billete / Chance（单价与顾客端 localStorage 一致，标签由脚本刷新） -->
       <div class="flex gap-2 mb-0 shrink-0">
@@ -436,16 +422,16 @@
           class="flex-1 bg-gray-700 text-gray-200 py-2 rounded-xl font-bold text-sm border border-gray-600">Chance ($0.25)</button>
       </div>
 
-      <!-- 号码 / 数量：点击弹出底部九宫格（与顾客端相同流程） -->
-      <div class="bg-gray-700/70 rounded-xl shadow-inner p-3 mb-0 border border-gray-600 shrink-0">
-        <div class="flex gap-2">
-          <div id="cashier-display-number" onclick="cashierOpenKeyboard('number')" class="flex-1 text-center py-1.5 border-2 border-blue-500 rounded-lg cursor-pointer active:opacity-90">
-            <span class="text-gray-400 text-xs" data-i18n="label_number">号码</span>
-            <p id="cashier-display-number-text" class="text-xl font-mono font-bold text-white tracking-widest">____</p>
+      <!-- 号码 / 数量：点击弹出底部九宫格（与顾客端相同流程）；整体约缩小 1/3 省高 -->
+      <div class="bg-gray-700/70 rounded-lg shadow-inner p-2 mb-0 border border-gray-600 shrink-0">
+        <div class="flex gap-1.5">
+          <div id="cashier-display-number" onclick="cashierOpenKeyboard('number')" class="flex-1 text-center py-1 px-1 border border-blue-500 rounded-md cursor-pointer active:opacity-90">
+            <span class="text-gray-400 text-[10px] leading-tight block" data-i18n="label_number">号码</span>
+            <p id="cashier-display-number-text" class="text-sm font-mono font-bold text-white tracking-widest leading-tight mt-0.5">____</p>
           </div>
-          <div id="cashier-display-quantity" onclick="cashierOpenKeyboard('quantity')" class="flex-1 text-center py-1.5 border-2 border-gray-500 rounded-lg cursor-pointer active:opacity-90">
-            <span class="text-gray-400 text-xs" data-i18n="label_quantity">数量</span>
-            <p id="cashier-display-qty-text" class="text-xl font-mono font-bold text-white">1</p>
+          <div id="cashier-display-quantity" onclick="cashierOpenKeyboard('quantity')" class="flex-1 text-center py-1 px-1 border border-gray-500 rounded-md cursor-pointer active:opacity-90">
+            <span class="text-gray-400 text-[10px] leading-tight block" data-i18n="label_quantity">数量</span>
+            <p id="cashier-display-qty-text" class="text-sm font-mono font-bold text-white leading-tight mt-0.5">1</p>
           </div>
         </div>
       </div>
@@ -472,6 +458,16 @@
           <span data-i18n="btn_confirm_bet">确认下单</span>
         </button>
         <p id="cashier-submit-btn-hint" class="text-xs text-center text-amber-400 mt-0.5 hidden"></p>
+        <!-- 打印机提示 + 激活开关：在确认下单下方，逻辑同设置里蓝牙热敏打印 -->
+        <div id="cashier-printer-panel" class="hidden pt-3 mt-1 border-t border-gray-600/50 flex items-center justify-between gap-3">
+          <p id="cashier-printer-banner" class="text-sm text-amber-200/95 flex-1 min-w-0 leading-snug text-left" data-i18n="cashier_order_printer_short">请连接打印机使用</p>
+          <div id="cashier-printer-toggle-wrap" class="shrink-0">
+            <label class="relative inline-flex items-center cursor-pointer" data-i18n-title="cashier_btn_activate_print" title="激活">
+              <input type="checkbox" id="cashier-print-quick-toggle" class="sr-only peer" onchange="onCashierPrinterQuickToggle(this.checked)">
+              <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-gray-900 peer-focus-visible:ring-blue-400 peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm"></div>
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -4119,19 +4115,16 @@
       showPrinterWarning(t('printer_warning_disconnected'));
     }
 
-    /** 代客下单弹窗：已连接则隐藏居中提示与拨动开关；否则显示并与设置开关状态同步 */
+    /** 代客下单弹窗：已连接则隐藏底部打印机行；否则显示「请连接打印机」+ 拨动开关并与设置同步 */
     function updateCashierPrinterBanner() {
-      var banner = document.getElementById('cashier-printer-banner');
-      var toggleWrap = document.getElementById('cashier-printer-toggle-wrap');
+      var panel = document.getElementById('cashier-printer-panel');
       var modal = document.getElementById('modal-cashier-order');
       if (!modal || modal.classList.contains('hidden')) return;
-      if (!banner || !toggleWrap) return;
+      if (!panel) return;
       if (_printerChar) {
-        banner.classList.add('hidden');
-        toggleWrap.classList.add('hidden');
+        panel.classList.add('hidden');
       } else {
-        banner.classList.remove('hidden');
-        toggleWrap.classList.remove('hidden');
+        panel.classList.remove('hidden');
         var qt = document.getElementById('cashier-print-quick-toggle');
         if (qt) qt.checked = localStorage.getItem('lottery_print_enabled') === '1';
       }
