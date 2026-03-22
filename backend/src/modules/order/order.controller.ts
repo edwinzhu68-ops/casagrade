@@ -769,7 +769,11 @@ function getPanamaNow(): { y: number; m: number; d: number; h: number; min: numb
     hour12: false,
   }).formatToParts(now);
   const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
-  return { y: get('year'), m: get('month'), d: get('day'), h: get('hour'), min: get('minute') };
+  let h = get('hour');
+  const min = get('minute');
+  // Intl.DateTimeFormat(hour12:false) 在部分环境/午夜边界会返回 24:xx 而非 00:xx，导致 totalMins 误判停售窗口
+  if (h === 24) h = 0;
+  return { y: get('year'), m: get('month'), d: get('day'), h, min };
 }
 
 /**

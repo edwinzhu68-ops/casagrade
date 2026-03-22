@@ -14,7 +14,10 @@ function getPanamaNow(): { y: number; m: number; d: number; h: number; min: numb
     hour: '2-digit', minute: '2-digit', hour12: false,
   }).formatToParts(now);
   const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
-  return { y: get('year'), m: get('month'), d: get('day'), h: get('hour'), min: get('minute') };
+  let h = get('hour');
+  const min = get('minute');
+  if (h === 24) h = 0; // Intl 午夜偶发 24:xx → 规范为 0:xx
+  return { y: get('year'), m: get('month'), d: get('day'), h, min };
 }
 
 @Injectable()
