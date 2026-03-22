@@ -386,6 +386,148 @@ export class OrderController implements OnModuleInit {
   }
 
   /**
+   * PATCH /api/orders/:orderNumber - 店主修改订单号码与数量（原单更新，不换单号；金额后端按票价重算）
+   * 仅待付款(0)/已付款(1)且未开奖结算；已结算(2)、已中奖(3)不可改。须登录且为店铺 owner。
+   */
+  @Patch(':orderNumber')
+  async patchOrder(
+    @Param('orderNumber') orderNumber: string,
+    @Body() body: { shopId?: number; numbers?: { n: string; q: number }[] },
+    @Req() req: Request,
+  ) {
+    const shopId = body?.shopId != null ? Number(body.shopId) : undefined;
+    if (!shopId || isNaN(shopId)) {
+      throw new BadRequestException('缺少 shopId');
+    }
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+
+    const numbers = body.numbers;
+    if (!Array.isArray(numbers) || numbers.length === 0 || numbers.length > 500) {
+      throw new BadRequestException('号码列表无效或超过500条');
+    }
+    for (const item of numbers) {
+      if (typeof item.n !== 'string' || item.n.length > 10 || typeof item.q !== 'number' || item.q < 1 || item.q > 999) {
+        throw new BadRequestException('号码或数量格式无效');
+      }
+    }
+
+    const BILLETE_PRICE = 1.0;
+    const CHANCE_PRICE = 0.25;
+    let amount = 0;
+    for (const item of numbers) {
+      const numLen = String(item.n).replace(/\D/g, '').length;
+      const price = numLen >= 4 ? BILLETE_PRICE : CHANCE_PRICE;
+      amount += price * Number(item.q);
+    }
+    amount = Math.round(amount * 100) / 100;
+    if (Number.isNaN(amount) || amount <= 0 || amount > 100000) {
+      throw new BadRequestException('金额无效');
+    }
+
+    const orderRepo = this.dataSource.getRepository(Order);
+    const orderPre = await orderRepo.findOne({ where: { order_number: orderNumber } });
+    if (!orderPre) throw new NotFoundException('订单不存在');
+    if (orderPre.shop_id !== shopId) {
+      throw new BadRequestException('无权操作其他店铺的订单');
+    }
+
+    const ltPre = String((orderPre as any).lottery_type || 'NACIONAL').toUpperCase();
+    if (ltPre === 'TICA' || ltPre === 'NICA') {
+      return this.localLotteryService.updateMerchantOrderLines(orderNumber, shopId, numbers, tokenUserId);
+    }
+
+    const limitChance = (shop as any).limit_chance as number | null;
+    const limitBillete = (shop as any).limit_billete as number | null;
+
+    return withShopLock(shopId, async () => {
+      const fresh = await orderRepo.findOne({ where: { order_number: orderNumber } });
+      if (!fresh) throw new NotFoundException('订单不存在');
+      if (fresh.shop_id !== shopId) {
+        throw new BadRequestException('无权操作其他店铺的订单');
+      }
+      const lt2 = String((fresh as any).lottery_type || 'NACIONAL').toUpperCase();
+      if (lt2 === 'TICA' || lt2 === 'NICA') {
+        return this.localLotteryService.updateMerchantOrderLines(orderNumber, shopId, numbers, tokenUserId);
+      }
+      if (fresh.status !== 0 && fresh.status !== 1) {
+        throw new BadRequestException('仅待付款或已付款（未开奖结算）的订单可修改');
+      }
+
+      if (fresh.draw_id != null && (limitChance != null || limitBillete != null)) {
+        const dbType = (this.dataSource.options as any).type as string;
+        let soldRows: { num: string; qty: string }[] = [];
+        if (dbType === 'postgres') {
+          soldRows = await this.dataSource.query(
+            `SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+             FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+             WHERE draw_id = $1 AND status != -1 AND order_id <> $2
+             GROUP BY item->>'n'`,
+            [fresh.draw_id, fresh.order_id],
+          );
+        } else {
+          soldRows = await this.dataSource.query(
+            `SELECT json_extract(value, '$.n') AS num,
+                    SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+             FROM orders, json_each(numbers)
+             WHERE draw_id = ? AND status != -1 AND order_id != ?
+             GROUP BY json_extract(value, '$.n')`,
+            [fresh.draw_id, fresh.order_id],
+          );
+        }
+        const soldMap: Record<string, number> = Object.fromEntries(
+          soldRows.map(r => [r.num, Number(r.qty)]),
+        );
+        const overLimitItems: Array<{ n: string | number; alreadySold: number; limit: number }> = [];
+        for (const item of numbers) {
+          const numStr = String(item.n).replace(/\D/g, '');
+          const isBillete = numStr.length >= 4;
+          const limit = isBillete ? limitBillete : limitChance;
+          if (limit == null) continue;
+          const alreadySold = soldMap[item.n] || 0;
+          if (alreadySold + item.q > limit) {
+            overLimitItems.push({ n: item.n, alreadySold, limit });
+          }
+        }
+        if (overLimitItems.length > 0) {
+          throw new BadRequestException({ message: '部分号码超出限额', overLimitItems });
+        }
+      }
+
+      const gameType = inferMerchantPatchGameType(numbers);
+      await orderRepo.update(fresh.order_id, {
+        numbers,
+        amount,
+        game_type: gameType,
+        win_amount: 0,
+        win_breakdown: null,
+      } as any);
+
+      this.logger.log(`订单修改: #${fresh.order_number}, 店铺: ${shopId}, 新金额: $${amount}`);
+      return {
+        success: true,
+        order_number: fresh.order_number,
+        amount,
+        numbers,
+        game_type: gameType,
+        lottery_type: 'NACIONAL',
+      };
+    });
+  }
+
+  /**
    * GET /api/orders/:orderNumber - 查询订单
    */
   @Get(':orderNumber')
@@ -551,6 +693,19 @@ export class OrderController implements OnModuleInit {
   private generateVerificationCode(): string {
     return Math.floor(10000 + Math.random() * 90000).toString();
   }
+}
+
+function inferMerchantPatchGameType(numbers: { n: string; q: number }[]): string {
+  let hasB = false;
+  let hasC = false;
+  for (const item of numbers) {
+    const numLen = String(item.n).replace(/\D/g, '').length;
+    if (numLen >= 4) hasB = true;
+    else hasC = true;
+  }
+  if (hasB && hasC) return 'MIXTO';
+  if (hasB) return 'BILLETE';
+  return 'CHANCE';
 }
 
 /**

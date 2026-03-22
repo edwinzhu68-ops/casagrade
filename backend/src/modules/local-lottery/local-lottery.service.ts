@@ -354,6 +354,142 @@ export class LocalLotteryService {
   /**
    * 店主：开通/关闭顾客端 TICA、NICA（他国彩票品种），并可一并更新接单开关
    */
+  /**
+   * 店主登录后修改 TICA/NICA 订单号码与数量（原单更新，不换单号；金额按票价重算）。
+   * 仅 status 0/1；限额校验时排除本单原销量。
+   */
+  async updateMerchantOrderLines(
+    orderNumber: string,
+    shopId: number,
+    numbers: { n: string; q: number }[],
+    operatorUserId: number,
+  ) {
+    await this.assertShopOwner(shopId, operatorUserId);
+    const orderRepo = this.dataSource.getRepository(Order);
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shopRow = await shopRepo.findOne({ where: { shop_id: shopId } });
+    if (!shopRow) throw notFoundBilingual('Tienda no encontrada.', '店铺不存在');
+
+    if (!Array.isArray(numbers) || numbers.length === 0 || numbers.length > 500) {
+      throw badBilingual(
+        'Lista de números no válida o supera las 500 líneas.',
+        '号码列表无效或超过500条',
+      );
+    }
+    for (const item of numbers) {
+      if (typeof item.n !== 'string' || item.n.length > 10 || typeof item.q !== 'number' || item.q < 1 || item.q > 999) {
+        throw badBilingual('Formato de número o cantidad no válido.', '号码或数量格式无效');
+      }
+    }
+    const amount = this.computeExpectedAmountFromLines(numbers);
+    if (Number.isNaN(amount) || amount <= 0 || amount > 100000) {
+      throw badBilingual('Monto no válido.', '金额无效');
+    }
+
+    return withShopLock(shopId, async () => {
+      const order = await orderRepo.findOne({ where: { order_number: orderNumber } });
+      if (!order) throw notFoundBilingual('Pedido no encontrado.', '订单不存在');
+      if (order.shop_id !== shopId) {
+        throw badBilingual('No permitido.', '无权操作其他店铺的订单');
+      }
+      const kind = String((order as any).lottery_type || '').toUpperCase();
+      if (kind !== 'TICA' && kind !== 'NICA') {
+        throw badBilingual('Tipo de pedido incorrecto.', '订单类型不支持此修改');
+      }
+      if (order.status !== 0 && order.status !== 1) {
+        throw badBilingual(
+          'Solo se pueden editar pedidos pendientes o pagados sin sorteo.',
+          '仅待付款或已付款（未开奖结算）的订单可修改号码',
+        );
+      }
+
+      this.assertLocalFeatureForKind(shopRow, kind as 'TICA' | 'NICA');
+
+      if (order.draw_id == null) {
+        throw badBilingual('Pedido sin sorteo asignado.', '订单缺少期次，无法修改');
+      }
+
+      const limitChance = (shopRow as any).limit_chance as number | null;
+      const limitBillete = (shopRow as any).limit_billete as number | null;
+
+      if (limitChance != null || limitBillete != null) {
+        const dbType = (this.dataSource.options as any).type as string;
+        let soldRows: { num: string; qty: string }[] = [];
+        if (dbType === 'postgres') {
+          soldRows = await this.dataSource.query(
+            `SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+             FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+             WHERE draw_id = $1 AND status != -1 AND order_id <> $2
+             GROUP BY item->>'n'`,
+            [order.draw_id, order.order_id],
+          );
+        } else {
+          soldRows = await this.dataSource.query(
+            `SELECT json_extract(value, '$.n') AS num,
+                    SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+             FROM orders, json_each(numbers)
+             WHERE draw_id = ? AND status != -1 AND order_id != ?
+             GROUP BY json_extract(value, '$.n')`,
+            [order.draw_id, order.order_id],
+          );
+        }
+        const soldMap: Record<string, number> = Object.fromEntries(
+          soldRows.map((r) => [r.num, Number(r.qty)]),
+        );
+
+        const overLimitItems: Array<{ n: string | number; alreadySold: number; limit: number }> = [];
+        for (const item of numbers) {
+          const numStr = String(item.n).replace(/\D/g, '');
+          const isBillete = numStr.length >= 4;
+          const limit = isBillete ? limitBillete : limitChance;
+          if (limit == null) continue;
+          const alreadySold = soldMap[item.n] || 0;
+          if (alreadySold + item.q > limit) {
+            overLimitItems.push({ n: item.n, alreadySold, limit });
+          }
+        }
+        if (overLimitItems.length > 0) {
+          throw new BadRequestException({
+            message: 'Algunos números superan el límite de ventas.',
+            messageZh: '部分号码超出限额',
+            overLimitItems,
+          });
+        }
+      }
+
+      const gameType = inferLocalGameTypeFromNumbers(numbers);
+      await orderRepo.update(order.order_id, {
+        numbers,
+        amount,
+        game_type: gameType,
+        win_amount: 0,
+        win_breakdown: null,
+      } as any);
+
+      this.logger.log(`${kind} 订单修改: #${order.order_number}, 店铺: ${shopId}, 新金额: $${amount}`);
+      return {
+        success: true,
+        order_number: order.order_number,
+        amount,
+        numbers,
+        game_type: gameType,
+        lottery_type: kind,
+      };
+    });
+  }
+
+  private computeExpectedAmountFromLines(numbers: { n: string; q: number }[]): number {
+    const BILLETE_PRICE = 1.0;
+    const CHANCE_PRICE = 0.25;
+    let expectedAmount = 0;
+    for (const item of numbers) {
+      const numLen = String(item.n).replace(/\D/g, '').length;
+      const price = numLen >= 4 ? BILLETE_PRICE : CHANCE_PRICE;
+      expectedAmount += price * Number(item.q);
+    }
+    return Math.round(expectedAmount * 100) / 100;
+  }
+
   async patchShopSettings(
     shopId: number,
     body: {
@@ -398,6 +534,19 @@ export class LocalLotteryService {
 }
 
 const PANAMA_TZ = 'America/Panama';
+
+function inferLocalGameTypeFromNumbers(numbers: { n: string; q: number }[]): string {
+  let hasB = false;
+  let hasC = false;
+  for (const item of numbers) {
+    const numLen = String(item.n).replace(/\D/g, '').length;
+    if (numLen >= 4) hasB = true;
+    else hasC = true;
+  }
+  if (hasB && hasC) return 'MIXTO';
+  if (hasB) return 'BILLETE';
+  return 'CHANCE';
+}
 
 function getPanamaYmd(): { y: number; m: number; d: number } {
   const now = new Date();
