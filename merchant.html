@@ -1771,13 +1771,18 @@
       }
       applyMerchantLang();
       document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible' && currentShop) loadDashboard();
+        if (document.visibilityState === 'visible' && currentShop) {
+          loadDashboard();
+          trySilentPrinterReconnectOnResume();
+        }
       });
       // 从开奖结算页返回（含浏览器后退缓存）：重新拉店铺并渲染底部 TICA/NICA 入口
       window.addEventListener('pageshow', function (ev) {
         var cashier = document.getElementById('page-cashier');
         if (!cashier || cashier.classList.contains('hidden')) return;
         if (!authToken || !currentShop) return;
+        // 刷新或从 bfcache 返回：蓝牙连接已断，用 getDevices() 再连一次（无需用户点选）
+        trySilentPrinterReconnectOnResume();
         mergeMerchantShopLocalFlags(currentShop);
         renderMerchantWorkbenchNav();
         var st = localStorage.getItem('lottery_session_token') || '';
@@ -4301,7 +4306,44 @@
       el?.classList.remove('hidden');
     }
 
-    /** 登录后检查打印状态：尝试静默重连，失败则显示警告 banner */
+    /**
+     * 用已授权的 BluetoothDevice 静默重连（不弹系统选择框）。
+     * @param {{ warnIfMissing?: boolean }} opts — warnIfMissing=false 时（如刷新/pageshow）getDevices 为空不弹横幅，避免骚扰
+     */
+    async function reconnectPrinterFromGetDevices(opts) {
+      const warnIfMissing = !opts || opts.warnIfMissing !== false;
+      if (!navigator.bluetooth?.getDevices) {
+        if (warnIfMissing) showPrinterWarning(t('printer_warning_disconnected'));
+        return false;
+      }
+      try {
+        const savedName = localStorage.getItem('lottery_printer_name') || '';
+        const devices = await navigator.bluetooth.getDevices();
+        if (devices.length === 0) {
+          if (warnIfMissing) {
+            showPrinterWarning('🖨️ 未找到已授权打印机（请用 HTTPS 打开，并曾点过一次「连接打印机」授予权限），请点击重连');
+          }
+          return false;
+        }
+        const sorted = savedName
+          ? [...devices].sort((a, b) => (a.name === savedName ? -1 : b.name === savedName ? 1 : 0))
+          : devices;
+        const delays = [0, 1200, 2800, 5000];
+        for (const device of sorted) {
+          for (const delay of delays) {
+            try {
+              if (delay > 0) await new Promise(function (r) { setTimeout(r, delay); });
+              const ok = await _doConnect(device, false);
+              if (ok) return true;
+            } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      if (warnIfMissing) showPrinterWarning(t('printer_warning_disconnected'));
+      return false;
+    }
+
+    /** 登录/进入收银台后：静默重连；失败则提示 */
     async function checkPrinterOnLogin() {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       const reason = printUnsupportedReason();
@@ -4309,34 +4351,23 @@
         showPrinterWarning('🖨️ ' + reason);
         return;
       }
-      // 尝试用 getDevices() 静默重连（无需用户手势，HTTPS + Chrome 85+）
-      if (navigator.bluetooth?.getDevices) {
-        try {
-          const savedName = localStorage.getItem('lottery_printer_name') || '';
-          const devices = await navigator.bluetooth.getDevices();
-          if (devices.length === 0) {
-            // getDevices() 返回空 → 权限未持久化（常见于非 HTTPS 或 Chrome 权限被清除）
-            showPrinterWarning('🖨️ 未找到已授权打印机，请点击重连');
-            return;
-          }
-          const sorted = savedName
-            ? [...devices].sort((a, b) => (a.name === savedName ? -1 : b.name === savedName ? 1 : 0))
-            : devices;
-          for (const device of sorted) {
-            // Android BLE 栈刷新后恢复慢，最多重试 3 次，间隔递增
-            const delays = [1500, 3000, 5000];
-            for (const delay of delays) {
-              try {
-                await new Promise(r => setTimeout(r, delay));
-                const ok = await _doConnect(device, false);
-                if (ok) return; // 成功，不再重试
-              } catch {}
-            }
-          }
-        } catch {}
-      }
-      // 静默重连失败，显示顶部警告 + 重连按钮
-      showPrinterWarning(t('printer_warning_disconnected'));
+      if (_printerChar) return;
+      await reconnectPrinterFromGetDevices({ warnIfMissing: true });
+    }
+
+    let _printerVisibilityReconnectAt = 0;
+    /** 刷新、从后台切回、前进后退缓存恢复时尝试静默重连（不反复弹「未授权」） */
+    async function trySilentPrinterReconnectOnResume() {
+      if (localStorage.getItem('lottery_print_enabled') !== '1') return;
+      if (printUnsupportedReason()) return;
+      if (_printerChar) return;
+      var cashier = document.getElementById('page-cashier');
+      if (!cashier || cashier.classList.contains('hidden')) return;
+      var now = Date.now();
+      if (now - _printerVisibilityReconnectAt < 2500) return;
+      _printerVisibilityReconnectAt = now;
+      await reconnectPrinterFromGetDevices({ warnIfMissing: false });
+      updatePrinterStatusUI();
     }
 
     /** 代客下单弹窗：已连接则隐藏底部打印机行；否则显示「请连接打印机」+ 拨动开关并与设置同步 */
