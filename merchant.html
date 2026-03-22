@@ -175,16 +175,16 @@
     </header>
 
     <main class="max-w-2xl mx-auto p-3 space-y-4">
-      <!-- 顶部操作区：扫码收款/兑奖 + 代客下单 + 结算 -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <button onclick="openScanDirect()" class="w-full bg-gradient-to-r from-green-500 to-green-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center">
-          <span data-i18n="scan_pay">📷 扫码</span>
+      <!-- 顶部操作区：手机也固定一行三列，避免竖排占屏 -->
+      <div class="grid grid-cols-3 gap-1.5 sm:gap-3">
+        <button onclick="openScanDirect()" class="w-full min-w-0 bg-gradient-to-r from-green-500 to-green-600 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-[11px] sm:text-lg shadow-lg flex items-center justify-center px-0.5 sm:px-2 leading-tight">
+          <span class="text-center break-words hyphens-auto" data-i18n="scan_pay">📷 扫码</span>
         </button>
-        <button type="button" onclick="openCashierOrderModal()" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center px-2">
-          <span data-i18n="cashier_order_btn">🧾 代客下单</span>
+        <button type="button" onclick="openCashierOrderModal()" class="w-full min-w-0 bg-gradient-to-r from-amber-500 to-orange-600 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-[11px] sm:text-lg shadow-lg flex items-center justify-center px-0.5 sm:px-2 leading-tight">
+          <span class="text-center break-words hyphens-auto" data-i18n="cashier_order_btn">🧾 代客下单</span>
         </button>
-        <button onclick="openSettlement()" class="w-full bg-gradient-to-r from-purple-500 to-purple-600 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center px-2">
-          <span data-i18n="settlement">开奖结算</span>
+        <button onclick="openSettlement()" class="w-full min-w-0 bg-gradient-to-r from-purple-500 to-purple-600 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-[11px] sm:text-lg shadow-lg flex items-center justify-center px-0.5 sm:px-2 leading-tight">
+          <span class="text-center break-words hyphens-auto" data-i18n="settlement">开奖结算</span>
         </button>
       </div>
 
@@ -226,7 +226,7 @@
               oninput="filterPendingBySuffix(this.value)" title="输入订单号后4位筛选" />
           </div>
         </div>
-        <p class="text-xs text-gray-400 mb-2" id="pending-hint" data-i18n="pending_hint">点击订单号确认收款 · 输入尾数可筛订单</p>
+        <p class="text-xs text-gray-400 mb-2" id="pending-hint" data-i18n="pending_hint">列表含 Lotería / TICA / NICA 未付款（与上方彩种切换无关）· 点单号确认收款 · 尾数筛选</p>
         <div id="pending-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
           <p class="text-gray-500 text-sm" data-i18n="no_pending">暂无未付款订单</p>
         </div>
@@ -411,8 +411,8 @@
   </div>
 
   <!-- 代客下单：布局与交互对齐顾客端 index.html page-shop + keyboard-modal（深色主题） -->
-  <div id="modal-cashier-order" class="hidden fixed inset-0 bg-black/80 z-[55] flex items-center justify-center p-4" onclick="if(event.target===this)closeCashierOrderModal()">
-    <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden border border-gray-600 shadow-2xl" onclick="event.stopPropagation()">
+  <div id="modal-cashier-order" class="hidden fixed inset-0 bg-black/80 z-[55] flex items-start justify-center p-3 pt-2 sm:p-4 sm:pt-4 overflow-y-auto overscroll-contain" onclick="if(event.target===this)closeCashierOrderModal()">
+    <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[min(92vh,calc(100dvh-0.75rem))] sm:max-h-[90vh] mt-1 sm:mt-4 mb-4 flex flex-col overflow-hidden border border-gray-600 shadow-2xl shrink-0" onclick="event.stopPropagation()">
       <div class="relative shrink-0 mb-2 min-h-[2.75rem] px-0.5">
         <button type="button" onclick="closeCashierOrderModal()" class="absolute right-0 top-1/2 -translate-y-1/2 z-20 text-gray-400 hover:text-white text-3xl leading-none font-light w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-700/80" data-i18n-title="cashier_modal_close" title="关闭" aria-label="Close">&times;</button>
         <!-- 与设置里「蓝牙热敏打印」同款拨动小球；未连接时显示 -->
@@ -844,7 +844,7 @@
         close: '关闭',
         pending_confirm: '等待付款',
         pending_title: '等待付款',
-        pending_hint: '列表含全国 / TICA / NICA 未付款（与上方彩种切换无关）· 点单号确认收款 · 尾数筛选',
+        pending_hint: '列表含 Lotería / TICA / NICA 未付款（与上方彩种切换无关）· 点单号确认收款 · 尾数筛选',
         pending_filter_placeholder: '最后4位',
         period_order_filter_placeholder: '最后4位',
         no_pending: '暂无未付款订单',
@@ -1564,7 +1564,7 @@
       if (wb === 'NICA') return t === 'NICA';
       return true;
     }
-    /** 待付款列表角标：区分全国 / TICA / NICA */
+    /** 待付款列表角标：区分 Lotería / TICA / NICA */
     function orderPendingLotteryBadgeHtml(o) {
       // 勿用变量名 t：会遮蔽全局 i18n 函数 t()，导致 Lotería 分支抛错、待付款列表整段无法渲染
       var lotType = getOrderLotteryType(o);
