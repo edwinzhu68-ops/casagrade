@@ -305,16 +305,54 @@
         setTimeout(function() { el.parentNode && el.parentNode.removeChild(el); }, 300);
       }, 3500);
     }
-    // 日期格式化：DD-MM-YYYY
+    // 日期展示：统一 DD-MM-YYYY（API 常给 YYYY-MM-DD，勿原样显示成「本期 2026-03-21」）
     function fmtDate(d) {
       if (!d) return '';
-      if (typeof d === 'string' && d.length === 10) return d; // 已经是 YYYY-MM-DD
+      if (typeof d === 'string') {
+        var st = String(d).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(st)) {
+          var ps = st.split('-');
+          return ps[2] + '-' + ps[1] + '-' + ps[0];
+        }
+        if (/^\d{2}-\d{2}-\d{4}$/.test(st)) return st;
+      }
       const date = new Date(d);
       if (isNaN(date.getTime())) return String(d).slice(0, 10);
       const dd = String(date.getDate()).padStart(2, '0');
       const mm = String(date.getMonth() + 1).padStart(2, '0');
       const yy = date.getFullYear();
       return `${dd}-${mm}-${yy}`;
+    }
+
+    /** 与巴拿马「今天」比较时用：统一 YYYY-MM-DD（勿用 fmtDate，已改为 DD-MM-YYYY 展示） */
+    function drawCalendarYmd(raw) {
+      if (!raw) return '';
+      if (typeof raw === 'string') {
+        var st = String(raw).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(st)) return st;
+        if (/^\d{2}-\d{2}-\d{4}$/.test(st)) {
+          var p = st.split('-');
+          return p[2] + '-' + p[1] + '-' + p[0];
+        }
+      }
+      var date = new Date(raw);
+      if (isNaN(date.getTime())) {
+        var s = String(raw).slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+      }
+      var y = date.getFullYear();
+      var m = String(date.getMonth() + 1).padStart(2, '0');
+      var dd = String(date.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + dd;
+    }
+
+    function panamaTodayYmd() {
+      var PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
+      var panamaLocal = new Date(Date.now() + PANAMA_OFFSET_MS);
+      var y = panamaLocal.getUTCFullYear();
+      var mo = String(panamaLocal.getUTCMonth() + 1).padStart(2, '0');
+      var d = String(panamaLocal.getUTCDate()).padStart(2, '0');
+      return y + '-' + mo + '-' + d;
     }
 
     var API_BASE = (function () {
@@ -851,6 +889,16 @@
       return '';
     }
 
+    /**
+     * 国家彩（Lotería）结算：只统计 NACIONAL，与 merchant.html orderMatchesMerchantWorkbench(NACIONAL) 一致。
+     * TICA/NICA 与国家彩各自有 draw_id 序列，数字常重叠（如都是 #12）；若此处不按彩种过滤，会误把 TICA 订单算进国家彩。
+     */
+    function orderIsNationalForSettlement(o) {
+      var t = orderEffectiveLotteryType(o);
+      if (t === 'TICA' || t === 'NICA') return false;
+      return t === 'NACIONAL' || !t || t === 'NULL';
+    }
+
     // 此页面不再提供单独登录，只允许从收银台登录后携带 token 访问
 
     // 开奖结算页轮询（TICA/NICA 开奖后需较快看到统计刷新）
@@ -1115,14 +1163,12 @@
       if (!pendingDraw) return false;
       const raw = pendingDraw.draw_date || pendingDraw.drawDate || pendingDraw.drawTime;
       if (!raw) return false;
-      const drawDateStr = fmtDate(raw);
+      const drawDateStr = drawCalendarYmd(raw);
+      if (!drawDateStr) return false;
       // 巴拿马永远 UTC-5，无夏令时——日期和小时都用巴拿马本地时间
       const PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
       const panamaLocal = new Date(Date.now() + PANAMA_OFFSET_MS);
-      const y = panamaLocal.getUTCFullYear();
-      const mo = String(panamaLocal.getUTCMonth() + 1).padStart(2, '0');
-      const d = String(panamaLocal.getUTCDate()).padStart(2, '0');
-      const todayStr = `${y}-${mo}-${d}`;
+      const todayStr = panamaTodayYmd();
       if (drawDateStr !== todayStr) return false;
       return panamaLocal.getUTCHours() < 15; // 15:00 起视为已开奖
     }
@@ -1138,13 +1184,11 @@
       if (!pendingDraw) return false;
       const raw = pendingDraw.draw_date || pendingDraw.drawDate || pendingDraw.drawTime;
       if (!raw) return false;
-      const drawDateStr = fmtDate(raw);
+      const drawDateStr = drawCalendarYmd(raw);
+      if (!drawDateStr) return false;
       const PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
       const panamaLocal = new Date(Date.now() + PANAMA_OFFSET_MS);
-      const y = panamaLocal.getUTCFullYear();
-      const mo = String(panamaLocal.getUTCMonth() + 1).padStart(2, '0');
-      const d = String(panamaLocal.getUTCDate()).padStart(2, '0');
-      const todayStr = `${y}-${mo}-${d}`;
+      const todayStr = panamaTodayYmd();
       if (drawDateStr !== todayStr) return false;   // 今天不是开奖日
       if (panamaLocal.getUTCHours() < 9) return false; // 还没到 09:00
       // 今天是开奖日且已过 09:00 → 归档
@@ -1935,12 +1979,17 @@
         // 开奖当天 15:00 前：当前期清空，只显示等待开奖
         const showWaitingForDraw = isDrawDayBefore1500(pendingDraw);
         const paidOrSettledOrWon = allOrders.filter(function (o) { return isPaidSettledOrWonStatus(o); });
+        const nationalPaidOrSettledOrWon = paidOrSettledOrWon.filter(orderIsNationalForSettlement);
         if (showWaitingForDraw) {
           ordersForCurrentDraw = [];
           document.getElementById('draw-waiting').classList.remove('hidden');
           document.getElementById('draw-result').classList.add('hidden');
         } else if (drawResult && drawResult.drawId != null) {
-          ordersForCurrentDraw = paidOrSettledOrWon.filter(o => o.draw_id == drawResult.drawId);
+          var natDrawId = drawResult.drawId;
+          ordersForCurrentDraw = nationalPaidOrSettledOrWon.filter(function (o) {
+            var oid = o.draw_id != null ? o.draw_id : o.drawId;
+            return oid == natDrawId;
+          });
         } else {
           // drawId 未知时不做统计，避免历史期订单混入当期数据
           ordersForCurrentDraw = [];
@@ -1952,11 +2001,15 @@
           if (showWaitingForDraw && pendingDraw) {
             const raw = pendingDraw.draw_date || pendingDraw.drawDate || pendingDraw.drawTime;
             const str = fmtDate(raw);
-            periodEl.textContent = str ? ' (' + t('period_label_pending') + ' ' + str + ')' : '';
+            var pnd = pendingDraw.periodNo != null ? pendingDraw.periodNo : pendingDraw.period_no;
+            var pndStr = (pnd != null && String(pnd).trim() !== '') ? (' #' + pnd) : '';
+            periodEl.textContent = str ? (' (' + t('period_label_pending') + pndStr + ' ' + str + ')') : '';
           } else if (drawResult && (drawResult.drawDate || drawResult.drawTime)) {
             const raw = drawResult.drawDate || drawResult.drawTime;
             const str = fmtDate(raw);
-            periodEl.textContent = str ? ' ' + t('period_label_current') + ' ' + str : '';
+            var pnc = drawResult.periodNo != null ? drawResult.periodNo : drawResult.period_no;
+            var pncStr = (pnc != null && String(pnc).trim() !== '') ? (' #' + pnc) : '';
+            periodEl.textContent = str ? (' ' + t('period_label_current') + pncStr + ' ' + str) : '';
           } else {
             periodEl.textContent = '';
           }
@@ -2325,6 +2378,8 @@
         var baseOrders = allOrders;
         if (pkDet === 'TICA' || pkDet === 'NICA') {
           baseOrders = buildScopedOrdersForLocalKind(allOrders, pkDet);
+        } else {
+          baseOrders = allOrders.filter(orderIsNationalForSettlement);
         }
         orders = baseOrders.filter(function (o) {
           if (!isPaidSettledOrWonStatus(o)) return false;

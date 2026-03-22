@@ -895,7 +895,11 @@
           if (clientStopCountdownInterval) { clearInterval(clientStopCountdownInterval); clientStopCountdownInterval = null; }
           if (betStatusPollInterval) { clearInterval(betStatusPollInterval); betStatusPollInterval = null; }
         }
-        if (id === 'page-home') localStorage.setItem(LAST_PAGE_KEY, 'home');
+        if (id === 'page-home') {
+          localStorage.setItem(LAST_PAGE_KEY, 'home');
+          // 工作台删除订单后 GET 404：在首页也拉一次待付款同步，避免必须进店铺页才消失
+          try { void pollPendingOrdersStatus(); } catch (eH) {}
+        }
         // 离开确认页时清除保存的订单号和轮询
         if (id !== 'page-confirmed') {
           localStorage.removeItem(LAST_ORDER_KEY);
@@ -2418,6 +2422,9 @@
         try {
           const res = await fetch(`${API_BASE}/api/orders/${orderNumber}`);
           if (res.status === 404) {
+            // 老板端已删除等：从本地待付款移除，避免回店铺页仍显示
+            removePendingOrderByNumber(orderNumber);
+            try { renderClientPendingOrders(); } catch (eP) {}
             stopStatusPolling();
             showPage('page-home');
             return;
@@ -2688,6 +2695,7 @@
         var list = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(list)) list = [];
         var changed = false;
+        var removedPaidNums = [];
         await Promise.all(list.map(async function(item, i) {
           var orderNumber = item.order_number || item.orderNumber;
           if (!orderNumber) return;
@@ -2695,6 +2703,7 @@
             var res = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
             if (res.status === 404) {
               list[i]._deleted = true;
+              removedPaidNums.push(String(orderNumber));
               changed = true;
               return;
             }
@@ -2725,9 +2734,22 @@
           list = list.filter(function(o) { return !o._deleted; });
         }
         sortClientPaidOrdersInPlace(list);
-        if (raw) {
-          try { localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list)); } catch (e) {}
-        }
+        try {
+          // 避免 renderClientPaidBanner 在列表空时又把「最后一张单」从 CLIENT_LAST_PAID_KEY 写回（服务端已删仍会显示）
+          if (removedPaidNums.length) {
+            var lr = localStorage.getItem(CLIENT_LAST_PAID_KEY);
+            if (lr) {
+              try {
+                var last = JSON.parse(lr);
+                var ln = String(last && (last.order_number || last.orderNumber) || '');
+                if (ln && removedPaidNums.indexOf(ln) !== -1) {
+                  localStorage.removeItem(CLIENT_LAST_PAID_KEY);
+                }
+              } catch (eL) {}
+            }
+          }
+          localStorage.setItem(CLIENT_PAID_ORDERS_KEY, JSON.stringify(list));
+        } catch (eS) {}
       } catch (e) {}
     }
 
