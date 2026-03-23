@@ -535,7 +535,10 @@
           <p class="font-bold text-white">选择打印机</p>
           <p id="ble-picker-status" class="text-xs text-blue-400 mt-0.5">正在扫描...</p>
         </div>
-        <button onclick="blePicker.cancel()" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white text-2xl rounded-lg hover:bg-gray-700">×</button>
+        <div class="flex items-center gap-2">
+          <button id="ble-picker-stop-btn" onclick="blePicker.stopScan()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg font-bold">停止</button>
+          <button onclick="blePicker.cancel()" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white text-2xl rounded-lg hover:bg-gray-700">×</button>
+        </div>
       </div>
       <div id="ble-picker-list" class="max-h-72 overflow-y-auto divide-y divide-gray-700/50">
         <p class="text-center text-gray-500 text-sm py-8">附近没有找到蓝牙设备</p>
@@ -4534,7 +4537,7 @@
 
     // ── BLE 设备选择器（APP 模式 startScan 扫描全量设备） ──────────
     var blePicker = (function() {
-      var _resolve = null, _reject = null, _devices = {}, _scanning = false;
+      var _resolve = null, _reject = null, _devices = {}, _scanning = false, _scanTimer = null;
 
       function _render() {
         var list = document.getElementById('ble-picker-list');
@@ -4560,16 +4563,21 @@
           _devices = {}; _scanning = true;
           var modal = document.getElementById('modal-ble-picker');
           var statusEl = document.getElementById('ble-picker-status');
+          var stopBtn  = document.getElementById('ble-picker-stop-btn');
           if (modal) modal.classList.remove('hidden');
+          if (statusEl) statusEl.textContent = '正在扫描...';
+          if (stopBtn) stopBtn.classList.remove('hidden');
           _render();
+          // 10 秒后自动停止扫描
+          _scanTimer = setTimeout(function() { stopScan(); }, 10000);
           try {
-            await _CapBle.requestLEScan({}, function(result) {
+            await _CapBle.requestLEScan({ allowDuplicates: false }, function(result) {
               var id = result.device && (result.device.deviceId || result.device.device_id);
               var name = (result.device && result.device.name) || result.localName || '';
               if (!id) return;
               _devices[id] = { name: name, rssi: result.rssi };
               _render();
-              if (statusEl) statusEl.textContent = '已找到 ' + Object.keys(_devices).length + ' 台设备';
+              if (statusEl) statusEl.textContent = '已找到 ' + Object.keys(_devices).length + ' 台，点击连接';
             });
           } catch(e) {
             if (_scanning) { _scanning = false; reject(e); _close(); }
@@ -4590,14 +4598,25 @@
         _reject = null; _resolve = null;
       }
 
+      function stopScan() {
+        if (_scanTimer) { clearTimeout(_scanTimer); _scanTimer = null; }
+        try { _CapBle && _CapBle.stopLEScan && _CapBle.stopLEScan(); } catch(e) {}
+        var statusEl = document.getElementById('ble-picker-status');
+        var stopBtn  = document.getElementById('ble-picker-stop-btn');
+        var count = Object.keys(_devices).length;
+        if (statusEl) statusEl.textContent = count > 0 ? '扫描完成，共 ' + count + ' 台，点击连接' : '未找到设备，请确认打印机已开机';
+        if (stopBtn) stopBtn.classList.add('hidden');
+      }
+
       function _close() {
         _scanning = false;
+        if (_scanTimer) { clearTimeout(_scanTimer); _scanTimer = null; }
         try { _CapBle && _CapBle.stopLEScan && _CapBle.stopLEScan(); } catch(e) {}
         var modal = document.getElementById('modal-ble-picker');
         if (modal) modal.classList.add('hidden');
       }
 
-      return { open: open, select: select, cancel: cancel };
+      return { open: open, select: select, cancel: cancel, stopScan: stopScan };
     })();
     // ── BLE 设备选择器结束 ────────────────────────────────────────
 
