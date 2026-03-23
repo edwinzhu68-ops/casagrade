@@ -5163,6 +5163,37 @@
         showSettingsResult('change-email-result', false, t('alert_request_fail'));
       }
     }
+
+    // ── 自动版本检测：有新部署时底部弹「有更新」提示 ──────────────
+    (function() {
+      var _appVersion = null;
+      function checkAppVersion() {
+        fetch('/version.json?t=' + Date.now(), { cache: 'no-store' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data || !data.v) return;
+            if (!_appVersion) { _appVersion = data.v; return; }
+            if (data.v !== _appVersion) showUpdateBanner();
+          })
+          .catch(function() {});
+      }
+      function showUpdateBanner() {
+        if (document.getElementById('app-update-banner')) return;
+        var lang = getMerchantLang();
+        var banner = document.createElement('div');
+        banner.id = 'app-update-banner';
+        banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9998;background:#1d4ed8;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;font-size:14px;font-weight:bold;box-shadow:0 -2px 8px rgba(0,0,0,.4);';
+        banner.innerHTML = '<span>🆕 ' + (lang === 'zh' ? '有新版本' : 'Nueva versión disponible') + '</span>' +
+          '<button onclick="location.reload()" style="background:#fff;color:#1d4ed8;padding:6px 18px;border-radius:8px;font-weight:bold;border:none;cursor:pointer;font-size:14px;">' +
+          (lang === 'zh' ? '立即刷新' : 'Actualizar') + '</button>';
+        document.body.appendChild(banner);
+      }
+      setInterval(checkAppVersion, 5 * 60 * 1000); // 每 5 分钟检查
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') checkAppVersion();
+      });
+      checkAppVersion(); // 记录初始版本
+    })();
   </script>
 
   <!-- 设置弹窗 -->
