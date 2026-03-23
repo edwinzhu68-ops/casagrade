@@ -2271,6 +2271,14 @@
           body: JSON.stringify({ shopId: currentShop.shop_id })
         });
         if (res.ok) {
+          var nowTs = new Date().toISOString();
+          [allOrders, ordersForCurrentDraw].forEach(function(arr) {
+            arr.forEach(function(o) {
+              if ((o.order_number || o.orderNumber) === orderNumber) o.redeemed_at = nowTs;
+            });
+          });
+          renderResultPaidOrderList(ordersForCurrentDraw);
+          renderResultRedeemList(ordersForCurrentDraw);
           closeResultOrderModal();
           loadData();
         } else {

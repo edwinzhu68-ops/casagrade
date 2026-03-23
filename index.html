@@ -3689,6 +3689,11 @@
 
     // 点 📲 按钮的主入口：能直接安装就直接安装，不能就弹手动指引
     async function triggerClientPwaInstall() {
+      // Android 浏览器：直接弹下载横幅
+      if (!_isCapApp && !/iP(hone|ad|od)/i.test(navigator.userAgent) && /Android/i.test(navigator.userAgent)) {
+        showClientDownloadBanner();
+        return;
+      }
       if (isClientPwaInstalled()) {
         showClientPwaPrompt(); // 已安装，弹窗提示"已在桌面"
         return;
@@ -3759,6 +3764,53 @@
         _clientPwaPrompt = null;
       }
     }
+
+    // ── APP 下载（Android 浏览器）──────────────────────────────
+    var _isCapApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    var CUSTOMER_APK_URL = 'https://casagrade.com/download/lottery-customer.apk';
+
+    /** Android 浏览器：在顶部显示「下载 APP」横幅 */
+    function showClientDownloadBanner() {
+      if (document.getElementById('download-app-banner')) return;
+      var banner = document.createElement('div');
+      banner.id = 'download-app-banner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.4);';
+      banner.innerHTML = '<span>📱 Descargar App</span>' +
+        '<div style="display:flex;gap:8px;flex-shrink:0;">' +
+        '<a href="' + CUSTOMER_APK_URL + '" download style="background:#fff;color:#16a34a;padding:5px 12px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">Descargar</a>' +
+        '<button onclick="document.getElementById(\'download-app-banner\').remove()" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;">×</button>' +
+        '</div>';
+      document.body.prepend(banner);
+    }
+
+    /** 根据平台调整"添加到桌面"按钮行为 */
+    (function() {
+      var btn = document.getElementById('client-pwa-btn2');
+      if (_isCapApp) {
+        // 已在 APP 内：隐藏该按钮
+        if (btn) btn.style.display = 'none';
+        return;
+      }
+      var isAndroid = !/iP(hone|ad|od)/i.test(navigator.userAgent) && /Android/i.test(navigator.userAgent);
+      if (isAndroid) {
+        // Android 浏览器：改为「下载 APP」
+        if (btn) {
+          var l1 = btn.querySelector('[data-i18n="client_pwa_l1"]');
+          var l2 = btn.querySelector('[data-i18n="client_pwa_l2"]');
+          var icon = btn.querySelector('.text-base');
+          if (icon) icon.textContent = '📥';
+          if (l1) l1.textContent = 'Descargar';
+          if (l2) l2.textContent = 'APP';
+          btn.onclick = function() { showClientDownloadBanner(); };
+          btn.classList.remove('hidden');
+        }
+        // 自动显示横幅
+        if (sessionStorage.getItem('download_banner_dismissed') !== '1') {
+          setTimeout(function() { showClientDownloadBanner(); }, 2000);
+        }
+      }
+      // iOS 保持原有"添加到桌面"逻辑，已由 initClientPwaAddToDesktopFallback 处理
+    })();
 
     // 注册 Service Worker
     if ('serviceWorker' in navigator) {

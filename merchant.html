@@ -2419,8 +2419,17 @@
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          var redeemedNum = currentRedeemOrder.order_number;
+          var nowTs = new Date().toISOString();
+          [allOrders, periodOrders].forEach(function(arr) {
+            arr.forEach(function(o) {
+              if ((o.order_number || o.orderNumber) === redeemedNum) o.redeemed_at = nowTs;
+            });
+          });
           document.getElementById('modal-redeem').classList.add('hidden');
           currentRedeemOrder = null;
+          var pf = document.getElementById('period-order-filter');
+          renderPeriodOrderList(pf ? pf.value : '');
           loadDashboard();
         } else {
           showToast(data.message || data.error || t('alert_redeem_fail'), 'error');
@@ -3688,7 +3697,7 @@
       var canModifyOrder = isPending || order.status === 1 || order.status === 'paid';
       document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
       document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
-      document.getElementById('modal-btn-print').classList.toggle('hidden', !_printerChar);
+      document.getElementById('modal-btn-print').classList.toggle('hidden', !isPrinterConnected());
       var modBtn = document.getElementById('modal-btn-modify');
       if (modBtn) modBtn.classList.toggle('hidden', !canModifyOrder);
 
@@ -3767,7 +3776,8 @@
           var amt = Number(o.amount || 0).toFixed(2);
           var status = periodOrderStatusText(o);
           var safeAttr = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          var isWon = o.status === 3 || o.status === 'won';
+          var redeemed = o.redeemed_at && String(o.redeemed_at).trim() !== '' && String(o.redeemed_at).toLowerCase() !== 'null';
+          var isWon = (o.status === 3 || o.status === 'won') && !redeemed;
           var rowBg = isWon ? 'bg-emerald-900/40 border-l-4 border-emerald-500' : 'bg-gray-700';
           var statusCls = isWon ? 'text-emerald-300 font-medium' : 'text-gray-400';
           var amtCls = isWon ? 'text-emerald-300' : 'text-green-400';
@@ -4145,7 +4155,61 @@
       })();
     }
 
-    // ── PWA 添加到桌面 ──────────────────────────────────────
+    // ── Capacitor 原生环境检测（需在所有 PWA/BLE 逻辑之前定义）──
+    const _isCapApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+    // ── APP 下载 / PWA 添加到桌面 ─────────────────────────────
+    // Android 下载地址（把 APK 上传到服务器后填入）
+    const MERCHANT_APK_URL = 'https://casagrade.com/download/lottery-merchant.apk';
+
+    /** Android 浏览器：在页面顶部显示「下载 APP」横幅（3 秒后自动收起，可手动关闭） */
+    function showDownloadAppBanner(type) {
+      if (document.getElementById('download-app-banner')) return; // 已显示
+      var url = type === 'merchant' ? MERCHANT_APK_URL : MERCHANT_APK_URL;
+      var lang = getMerchantLang();
+      var banner = document.createElement('div');
+      banner.id = 'download-app-banner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#1d4ed8;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.4);';
+      banner.innerHTML = '<span>📱 ' + (lang === 'zh' ? '下载 APP，打印机自动重连' : 'Descargar App para reconexión Bluetooth') + '</span>' +
+        '<div style="display:flex;gap:8px;flex-shrink:0;">' +
+        '<a href="' + url + '" download style="background:#fff;color:#1d4ed8;padding:5px 12px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">' + (lang === 'zh' ? '下载' : 'Descargar') + '</a>' +
+        '<button onclick="document.getElementById(\'download-app-banner\').remove()" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;">×</button>' +
+        '</div>';
+      document.body.prepend(banner);
+    }
+
+    /** 初始化设置面板"桌面快捷方式"区域：APP 内隐藏；Android 浏览器改为下载按钮；iOS 保持添加桌面 */
+    function _initHomescreenSettingsBtn() {
+      var section = document.getElementById('homescreen-section');
+      var btn = document.getElementById('btn-add-homescreen');
+      if (_isCapApp) {
+        // 已在原生 APP 里，整块隐藏
+        if (section) section.style.display = 'none';
+        return;
+      }
+      var lang = getMerchantLang();
+      if (!isIOS() && /Android/i.test(navigator.userAgent)) {
+        // Android 浏览器：改为下载 APK
+        if (btn) {
+          btn.textContent = lang === 'zh' ? '📥 下载 APP' : '📥 Descargar APP';
+          btn.onclick = function() { window.open(MERCHANT_APK_URL, '_blank'); };
+        }
+      }
+      // iOS：保持原有"添加到桌面"逻辑，无需修改
+    }
+
+    /** 页面加载时，Android 浏览器且未在 APP 内，自动显示下载横幅；设置按钮初始化需等 DOM 就绪 */
+    (function() {
+      // 自动显示下载横幅：需等 body 渲染后执行（2 秒延迟已足够）
+      if (!_isCapApp && !isIOS() && /Android/i.test(navigator.userAgent)) {
+        if (sessionStorage.getItem('download_banner_dismissed') !== '1') {
+          setTimeout(function() { showDownloadAppBanner('merchant'); }, 2000);
+        }
+      }
+      // 设置面板按钮在 DOM 就绪后初始化（面板 HTML 在此 <script> 块之后）
+      document.addEventListener('DOMContentLoaded', function() { _initHomescreenSettingsBtn(); });
+    })();
+
     let _pwaInstallPrompt = null; // beforeinstallprompt 事件，用于触发原生安装对话框
 
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -4156,10 +4220,14 @@
       if (btn) btn.classList.remove('hidden');
     });
 
-    /** 显示"添加到桌面"提示弹窗
-     *  reason: 'register' | 'print' | 'manual'
-     */
+    /** 显示安装引导弹窗：APP 内跳过；Android 浏览器提示下载 APK；iOS 保留添加桌面引导 */
     function showPwaPrompt(reason) {
+      if (_isCapApp) return; // 已在 APP 里，无需提示
+      if (!isIOS() && /Android/i.test(navigator.userAgent)) {
+        // Android 浏览器：改为显示下载 APP 提示
+        showDownloadAppBanner('merchant');
+        return;
+      }
       const lang = getMerchantLang();
       const titles = {
         register: lang === 'zh' ? '📲 添加到桌面' : '📲 Añadir al inicio',
@@ -4263,19 +4331,47 @@
     let _printMode = 'none';      // 'ble' | 'rawbt' | 'none'
     let _reconnectTimer = null;   // 断连重试定时器
     let _keepAliveTimer = null;   // 心跳定时器（防 BLE 空闲超时断连）
+
+    // ── Capacitor 原生 BLE 桥（Android APP 模式）───────────
+    // _isCapApp 已在文件顶部定义（PWA 区域之前），此处仅定义 BLE 相关变量
+    const _CapBle   = _isCapApp ? (window.Capacitor.Plugins && window.Capacitor.Plugins.BluetoothLe || null) : null;
+    let _capDeviceId        = null;   // 已连接设备 ID
+    let _capServiceUUID     = null;   // 打印机服务 UUID
+    let _capCharUUID        = null;   // 打印机特征 UUID
+    let _capCanWriteWithout = false;  // 是否支持无响应写入
+    // APP 启动时初始化 BLE 权限
+    if (_isCapApp && _CapBle) { try { _CapBle.initialize(); } catch(e) {} }
+
+    /** Uint8Array → base64（Capacitor write 接口需要） */
+    function _toB64(u8) {
+      var s = '';
+      for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+      return btoa(s);
+    }
+
+    /** 统一判断打印机是否已连接（兼容 Web BLE 和 Capacitor 两种模式） */
+    function isPrinterConnected() {
+      return _isCapApp ? !!_capDeviceId : !!_printerChar;
+    }
     let currentDrawDate = null;   // 当期开奖日期，加载数据时更新，用于打印小票
 
     /** 每 25 秒发一次 ESC @ 心跳，保持 BLE 连接不断 */
     function startPrinterKeepAlive() {
       if (_keepAliveTimer) clearInterval(_keepAliveTimer);
       _keepAliveTimer = setInterval(async () => {
-        if (!_printerChar) return;
+        if (!isPrinterConnected()) return;
         try {
           const ping = new Uint8Array([0x1B, 0x40]); // ESC @ 初始化（无害）
-          const canWithout = _printerChar.properties?.writeWithoutResponse;
-          if (canWithout) await _printerChar.writeValueWithoutResponse(ping);
-          else if (_printerChar.writeValueWithResponse) await _printerChar.writeValueWithResponse(ping);
-          else await _printerChar.writeValue(ping);
+          if (_isCapApp && _capDeviceId) {
+            const val = _toB64(ping);
+            if (_capCanWriteWithout) await _CapBle.writeWithoutResponse({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
+            else await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
+          } else {
+            const canWithout = _printerChar.properties?.writeWithoutResponse;
+            if (canWithout) await _printerChar.writeValueWithoutResponse(ping);
+            else if (_printerChar.writeValueWithResponse) await _printerChar.writeValueWithResponse(ping);
+            else await _printerChar.writeValue(ping);
+          }
         } catch {}
       }, 25000);
     }
@@ -4290,10 +4386,69 @@
       { service: '49535343-fe7d-4ae5-8fa9-9fafd205e455', char: '49535343-8841-43f4-a8d4-ecbe34729bb3' },
     ];
 
-    function hasBLE() { return !!(navigator.bluetooth); }
+    /** Capacitor 底层：拿到 deviceId 后建立 BLE 连接并发现打印特征 */
+    async function _doConnectCap(deviceId, deviceName, printTest) {
+      var statusEl = document.getElementById('printer-status');
+      if (statusEl) { statusEl.textContent = t('printer_connecting').replace('{name}', deviceName || t('bt_device')); statusEl.className = 'text-xs text-blue-400'; }
+      try {
+        await _CapBle.connect({ deviceId: deviceId });
+      } catch(e) {
+        if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
+        return false;
+      }
+      localStorage.setItem('lottery_printer_name', deviceName || '');
+      localStorage.setItem('lottery_cap_printer_device_id', deviceId);
+      _printerDevice = null; // 清空 Web BLE 引用，避免混用
+      try {
+        _CapBle.addListener('disconnected|' + deviceId, function() {
+          _capDeviceId = null;
+          stopPrinterKeepAlive();
+          updatePrinterStatusUI();
+          if (_reconnectTimer) clearTimeout(_reconnectTimer);
+          _reconnectTimer = setTimeout(function() { autoReconnectPrinter(); }, 500);
+        });
+      } catch(e) {}
+      // 依次尝试打印机 profile，找到可用的特征
+      var found = false;
+      for (var pi = 0; pi < PRINTER_PROFILES.length; pi++) {
+        var prof = PRINTER_PROFILES[pi];
+        try {
+          var result = await _CapBle.getCharacteristics({ deviceId: deviceId, service: prof.service });
+          var chars = (result && result.characteristics) || [];
+          var ch = null;
+          for (var ci = 0; ci < chars.length; ci++) {
+            if (chars[ci].uuid && chars[ci].uuid.toLowerCase() === prof.char.toLowerCase()) { ch = chars[ci]; break; }
+          }
+          if (ch) {
+            _capDeviceId        = deviceId;
+            _capServiceUUID     = prof.service;
+            _capCharUUID        = prof.char;
+            _capCanWriteWithout = !!(ch.properties && ch.properties.writeWithoutResponse);
+            found = true;
+            break;
+          }
+        } catch(e) {}
+      }
+      if (!found) { try { await _CapBle.disconnect({ deviceId: deviceId }); } catch(e) {} }
+      updatePrinterStatusUI();
+      if (found) {
+        document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
+        startPrinterKeepAlive();
+        if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch(e) {} }
+        return true;
+      }
+      if (statusEl) { statusEl.textContent = t('printer_no_char'); statusEl.className = 'text-xs text-red-400'; }
+      return false;
+    }
+
+    function hasBLE() {
+      if (_isCapApp) return !!_CapBle;
+      return !!(navigator.bluetooth);
+    }
     function isIOS() { return /iP(hone|ad|od)/i.test(navigator.userAgent); }
     /** 返回打印不可用的原因，可用则返回 null */
     function printUnsupportedReason() {
+      if (_isCapApp) return null; // Capacitor 原生 APP 始终支持蓝牙
       if (isIOS()) return '苹果设备（iPhone / iPad）不支持蓝牙打印功能。';
       if (!hasBLE()) return '打印功能需要使用 Chrome 或 Edge 浏览器，当前浏览器不支持。';
       return null;
@@ -4312,6 +4467,22 @@
      */
     async function reconnectPrinterFromGetDevices(opts) {
       const warnIfMissing = !opts || opts.warnIfMissing !== false;
+      // Capacitor 模式：用 localStorage 存的 deviceId 直接重连
+      if (_isCapApp && _CapBle) {
+        const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
+        const savedName = localStorage.getItem('lottery_printer_name') || '';
+        if (!savedId) { if (warnIfMissing) showPrinterWarning(t('printer_warning_disconnected')); return false; }
+        const delays = [0, 1200, 2800];
+        for (const delay of delays) {
+          try {
+            if (delay > 0) await new Promise(function(r) { setTimeout(r, delay); });
+            const ok = await _doConnectCap(savedId, savedName, false);
+            if (ok) return true;
+          } catch(e) {}
+        }
+        if (warnIfMissing) showPrinterWarning(t('printer_warning_disconnected'));
+        return false;
+      }
       if (!navigator.bluetooth?.getDevices) {
         if (warnIfMissing) showPrinterWarning(t('printer_warning_disconnected'));
         return false;
@@ -4351,7 +4522,7 @@
         showPrinterWarning('🖨️ ' + reason);
         return;
       }
-      if (_printerChar) return;
+      if (isPrinterConnected()) return;
       await reconnectPrinterFromGetDevices({ warnIfMissing: true });
     }
 
@@ -4360,7 +4531,7 @@
     async function trySilentPrinterReconnectOnResume() {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       if (printUnsupportedReason()) return;
-      if (_printerChar) return;
+      if (isPrinterConnected()) return;
       var cashier = document.getElementById('page-cashier');
       if (!cashier || cashier.classList.contains('hidden')) return;
       var now = Date.now();
@@ -4376,7 +4547,7 @@
       var modal = document.getElementById('modal-cashier-order');
       if (!modal || modal.classList.contains('hidden')) return;
       if (!panel) return;
-      if (_printerChar) {
+      if (isPrinterConnected()) {
         panel.classList.add('hidden');
       } else {
         panel.classList.remove('hidden');
@@ -4436,7 +4607,7 @@
         statusEl.textContent = '⚠️ ' + unsupported;
         statusEl.className = 'text-xs text-yellow-400';
         if (btnConnect) btnConnect.classList.add('hidden');
-      } else if (_printerChar) {
+      } else if (isPrinterConnected()) {
         statusEl.textContent = t('printer_connected');
         statusEl.className = 'text-xs text-green-400';
         if (btnConnect) btnConnect.classList.add('hidden');
@@ -4450,7 +4621,11 @@
 
     async function onPrintToggle(checked) {
       localStorage.setItem('lottery_print_enabled', checked ? '1' : '0');
-      if (!checked) { _printerChar = null; stopPrinterKeepAlive(); }
+      if (!checked) {
+        _printerChar = null;
+        if (_isCapApp && _capDeviceId) { try { _CapBle.disconnect({ deviceId: _capDeviceId }); } catch(e) {} _capDeviceId = null; }
+        stopPrinterKeepAlive();
+      }
       const reason = printUnsupportedReason();
       if (checked && reason) {
         showToast(reason + (isIOS() ? '' : t('printer_use_chrome')), 'warning');
@@ -4509,6 +4684,28 @@
       const statusEl = document.getElementById('printer-status');
       if (statusEl) { statusEl.textContent = t('printer_searching'); statusEl.className = 'text-xs text-blue-400'; }
 
+      // Capacitor 原生 BLE 路径
+      if (_isCapApp && _CapBle) {
+        try {
+          await _CapBle.initialize();
+          const savedName = localStorage.getItem('lottery_printer_name') || '';
+          // 先尝试已记住的设备 ID
+          const savedId = localStorage.getItem('lottery_cap_printer_device_id') || '';
+          if (savedId) {
+            const ok = await _doConnectCap(savedId, savedName, true);
+            if (ok) return;
+          }
+          // 弹设备选择框
+          const scanOpts = { services: PRINTER_PROFILES.map(function(p){ return p.service; }) };
+          if (savedName) scanOpts.name = savedName;
+          const device = await _CapBle.requestDevice(scanOpts);
+          await _doConnectCap(device.deviceId || device.device_id, device.name || '', true);
+        } catch(e) {
+          if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
+        }
+        return;
+      }
+
       // 1. 先用 getDevices() 找之前授权过的设备，有则直接连，不弹选择框
       if (navigator.bluetooth?.getDevices) {
         try {
@@ -4544,9 +4741,24 @@
       }
     }
 
-    /** 断连后自动重试（用已保存的 _printerDevice 引用，无需用户操作） */
+    /** 断连后自动重试（Capacitor 用 localStorage deviceId，Web BLE 用 _printerDevice 引用） */
     async function autoReconnectPrinter() {
-      if (!_printerDevice || localStorage.getItem('lottery_print_enabled') !== '1') return;
+      if (localStorage.getItem('lottery_print_enabled') !== '1') return;
+      if (_isCapApp && _CapBle) {
+        const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
+        const savedName = localStorage.getItem('lottery_printer_name') || '';
+        if (!savedId) return;
+        const delays = [500, 2000, 5000];
+        for (const delay of delays) {
+          try {
+            await new Promise(function(r) { setTimeout(r, delay); });
+            const ok = await _doConnectCap(savedId, savedName, false);
+            if (ok) return;
+          } catch(e) {}
+        }
+        return;
+      }
+      if (!_printerDevice) return;
       const delays = [500, 2000, 5000];
       for (const delay of delays) {
         try {
@@ -4722,11 +4934,26 @@
 
     // ── 发送打印 ──────────────────────────────────────────
     async function sendToPrinter(data) {
-      const CHUNK = 50; // 进一步缩小
+      const CHUNK = 50;
+      if (_isCapApp && _capDeviceId) {
+        // Capacitor 原生 BLE 写入
+        for (let i = 0; i < data.length; i += CHUNK) {
+          const chunk = data.slice(i, i + CHUNK);
+          const isQR = chunk[0] === 0x1D;
+          const val = _toB64(chunk);
+          if (_capCanWriteWithout) {
+            await _CapBle.writeWithoutResponse({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
+            await new Promise(r => setTimeout(r, isQR ? 50 : 10));
+          } else {
+            await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
+          }
+        }
+        return;
+      }
+      // Web Bluetooth 写入（浏览器模式）
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
       for (let i = 0; i < data.length; i += CHUNK) {
         const chunk = data.slice(i, i + CHUNK);
-        // 检测是否是 QR 指令 (以 0x1D 开头)
         const isQR = chunk[0] === 0x1D;
         const extraDelay = isQR ? 50 : 10;
         if (canWithout) {
@@ -4743,13 +4970,15 @@
     async function autoPrintOrder(order) {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       // 连接已断开（空闲超时）→ 先尝试自动重连，再打印
-      if (!_printerChar) {
-        if (_printerDevice) {
-          try {
-            await _doConnect(_printerDevice, false);
-          } catch {}
+      if (!isPrinterConnected()) {
+        if (_isCapApp && _CapBle) {
+          const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
+          const savedName = localStorage.getItem('lottery_printer_name') || '';
+          if (savedId) { try { await _doConnectCap(savedId, savedName, false); } catch(e) {} }
+        } else if (_printerDevice) {
+          try { await _doConnect(_printerDevice, false); } catch {}
         }
-        if (!_printerChar) {
+        if (!isPrinterConnected()) {
           showPrinterWarning(t('printer_warning_disconnected'));
           return;
         }
@@ -4991,8 +5220,8 @@
           </div>
         </div>
 
-        <!-- 4. 添加到桌面（便捷性） -->
-        <div class="border border-gray-600 rounded-xl p-3">
+        <!-- 4. 添加到桌面 / 下载 APP（便捷性） -->
+        <div id="homescreen-section" class="border border-gray-600 rounded-xl p-3">
           <p class="text-sm font-bold mb-1" data-i18n="homescreen_title">📲 桌面快捷方式</p>
           <p class="text-xs text-gray-500 mb-3" data-i18n="homescreen_desc">添加后从桌面图标打开，打印机自动重连，无需每次手动配对。</p>
           <button id="btn-add-homescreen" onclick="triggerMerchantPwaInstall()"
