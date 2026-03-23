@@ -107,22 +107,6 @@
             <!-- 准备开奖提示：日期匹配今天且号码未出时显示 -->
             <div id="fb-preparing" class="hidden mt-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-yellow-300 text-xs text-center"></div>
           </div>
-          <!-- LNB官网爬取结果 -->
-          <div id="lnb-draw-result" class="hidden text-sm bg-gray-900/60 rounded-lg p-3 space-y-1 font-mono mb-2">
-            <div class="text-yellow-400 font-bold text-xs mb-1">🌐 LNB官网 (lnb.gob.pa)</div>
-            <div><span class="text-gray-400">Fecha</span> <span id="lnb-date" class="text-gray-300"></span></div>
-            <div><span class="text-gray-400">Primer Premio</span> <span id="lnb-primer" class="text-yellow-300 font-bold"></span></div>
-            <div><span class="text-gray-400">Segundo Premio</span> <span id="lnb-segundo" class="text-yellow-300 font-bold"></span></div>
-            <div><span class="text-gray-400">Tercer Premio</span> <span id="lnb-tercero" class="text-yellow-300 font-bold"></span></div>
-          </div>
-          <!-- 两源对比结果横幅 -->
-          <div id="compare-banner" class="hidden rounded-lg p-3 text-center font-bold text-sm mb-2"></div>
-          <!-- 开奖就绪横幅：号码完整且期次匹配时显示 -->
-          <div id="draw-ready-banner" class="hidden rounded-xl px-4 py-4 mb-2 text-center" style="background:#16a34a;border:3px solid #4ade80;animation:drawReadyPulse 1s ease-in-out infinite;">
-            <div class="text-white font-bold text-2xl mb-1">✅ 可以发送！</div>
-            <div id="draw-ready-numbers" class="text-green-100 font-mono text-lg font-bold mb-2"></div>
-            <div class="text-green-200 text-sm">号码已自动填入 · 确认无误后点击下方「发送开奖结果」</div>
-          </div>
         </div>
 
         <div class="border-t border-gray-600 pt-4 mt-2">
@@ -1207,71 +1191,11 @@
         if (!res.ok) throw new Error(json.message || json.error || '拉取失败');
         if (!json.success || !json.data) throw new Error('数据格式异常');
         applyFirebaseToUI(json.data, fillForm);
-        // 手动点击「拉取一次」时同时拉取 LNB 官网进行对比（轮询模式不调用，避免频繁爬取）
-        if (fillForm !== false) {
-          await fetchLnbDraw();
-        }
       } catch (err) {
         if (fillForm) showToast('拉取 Firebase 开奖失败: ' + err.message, 'error');
       }
     }
 
-    let lastLnbDraw = null;
-
-    async function fetchLnbDraw() {
-      const block = document.getElementById('lnb-draw-result');
-      try {
-        const res = await fetch(`${API_BASE}/api/draw/fetch-lnb`, { headers: getAdminHeaders(false) });
-        const json = await res.json();
-        if (!json.success || !json.data) throw new Error(json.error || 'LNB返回数据异常');
-        const d = json.data;
-        lastLnbDraw = d;
-
-        document.getElementById('lnb-date').textContent    = d.drawDate || '—';
-        document.getElementById('lnb-primer').textContent  = d.primer   || '----';
-        document.getElementById('lnb-segundo').textContent = d.segundo  || '----';
-        document.getElementById('lnb-tercero').textContent = d.tercero  || '----';
-        block.classList.remove('hidden');
-
-        compareDrawSources();
-      } catch (e) {
-        // 在 LNB 区块内持久显示错误，不依赖会消失的 toast
-        block.classList.remove('hidden');
-        block.innerHTML = `<div class="text-yellow-400 font-bold text-xs mb-1">🌐 LNB官网 (lnb.gob.pa)</div>
-          <div class="text-red-400 text-xs">❌ 拉取失败：${e.message}</div>`;
-      }
-    }
-
-    function compareDrawSources() {
-      if (!lastFirebaseDraw || !lastLnbDraw) return;
-
-      const fb = lastFirebaseDraw;
-      const lnb = lastLnbDraw;
-
-      const digits = s => String(s || '').replace(/\D/g, '');
-      const match1 = digits(fb.primer)  === digits(lnb.primer);
-      const match2 = digits(fb.segundo) === digits(lnb.segundo);
-      const match3 = digits(fb.tercero) === digits(lnb.tercero);
-      const allMatch = match1 && match2 && match3;
-
-      const banner = document.getElementById('compare-banner');
-      banner.classList.remove('hidden');
-
-      if (allMatch) {
-        banner.className = 'rounded-lg p-3 text-center font-bold text-sm mb-2 bg-green-800 text-green-200';
-        banner.textContent = '✅ 两个数据源号码一致，可以发送';
-      } else {
-        banner.className = 'rounded-lg p-3 text-center font-bold text-sm mb-2 bg-red-800 border-2 border-red-400 text-red-200';
-        const diffs = [];
-        if (!match1) diffs.push(`1奖：Firebase=${digits(fb.primer)} vs LNB=${digits(lnb.primer)}`);
-        if (!match2) diffs.push(`2奖：Firebase=${digits(fb.segundo)} vs LNB=${digits(lnb.segundo)}`);
-        if (!match3) diffs.push(`3奖：Firebase=${digits(fb.tercero)} vs LNB=${digits(lnb.tercero)}`);
-        banner.textContent = '🚨 号码不一致！' + diffs.join(' / ');
-        setTimeout(() => {
-          alert('⚠️ 数据源不一致！\n\n' + diffs.join('\n') + '\n\n请核实后再发送开奖结果！');
-        }, 100);
-      }
-    }
 
     function isScheduledDrawTimePassed() {
       const dateInput = getDrawDate();
