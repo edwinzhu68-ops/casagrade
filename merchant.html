@@ -3436,7 +3436,8 @@
         .then(function (r) { return r.json(); })
         .then(function (order) { autoPrintOrder(order); })
         .catch(function () {});
-      closeCashierOrderModal();
+      // 下单成功后重置弹窗状态，继续接待下一个客人（不关闭弹窗）
+      void openCashierOrderModal();
       await loadDashboard();
     }
 
