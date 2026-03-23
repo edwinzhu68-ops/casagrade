@@ -3767,7 +3767,7 @@
 
     // ── APP 下载（Android 浏览器）──────────────────────────────
     var _isCapApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-    var CUSTOMER_APK_URL = 'https://casagrade.com/download/lottery-customer.apk';
+    function CUSTOMER_APK_URL() { return 'https://casagrade.com/download/lottery-customer.apk?v=' + Date.now(); }
 
     /** Android 浏览器：在顶部显示「下载 APP」横幅 */
     function showClientDownloadBanner() {
@@ -3777,7 +3777,7 @@
       banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#16a34a;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.4);';
       banner.innerHTML = '<span>📱 Descargar App</span>' +
         '<div style="display:flex;gap:8px;flex-shrink:0;">' +
-        '<a href="' + CUSTOMER_APK_URL + '" download style="background:#fff;color:#16a34a;padding:5px 12px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">Descargar</a>' +
+        '<a href="' + CUSTOMER_APK_URL() + '" download style="background:#fff;color:#16a34a;padding:5px 12px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">Descargar</a>' +
         '<button onclick="document.getElementById(\'download-app-banner\').remove()" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;">×</button>' +
         '</div>';
       document.body.prepend(banner);

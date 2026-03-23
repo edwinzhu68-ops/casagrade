@@ -4161,12 +4161,12 @@
 
     // ── APP 下载 / PWA 添加到桌面 ─────────────────────────────
     // Android 下载地址（把 APK 上传到服务器后填入）
-    const MERCHANT_APK_URL = 'https://casagrade.com/download/lottery-merchant.apk';
+    function MERCHANT_APK_URL() { return 'https://casagrade.com/download/lottery-merchant.apk?v=' + Date.now(); }
 
     /** Android 浏览器：在页面顶部显示「下载 APP」横幅（3 秒后自动收起，可手动关闭） */
     function showDownloadAppBanner(type) {
       if (document.getElementById('download-app-banner')) return; // 已显示
-      var url = type === 'merchant' ? MERCHANT_APK_URL : MERCHANT_APK_URL;
+      var url = MERCHANT_APK_URL();
       var lang = getMerchantLang();
       var banner = document.createElement('div');
       banner.id = 'download-app-banner';
@@ -4193,7 +4193,7 @@
         // Android 浏览器：改为下载 APK
         if (btn) {
           btn.textContent = lang === 'zh' ? '📥 下载 APP' : '📥 Descargar APP';
-          btn.onclick = function() { window.open(MERCHANT_APK_URL, '_blank'); };
+          btn.onclick = function() { window.open(MERCHANT_APK_URL(), '_blank'); };
         }
       }
       // iOS：保持原有"添加到桌面"逻辑，无需修改
