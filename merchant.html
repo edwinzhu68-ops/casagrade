@@ -4637,6 +4637,7 @@
 
     /** 每 25 秒发一次 ESC @ 心跳，保持 BLE 连接不断 */
     function startPrinterKeepAlive() {
+      if (_isCapApp) return; // APP 模式暂时禁用心跳排查崩溃
       if (_keepAliveTimer) clearInterval(_keepAliveTimer);
       _keepAliveTimer = setInterval(async () => {
         if (!isPrinterConnected()) return;
@@ -4724,7 +4725,6 @@
         updatePrinterStatusUI();
         document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
         startPrinterKeepAlive();
-        if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch(e) {} }
         return true;
       }
       localStorage.removeItem('lottery_cap_printer_device_id');
