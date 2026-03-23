@@ -1,0 +1,19 @@
+{
+  "name": "lottery-merchant-app",
+  "version": "1.0.0",
+  "description": "Lotería Merchant App (Android WebView + Native BLE)",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android",
+    "build": "cap sync android && cap open android"
+  },
+  "dependencies": {
+    "@capacitor-community/bluetooth-le": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "typescript": "^6.0.2"
+  }
+}
