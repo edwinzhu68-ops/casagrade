@@ -4648,8 +4648,6 @@
         if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
         return false;
       }
-      localStorage.setItem('lottery_printer_name', deviceName || '');
-      localStorage.setItem('lottery_cap_printer_device_id', deviceId);
       _printerDevice = null; // 清空 Web BLE 引用，避免混用
       try {
         _CapBle.addListener('disconnected|' + deviceId, function() {
@@ -4684,11 +4682,15 @@
       if (!found) { try { await _CapBle.disconnect({ deviceId: deviceId }); } catch(e) {} }
       updatePrinterStatusUI();
       if (found) {
+        // 找到特征后才保存，避免失败时 localStorage 残留旧 deviceId 触发重连循环
+        localStorage.setItem('lottery_printer_name', deviceName || '');
+        localStorage.setItem('lottery_cap_printer_device_id', deviceId);
         document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
         startPrinterKeepAlive();
         if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch(e) {} }
         return true;
       }
+      localStorage.removeItem('lottery_cap_printer_device_id');
       if (statusEl) { statusEl.textContent = t('printer_no_char'); statusEl.className = 'text-xs text-red-400'; }
       return false;
     }
@@ -4780,8 +4782,9 @@
     }
 
     let _printerVisibilityReconnectAt = 0;
-    /** 刷新、从后台切回、前进后退缓存恢复时尝试静默重连（不反复弹「未授权」） */
+    /** 刷新、从后台切回、前进后退缓存恢复时尝试静默重连（APP 模式不自动重连） */
     async function trySilentPrinterReconnectOnResume() {
+      if (_isCapApp) return;
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       if (printUnsupportedReason()) return;
       if (isPrinterConnected()) return;
