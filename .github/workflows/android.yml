@@ -32,10 +32,18 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Build Android APK
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/lottery.keystore
+
+      - name: Build signed APK
         run: |
           cd android
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/app/lottery.keystore \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
       - name: Get APK path
         id: apk
@@ -43,6 +51,7 @@ jobs:
           APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
           echo "path=$APK" >> $GITHUB_OUTPUT
           echo "Found: $APK"
+          ls -lh "$APK"
 
       - name: Upload APK to server
         env:
@@ -53,11 +62,8 @@ jobs:
           chmod 600 /tmp/deploy_key
           scp -o StrictHostKeyChecking=no -i /tmp/deploy_key \
             "${{ steps.apk.outputs.path }}" \
-            root@$SERVER_HOST:/var/www/lottery-system/download/lottery-customer.apk
+            "root@$SERVER_HOST:/var/www/lottery-system/download/lottery-customer.apk"
 
       - name: Get APK info
         run: |
-          APK="${{ steps.apk.outputs.path }}"
-          SIZE=$(du -h "$APK" | cut -f1)
-          echo "APK Size: $SIZE"
-          echo "Download URL: https://casagrade.com/download/lottery-customer.apk"
+          echo "APK uploaded to: https://casagrade.com/download/lottery-customer.apk"
