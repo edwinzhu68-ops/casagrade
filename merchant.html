@@ -12,6 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Lotería">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -458,6 +459,14 @@
           <span data-i18n="btn_confirm_bet">确认下单</span>
         </button>
         <p id="cashier-submit-btn-hint" class="text-xs text-center text-amber-400 mt-0.5 hidden"></p>
+        <!-- 电子单开关 -->
+        <div class="flex items-center justify-between pt-2 mt-1 border-t border-gray-600/50">
+          <span class="text-sm text-gray-300">📋 电子单（下单后弹出）</span>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="cashier-eticket-toggle" class="sr-only peer" onchange="localStorage.setItem('cashier_eticket_enabled',this.checked?'1':'0')">
+            <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-500 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+          </label>
+        </div>
         <!-- 打印机提示 + 激活开关：在确认下单下方，逻辑同设置里蓝牙热敏打印 -->
         <div id="cashier-printer-panel" class="hidden pt-3 mt-1 border-t border-gray-600/50 flex items-center justify-between gap-3">
           <p id="cashier-printer-banner" class="text-sm text-amber-200/95 flex-1 min-w-0 leading-snug text-left" data-i18n="cashier_order_printer_short">请连接打印机使用</p>
@@ -513,6 +522,50 @@
       <div class="flex gap-3">
         <button type="button" onclick="closeCashierOverLimitModal(false)" class="flex-1 py-3 rounded-xl border border-gray-500 text-gray-200 font-bold" data-i18n="cashier_overlimit_cancel">取消</button>
         <button type="button" onclick="closeCashierOverLimitModal(true)" class="flex-1 py-3 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold" data-i18n="cashier_overlimit_continue">继续提交</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 代客下单电子单弹窗 z-[65] -->
+  <div id="modal-cashier-eticket" class="hidden fixed inset-0 bg-black/80 z-[65] flex items-center justify-center p-4" onclick="if(event.target===this)closeCashierEticket()">
+    <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+      <!-- 收据主体（用于截图） -->
+      <div id="cashier-eticket-body" class="p-5 space-y-3">
+        <div class="text-center pb-2 border-b border-gray-200">
+          <p class="text-xs text-gray-400 mb-1">casagrade · Lotería</p>
+          <p class="text-xl font-bold font-mono text-gray-900" id="et-shop">--</p>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">N.º de pedido</span>
+          <span class="font-mono font-bold text-gray-800" id="et-order-id">--</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-gray-500">Fecha</span>
+          <span class="text-gray-700" id="et-placed-at">--</span>
+        </div>
+        <div>
+          <p class="text-xs text-gray-400 mb-1">Números y cantidades</p>
+          <div id="et-lines" class="text-sm text-gray-700 space-y-0.5"></div>
+        </div>
+        <div class="border-t border-gray-200 pt-3 flex justify-between items-center">
+          <span class="font-bold text-gray-800">Total</span>
+          <span class="text-2xl font-bold text-green-600">$<span id="et-amount">0</span></span>
+        </div>
+      </div>
+      <!-- 按钮区 -->
+      <div class="p-4 space-y-2 border-t border-gray-200">
+        <button type="button" onclick="cashierShareEticketWhatsApp()" id="btn-et-whatsapp"
+          class="w-full bg-[#25D366] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+            <path d="M12 0C5.373 0 0 5.373 0 12c0 2.121.555 4.112 1.526 5.837L0 24l6.318-1.508A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.886 0-3.655-.49-5.187-1.345L2 22l1.368-4.729A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+          </svg>
+          转发到 WhatsApp
+        </button>
+        <button type="button" onclick="closeCashierEticket()"
+          class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm">
+          继续下一单
+        </button>
       </div>
     </div>
   </div>
@@ -3434,12 +3487,104 @@
       showPaymentSuccessToast();
       fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)))
         .then(function (r) { return r.json(); })
-        .then(function (order) { autoPrintOrder(order); })
+        .then(function (order) {
+          autoPrintOrder(order);
+          var toggle = document.getElementById('cashier-eticket-toggle');
+          if (toggle && toggle.checked) {
+            fillCashierEticket(order);
+            showCashierEticket();
+          }
+        })
         .catch(function () {});
       // 下单成功后重置弹窗状态，继续接待下一个客人（不关闭弹窗）
       void openCashierOrderModal();
       await loadDashboard();
     }
+
+    // ── 电子单弹窗 ─────────────────────────────────────────────
+    function fillCashierEticket(order) {
+      var shopEl = document.getElementById('et-shop');
+      var orderIdEl = document.getElementById('et-order-id');
+      var placedEl = document.getElementById('et-placed-at');
+      var linesEl = document.getElementById('et-lines');
+      var amountEl = document.getElementById('et-amount');
+      if (shopEl) shopEl.textContent = currentShop ? ('Tienda #' + currentShop.shop_number) : '--';
+      if (orderIdEl) orderIdEl.textContent = order.order_number || order.orderNumber || '--';
+      if (placedEl) {
+        var d = order.created_at ? new Date(order.created_at) : new Date();
+        placedEl.textContent = d.toLocaleString('es-PA', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      }
+      if (linesEl) {
+        linesEl.innerHTML = '';
+        var nums = order.numbers || [];
+        var gameType = order.game_type || order.gameType || 'BILLETE';
+        var unitPrice = gameType === 'CHANCE' ? 0.25 : 1;
+        nums.forEach(function (item) {
+          var row = document.createElement('div');
+          row.className = 'flex justify-between';
+          var qty = item.q || item.quantity || 1;
+          row.innerHTML = '<span class="font-mono">' + (item.n || item.number) + '</span>'
+            + '<span class="text-gray-500">×' + qty + ' = $' + (qty * unitPrice).toFixed(2) + '</span>';
+          linesEl.appendChild(row);
+        });
+      }
+      if (amountEl) amountEl.textContent = parseFloat(order.amount || 0).toFixed(2);
+    }
+
+    function showCashierEticket() {
+      var m = document.getElementById('modal-cashier-eticket');
+      if (m) m.classList.remove('hidden');
+    }
+
+    function closeCashierEticket() {
+      var m = document.getElementById('modal-cashier-eticket');
+      if (m) m.classList.add('hidden');
+    }
+
+    async function cashierShareEticketWhatsApp() {
+      var btn = document.getElementById('btn-et-whatsapp');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 处理中...'; }
+      var orderNum = (document.getElementById('et-order-id') || {}).textContent || '';
+      var amount   = (document.getElementById('et-amount') || {}).textContent || '0';
+      var shop     = (document.getElementById('et-shop') || {}).textContent || '';
+      var linesEl  = document.getElementById('et-lines');
+      var linesTxt = '';
+      if (linesEl) {
+        Array.from(linesEl.children).forEach(function (row) {
+          linesTxt += '\n  ' + row.textContent.trim();
+        });
+      }
+      var caption = '🎟 Pedido #' + orderNum + '\n' + shop + linesTxt + '\n💰 Total: $' + amount;
+      try {
+        if (typeof html2canvas === 'function') {
+          var canvas = await html2canvas(document.getElementById('cashier-eticket-body'), { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+          canvas.toBlob(async function (blob) {
+            var file = new File([blob], 'pedido_' + orderNum + '.png', { type: 'image/png' });
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+              try {
+                await navigator.share({ title: 'Pedido ' + orderNum, text: caption, files: [file] });
+                if (btn) { btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.121.555 4.112 1.526 5.837L0 24l6.318-1.508A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.886 0-3.655-.49-5.187-1.345L2 22l1.368-4.729A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg> 转发到 WhatsApp'; }
+                return;
+              } catch (e) { /* user cancelled or failed, fallback */ }
+            }
+            // 降级：下载图片 + 打开 WhatsApp
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'pedido_' + orderNum + '.png';
+            a.click();
+            setTimeout(function () { window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(caption), '_blank', 'noopener'); }, 800);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.121.555 4.112 1.526 5.837L0 24l6.318-1.508A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.886 0-3.655-.49-5.187-1.345L2 22l1.368-4.729A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg> 转发到 WhatsApp'; }
+          }, 'image/png');
+        } else {
+          window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(caption), '_blank', 'noopener');
+          if (btn) { btn.disabled = false; btn.textContent = '转发到 WhatsApp'; }
+        }
+      } catch (e) {
+        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(caption), '_blank', 'noopener');
+        if (btn) { btn.disabled = false; btn.textContent = '转发到 WhatsApp'; }
+      }
+    }
+    // ── 电子单弹窗结束 ─────────────────────────────────────────
 
     async function submitMerchantCashierOrderAfterOverLimitTrim() {
       if (!currentShop || cashierOrderBusy) return;
@@ -4208,7 +4353,12 @@
         }
       }
       // 设置面板按钮在 DOM 就绪后初始化（面板 HTML 在此 <script> 块之后）
-      document.addEventListener('DOMContentLoaded', function() { _initHomescreenSettingsBtn(); });
+      document.addEventListener('DOMContentLoaded', function() {
+        _initHomescreenSettingsBtn();
+        // 恢复电子单开关状态（默认开）
+        var toggle = document.getElementById('cashier-eticket-toggle');
+        if (toggle) toggle.checked = localStorage.getItem('cashier_eticket_enabled') !== '0';
+      });
     })();
 
     let _pwaInstallPrompt = null; // beforeinstallprompt 事件，用于触发原生安装对话框
