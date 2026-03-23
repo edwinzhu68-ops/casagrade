@@ -4856,7 +4856,8 @@
       if (_isCapApp && _CapBle) {
         try {
           await _CapBle.initialize();
-          const scanOpts = { services: PRINTER_PROFILES.map(function(p){ return p.service; }) };
+          // optionalServices 不作为过滤条件，所有 BLE 设备均可见（热敏打印机扫描时不广播服务 UUID）
+          const scanOpts = { optionalServices: PRINTER_PROFILES.map(function(p){ return p.service; }) };
           const device = await _CapBle.requestDevice(scanOpts);
           await _doConnectCap(device.deviceId || device.device_id, device.name || '', true);
         } catch(e) {
