@@ -4681,8 +4681,9 @@
       return false;
     }
 
-    /** 登录/进入收银台后：静默重连；失败则提示 */
+    /** 登录/进入收银台后：静默重连（APP 模式跳过，每次手动选设备） */
     async function checkPrinterOnLogin() {
+      if (_isCapApp) return; // APP 关闭即断连，重开需手动选打印机
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       const reason = printUnsupportedReason();
       if (reason) {
@@ -4851,21 +4852,10 @@
       const statusEl = document.getElementById('printer-status');
       if (statusEl) { statusEl.textContent = t('printer_searching'); statusEl.className = 'text-xs text-blue-400'; }
 
-      // Capacitor 原生 BLE 路径
+      // Capacitor 原生 BLE 路径：每次都弹全量设备列表，不自动连上次的
       if (_isCapApp && _CapBle) {
         try {
           await _CapBle.initialize();
-          const savedName = localStorage.getItem('lottery_printer_name') || '';
-          // 先尝试已记住的设备 ID
-          const savedId = localStorage.getItem('lottery_cap_printer_device_id') || '';
-          if (savedId) {
-            const ok = await _doConnectCap(savedId, savedName, true);
-            if (ok) return;
-            // 旧设备连不上或找不到打印特征 → 清除记录，重新扫描
-            localStorage.removeItem('lottery_cap_printer_device_id');
-            localStorage.removeItem('lottery_printer_name');
-          }
-          // 弹设备选择框（不带名字过滤，让用户选任意设备）
           const scanOpts = { services: PRINTER_PROFILES.map(function(p){ return p.service; }) };
           const device = await _CapBle.requestDevice(scanOpts);
           await _doConnectCap(device.deviceId || device.device_id, device.name || '', true);
@@ -4910,21 +4900,11 @@
       }
     }
 
-    /** 断连后自动重试（Capacitor 用 localStorage deviceId，Web BLE 用 _printerDevice 引用） */
+    /** 断连后自动重试（APP 模式不自动重连，Web BLE 用 _printerDevice 引用） */
     async function autoReconnectPrinter() {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
+      if (_isCapApp) return; // APP 断连后需手动重新选设备
       if (_isCapApp && _CapBle) {
-        const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
-        const savedName = localStorage.getItem('lottery_printer_name') || '';
-        if (!savedId) return;
-        const delays = [500, 2000, 5000];
-        for (const delay of delays) {
-          try {
-            await new Promise(function(r) { setTimeout(r, delay); });
-            const ok = await _doConnectCap(savedId, savedName, false);
-            if (ok) return;
-          } catch(e) {}
-        }
         return;
       }
       if (!_printerDevice) return;
