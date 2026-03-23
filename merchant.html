@@ -4861,10 +4861,12 @@
           if (savedId) {
             const ok = await _doConnectCap(savedId, savedName, true);
             if (ok) return;
+            // 旧设备连不上或找不到打印特征 → 清除记录，重新扫描
+            localStorage.removeItem('lottery_cap_printer_device_id');
+            localStorage.removeItem('lottery_printer_name');
           }
-          // 弹设备选择框
+          // 弹设备选择框（不带名字过滤，让用户选任意设备）
           const scanOpts = { services: PRINTER_PROFILES.map(function(p){ return p.service; }) };
-          if (savedName) scanOpts.name = savedName;
           const device = await _CapBle.requestDevice(scanOpts);
           await _doConnectCap(device.deviceId || device.device_id, device.name || '', true);
         } catch(e) {
