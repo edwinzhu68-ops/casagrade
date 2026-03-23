@@ -527,6 +527,22 @@
     </div>
   </div>
 
+  <!-- BLE 设备选择弹窗（APP 模式扫描全部蓝牙设备） z-[80] -->
+  <div id="modal-ble-picker" class="hidden fixed inset-0 bg-black/80 z-[80] flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-gray-600">
+      <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+        <div>
+          <p class="font-bold text-white">选择打印机</p>
+          <p id="ble-picker-status" class="text-xs text-blue-400 mt-0.5">正在扫描...</p>
+        </div>
+        <button onclick="blePicker.cancel()" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white text-2xl rounded-lg hover:bg-gray-700">×</button>
+      </div>
+      <div id="ble-picker-list" class="max-h-72 overflow-y-auto divide-y divide-gray-700/50">
+        <p class="text-center text-gray-500 text-sm py-8">附近没有找到蓝牙设备</p>
+      </div>
+    </div>
+  </div>
+
   <!-- 代客下单电子单弹窗 z-[65] -->
   <div id="modal-cashier-eticket" class="hidden fixed inset-0 bg-black/80 z-[65] flex items-center justify-center p-4" onclick="if(event.target===this)closeCashierEticket()">
     <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
@@ -4516,6 +4532,75 @@
       return btoa(s);
     }
 
+    // ── BLE 设备选择器（APP 模式 startScan 扫描全量设备） ──────────
+    var blePicker = (function() {
+      var _resolve = null, _reject = null, _devices = {}, _scanning = false;
+
+      function _render() {
+        var list = document.getElementById('ble-picker-list');
+        if (!list) return;
+        var keys = Object.keys(_devices);
+        if (keys.length === 0) {
+          list.innerHTML = '<p class="text-center text-gray-500 text-sm py-8">附近没有找到蓝牙设备</p>';
+          return;
+        }
+        list.innerHTML = keys.map(function(id) {
+          var d = _devices[id];
+          return '<button onclick="blePicker.select(\'' + id + '\')" class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center justify-between">'
+            + '<div><p class="font-bold text-white text-sm">' + (d.name || '未知设备') + '</p>'
+            + '<p class="text-xs text-gray-400 font-mono">' + id + '</p></div>'
+            + '<span class="text-xs text-gray-500">' + (d.rssi ? d.rssi + ' dBm' : '') + '</span>'
+            + '</button>';
+        }).join('');
+      }
+
+      async function open() {
+        return new Promise(async function(resolve, reject) {
+          _resolve = resolve; _reject = reject;
+          _devices = {}; _scanning = true;
+          var modal = document.getElementById('modal-ble-picker');
+          var statusEl = document.getElementById('ble-picker-status');
+          if (modal) modal.classList.remove('hidden');
+          _render();
+          try {
+            await _CapBle.startScan({}, function(result) {
+              var id = result.device && (result.device.deviceId || result.device.device_id);
+              var name = result.device && result.device.name;
+              if (!id) return;
+              _devices[id] = { name: name, rssi: result.rssi };
+              _render();
+              if (statusEl) statusEl.textContent = '已找到 ' + Object.keys(_devices).length + ' 台设备';
+            });
+          } catch(e) {
+            if (_scanning) { _scanning = false; reject(e); _close(); }
+          }
+        });
+      }
+
+      function select(deviceId) {
+        var d = _devices[deviceId];
+        _close();
+        if (_resolve) _resolve({ deviceId: deviceId, name: (d && d.name) || '' });
+        _resolve = null;
+      }
+
+      function cancel() {
+        _close();
+        if (_reject) _reject(new Error('cancelled'));
+        _reject = null; _resolve = null;
+      }
+
+      function _close() {
+        _scanning = false;
+        try { _CapBle && _CapBle.stopScan && _CapBle.stopScan(); } catch(e) {}
+        var modal = document.getElementById('modal-ble-picker');
+        if (modal) modal.classList.add('hidden');
+      }
+
+      return { open: open, select: select, cancel: cancel };
+    })();
+    // ── BLE 设备选择器结束 ────────────────────────────────────────
+
     /** 统一判断打印机是否已连接（兼容 Web BLE 和 Capacitor 两种模式） */
     function isPrinterConnected() {
       return _isCapApp ? !!_capDeviceId : !!_printerChar;
@@ -4852,16 +4937,16 @@
       const statusEl = document.getElementById('printer-status');
       if (statusEl) { statusEl.textContent = t('printer_searching'); statusEl.className = 'text-xs text-blue-400'; }
 
-      // Capacitor 原生 BLE 路径：每次都弹全量设备列表，不自动连上次的
+      // Capacitor 原生 BLE 路径：startScan 扫描全量设备，自建选择列表
       if (_isCapApp && _CapBle) {
         try {
           await _CapBle.initialize();
-          // optionalServices 不作为过滤条件，所有 BLE 设备均可见（热敏打印机扫描时不广播服务 UUID）
-          const scanOpts = { optionalServices: PRINTER_PROFILES.map(function(p){ return p.service; }) };
-          const device = await _CapBle.requestDevice(scanOpts);
-          await _doConnectCap(device.deviceId || device.device_id, device.name || '', true);
+          const device = await blePicker.open();
+          await _doConnectCap(device.deviceId, device.name || '', true);
         } catch(e) {
-          if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
+          if (e && e.message !== 'cancelled') {
+            if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
+          }
         }
         return;
       }
