@@ -4563,9 +4563,9 @@
           if (modal) modal.classList.remove('hidden');
           _render();
           try {
-            await _CapBle.startScan({}, function(result) {
+            await _CapBle.requestLEScan({}, function(result) {
               var id = result.device && (result.device.deviceId || result.device.device_id);
-              var name = result.device && result.device.name;
+              var name = (result.device && result.device.name) || result.localName || '';
               if (!id) return;
               _devices[id] = { name: name, rssi: result.rssi };
               _render();
@@ -4592,7 +4592,7 @@
 
       function _close() {
         _scanning = false;
-        try { _CapBle && _CapBle.stopScan && _CapBle.stopScan(); } catch(e) {}
+        try { _CapBle && _CapBle.stopLEScan && _CapBle.stopLEScan(); } catch(e) {}
         var modal = document.getElementById('modal-ble-picker');
         if (modal) modal.classList.add('hidden');
       }
