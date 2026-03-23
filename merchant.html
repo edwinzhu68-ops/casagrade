@@ -4686,26 +4686,50 @@
           _reconnectTimer = setTimeout(function() { autoReconnectPrinter(); }, 500);
         });
       } catch(e) {}
-      // 依次尝试打印机 profile，找到可用的特征
+      // 先获取全部服务，再遍历特征，找到可写特征即可（避免 UUID 不匹配漏掉）
       var found = false;
-      for (var pi = 0; pi < PRINTER_PROFILES.length; pi++) {
-        var prof = PRINTER_PROFILES[pi];
-        try {
-          var result = await _CapBle.getCharacteristics({ deviceId: deviceId, service: prof.service });
-          var chars = (result && result.characteristics) || [];
-          var ch = null;
-          for (var ci = 0; ci < chars.length; ci++) {
-            if (chars[ci].uuid && chars[ci].uuid.toLowerCase() === prof.char.toLowerCase()) { ch = chars[ci]; break; }
-          }
-          if (ch) {
-            _capDeviceId        = deviceId;
-            _capServiceUUID     = prof.service;
-            _capCharUUID        = prof.char;
-            _capCanWriteWithout = !!(ch.properties && ch.properties.writeWithoutResponse);
-            found = true;
-            break;
-          }
-        } catch(e) {}
+      try {
+        var svcResult = await _CapBle.getServices({ deviceId: deviceId });
+        var services = (svcResult && svcResult.services) || [];
+        outer: for (var si = 0; si < services.length; si++) {
+          var svcUuid = services[si].uuid || '';
+          try {
+            var cResult = await _CapBle.getCharacteristics({ deviceId: deviceId, service: svcUuid });
+            var chars = (cResult && cResult.characteristics) || [];
+            for (var ci = 0; ci < chars.length; ci++) {
+              var ch = chars[ci];
+              var props = ch.properties || {};
+              if (props.write || props.writeWithoutResponse) {
+                _capDeviceId        = deviceId;
+                _capServiceUUID     = svcUuid;
+                _capCharUUID        = ch.uuid;
+                _capCanWriteWithout = !!props.writeWithoutResponse;
+                found = true;
+                break outer;
+              }
+            }
+          } catch(e) {}
+        }
+      } catch(e) {
+        // getServices 不可用时降级回 PRINTER_PROFILES
+        for (var pi = 0; pi < PRINTER_PROFILES.length; pi++) {
+          var prof = PRINTER_PROFILES[pi];
+          try {
+            var result = await _CapBle.getCharacteristics({ deviceId: deviceId, service: prof.service });
+            var chars2 = (result && result.characteristics) || [];
+            for (var ci2 = 0; ci2 < chars2.length; ci2++) {
+              if (chars2[ci2].uuid && chars2[ci2].uuid.toLowerCase() === prof.char.toLowerCase()) {
+                _capDeviceId        = deviceId;
+                _capServiceUUID     = prof.service;
+                _capCharUUID        = prof.char;
+                _capCanWriteWithout = !!(chars2[ci2].properties && chars2[ci2].properties.writeWithoutResponse);
+                found = true;
+                break;
+              }
+            }
+            if (found) break;
+          } catch(e2) {}
+        }
       }
       if (!found) { try { await _CapBle.disconnect({ deviceId: deviceId }); } catch(e) {} }
       updatePrinterStatusUI();
