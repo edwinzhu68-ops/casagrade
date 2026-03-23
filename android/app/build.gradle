@@ -18,7 +18,7 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file('app/lottery.keystore')
+            storeFile file('lottery.keystore')
             storePassword System.getenv('KEYSTORE_PASSWORD') ?: 'lottery2024'
             keyAlias System.getenv('KEY_ALIAS') ?: 'lottery'
             keyPassword System.getenv('KEY_PASSWORD') ?: 'lottery2024'
