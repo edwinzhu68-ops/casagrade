@@ -4677,6 +4677,8 @@
         return false;
       }
       _printerDevice = null; // 清空 Web BLE 引用，避免混用
+      // 等待 Android 服务发现完成
+      await new Promise(function(r) { setTimeout(r, 800); });
       try {
         _CapBle.addListener('disconnected|' + deviceId, function() {
           _capDeviceId = null;
@@ -4711,7 +4713,8 @@
           } catch(e) {}
         }
       } catch(e) {
-        // getServices 不可用时降级回 PRINTER_PROFILES
+        // getServices 失败，显示错误并降级回 PRINTER_PROFILES
+        if (statusEl) { statusEl.textContent = 'getServices失败: ' + (e && e.message || e); statusEl.className = 'text-xs text-yellow-400'; }
         for (var pi = 0; pi < PRINTER_PROFILES.length; pi++) {
           var prof = PRINTER_PROFILES[pi];
           try {
