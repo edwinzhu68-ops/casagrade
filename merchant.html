@@ -4696,25 +4696,24 @@
         var services = (svcResult && svcResult.services) || [];
         _dbgLines.push('svcs:' + services.length);
         outer: for (var si = 0; si < services.length; si++) {
-          var svcUuid = services[si].uuid || '';
-          try {
-            var cResult = await _CapBle.getCharacteristics({ deviceId: deviceId, service: svcUuid });
-            var chars = (cResult && cResult.characteristics) || [];
-            _dbgLines.push(svcUuid.slice(0,8) + ':' + chars.length + 'chars');
-            for (var ci = 0; ci < chars.length; ci++) {
-              var ch = chars[ci];
-              var props = ch.properties || {};
-              _dbgLines.push('  ' + (ch.uuid||'').slice(0,8) + ' w:' + (props.write||0) + ' wo:' + (props.writeWithoutResponse||0));
-              if (props.write || props.writeWithoutResponse) {
-                _capDeviceId        = deviceId;
-                _capServiceUUID     = svcUuid;
-                _capCharUUID        = ch.uuid;
-                _capCanWriteWithout = !!props.writeWithoutResponse;
-                found = true;
-                break outer;
-              }
+          var svc = services[si];
+          var svcUuid = svc.uuid || '';
+          // getServices 已包含 characteristics，无需再单独调用 getCharacteristics
+          var chars = svc.characteristics || [];
+          _dbgLines.push(svcUuid.slice(0,8) + ':' + chars.length + 'chars');
+          for (var ci = 0; ci < chars.length; ci++) {
+            var ch = chars[ci];
+            var props = ch.properties || {};
+            _dbgLines.push((ch.uuid||'').slice(0,8) + ' w:' + (props.write||0) + ' wo:' + (props.writeWithoutResponse||0));
+            if (props.write || props.writeWithoutResponse) {
+              _capDeviceId        = deviceId;
+              _capServiceUUID     = svcUuid;
+              _capCharUUID        = ch.uuid;
+              _capCanWriteWithout = !!props.writeWithoutResponse;
+              found = true;
+              break outer;
             }
-          } catch(e) { _dbgLines.push(svcUuid.slice(0,8) + ' err:' + (e&&e.message||e)); }
+          }
         }
       } catch(e) {
         _dbgLines.push('getServices err:' + (e&&e.message||e));
