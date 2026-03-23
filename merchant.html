@@ -5213,15 +5213,17 @@
 
     // ── 发送打印 ──────────────────────────────────────────
     async function sendToPrinter(data) {
-      const CHUNK = 50;
+      const CHUNK = 100;
       if (_isCapApp && _capDeviceId) {
-        // Capacitor 原生 BLE 写入
+        // Capacitor 原生 BLE 写入（writeWithoutResponse 与网页版一致，不等 ACK）
+        const writeFn = (typeof _CapBle.writeWithoutResponse === 'function')
+          ? function(v) { return _CapBle.writeWithoutResponse({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: v }); }
+          : function(v) { return _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: v }); };
         for (let i = 0; i < data.length; i += CHUNK) {
           const chunk = data.slice(i, i + CHUNK);
-          const isQR = chunk[0] === 0x1D;
           const val = _toB64(chunk);
-          await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
-          await new Promise(r => setTimeout(r, isQR ? 50 : 10));
+          try { await writeFn(val); } catch(e) {}
+          await new Promise(r => setTimeout(r, 30));
         }
         return;
       }
