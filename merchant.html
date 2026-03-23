@@ -4537,7 +4537,7 @@
 
     // ── BLE 设备选择器（APP 模式 startScan 扫描全量设备） ──────────
     var blePicker = (function() {
-      var _resolve = null, _reject = null, _devices = {}, _scanning = false, _scanTimer = null;
+      var _resolve = null, _reject = null, _devices = {}, _scanning = false, _scanTimer = null, _scanListener = null;
 
       function _render() {
         var list = document.getElementById('ble-picker-list');
@@ -4549,7 +4549,8 @@
         }
         list.innerHTML = keys.map(function(id) {
           var d = _devices[id];
-          return '<button onclick="blePicker.select(\'' + id + '\')" class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center justify-between">'
+          var esc = function(s) { return (s||'').replace(/'/g, "\\'"); };
+          return '<button onclick="blePicker.select(\'' + esc(id) + '\')" class="w-full text-left px-4 py-3 hover:bg-gray-700 flex items-center justify-between">'
             + '<div><p class="font-bold text-white text-sm">' + (d.name || '未知设备') + '</p>'
             + '<p class="text-xs text-gray-400 font-mono">' + id + '</p></div>'
             + '<span class="text-xs text-gray-500">' + (d.rssi ? d.rssi + ' dBm' : '') + '</span>'
@@ -4557,28 +4558,34 @@
         }).join('');
       }
 
+      function _onScanResult(result) {
+        var dev = result.device || result;
+        var id   = dev.deviceId || dev.device_id || result.deviceId;
+        var name = dev.name || result.localName || result.name || '';
+        var rssi = result.rssi;
+        if (!id) return;
+        _devices[id] = { name: name, rssi: rssi };
+        _render();
+        var statusEl = document.getElementById('ble-picker-status');
+        if (statusEl) statusEl.textContent = '已找到 ' + Object.keys(_devices).length + ' 台，点击连接';
+      }
+
       async function open() {
         return new Promise(async function(resolve, reject) {
           _resolve = resolve; _reject = reject;
           _devices = {}; _scanning = true;
-          var modal = document.getElementById('modal-ble-picker');
+          var modal   = document.getElementById('modal-ble-picker');
           var statusEl = document.getElementById('ble-picker-status');
           var stopBtn  = document.getElementById('ble-picker-stop-btn');
-          if (modal) modal.classList.remove('hidden');
+          if (modal)   modal.classList.remove('hidden');
           if (statusEl) statusEl.textContent = '正在扫描...';
-          if (stopBtn) stopBtn.classList.remove('hidden');
+          if (stopBtn)  stopBtn.classList.remove('hidden');
           _render();
-          // 10 秒后自动停止扫描
-          _scanTimer = setTimeout(function() { stopScan(); }, 10000);
+          _scanTimer = setTimeout(function() { stopScan(); }, 12000);
           try {
-            await _CapBle.requestLEScan({ allowDuplicates: false }, function(result) {
-              var id = result.device && (result.device.deviceId || result.device.device_id);
-              var name = (result.device && result.device.name) || result.localName || '';
-              if (!id) return;
-              _devices[id] = { name: name, rssi: result.rssi };
-              _render();
-              if (statusEl) statusEl.textContent = '已找到 ' + Object.keys(_devices).length + ' 台，点击连接';
-            });
+            // 先注册结果监听，再启动扫描（原生桥接层不接受 callback 参数）
+            _scanListener = await _CapBle.addListener('onScanResult', _onScanResult);
+            await _CapBle.requestLEScan({ allowDuplicates: false });
           } catch(e) {
             if (_scanning) { _scanning = false; reject(e); _close(); }
           }
@@ -4600,6 +4607,7 @@
 
       function stopScan() {
         if (_scanTimer) { clearTimeout(_scanTimer); _scanTimer = null; }
+        if (_scanListener) { try { _scanListener.remove(); } catch(e) {} _scanListener = null; }
         try { _CapBle && _CapBle.stopLEScan && _CapBle.stopLEScan(); } catch(e) {}
         var statusEl = document.getElementById('ble-picker-status');
         var stopBtn  = document.getElementById('ble-picker-stop-btn');
@@ -4611,6 +4619,7 @@
       function _close() {
         _scanning = false;
         if (_scanTimer) { clearTimeout(_scanTimer); _scanTimer = null; }
+        if (_scanListener) { try { _scanListener.remove(); } catch(e) {} _scanListener = null; }
         try { _CapBle && _CapBle.stopLEScan && _CapBle.stopLEScan(); } catch(e) {}
         var modal = document.getElementById('modal-ble-picker');
         if (modal) modal.classList.add('hidden');
