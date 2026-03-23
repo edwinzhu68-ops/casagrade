@@ -4690,17 +4690,21 @@
       } catch(e) {}
       // 先获取全部服务，再遍历特征，找到可写特征即可（避免 UUID 不匹配漏掉）
       var found = false;
+      var _dbgLines = [];
       try {
         var svcResult = await _CapBle.getServices({ deviceId: deviceId });
         var services = (svcResult && svcResult.services) || [];
+        _dbgLines.push('svcs:' + services.length);
         outer: for (var si = 0; si < services.length; si++) {
           var svcUuid = services[si].uuid || '';
           try {
             var cResult = await _CapBle.getCharacteristics({ deviceId: deviceId, service: svcUuid });
             var chars = (cResult && cResult.characteristics) || [];
+            _dbgLines.push(svcUuid.slice(0,8) + ':' + chars.length + 'chars');
             for (var ci = 0; ci < chars.length; ci++) {
               var ch = chars[ci];
               var props = ch.properties || {};
+              _dbgLines.push('  ' + (ch.uuid||'').slice(0,8) + ' w:' + (props.write||0) + ' wo:' + (props.writeWithoutResponse||0));
               if (props.write || props.writeWithoutResponse) {
                 _capDeviceId        = deviceId;
                 _capServiceUUID     = svcUuid;
@@ -4710,29 +4714,14 @@
                 break outer;
               }
             }
-          } catch(e) {}
+          } catch(e) { _dbgLines.push(svcUuid.slice(0,8) + ' err:' + (e&&e.message||e)); }
         }
       } catch(e) {
-        // getServices 失败，显示错误并降级回 PRINTER_PROFILES
-        if (statusEl) { statusEl.textContent = 'getServices失败: ' + (e && e.message || e); statusEl.className = 'text-xs text-yellow-400'; }
-        for (var pi = 0; pi < PRINTER_PROFILES.length; pi++) {
-          var prof = PRINTER_PROFILES[pi];
-          try {
-            var result = await _CapBle.getCharacteristics({ deviceId: deviceId, service: prof.service });
-            var chars2 = (result && result.characteristics) || [];
-            for (var ci2 = 0; ci2 < chars2.length; ci2++) {
-              if (chars2[ci2].uuid && chars2[ci2].uuid.toLowerCase() === prof.char.toLowerCase()) {
-                _capDeviceId        = deviceId;
-                _capServiceUUID     = prof.service;
-                _capCharUUID        = prof.char;
-                _capCanWriteWithout = !!(chars2[ci2].properties && chars2[ci2].properties.writeWithoutResponse);
-                found = true;
-                break;
-              }
-            }
-            if (found) break;
-          } catch(e2) {}
-        }
+        _dbgLines.push('getServices err:' + (e&&e.message||e));
+      }
+      if (!found && statusEl) {
+        statusEl.textContent = _dbgLines.join(' | ');
+        statusEl.className = 'text-xs text-yellow-400';
       }
       if (!found) { try { await _CapBle.disconnect({ deviceId: deviceId }); } catch(e) {} }
       updatePrinterStatusUI();
