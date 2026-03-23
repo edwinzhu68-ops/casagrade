@@ -1,0 +1,63 @@
+name: Build & Upload APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build Android APK
+        run: |
+          cd android
+          ./gradlew assembleRelease
+
+      - name: Get APK path
+        id: apk
+        run: |
+          APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
+          echo "path=$APK" >> $GITHUB_OUTPUT
+          echo "Found: $APK"
+
+      - name: Upload APK to server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          echo "$SERVER_SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          scp -o StrictHostKeyChecking=no -i /tmp/deploy_key \
+            "${{ steps.apk.outputs.path }}" \
+            root@$SERVER_HOST:/var/www/lottery-system/download/lottery-merchant.apk
+
+      - name: Get APK info
+        run: |
+          APK="${{ steps.apk.outputs.path }}"
+          SIZE=$(du -h "$APK" | cut -f1)
+          echo "APK Size: $SIZE"
+          echo "Download URL: https://casagrade.com/download/lottery-merchant.apk"
