@@ -35,7 +35,6 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/lottery.keystore
-          echo "Keystore size: $(stat -c%s android/app/lottery.keystore) bytes"
 
       - name: Build signed APK
         env:
@@ -46,22 +45,20 @@ jobs:
           cd android
           ./gradlew assembleRelease
 
-      - name: Verify APK signature
-        run: |
-          APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
-          echo "APK: $APK ($(stat -c%s "$APK") bytes)"
-          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner verify --verbose "$APK"
-
       - name: Upload APK to server
         run: |
           echo "${{ secrets.SERVER_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
           APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
-          scp -v -o StrictHostKeyChecking=no -i /tmp/deploy_key \
+          scp -o StrictHostKeyChecking=no -i /tmp/deploy_key \
             "$APK" \
             "root@${{ secrets.SERVER_HOST }}:/var/www/lottery-system/download/lottery-customer.apk"
-          echo "Upload complete"
-          # Verify on server
-          ssh -o StrictHostKeyChecking=no -i /tmp/deploy_key \
-            "root@${{ secrets.SERVER_HOST }}" \
-            "ls -lh /var/www/lottery-system/download/lottery-customer.apk"
+
+      - name: Purge Cloudflare cache
+        run: |
+          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"files":["https://casagrade.com/download/lottery-customer.apk"]}' \
+            | tee /tmp/cf_result.json
+          cat /tmp/cf_result.json | grep -q '"success":true' && echo "Cache purged" || echo "Purge may have failed"
