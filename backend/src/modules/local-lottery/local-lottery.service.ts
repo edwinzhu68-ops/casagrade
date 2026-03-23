@@ -292,12 +292,6 @@ export class LocalLotteryService {
     n2: string,
     n3: string,
   ) {
-    const drawRepo = this.dataSource.getRepository(Draw);
-    const pending = await findShopPendingLocalDraw(drawRepo, shopId, kind);
-    if (!pending) {
-      throw badBilingual('No hay sorteo TICA/NICA pendiente.', '没有待开奖的 TICA/NICA 期次');
-    }
-
     const norm = (v: string) => String(v ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0');
     const a = norm(n1);
     const b = norm(n2);
@@ -306,19 +300,27 @@ export class LocalLotteryService {
       throw badBilingual('n1, n2 y n3 deben ser dos dígitos válidos.', 'n1、n2、n3 须为两位有效数字');
     }
 
-    const winningJson = JSON.stringify({ n1: a, n2: b, n3: c });
-    await drawRepo.update(pending.draw_id, { winning_numbers: winningJson } as any);
+    return withShopLock(shopId, async () => {
+      const drawRepo = this.dataSource.getRepository(Draw);
+      const pending = await findShopPendingLocalDraw(drawRepo, shopId, kind);
+      if (!pending) {
+        throw badBilingual('No hay sorteo TICA/NICA pendiente.', '没有待开奖的 TICA/NICA 期次');
+      }
 
-    const stats = await this.settlementService.settleShopLotteryDraw(pending.draw_id);
+      const winningJson = JSON.stringify({ n1: a, n2: b, n3: c });
+      await drawRepo.update(pending.draw_id, { winning_numbers: winningJson } as any);
 
-    const next = await this.ensureShopPendingDraw(shopId, kind, true);
+      const stats = await this.settlementService.settleShopLotteryDraw(pending.draw_id);
 
-    return {
-      settled_draw_id: pending.draw_id,
-      next_draw_id: next.draw_id,
-      winning_numbers: { n1: a, n2: b, n3: c },
-      ...stats,
-    };
+      const next = await this.ensureShopPendingDraw(shopId, kind, true);
+
+      return {
+        settled_draw_id: pending.draw_id,
+        next_draw_id: next.draw_id,
+        winning_numbers: { n1: a, n2: b, n3: c },
+        ...stats,
+      };
+    });
   }
 
   async assertShopOwner(shopId: number, operatorUserId: number): Promise<Shop> {
