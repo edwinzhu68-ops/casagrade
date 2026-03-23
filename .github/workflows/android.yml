@@ -37,33 +37,28 @@ jobs:
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/lottery.keystore
 
       - name: Build signed APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           cd android
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=$(pwd)/app/lottery.keystore \
-            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
-
-      - name: Get APK path
-        id: apk
-        run: |
-          APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
-          echo "path=$APK" >> $GITHUB_OUTPUT
-          echo "Found: $APK"
-          ls -lh "$APK"
+          ./gradlew assembleRelease
 
       - name: Upload APK to server
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
-          echo "$SERVER_SSH_KEY" > /tmp/deploy_key
+          echo "${{ secrets.SERVER_SSH_KEY }}" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
+          APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
           scp -o StrictHostKeyChecking=no -i /tmp/deploy_key \
-            "${{ steps.apk.outputs.path }}" \
-            "root@$SERVER_HOST:/var/www/lottery-system/download/lottery-merchant.apk"
+            "$APK" \
+            "root@${{ secrets.SERVER_HOST }}:/var/www/lottery-system/download/lottery-merchant.apk"
 
-      - name: Get APK info
+      - name: Purge Cloudflare cache
         run: |
-          echo "APK uploaded to: https://casagrade.com/download/lottery-merchant.apk"
+          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CF_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"files":["https://casagrade.com/download/lottery-merchant.apk"]}' \
+            | tee /tmp/cf_result.json
+          cat /tmp/cf_result.json | grep -q '"success":true' && echo "Cache purged" || echo "Purge may have failed"
