@@ -4719,23 +4719,22 @@
       } catch(e) {
         _dbgLines.push('getServices err:' + (e&&e.message||e));
       }
-      if (!found && statusEl) {
-        statusEl.textContent = _dbgLines.join(' | ');
-        statusEl.className = 'text-xs text-yellow-400';
-      }
       if (!found) { try { await _CapBle.disconnect({ deviceId: deviceId }); } catch(e) {} }
-      updatePrinterStatusUI();
       if (found) {
-        // 找到特征后才保存，避免失败时 localStorage 残留旧 deviceId 触发重连循环
         localStorage.setItem('lottery_printer_name', deviceName || '');
         localStorage.setItem('lottery_cap_printer_device_id', deviceId);
+        updatePrinterStatusUI();
         document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
         startPrinterKeepAlive();
         if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch(e) {} }
         return true;
       }
       localStorage.removeItem('lottery_cap_printer_device_id');
-      if (statusEl) { statusEl.textContent = t('printer_no_char'); statusEl.className = 'text-xs text-red-400'; }
+      // 调试信息显示在状态栏，不被 updatePrinterStatusUI 覆盖
+      if (statusEl) {
+        statusEl.textContent = _dbgLines.length ? _dbgLines.join(' | ') : t('printer_no_char');
+        statusEl.className = 'text-xs text-yellow-400';
+      }
       return false;
     }
 
