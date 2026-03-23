@@ -45,7 +45,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var OrderController_1, ShopController_1, BetStatusController_1;
-var _a, _b;
+var _a, _b, _c;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BetStatusController = exports.ShopController = exports.OrderController = void 0;
 const common_1 = require("@nestjs/common");
@@ -363,6 +363,124 @@ let OrderController = OrderController_1 = class OrderController {
         await orderRepo.remove(order);
         return { success: true, message: '订单已删除' };
     }
+    async patchOrder(orderNumber, body, req) {
+        const shopId = body?.shopId != null ? Number(body.shopId) : undefined;
+        if (!shopId || isNaN(shopId)) {
+            throw new common_1.BadRequestException('缺少 shopId');
+        }
+        const authHeader = (req.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
+        if (!shop)
+            throw new common_1.NotFoundException('店铺不存在');
+        if (shop.owner_id !== tokenUserId) {
+            throw new common_2.UnauthorizedException('无权操作此店铺');
+        }
+        const numbers = body.numbers;
+        if (!Array.isArray(numbers) || numbers.length === 0 || numbers.length > 500) {
+            throw new common_1.BadRequestException('号码列表无效或超过500条');
+        }
+        for (const item of numbers) {
+            if (typeof item.n !== 'string' || item.n.length > 10 || typeof item.q !== 'number' || item.q < 1 || item.q > 999) {
+                throw new common_1.BadRequestException('号码或数量格式无效');
+            }
+        }
+        const BILLETE_PRICE = 1.0;
+        const CHANCE_PRICE = 0.25;
+        let amount = 0;
+        for (const item of numbers) {
+            const numLen = String(item.n).replace(/\D/g, '').length;
+            const price = numLen >= 4 ? BILLETE_PRICE : CHANCE_PRICE;
+            amount += price * Number(item.q);
+        }
+        amount = Math.round(amount * 100) / 100;
+        if (Number.isNaN(amount) || amount <= 0 || amount > 100000) {
+            throw new common_1.BadRequestException('金额无效');
+        }
+        const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+        const orderPre = await orderRepo.findOne({ where: { order_number: orderNumber } });
+        if (!orderPre)
+            throw new common_1.NotFoundException('订单不存在');
+        if (orderPre.shop_id !== shopId) {
+            throw new common_1.BadRequestException('无权操作其他店铺的订单');
+        }
+        const ltPre = String(orderPre.lottery_type || 'NACIONAL').toUpperCase();
+        if (ltPre === 'TICA' || ltPre === 'NICA') {
+            return this.localLotteryService.updateMerchantOrderLines(orderNumber, shopId, numbers, tokenUserId);
+        }
+        const limitChance = shop.limit_chance;
+        const limitBillete = shop.limit_billete;
+        return (0, shop_order_lock_1.withShopLock)(shopId, async () => {
+            const fresh = await orderRepo.findOne({ where: { order_number: orderNumber } });
+            if (!fresh)
+                throw new common_1.NotFoundException('订单不存在');
+            if (fresh.shop_id !== shopId) {
+                throw new common_1.BadRequestException('无权操作其他店铺的订单');
+            }
+            const lt2 = String(fresh.lottery_type || 'NACIONAL').toUpperCase();
+            if (lt2 === 'TICA' || lt2 === 'NICA') {
+                return this.localLotteryService.updateMerchantOrderLines(orderNumber, shopId, numbers, tokenUserId);
+            }
+            if (fresh.status !== 0 && fresh.status !== 1) {
+                throw new common_1.BadRequestException('仅待付款或已付款（未开奖结算）的订单可修改');
+            }
+            if (fresh.draw_id != null && (limitChance != null || limitBillete != null)) {
+                const dbType = this.dataSource.options.type;
+                let soldRows = [];
+                if (dbType === 'postgres') {
+                    soldRows = await this.dataSource.query(`SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+             FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+             WHERE draw_id = $1 AND status != -1 AND order_id <> $2
+             GROUP BY item->>'n'`, [fresh.draw_id, fresh.order_id]);
+                }
+                else {
+                    soldRows = await this.dataSource.query(`SELECT json_extract(value, '$.n') AS num,
+                    SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+             FROM orders, json_each(numbers)
+             WHERE draw_id = ? AND status != -1 AND order_id != ?
+             GROUP BY json_extract(value, '$.n')`, [fresh.draw_id, fresh.order_id]);
+                }
+                const soldMap = Object.fromEntries(soldRows.map(r => [r.num, Number(r.qty)]));
+                const overLimitItems = [];
+                for (const item of numbers) {
+                    const numStr = String(item.n).replace(/\D/g, '');
+                    const isBillete = numStr.length >= 4;
+                    const limit = isBillete ? limitBillete : limitChance;
+                    if (limit == null)
+                        continue;
+                    const alreadySold = soldMap[item.n] || 0;
+                    if (alreadySold + item.q > limit) {
+                        overLimitItems.push({ n: item.n, alreadySold, limit });
+                    }
+                }
+                if (overLimitItems.length > 0) {
+                    throw new common_1.BadRequestException({ message: '部分号码超出限额', overLimitItems });
+                }
+            }
+            const gameType = inferMerchantPatchGameType(numbers);
+            await orderRepo.update(fresh.order_id, {
+                numbers,
+                amount,
+                game_type: gameType,
+                win_amount: 0,
+                win_breakdown: null,
+            });
+            this.logger.log(`订单修改: #${fresh.order_number}, 店铺: ${shopId}, 新金额: $${amount}`);
+            return {
+                success: true,
+                order_number: fresh.order_number,
+                amount,
+                numbers,
+                game_type: gameType,
+                lottery_type: 'NACIONAL',
+            };
+        });
+    }
     async getOrder(orderNumber) {
         const order = await this.dataSource.getRepository(order_entity_1.Order).findOne({
             where: { order_number: orderNumber },
@@ -502,6 +620,15 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OrderController.prototype, "deleteOrder", null);
 __decorate([
+    (0, common_1.Patch)(':orderNumber'),
+    __param(0, (0, common_1.Param)('orderNumber')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, typeof (_c = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _c : Object]),
+    __metadata("design:returntype", Promise)
+], OrderController.prototype, "patchOrder", null);
+__decorate([
     (0, common_1.Get)(':orderNumber'),
     __param(0, (0, common_1.Param)('orderNumber')),
     __metadata("design:type", Function),
@@ -529,6 +656,22 @@ exports.OrderController = OrderController = OrderController_1 = __decorate([
     __metadata("design:paramtypes", [typeorm_1.DataSource,
         local_lottery_service_1.LocalLotteryService])
 ], OrderController);
+function inferMerchantPatchGameType(numbers) {
+    let hasB = false;
+    let hasC = false;
+    for (const item of numbers) {
+        const numLen = String(item.n).replace(/\D/g, '').length;
+        if (numLen >= 4)
+            hasB = true;
+        else
+            hasC = true;
+    }
+    if (hasB && hasC)
+        return 'MIXTO';
+    if (hasB)
+        return 'BILLETE';
+    return 'CHANCE';
+}
 let ShopController = ShopController_1 = class ShopController {
     constructor(dataSource) {
         this.dataSource = dataSource;

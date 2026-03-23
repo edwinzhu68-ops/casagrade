@@ -48,6 +48,23 @@ export declare class OrderController implements OnModuleInit {
         success: boolean;
         message: string;
     }>;
+    patchOrder(orderNumber: string, body: {
+        shopId?: number;
+        numbers?: {
+            n: string;
+            q: number;
+        }[];
+    }, req: Request): Promise<{
+        success: boolean;
+        order_number: string;
+        amount: number;
+        numbers: {
+            n: string;
+            q: number;
+        }[];
+        game_type: string;
+        lottery_type: string;
+    }>;
     getOrder(orderNumber: string): Promise<{
         order_id: number;
         order_number: string;

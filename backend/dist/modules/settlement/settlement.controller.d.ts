@@ -17,7 +17,7 @@ export declare class SettlementController {
         success: boolean;
         data: any;
     }>;
-    getHistory(shopId: string, limit?: string): Promise<{
+    getHistory(shopId: string, limit?: string, lotteryKind?: string): Promise<{
         success: boolean;
         items: {
             drawId?: number;

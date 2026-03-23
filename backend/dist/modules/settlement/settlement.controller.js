@@ -35,8 +35,8 @@ let SettlementController = class SettlementController {
             data: result,
         };
     }
-    async getHistory(shopId, limit = '7') {
-        const result = await this.settlementService.getHistoryForShop(Number(shopId), Number(limit) || 7);
+    async getHistory(shopId, limit = '7', lotteryKind) {
+        const result = await this.settlementService.getHistoryForShop(Number(shopId), Number(limit) || 7, lotteryKind ? String(lotteryKind).toUpperCase() : undefined);
         return {
             success: true,
             items: result,
@@ -65,8 +65,9 @@ __decorate([
     (0, common_1.Get)('history'),
     __param(0, (0, common_1.Query)('shopId')),
     __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('lotteryKind')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], SettlementController.prototype, "getHistory", null);
 exports.SettlementController = SettlementController = __decorate([

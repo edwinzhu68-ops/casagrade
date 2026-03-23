@@ -419,21 +419,69 @@ let SettlementService = SettlementService_1 = class SettlementService {
             profit: totalSales - totalPayout,
         };
     }
-    async getHistoryForShop(shopId, limit = 7) {
-        const draws = await this.drawRepo.find({
-            where: [{ status: 'completed' }, { status: 'COMPLETED' }],
-            order: { draw_id: 'DESC' },
-            take: Math.max(limit * 2, 20),
-        });
+    async getHistoryForShop(shopId, limit = 7, lotteryKind) {
+        const takeN = Math.max(limit * 2, 20);
+        const st = ['completed', 'COMPLETED'];
+        const k = lotteryKind ? String(lotteryKind).toUpperCase() : '';
+        let draws;
+        if (k === 'TICA' || k === 'NICA') {
+            draws = await this.drawRepo
+                .createQueryBuilder('d')
+                .where('d.status IN (:...st)', { st })
+                .andWhere('d.shop_id = :sid', { sid: shopId })
+                .andWhere('d.lottery_type = :lt', { lt: k })
+                .orderBy('d.draw_id', 'DESC')
+                .take(takeN)
+                .getMany();
+        }
+        else if (k === 'NACIONAL') {
+            draws = await this.drawRepo
+                .createQueryBuilder('d')
+                .where('d.status IN (:...st)', { st })
+                .andWhere('d.shop_id IS NULL')
+                .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                .orderBy('d.draw_id', 'DESC')
+                .take(takeN)
+                .getMany();
+        }
+        else {
+            draws = await this.drawRepo.find({
+                where: [{ status: 'completed' }, { status: 'COMPLETED' }],
+                order: { draw_id: 'DESC' },
+                take: takeN,
+            });
+        }
         const result = [];
         for (const draw of draws) {
-            const orders = await this.orderRepo.find({
-                where: {
-                    shop_id: shopId,
-                    draw_id: draw.draw_id,
-                    status: (0, typeorm_2.In)([1, 2, 3]),
-                },
-            });
+            let orders;
+            if (k === 'NACIONAL') {
+                orders = await this.orderRepo
+                    .createQueryBuilder('o')
+                    .where('o.shop_id = :sid', { sid: shopId })
+                    .andWhere('o.draw_id = :did', { did: draw.draw_id })
+                    .andWhere('o.status IN (:...stt)', { stt: [1, 2, 3] })
+                    .andWhere('(o.lottery_type = :lt OR o.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                    .getMany();
+            }
+            else if (k === 'TICA' || k === 'NICA') {
+                orders = await this.orderRepo.find({
+                    where: {
+                        shop_id: shopId,
+                        draw_id: draw.draw_id,
+                        status: (0, typeorm_2.In)([1, 2, 3]),
+                        lottery_type: k,
+                    },
+                });
+            }
+            else {
+                orders = await this.orderRepo.find({
+                    where: {
+                        shop_id: shopId,
+                        draw_id: draw.draw_id,
+                        status: (0, typeorm_2.In)([1, 2, 3]),
+                    },
+                });
+            }
             if (orders.length === 0)
                 continue;
             let totalSales = 0;
