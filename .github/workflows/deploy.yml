@@ -20,4 +20,5 @@ jobs:
           script: |
             cd /var/www/lottery-preview
             git pull origin main
+            echo "{\"v\":\"$(git rev-parse --short HEAD)_$(date +%s)\"}" > version.json
             pm2 restart lottery-web --update-env
