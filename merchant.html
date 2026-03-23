@@ -1798,8 +1798,7 @@
           if (r.status === 401) {
             r.json().then(d => {
               if (d.message === 'SESSION_EXPIRED') {
-                // 保留本地 token 与缓存，避免返回工作台时反复出现登录页；若接口拒绝再手动退出
-                showToast('会话可能已在其他设备更新；如无法收款请在设置中退出后重新登录。', 'warning');
+                // session token 过期不影响收款，静默处理
               }
             }).catch(() => {});
             return null;
