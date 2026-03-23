@@ -2026,7 +2026,7 @@
           const sales = parseFloat(salesEl.textContent) || 0;
           const profitEl = document.getElementById('profit-amount');
           const profitSection = document.getElementById('profit-section');
-          profitEl.textContent = sales.toFixed(2);
+          profitEl.textContent = Math.round(sales);
           profitEl.className = 'text-4xl font-bold text-green-400';
           profitSection.className = 'bg-gray-700 rounded-xl p-3';
           document.getElementById('no-billete-winners').classList.remove('hidden');
@@ -2264,6 +2264,10 @@
         return;
       }
 
+      if (!currentShop || !currentShop.shop_id) {
+        showToast(t('alert_order_id_missing'), 'error');
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/api/orders/${orderNumber}/redeem`, {
           method: 'POST',
@@ -2476,6 +2480,7 @@
         document.getElementById('modal-result-order').classList.remove('hidden');
       } catch (e) {
         console.error(e);
+        showToast('获取订单详情失败，请重试', 'error');
       }
     }
 
