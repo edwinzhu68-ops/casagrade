@@ -4644,8 +4644,7 @@
           const ping = new Uint8Array([0x1B, 0x40]); // ESC @ 初始化（无害）
           if (_isCapApp && _capDeviceId) {
             const val = _toB64(ping);
-            if (_capCanWriteWithout) await _CapBle.writeWithoutResponse({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
-            else await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
+            await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
           } else {
             const canWithout = _printerChar.properties?.writeWithoutResponse;
             if (canWithout) await _printerChar.writeValueWithoutResponse(ping);
@@ -5221,12 +5220,8 @@
           const chunk = data.slice(i, i + CHUNK);
           const isQR = chunk[0] === 0x1D;
           const val = _toB64(chunk);
-          if (_capCanWriteWithout) {
-            await _CapBle.writeWithoutResponse({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
-            await new Promise(r => setTimeout(r, isQR ? 50 : 10));
-          } else {
-            await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
-          }
+          await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
+          await new Promise(r => setTimeout(r, isQR ? 50 : 10));
         }
         return;
       }
