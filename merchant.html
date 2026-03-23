@@ -13,6 +13,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -534,6 +535,10 @@
         <div class="text-center pb-2 border-b border-gray-200">
           <p class="text-xs text-gray-400 mb-1">casagrade · Lotería</p>
           <p class="text-xl font-bold font-mono text-gray-900" id="et-shop">--</p>
+        </div>
+        <!-- 二维码 -->
+        <div class="flex justify-center">
+          <div id="et-qr" class="bg-white p-2 rounded-xl shadow-inner inline-block border border-gray-100"></div>
         </div>
         <div class="flex justify-between text-sm">
           <span class="text-gray-500">N.º de pedido</span>
@@ -3529,6 +3534,28 @@
         });
       }
       if (amountEl) amountEl.textContent = parseFloat(order.amount || 0).toFixed(2);
+      // 二维码
+      var qrContainer = document.getElementById('et-qr');
+      if (qrContainer) {
+        qrContainer.innerHTML = '';
+        var lk = (order.lottery_kind || order.lotteryKind || order.game_type || order.gameType || '').toUpperCase();
+        if (lk !== 'TICA' && lk !== 'NICA') lk = 'NACIONAL';
+        var payload = {
+          type: 'lottery_order',
+          orderId: order.id || order.order_id || null,
+          orderNumber: order.order_number || order.orderNumber,
+          orderHash: order.order_hash || order.orderHash || null,
+          amount: order.amount,
+          shopId: currentShop ? currentShop.shop_id : null,
+          lotteryKind: lk
+        };
+        var QR = typeof QRCode !== 'undefined' ? QRCode : null;
+        if (QR && typeof QR.toCanvas === 'function') {
+          var canvas = document.createElement('canvas');
+          qrContainer.appendChild(canvas);
+          QR.toCanvas(canvas, JSON.stringify(payload), { width: 180, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#000000', light: '#ffffff' } }, function () {});
+        }
+      }
     }
 
     function showCashierEticket() {
