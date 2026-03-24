@@ -5153,6 +5153,7 @@
         updatePrinterStatusUI();
         document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
         startPrinterKeepAlive();
+        if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch(e) { console.warn('[PRINT] CAP test print failed:', e); } }
         return true;
       }
       localStorage.removeItem('lottery_cap_printer_device_id');
