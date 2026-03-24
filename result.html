@@ -289,17 +289,23 @@
             <div>
               <label class="text-xs text-gray-400 block mb-1">头奖</label>
               <input type="number" id="rate-input-b1" min="1" max="99999" step="1" placeholder="2000"
-                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500">
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500"
+                oninput="syncRateDisplay('b1', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-b1">2000</span></p>
             </div>
             <div>
               <label class="text-xs text-gray-400 block mb-1">二奖</label>
               <input type="number" id="rate-input-b2" min="1" max="99999" step="1" placeholder="600"
-                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500">
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500"
+                oninput="syncRateDisplay('b2', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-b2">600</span></p>
             </div>
             <div>
               <label class="text-xs text-gray-400 block mb-1">三奖</label>
               <input type="number" id="rate-input-b3" min="1" max="99999" step="1" placeholder="300"
-                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500">
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500"
+                oninput="syncRateDisplay('b3', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-b3">300</span></p>
             </div>
           </div>
         </div>
@@ -310,17 +316,23 @@
             <div>
               <label class="text-xs text-gray-400 block mb-1">头奖</label>
               <input type="number" id="rate-input-c1" min="1" max="9999" step="1" placeholder="14"
-                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500">
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                oninput="syncRateDisplay('c1', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-c1">14</span></p>
             </div>
             <div>
               <label class="text-xs text-gray-400 block mb-1">二奖</label>
               <input type="number" id="rate-input-c2" min="1" max="9999" step="1" placeholder="3"
-                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500">
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                oninput="syncRateDisplay('c2', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-c2">3</span></p>
             </div>
             <div>
               <label class="text-xs text-gray-400 block mb-1">三奖</label>
               <input type="number" id="rate-input-c3" min="1" max="9999" step="1" placeholder="2"
-                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500">
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                oninput="syncRateDisplay('c3', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-c3">2</span></p>
             </div>
           </div>
         </div>
@@ -2672,13 +2684,29 @@
     var RATE_DEFAULTS = { b1: 2000, b2: 600, b3: 300, c1: 14, c2: 3, c3: 2 };
     function openRatesModal() {
       if (!currentShop) { showToast('请先登录', 'error'); return; }
-      document.getElementById('rate-input-b1').value = currentShop.rate_billete_1 != null ? Number(currentShop.rate_billete_1) : RATE_DEFAULTS.b1;
-      document.getElementById('rate-input-b2').value = currentShop.rate_billete_2 != null ? Number(currentShop.rate_billete_2) : RATE_DEFAULTS.b2;
-      document.getElementById('rate-input-b3').value = currentShop.rate_billete_3 != null ? Number(currentShop.rate_billete_3) : RATE_DEFAULTS.b3;
-      document.getElementById('rate-input-c1').value = currentShop.rate_chance_1 != null ? Number(currentShop.rate_chance_1) : RATE_DEFAULTS.c1;
-      document.getElementById('rate-input-c2').value = currentShop.rate_chance_2 != null ? Number(currentShop.rate_chance_2) : RATE_DEFAULTS.c2;
-      document.getElementById('rate-input-c3').value = currentShop.rate_chance_3 != null ? Number(currentShop.rate_chance_3) : RATE_DEFAULTS.c3;
+      var b1 = currentShop.rate_billete_1 != null ? Number(currentShop.rate_billete_1) : RATE_DEFAULTS.b1;
+      var b2 = currentShop.rate_billete_2 != null ? Number(currentShop.rate_billete_2) : RATE_DEFAULTS.b2;
+      var b3 = currentShop.rate_billete_3 != null ? Number(currentShop.rate_billete_3) : RATE_DEFAULTS.b3;
+      var c1 = currentShop.rate_chance_1 != null ? Number(currentShop.rate_chance_1) : RATE_DEFAULTS.c1;
+      var c2 = currentShop.rate_chance_2 != null ? Number(currentShop.rate_chance_2) : RATE_DEFAULTS.c2;
+      var c3 = currentShop.rate_chance_3 != null ? Number(currentShop.rate_chance_3) : RATE_DEFAULTS.c3;
+      document.getElementById('rate-input-b1').value = b1;
+      document.getElementById('rate-input-b2').value = b2;
+      document.getElementById('rate-input-b3').value = b3;
+      document.getElementById('rate-input-c1').value = c1;
+      document.getElementById('rate-input-c2').value = c2;
+      document.getElementById('rate-input-c3').value = c3;
+      document.getElementById('rate-display-b1').textContent = b1;
+      document.getElementById('rate-display-b2').textContent = b2;
+      document.getElementById('rate-display-b3').textContent = b3;
+      document.getElementById('rate-display-c1').textContent = c1;
+      document.getElementById('rate-display-c2').textContent = c2;
+      document.getElementById('rate-display-c3').textContent = c3;
       document.getElementById('modal-rates').classList.remove('hidden');
+    }
+    function syncRateDisplay(key, val) {
+      var el = document.getElementById('rate-display-' + key);
+      if (el) el.textContent = val || '—';
     }
     function closeRatesModal() {
       document.getElementById('modal-rates').classList.add('hidden');
