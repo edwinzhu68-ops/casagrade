@@ -4124,6 +4124,12 @@
         periodOrders = periodOrders.filter(function(o) {
           return (o.order_number || o.orderNumber) !== num;
         });
+        // 同步更新 ordersForCurrentDraw 并重算热图，否则已售限额不会刷新
+        ordersForCurrentDraw = periodOrders.filter(function(o) {
+          var s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
+          return s === 'paid' || s === 1 || s === 2 || s === 'settled' || s === 3 || s === 'won';
+        });
+        calculateSales();
         renderPeriodOrderList(document.getElementById('period-order-filter') ? document.getElementById('period-order-filter').value : '');
         loadDashboard();
       } catch (err) {
