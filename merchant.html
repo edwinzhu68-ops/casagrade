@@ -4913,6 +4913,8 @@
     let _capServiceUUID     = null;   // 打印机服务 UUID
     let _capCharUUID        = null;   // 打印机特征 UUID
     let _capCanWriteWithout = false;  // 是否支持无响应写入
+    let _capConnectLock     = false;  // 并发连接锁，防止重复调用导致崩溃
+    let _capDisconnectHandlerId = null; // 断连监听器 ID，用于移除旧监听器
     // APP 启动时初始化 BLE 权限
     if (_isCapApp && _CapBle) { try { _CapBle.initialize(); } catch(e) {} }
 
@@ -5066,20 +5068,42 @@
 
     /** Capacitor 底层：拿到 deviceId 后建立 BLE 连接并发现打印特征 */
     async function _doConnectCap(deviceId, deviceName, printTest) {
+      // 防止并发调用：已在连接中则直接返回
+      if (_capConnectLock) return false;
+      _capConnectLock = true;
+      // 已连接则跳过（避免重复 connect 导致 Android 崩溃）
+      if (_capDeviceId === deviceId) {
+        _capConnectLock = false;
+        return true;
+      }
       var statusEl = document.getElementById('printer-status');
       if (statusEl) { statusEl.textContent = t('printer_connecting').replace('{name}', deviceName || t('bt_device')); statusEl.className = 'text-xs text-blue-400'; }
       try {
         await _CapBle.connect({ deviceId: deviceId, autoConnect: true });
       } catch(e) {
+        _capConnectLock = false;
         if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
         return false;
       }
+      _capConnectLock = false;
       _printerDevice = null; // 清空 Web BLE 引用，避免混用
       // 等待 Android 服务发现完成
       await new Promise(function(r) { setTimeout(r, 800); });
       try {
-        _CapBle.addListener('disconnected|' + deviceId, function() {
+        // 移除旧的断连监听器，防止累积
+        if (_capDisconnectHandlerId) {
+          try { _CapBle.removeListener(_capDisconnectHandlerId); } catch(e) {}
+          _capDisconnectHandlerId = null;
+        }
+        var handler = _CapBle.addListener('disconnected|' + deviceId, function() {
           _capDeviceId = null;
+          _capDisconnectHandlerId = null;
+          stopPrinterKeepAlive();
+          updatePrinterStatusUI();
+          if (_reconnectTimer) clearTimeout(_reconnectTimer);
+          _reconnectTimer = setTimeout(function() { autoReconnectPrinter(); }, 500);
+        });
+        _capDisconnectHandlerId = handler;
           stopPrinterKeepAlive();
           updatePrinterStatusUI();
           if (_reconnectTimer) clearTimeout(_reconnectTimer);
@@ -5432,6 +5456,7 @@
     async function autoReconnectPrinter() {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       if (_isCapApp && _CapBle) {
+        if (_capDeviceId || _capConnectLock) return; // 已在连接中或已连接，跳过
         const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
         const savedName = localStorage.getItem('lottery_printer_name') || '';
         if (!savedId) return;
