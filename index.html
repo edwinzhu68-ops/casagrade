@@ -1860,11 +1860,15 @@
       updateClientLotteryDividerBar();
       syncDrawAtSecondaryRowsVisibility(clientLotteryMode);
       updateBetStatusUI();
-      // 切换彩种模式时同步更新 Billete → Palet 按钮文字
+      syncBilletePaletLabel();
+      updateUI();
+    }
+
+    // 单独导出 setBilletePaletLabel 供外部调用，确保按钮文字正确
+    function syncBilletePaletLabel() {
       var isPalet = (clientLotteryMode === 'TICA' || clientLotteryMode === 'NICA');
       var billeteLabel = isPalet ? 'Palet' : 'Billete';
       if (document.getElementById('btn-billete')) document.getElementById('btn-billete').textContent = billeteLabel + ' ($1)';
-      updateUI();
     }
 
     function updateBetStatusUI() {
@@ -2004,6 +2008,7 @@
       }
       // 进店前先从服务器同步一次订单状态，确保渲染时数据是最新的
       await updatePaidOrdersFromServer();
+      syncBilletePaletLabel();
     }
 
     // 进入店铺（从首页点击 Entrar）
@@ -2041,11 +2046,6 @@
       document.getElementById('btn-chance').className = type === 'CHANCE'
         ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold'
         : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
-
-      // 同步 Billete/Palet 标签（确保切回 NACIONAL 时正确显示）
-      var isPalet = (clientLotteryMode === 'TICA' || clientLotteryMode === 'NICA');
-      var billeteLabel = isPalet ? 'Palet' : 'Billete';
-      document.getElementById('btn-billete').textContent = billeteLabel + ' ($1)';
 
       currentNumber = '';
       currentQuantity = '';
