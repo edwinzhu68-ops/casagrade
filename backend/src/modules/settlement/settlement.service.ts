@@ -364,8 +364,16 @@ export class SettlementService {
   }
 
   /**
-   * TICA / NICA Billete（与方案一致）：前两位=F，后两位=L（四位票）
-   * 头奖：F===N1 且 (L===N2 或 L===N3)；二奖：F===N2 且 L===N3；头奖优先
+   * TICA / NICA Palet 赔付计算（4 位数一注）
+   * 6 个串奖，各自独立叠加（都从同一注的 F+L 两个两位数推导）：
+   * - 1串2: F=12 + L=34（N1在前 N2在后）
+   * - 1串3: F=12 + L=34（N1在前 N3在后）
+   * - 2串1: F=12 + L=34（N2在前 N1在后）
+   * - 2串3: F=12 + L=34（N2在前 N3在后）
+   * - 3串1: F=12 + L=34（N3在前 N1在后）
+   * - 3串2: F=12 + L=34（N3在前 N2在后）
+   * 每串中奖条件：该串的 X 位置数字==N_X 且 Y 位置数字==N_Y（X/Y 顺序不固定，取顺向或逆向都能匹配）
+   * chain 值 ≥1 才算中奖，0 = 不中
    */
   private calculateTicaNicaBilletePayout(
     num: string,
@@ -373,48 +381,33 @@ export class SettlementService {
     qty: number,
     chain: { c12: number; c13: number; c21: number; c23: number; c31: number; c32: number },
   ): BilleteResult {
-    const padded = num.replace(/\D/g, '').slice(-4).padStart(4, '0');
-    const F = padded.slice(0, 2);
-    const L = padded.slice(2, 4);
+    const bet = num.replace(/\D/g, '').slice(-4).padStart(4, '0');
+    const F = bet.slice(0, 2); // bet 的前两位
+    const L = bet.slice(2, 4);  // bet 的后两位
     const { n1, n2, n3 } = n123;
     const matches: string[] = [];
     let totalPayout = 0;
 
-    // 1串3: 1等奖 → F===N1 且 L===N2 或 L===N3（现行头奖逻辑）
-    if (F === n1 && (L === n2 || L === n3) && chain.c13 > 0) {
-      matches.push(`1串3 F=${F} L=${L} x${chain.c13}`);
-      totalPayout += chain.c13 * qty;
-    }
-    // 1串2: 1等奖前两位中 → F===N1 但 L 未中（需L≠N2且L≠N3）
-    else if (F === n1 && L !== n2 && L !== n3 && chain.c12 > 0) {
-      matches.push(`1串2 F=${F} L=${L} x${chain.c12}`);
-      totalPayout += chain.c12 * qty;
-    }
-    // 2串3: 2等奖 → F===N2 且 L===N3（现行二奖逻辑）
-    else if (F === n2 && L === n3 && chain.c23 > 0) {
-      matches.push(`2串3 F=${F} L=${L} x${chain.c23}`);
-      totalPayout += chain.c23 * qty;
-    }
-    // 2串1: 2等奖前两位中 → F===N2 但 L≠N3
-    else if (F === n2 && L !== n3 && chain.c21 > 0) {
-      matches.push(`2串1 F=${F} L=${L} x${chain.c21}`);
-      totalPayout += chain.c21 * qty;
-    }
-    // 3串2: 3等奖 → L===N3（头奖F不中时检查L是否中N3）
-    else if (L === n3 && chain.c32 > 0) {
-      matches.push(`3串2 L=${L} x${chain.c32}`);
-      totalPayout += chain.c32 * qty;
-    }
-    // 3串1: 3等奖前两位中 → F前两位中但L不中N3
-    else if (F === n1.slice(0, 2) + '' && L !== n3 && chain.c31 > 0) {
-      // F matches first 2 digits of N1
-      const f2 = F;
-      const n1f2 = n1.slice(0, 2);
-      if (f2 === n1f2 && chain.c31 > 0) {
-        matches.push(`3串1 F=${F} x${chain.c31}`);
-        totalPayout += chain.c31 * qty;
+    const add = (label: string, mult: number) => {
+      if (mult > 0) {
+        matches.push(`${label} x${mult}`);
+        totalPayout += mult * qty;
       }
-    }
+    };
+
+    // 1串2: N1在前 N2在后（正向）
+    add('1串2', (F === n1 && L === n2) ? chain.c12 : 0);
+    // 1串3: N1在前 N3在后（正向）
+    add('1串3', (F === n1 && L === n3) ? chain.c13 : 0);
+    // 2串1: N2在前 N1在后（逆向）
+    add('2串1', (F === n2 && L === n1) ? chain.c21 : 0);
+    // 2串3: N2在前 N3在后（正向）
+    add('2串3', (F === n2 && L === n3) ? chain.c23 : 0);
+    // 3串1: N3在前 N1在后（逆向）
+    add('3串1', (F === n3 && L === n1) ? chain.c31 : 0);
+    // 3串2: N3在前 N2在后（逆向）
+    add('3串2', (F === n3 && L === n2) ? chain.c32 : 0);
+
     return { matches, totalPayout };
   }
 
