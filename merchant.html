@@ -5656,8 +5656,9 @@
       txt(DIV); LF();
       row('Tienda',     String(shopNumber));
       row('Pedido',     orderNum);
-      // Importe 大字加粗
-      rowBig('Importe', '$' + amount);
+      push(...BON);
+      row('Importe', '$' + amount);
+      push(...BOFF);
       txt(DIV); LF();
       push(...BON);
       txt('Numeros'); LF();
@@ -5679,8 +5680,9 @@
       });
 
       txt(DIV); LF();
-      // Total 大字加粗
-      rowBig('Total', '$' + amount);
+      push(...BON);
+      row('Total', '$' + amount);
+      push(...BOFF);
       LF();
       push(...CUT);
       return new Uint8Array(buf);
