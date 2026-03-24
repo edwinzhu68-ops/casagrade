@@ -5280,7 +5280,7 @@
         await Promise.race([
           new Promise((resolve, reject) => {
             QRCode.toCanvas(qrCanvas, text, {
-              width: 220, margin: 2,
+              width: 384, margin: 1,
               color: { dark: '#000000', light: '#ffffff' },
               errorCorrectionLevel: 'H'
             }, (err) => err ? reject(err) : resolve());
