@@ -642,6 +642,15 @@
         </div>
       </div>
 
+      <!-- 备注区：未付款时可编辑，已付款仅展示 -->
+      <div id="modal-order-note-section" class="hidden mb-4">
+        <div id="modal-order-note-display" class="hidden mb-2 bg-yellow-900/30 border border-yellow-500/40 rounded-xl px-3 py-2 text-yellow-300 text-sm font-bold"></div>
+        <input type="text" id="modal-order-note-input" maxlength="30"
+          class="hidden w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          placeholder="备注（客人姓名 / 电话）"
+          oninput="var d=document.getElementById('modal-order-note-display');var v=this.value.trim();d.textContent=v?'备注：'+v:'';d.classList.toggle('hidden',!v);">
+      </div>
+
       <div id="modal-order-actions-edit" class="hidden flex gap-3 flex-wrap">
         <button type="button" onclick="cancelOrderDetailEdit()" class="flex-1 min-w-[40%] bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="order_edit_cancel">取消编辑</button>
         <button type="button" onclick="saveOrderDetailEdit()" class="flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="order_edit_save">保存修改</button>
@@ -3944,6 +3953,22 @@
       var modBtn = document.getElementById('modal-btn-modify');
       if (modBtn) modBtn.classList.toggle('hidden', !canModifyOrder);
 
+      // 备注区
+      var _noteNum = String(order.order_number || order.orderNumber || '');
+      var _existNote = getOrderNote(_noteNum);
+      var _noteSection = document.getElementById('modal-order-note-section');
+      var _noteDisplay = document.getElementById('modal-order-note-display');
+      var _noteInput = document.getElementById('modal-order-note-input');
+      if (_noteSection) _noteSection.classList.remove('hidden');
+      if (_noteDisplay) {
+        _noteDisplay.textContent = _existNote ? '备注：' + _existNote : '';
+        _noteDisplay.classList.toggle('hidden', !_existNote);
+      }
+      if (_noteInput) {
+        _noteInput.value = _existNote;
+        _noteInput.classList.toggle('hidden', !isPending);
+      }
+
       document.getElementById('modal-order').classList.remove('hidden');
     }
 
@@ -4252,6 +4277,10 @@
         showToast(t('alert_order_id_missing'), 'error');
         return;
       }
+      // 保存备注
+      var _ni = document.getElementById('modal-order-note-input');
+      var _nv = _ni ? _ni.value.trim() : '';
+      if (_nv) saveOrderNote(String(orderNumber), _nv);
       paymentInProgress = true;
       try {
         const res = await fetch(`${API_BASE}/api/orders/${orderNumber}/confirm`, {
