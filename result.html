@@ -403,7 +403,7 @@
         recent_7: '📅 最近 7 期结算记录',
         recent_20: '📅 最近 20 期结算记录',
         paid_only: '仅统计已付款订单',
-        period_detail_title: '期详情',
+        period_detail_title: '当期详情',
         shop_short: '店',
         loading: '加载中...',
         no_paid_orders: '暂无已付款订单',
@@ -815,6 +815,10 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    }
+
+    function getOrderNote(num) {
+      try { return JSON.parse(localStorage.getItem('lottery_order_notes') || '{}')[String(num)] || ''; } catch(e) { return ''; }
     }
 
     // 订单显示用中奖金额：优先用后端 win_amount；仅当 win_amount 为 0 时用 win_breakdown 之和兜底
@@ -2064,6 +2068,9 @@
         if (!res.ok) throw new Error(data.error || t('load_fail'));
         const items = Array.isArray(data.items) ? data.items : [];
         recentHistory = items;
+        const baseOrdsForHistory = (pkHist === 'TICA' || pkHist === 'NICA')
+          ? buildScopedOrdersForLocalKind(allOrders, pkHist)
+          : allOrders.filter(orderIsNationalForSettlement);
         const newHtml = items.length === 0
           ? '<div class="py-6 text-center text-gray-500">' + t('no_history') + '</div>'
           : items.map((item, idx) => {
@@ -2072,25 +2079,25 @@
               const salesNum = Number(item.totalSales || 0);
               const payoutNum = Number(item.totalPayout || 0);
               const profitNum = item.netProfit != null ? item.netProfit : (salesNum - payoutNum);
-              const sales = salesNum.toFixed(2);
-              const payout = payoutNum.toFixed(2);
               const profit = profitNum.toFixed(2);
               const profitColor = profitNum >= 0 ? 'text-emerald-400' : 'text-red-400';
-              const orderCount = item.orderCount != null ? item.orderCount : (item.order_count != null ? item.order_count : '');
-              const orderLabel = orderCount !== '' ? orderCount + ' ' + t('orders_label') : '';
               const rowLabel = (pkHist === 'TICA' || pkHist === 'NICA')
                 ? (drawId !== '' && drawId != null ? ('#' + drawId) : ('#' + (idx + 1)))
                 : (dateStr || ('期 ' + (idx + 1)));
               const dataDateAttr = (pkHist === 'TICA' || pkHist === 'NICA') ? String(drawId != null ? drawId : '') : dateStr;
+              const hasUnredeemed = drawId !== '' && drawId != null
+                ? baseOrdsForHistory.some(o => {
+                    const oid = o.draw_id != null ? o.draw_id : o.drawId;
+                    return sameLocalDrawId(oid, drawId) && isUnredeemedWinningOrder(o);
+                  })
+                : false;
+              const unredeemedBadge = hasUnredeemed
+                ? ` <span class="text-amber-300 text-xs font-normal">· ${t('local_history_unredeemed_line')}</span>`
+                : '';
               return `
                 <button type="button" class="history-row w-full py-3 flex justify-between items-center text-left hover:bg-gray-700/40 rounded-lg px-2 -mx-2 transition border-b border-gray-700/50 last:border-0" data-draw-id="${drawId}" data-date="${dataDateAttr}" data-idx="${idx}">
-                  <div class="text-gray-300 font-medium">${rowLabel}</div>
-                  <div class="flex gap-4 text-sm items-center">
-                    <span class="text-emerald-400">$${sales}</span>
-                    <span class="text-red-400">$${payout}</span>
-                    <span class="${profitColor}">$${profit}</span>
-                    ${orderLabel ? '<span class="text-gray-500 text-xs">' + orderLabel + '</span>' : ''}
-                  </div>
+                  <div class="text-gray-300 font-medium">${rowLabel}${unredeemedBadge}</div>
+                  <div class="text-sm ${profitColor}">$${profit}</div>
                 </button>
               `;
             }).join('');
@@ -2191,8 +2198,9 @@
         var short = num.length <= 5 ? num : num.slice(-5);
         var winAmt = getOrderWinAmount(o);
         var safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        var _note = getOrderNote(num);
         return '<button type="button" onclick="openResultOrderDetail(\'' + safeNum + '\')" class="w-full text-left border-2 border-emerald-500 bg-emerald-900/30 rounded-xl px-3 py-2 flex justify-between items-center">' +
-          '<span class="font-mono text-sm text-emerald-200">#' + short + '</span>' +
+          '<span class="font-mono text-sm text-emerald-200">#' + short + (_note ? '<span class="text-yellow-300 font-normal text-xs ml-1">（' + esc(_note) + '）</span>' : '') + '</span>' +
           '<span class="font-bold text-emerald-400">$' + winAmt.toFixed(2) + '</span></button>';
       }).join('');
     }
@@ -2241,11 +2249,12 @@
         const winAmt = getOrderWinAmount(o);
         const disp = winAmt > 0 ? winAmt.toFixed(2) : Number(o.amount || 0).toFixed(2);
         const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const _note = getOrderNote(num);
         return `<button type="button" class="period-detail-order-btn w-full text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${rowClass(o)}" data-order-number="${safeNum}">
-          <span class="font-mono text-sm">#${short}</span>
-          ${shopLabel ? '<span class="text-xs text-gray-400">' + (t('shop_short') || '店') + ' ' + shopLabel + '</span>' : ''}
-          <span class="font-mono text-xs opacity-90">${orderStatusLabel(o)}</span>
-          <span class="font-mono font-bold text-sm">${disp}</span>
+          <span class="font-mono text-sm flex-shrink-0">#${short}</span>
+          <span class="text-yellow-300 text-xs font-normal truncate flex-1 mx-1">${_note ? esc(_note) : ''}</span>
+          <span class="font-mono text-xs opacity-90 flex-shrink-0">${orderStatusLabel(o)}</span>
+          <span class="font-mono font-bold text-sm flex-shrink-0">${disp}</span>
         </button>`;
       }).join('');
       container.querySelectorAll('.period-detail-order-btn').forEach(btn => {
@@ -2348,6 +2357,7 @@
         const winAmt = getOrderWinAmount(o);
         const status = orderStatusLabel(o);
         const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const _note = getOrderNote(num);
         const amtBlock = winAmt > 0
           ? `<span class="flex flex-col items-end leading-tight">
                <span class="font-mono text-xs text-gray-300">${t('sales_short')} $${amt}</span>
@@ -2355,8 +2365,8 @@
              </span>`
           : `<span class="font-mono font-bold text-sm flex-shrink-0">$${amt}</span>`;
         return `<button type="button" class="result-order-btn w-full text-left rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 ${rowClass(o)}" data-order-number-full="${safeNum}">
-          <span class="font-mono text-sm truncate">#${short}</span>
-          ${shopLabel ? '<span class="text-xs text-gray-400 flex-shrink-0">' + (t('shop_short') || '店') + ' ' + shopLabel + '</span>' : ''}
+          <span class="font-mono text-sm flex-shrink-0">#${short}</span>
+          <span class="text-yellow-300 text-xs font-normal truncate flex-1 mx-1">${_note ? esc(_note) : ''}</span>
           <span class="font-mono text-xs opacity-90 flex-shrink-0">${status}</span>
           ${amtBlock}
         </button>`;
