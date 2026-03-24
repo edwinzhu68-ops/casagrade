@@ -1829,6 +1829,7 @@
       try {
         if (currentShop.shop_id != null) persistClientLotteryModeForShop(currentShop.shop_id, clientLotteryMode);
       } catch (ePm) {}
+      syncBilletePaletLabel();
       updateClientModeButtons();
       updateClientLotteryDividerBar();
     }
