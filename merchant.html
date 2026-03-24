@@ -5092,7 +5092,7 @@
       try {
         await new Promise((resolve, reject) => {
           QRCode.toCanvas(qrCanvas, text, {
-            width: 160, margin: 2,
+            width: 220, margin: 2,
             color: { dark: '#000000', light: '#ffffff' },
             errorCorrectionLevel: 'H'
           }, (err) => err ? reject(err) : resolve());
@@ -5303,7 +5303,7 @@
               await _CapBle.write({ deviceId: devId, service: svcId, characteristic: charId, value: val });
             }
           } catch(e) {}
-          await new Promise(r => setTimeout(r, 50));
+          await new Promise(r => setTimeout(r, 15));
         }
         return;
       }
