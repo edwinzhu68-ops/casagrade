@@ -55,7 +55,8 @@
             <span id="shop-number" class="hidden" aria-hidden="true">-----</span>
           </h1>
         </div>
-        <div class="w-11 sm:w-14 shrink-0 flex justify-end">
+        <div class="shrink-0 flex items-center gap-1 justify-end">
+          <button type="button" onclick="openRatesModal()" class="text-gray-400 hover:text-white text-xs transition px-2 py-2 rounded-lg hover:bg-gray-700/50 whitespace-nowrap" title="赔率设置">⚙️</button>
           <a href="merchant.html" id="result-back-merchant" onclick="syncResultKindToMerchantSession();" class="text-gray-400 hover:text-white text-xs sm:text-sm transition px-2 py-2 rounded-lg hover:bg-gray-700/50 whitespace-nowrap text-right" data-i18n="back">返回</a>
         </div>
       </div>
@@ -271,6 +272,65 @@
     <nav id="result-workbench-nav" class="hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-950/95 border-t border-gray-700 backdrop-blur-sm pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <div class="max-w-2xl mx-auto px-2 py-2 flex gap-2 justify-center flex-wrap" id="result-workbench-nav-inner"></div>
     </nav>
+  </div>
+
+  <!-- 赔率设置弹窗 -->
+  <div id="modal-rates" class="hidden fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)closeRatesModal()">
+    <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+      <div class="p-5 border-b border-gray-700 flex items-center justify-between">
+        <h3 class="font-bold text-white text-lg">⚙️ 赔率设置</h3>
+        <button type="button" onclick="closeRatesModal()" class="text-gray-400 hover:text-white text-2xl leading-none w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-700">&times;</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <!-- Billete -->
+        <div>
+          <p class="text-xs font-bold text-amber-400 mb-2 uppercase tracking-wide">🎫 Billete（四位完整匹配）</p>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">头奖 <span class="text-gray-500">(默认2000)</span></label>
+              <input type="number" id="rate-input-b1" min="1" max="99999" step="1" placeholder="2000"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">二奖 <span class="text-gray-500">(默认600)</span></label>
+              <input type="number" id="rate-input-b2" min="1" max="99999" step="1" placeholder="600"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">三奖 <span class="text-gray-500">(默认300)</span></label>
+              <input type="number" id="rate-input-b3" min="1" max="99999" step="1" placeholder="300"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-amber-500">
+            </div>
+          </div>
+        </div>
+        <!-- Chance -->
+        <div>
+          <p class="text-xs font-bold text-blue-400 mb-2 uppercase tracking-wide">🎯 Chance（每张）</p>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">头奖 <span class="text-gray-500">(默认14)</span></label>
+              <input type="number" id="rate-input-c1" min="1" max="9999" step="1" placeholder="14"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">二奖 <span class="text-gray-500">(默认3)</span></label>
+              <input type="number" id="rate-input-c2" min="1" max="9999" step="1" placeholder="3"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">三奖 <span class="text-gray-500">(默认2)</span></label>
+              <input type="number" id="rate-input-c3" min="1" max="9999" step="1" placeholder="2"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500">
+            </div>
+          </div>
+        </div>
+        <p class="text-xs text-gray-500">留空 = 使用默认值。修改只影响<strong class="text-gray-300">未来开奖</strong>的结算，已结算订单不受影响。</p>
+      </div>
+      <div class="p-4 border-t border-gray-700 flex gap-3">
+        <button type="button" onclick="closeRatesModal()" class="flex-1 bg-gray-600 text-white py-3 rounded-xl font-bold">取消</button>
+        <button type="button" onclick="saveRates()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-xl font-bold">💾 保存</button>
+      </div>
+    </div>
   </div>
 
   <!-- 某期详情弹窗（历史期点击进入） -->
@@ -2607,6 +2667,57 @@
         profitSection.className = 'bg-red-900/30 rounded-2xl p-4 text-center';
       }
     }
+
+    // ── 赔率设置 ──────────────────────────────────────────────
+    function openRatesModal() {
+      if (!currentShop) { showToast('请先登录', 'error'); return; }
+      document.getElementById('rate-input-b1').value = currentShop.rate_billete_1 != null ? currentShop.rate_billete_1 : '';
+      document.getElementById('rate-input-b2').value = currentShop.rate_billete_2 != null ? currentShop.rate_billete_2 : '';
+      document.getElementById('rate-input-b3').value = currentShop.rate_billete_3 != null ? currentShop.rate_billete_3 : '';
+      document.getElementById('rate-input-c1').value = currentShop.rate_chance_1 != null ? currentShop.rate_chance_1 : '';
+      document.getElementById('rate-input-c2').value = currentShop.rate_chance_2 != null ? currentShop.rate_chance_2 : '';
+      document.getElementById('rate-input-c3').value = currentShop.rate_chance_3 != null ? currentShop.rate_chance_3 : '';
+      document.getElementById('modal-rates').classList.remove('hidden');
+    }
+    function closeRatesModal() {
+      document.getElementById('modal-rates').classList.add('hidden');
+    }
+    async function saveRates() {
+      if (!currentShop) return;
+      var toNum = function(id) {
+        var v = parseFloat(document.getElementById(id).value);
+        return (isFinite(v) && v > 0) ? v : null;
+      };
+      var body = {
+        rateBillete1: toNum('rate-input-b1'),
+        rateBillete2: toNum('rate-input-b2'),
+        rateBillete3: toNum('rate-input-b3'),
+        rateChance1: toNum('rate-input-c1'),
+        rateChance2: toNum('rate-input-c2'),
+        rateChance3: toNum('rate-input-c3'),
+      };
+      try {
+        var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/rates', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('merchant_token') || '') },
+          body: JSON.stringify(body),
+        });
+        var data = await res.json().catch(function() { return {}; });
+        if (!res.ok) throw new Error(data.message || '保存失败');
+        // 更新本地 currentShop 缓存
+        currentShop.rate_billete_1 = data.rate_billete_1;
+        currentShop.rate_billete_2 = data.rate_billete_2;
+        currentShop.rate_billete_3 = data.rate_billete_3;
+        currentShop.rate_chance_1 = data.rate_chance_1;
+        currentShop.rate_chance_2 = data.rate_chance_2;
+        currentShop.rate_chance_3 = data.rate_chance_3;
+        closeRatesModal();
+        showToast('赔率已保存', 'success');
+      } catch(e) {
+        showToast(e.message || '保存失败', 'error');
+      }
+    }
+    // ── end 赔率设置 ──────────────────────────────────────────
 
     // 定时刷新
     setInterval(() => {
