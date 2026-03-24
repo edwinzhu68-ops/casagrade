@@ -5153,7 +5153,11 @@
         updatePrinterStatusUI();
         document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
         startPrinterKeepAlive();
-        if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch(e) { console.warn('[PRINT] CAP test print failed:', e); } }
+        if (printTest) {
+          // 等连接稳定后再打测试页，防止 Android BLE 写入崩溃
+          await new Promise(r => setTimeout(r, 300));
+          try { await sendToPrinter(buildTestReceipt()); } catch(e) { console.warn('[PRINT] CAP test print failed:', e.message || e); }
+        }
         return true;
       }
       localStorage.removeItem('lottery_cap_printer_device_id');
@@ -5735,6 +5739,8 @@
             console.warn('[PRINT] CAP BLE write error at chunk ' + i + ':', e.message || e);
             return; // 写入失败立即停止，防止后续 chunk 继续触发 native 崩溃
           }
+          // BLE 写入间隔，防止打印机过载
+          await new Promise(r => setTimeout(r, 5));
           await new Promise(r => setTimeout(r, 20));
         }
         return;
