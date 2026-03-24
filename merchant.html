@@ -416,6 +416,12 @@
   <div id="modal-cashier-order" class="hidden fixed inset-0 bg-black/80 z-[55] flex items-start justify-center p-3 pt-2 sm:p-4 sm:pt-4 overflow-y-auto overscroll-contain" onclick="if(event.target===this)closeCashierOrderModal()">
     <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[min(92vh,calc(100dvh-0.75rem))] sm:max-h-[90vh] mt-1 sm:mt-4 mb-4 flex flex-col overflow-hidden border border-gray-600 shadow-2xl shrink-0" onclick="event.stopPropagation()">
       <div class="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pr-0.5">
+      <!-- 备注 -->
+      <div class="shrink-0">
+        <input type="text" id="cashier-note-input" maxlength="30"
+          class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          placeholder="备注（客人姓名 / 电话）">
+      </div>
       <!-- Billete / Chance（单价与顾客端 localStorage 一致，标签由脚本刷新） -->
       <div class="flex gap-2 mb-0 shrink-0">
         <button type="button" id="cashier-btn-billete" onclick="setMerchantCashierGameType('BILLETE')"
@@ -752,6 +758,18 @@
     })();
     try { window.API_BASE = API_BASE; } catch (e) {}
     const DEBUG = false; // 上线设为 false，调试时可改为 true
+
+    /** 备注：按订单号存取，保存在 localStorage */
+    function getOrderNote(num) {
+      try { return JSON.parse(localStorage.getItem('lottery_order_notes') || '{}')[String(num)] || ''; } catch(e) { return ''; }
+    }
+    function saveOrderNote(num, note) {
+      try {
+        var m = JSON.parse(localStorage.getItem('lottery_order_notes') || '{}');
+        if (note) m[String(num)] = note; else delete m[String(num)];
+        localStorage.setItem('lottery_order_notes', JSON.stringify(m));
+      } catch(e) {}
+    }
 
     /** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
     function esc(v) {
@@ -3154,10 +3172,12 @@
             var fullNum = order.order_number || order.orderNumber;
             var safeFull = String(fullNum || '').replace(/'/g, "\\'");
             var numLen = (order.numbers && order.numbers.length) ? order.numbers.length : 0;
+            var _note = getOrderNote(String(fullNum || ''));
             return '<div class="bg-gray-700 rounded-xl p-3 flex justify-between items-center">' +
               '<div onclick="viewOrder(\'' + safeFull + '\')" class="flex-1 cursor-pointer">' +
               orderPendingLotteryBadgeHtml(order) +
               '<span class="font-mono font-bold">单号 ' + orderLast4(fullNum) + '</span>' +
+              (_note ? '<span class="text-yellow-300 text-xs ml-1">（' + esc(_note) + '）</span>' : '') +
               '<span class="text-gray-400 ml-2">' + numLen + '个号</span></div>' +
               '<div class="text-right">' +
               '<span class="text-xl font-bold text-orange-400">' + Number(order.amount || 0).toFixed(2) + '</span>' +
@@ -3174,8 +3194,9 @@
             var fullNum = order.order_number || order.orderNumber;
             var safeFull = String(fullNum || '').replace(/'/g, "\\'");
             var winAmt = getOrderWinAmount(order);
+            var _note = getOrderNote(String(fullNum || ''));
             return '<div class="bg-gray-700 rounded-lg px-3 py-2 flex justify-between items-center">' +
-              '<button type="button" onclick="viewOrder(\'' + safeFull + '\')" class="text-left flex-1 font-mono text-sm text-emerald-100 hover:underline">' + t('order_short_label') + ' ' + orderLast4(fullNum) + ' · ' + winAmt.toFixed(2) + '</button>' +
+              '<button type="button" onclick="viewOrder(\'' + safeFull + '\')" class="text-left flex-1 font-mono text-sm text-emerald-100 hover:underline">' + t('order_short_label') + ' ' + orderLast4(fullNum) + (_note ? ' <span class="text-yellow-300">（' + esc(_note) + '）</span>' : '') + ' · ' + winAmt.toFixed(2) + '</button>' +
               '<button type="button" onclick="redeemFromList(\'' + safeFull + '\', ' + winAmt + ')" class="ml-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold">' + t('btn_redeem') + '</button>' +
               '</div>';
           }).join('');
@@ -3538,6 +3559,9 @@
         showToast(t('alert_order_id_missing'), 'error');
         return;
       }
+      var _noteInput = document.getElementById('cashier-note-input');
+      var _noteVal = _noteInput ? _noteInput.value.trim() : '';
+      if (_noteVal) saveOrderNote(String(orderNumber), _noteVal);
       const cres = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)) + '/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3739,6 +3763,8 @@
       merchantCashierLines = [];
       merchantCashierHighlightLineIndex = -1;
       merchantCashierScrollToLastAfterRender = false;
+      var _noteEl = document.getElementById('cashier-note-input');
+      if (_noteEl) _noteEl.value = '';
       cashierCloseKeyboard();
       await refreshCashierBetSnap();
       setMerchantCashierGameType('BILLETE');
@@ -3998,8 +4024,9 @@
           var rowBg = isWon ? 'bg-emerald-900/40 border-l-4 border-emerald-500' : 'bg-gray-700';
           var statusCls = isWon ? 'text-emerald-300 font-medium' : 'text-gray-400';
           var amtCls = isWon ? 'text-emerald-300' : 'text-green-400';
+          var _note = getOrderNote(num);
           return '<div class="period-order-row flex justify-between items-center ' + rowBg + ' rounded-lg px-3 py-2 cursor-pointer hover:opacity-90 active:opacity-80" data-order-number="' + safeAttr + '" role="button" tabindex="0">' +
-            '<span class="text-left flex-1 font-mono text-sm font-bold">' + t('order_short_label') + ' ' + orderLast4(num) + '</span>' +
+            '<span class="text-left flex-1 font-mono text-sm font-bold">' + t('order_short_label') + ' ' + orderLast4(num) + (_note ? '<span class="text-yellow-300 font-normal text-xs ml-1">（' + esc(_note) + '）</span>' : '') + '</span>' +
             '<span class="text-xs mr-2 ' + statusCls + '">' + status + '</span>' +
             '<span class="font-bold ' + amtCls + '">$' + amt + '</span>' +
             '</div>';
