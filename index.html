@@ -16,6 +16,10 @@
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     .hidden { display: none !important; }
+    /* 彩种背景色：淡淡的，不影响阅读 */
+    body.lottery-bg-nacional { background-color: #f0fdf4 !important; transition: background-color 0.3s ease; }
+    body.lottery-bg-tica     { background-color: #eff6ff !important; transition: background-color 0.3s ease; }
+    body.lottery-bg-nica     { background-color: #faf5ff !important; transition: background-color 0.3s ease; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen" style="visibility:hidden">
@@ -1775,6 +1779,18 @@
       if (confRow) confRow.classList.toggle('hidden', local);
     }
 
+    /** 根据当前彩种为 body 应用淡背景色（NACIONAL=淡绿 / TICA=淡蓝 / NICA=淡紫） */
+    function updateBodyBgColor() {
+      document.body.classList.remove('lottery-bg-nacional', 'lottery-bg-tica', 'lottery-bg-nica');
+      if (clientLotteryMode === 'TICA') {
+        document.body.classList.add('lottery-bg-tica');
+      } else if (clientLotteryMode === 'NICA') {
+        document.body.classList.add('lottery-bg-nica');
+      } else {
+        document.body.classList.add('lottery-bg-nacional');
+      }
+    }
+
     /** 彩种下方横条：选中 Lotería 全绿、TICA 全蓝、NICA 全紫 */
     function updateClientLotteryDividerBar() {
       var bar = document.getElementById('client-lottery-divider-bar');
@@ -1787,6 +1803,7 @@
       } else {
         bar.className = base + 'bg-green-600';
       }
+      updateBodyBgColor();
     }
 
     function updateClientLotteryModeRow() {
