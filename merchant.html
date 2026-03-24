@@ -5308,15 +5308,18 @@
       // Web Bluetooth 写入（浏览器模式）
       if (!_printerChar) return; // 安全检查：防止 null.properties 崩溃
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
-      for (let i = 0; i < data.length; i += CHUNK) {
-        const chunk = data.slice(i, i + CHUNK);
-        if (canWithout) {
-          await _printerChar.writeValueWithoutResponse(chunk);
-        } else if (_printerChar.writeValueWithResponse) {
-          await _printerChar.writeValueWithResponse(chunk);
-        } else {
-          await _printerChar.writeValue(chunk);
-        }
+      const WEB_CHUNK = 20; // Web BLE MTU 最小 20 字节，与 APP 保持一致避免乱码
+      for (let i = 0; i < data.length; i += WEB_CHUNK) {
+        const chunk = data.slice(i, i + WEB_CHUNK);
+        try {
+          if (canWithout) {
+            await _printerChar.writeValueWithoutResponse(chunk);
+          } else if (_printerChar.writeValueWithResponse) {
+            await _printerChar.writeValueWithResponse(chunk);
+          } else {
+            await _printerChar.writeValue(chunk);
+          }
+        } catch(e) {}
         await new Promise(r => setTimeout(r, 5));
       }
     }
