@@ -341,8 +341,12 @@
         <button onclick="closeModal('modal-chance')" class="text-gray-400">✕</button>
       </div>
       <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
-        <span id="chance-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+        <span class="text-gray-400">Chance <span data-i18n="chance_modal_sales_label">销售额</span></span>
+        <span id="chance-modal-sales" class="text-blue-400 font-bold text-lg">$0.00</span>
+      </div>
+      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+        <span class="text-gray-400" data-i18n="total_sales_label">总销售额</span>
+        <span id="chance-modal-total-sales" class="text-green-400 font-bold text-lg">$0.00</span>
       </div>
 
       <div id="chance-grid" class="grid grid-cols-10 gap-1 text-xs">
@@ -364,8 +368,12 @@
         <button onclick="closeModal('modal-billete')" class="text-gray-400">✕</button>
       </div>
       <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
-        <span id="billete-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+        <span class="text-gray-400">Billete <span data-i18n="billete_modal_sales_label">销售额</span></span>
+        <span id="billete-modal-sales" class="text-amber-400 font-bold text-lg">$0.00</span>
+      </div>
+      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+        <span class="text-gray-400" data-i18n="total_sales_label">总销售额</span>
+        <span id="billete-modal-total-sales" class="text-green-400 font-bold text-lg">$0.00</span>
       </div>
 
       <div id="billete-list" class="space-y-1 max-h-96 overflow-y-auto">
@@ -874,6 +882,9 @@
         billete_hot: 'Billete',
         view_all: '查看全部 →',
         no_data: '暂无数据',
+        chance_modal_sales_label: '销售额',
+        billete_modal_sales_label: '销售额',
+        total_sales_label: '总销售额',
         after_draw_cleared: '开奖后已清空',
         settings_title: '⚙️ 销售限额',
         chance_limit_label: 'Chance 每号最多',
@@ -1165,6 +1176,9 @@
         billete_hot: 'Billete',
         view_all: 'Ver todo →',
         no_data: 'Sin datos',
+        chance_modal_sales_label: 'Ventas',
+        billete_modal_sales_label: 'Ventas',
+        total_sales_label: 'Ventas totales',
         after_draw_cleared: 'Borrado tras el sorteo',
         settings_title: '⚙️ Límites y precios',
         chance_limit_label: 'Chance máx. por número',
@@ -3165,9 +3179,11 @@
       }
 
       var chSalesEl = document.getElementById('chance-modal-sales');
-      if (chSalesEl) {
+      if (chSalesEl) chSalesEl.textContent = '$' + chanceSalesAmount.toFixed(2);
+      var chTotalEl = document.getElementById('chance-modal-total-sales');
+      if (chTotalEl) {
         var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
-        chSalesEl.textContent = '$' + total.toFixed(2);
+        chTotalEl.textContent = '$' + total.toFixed(2);
       }
 
       document.getElementById('modal-chance').classList.remove('hidden');
@@ -3232,9 +3248,11 @@
       }
 
       var biSalesEl = document.getElementById('billete-modal-sales');
-      if (biSalesEl) {
+      if (biSalesEl) biSalesEl.textContent = '$' + billeteSalesAmount.toFixed(2);
+      var biTotalEl = document.getElementById('billete-modal-total-sales');
+      if (biTotalEl) {
         var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
-        biSalesEl.textContent = '$' + total.toFixed(2);
+        biTotalEl.textContent = '$' + total.toFixed(2);
       }
 
       document.getElementById('modal-billete').classList.remove('hidden');
