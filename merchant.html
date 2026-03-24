@@ -699,6 +699,7 @@
         <button type="button" id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 min-w-[30%] bg-red-700 text-white py-4 rounded-xl font-bold" data-i18n="btn_delete">🗑 删除</button>
         <button type="button" id="modal-btn-confirm-pay" onclick="confirmPayment()" class="hidden flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_confirm_pay">确认收款</button>
         <button type="button" id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 min-w-[40%] bg-amber-500 text-white py-4 rounded-xl font-bold" data-i18n="redeem_title">兑奖</button>
+        <button type="button" id="modal-btn-reorder" onclick="reorderToCashier()" class="hidden w-full bg-blue-600 text-white py-4 rounded-xl font-bold">🔄 重新下单</button>
       </div>
     </div>
   </div>
@@ -4063,13 +4064,18 @@
 
       // 按钮显隐：未付款→确认付款，已中奖未兑→兑奖；待付款/已付款可修改（已开奖/已中奖后端拒绝）
       var isPending = order.status === 0 || order.status === 'pending';
-      var isWonNotRedeemed = isWon && !(order.redeemed_at && order.redeemed_at !== '' && order.redeemed_at !== 'null');
+      var isRedeemed = !!(order.redeemed_at && order.redeemed_at !== '' && order.redeemed_at !== 'null');
+      var isWonNotRedeemed = isWon && !isRedeemed;
+      var isSettledNoWin = (order.status === 2 || order.status === 'settled') && !isWon;
+      var canReorder = isSettledNoWin || (isWon && isRedeemed);
       var canModifyOrder = isPending || order.status === 1 || order.status === 'paid';
       document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
       document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
       document.getElementById('modal-btn-print').classList.remove('hidden');
       var modBtn = document.getElementById('modal-btn-modify');
       if (modBtn) modBtn.classList.toggle('hidden', !canModifyOrder);
+      var reorderBtn = document.getElementById('modal-btn-reorder');
+      if (reorderBtn) reorderBtn.classList.toggle('hidden', !canReorder);
 
       // 备注区
       var _noteNum = String(order.order_number || order.orderNumber || '');
@@ -4095,6 +4101,43 @@
       if (!currentOrder) return;
       closeModal('modal-order');
       showRedeemModal(currentOrder, currentOrder._hash);
+    }
+
+    // 从历史订单详情重新代客下单（填入相同号码打开代客下单弹窗）
+    async function reorderToCashier() {
+      if (!currentOrder) return;
+      var numbers = currentOrder.numbers || [];
+      if (!numbers.length) { showToast(t('no_orders'), 'error'); return; }
+      closeModal('modal-order');
+      // 刷新停售状态后打开代客下单弹窗
+      mergeMerchantShopLocalFlags(currentShop);
+      merchantWorkbenchKind = getMerchantWorkbenchKind();
+      await refreshCashierBetSnap();
+      // 填入历史号码
+      merchantCashierLines = [];
+      var _pb = 1, _pc = 0.25;
+      try { var _v = parseFloat(localStorage.getItem('price_billete')); if (!isNaN(_v) && _v > 0) _pb = _v; } catch(e) {}
+      try { var _v2 = parseFloat(localStorage.getItem('price_chance')); if (!isNaN(_v2) && _v2 > 0) _pc = _v2; } catch(e) {}
+      numbers.forEach(function(item) {
+        var n = String(item.n != null ? item.n : (item.number || '')).replace(/\D/g, '');
+        var q = Math.max(1, parseInt(item.q != null ? item.q : (item.quantity || 1), 10) || 1);
+        var isBi = n.length >= 4;
+        var unitPrice = isBi ? _pb : _pc;
+        var existing = merchantCashierLines.find(function(l) { return l.n === n; });
+        if (existing) { existing.q += q; }
+        else { merchantCashierLines.push({ n: n, q: q, isBi: isBi, unitPrice: unitPrice }); }
+      });
+      merchantCashierHighlightLineIndex = -1;
+      merchantCashierScrollToLastAfterRender = false;
+      var _noteEl = document.getElementById('cashier-note-input');
+      if (_noteEl) _noteEl.value = '';
+      cashierCloseKeyboard();
+      // 根据第一条号码切换游戏类型
+      var firstIsBi = merchantCashierLines.length > 0 ? merchantCashierLines[0].isBi : true;
+      setMerchantCashierGameType(firstIsBi ? 'BILLETE' : 'CHANCE');
+      renderMerchantCashierLines();
+      var modal = document.getElementById('modal-cashier-order');
+      if (modal) modal.classList.remove('hidden');
     }
 
     function confirmDeleteOrder() {
