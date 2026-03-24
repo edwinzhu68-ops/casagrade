@@ -234,10 +234,24 @@
         </div>
       </div>
 
-      <!-- Chance 热门号码（开奖后清空） -->
+      <!-- Chance / Billete 销售额 -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-gray-900/60 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-400 mb-1" data-i18n="chance_sales_label">Chance 销售额</p>
+            <p class="text-2xl font-bold text-blue-400" id="merchant-chance-sales">0.00</p>
+          </div>
+          <div class="bg-gray-900/60 rounded-xl p-3 text-center">
+            <p class="text-xs text-gray-400 mb-1" data-i18n="billete_sales_label">Billete 销售额</p>
+            <p class="text-2xl font-bold text-amber-400" id="merchant-billete-sales">0.00</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chance 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold" data-i18n="chance_hot">Chance 热门号码</h3>
+          <h3 class="font-bold" data-i18n="chance_hot">Chance</h3>
           <button id="btn-chance-viewall" onclick="showChanceDetail()" class="text-blue-400 text-sm" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="chance-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -245,10 +259,10 @@
         </div>
       </div>
 
-      <!-- Billete 热门号码（开奖后清空） -->
+      <!-- Billete 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4 relative z-10">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold" data-i18n="billete_hot">Billete 热门号码</h3>
+          <h3 class="font-bold" data-i18n="billete_hot">Billete</h3>
           <button type="button" id="btn-billete-viewall" onclick="showBilleteDetail()" class="text-blue-400 text-sm font-medium cursor-pointer hover:text-blue-300 hover:underline relative z-10 py-1 px-2 -m-2" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="billete-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -870,8 +884,10 @@
         forgot_email_placeholder: '输入邮箱',
         forgot_cancel: '取消',
         forgot_send: '发送',
-        chance_hot: 'Chance 热门号码',
-        billete_hot: 'Billete 热门号码',
+        chance_sales_label: 'Chance 销售额',
+        billete_sales_label: 'Billete 销售额',
+        chance_hot: 'Chance',
+        billete_hot: 'Billete',
         view_all: '查看全部 →',
         no_data: '暂无数据',
         after_draw_cleared: '开奖后已清空',
@@ -1161,8 +1177,10 @@
         forgot_email_placeholder: 'Tu correo electrónico',
         forgot_cancel: 'Cancelar',
         forgot_send: 'Enviar',
-        chance_hot: 'Chance más jugados',
-        billete_hot: 'Billete más jugados',
+        chance_sales_label: 'Ventas Chance',
+        billete_sales_label: 'Ventas Billete',
+        chance_hot: 'Chance',
+        billete_hot: 'Billete',
         view_all: 'Ver todo →',
         no_data: 'Sin datos',
         after_draw_cleared: 'Borrado tras el sorteo',
@@ -2967,7 +2985,8 @@
         // 计算销量（当期订单）
         calculateSales();
 
-        // 渲染TOP10
+        // 渲染 Chance / Billete 销售额 + TOP12
+        renderSalesAmount();
         renderChanceTop10();
         renderBilleteTop10();
 
@@ -2987,9 +3006,13 @@
     }
 
     // 计算销量：只统计本期已付款订单（与本期订单、本期销售额一致）；开奖后不再用全部已付款兜底，热门号码清空
+    var chanceSalesAmount = 0;
+    var billeteSalesAmount = 0;
     function calculateSales() {
       chanceSales = {};
       billeteSales = {};
+      chanceSalesAmount = 0;
+      billeteSalesAmount = 0;
       var paidOrders = (ordersForCurrentDraw && ordersForCurrentDraw.length) ? ordersForCurrentDraw : [];
       if (DEBUG) {
         var gtCounts = {};
@@ -3009,6 +3032,9 @@
       paidOrders.forEach(function (order) {
         var list = order.numbers || order.bet_numbers || [];
         if (!list.length) return;
+        var totalQty = list.reduce(function (s, x) {
+          return s + (Number(x.q != null ? x.q : x.quantity) || 0);
+        }, 0) || 1;
         list.forEach(function (n) {
           var q = Number(n.q != null ? n.q : n.quantity) || 0;
           var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
@@ -3017,12 +3043,22 @@
           if (str.length >= 4) {
             var numBi = str.slice(-4).padStart(4, '0');
             if (numBi.length === 4) billeteSales[numBi] = (billeteSales[numBi] || 0) + q;
+            billeteSalesAmount += q * Number(order.amount || 0) / totalQty;
           } else if (str.length >= 2) {
             var numCh = str.slice(-2).padStart(2, '0');
             if (numCh.length === 2) chanceSales[numCh] = (chanceSales[numCh] || 0) + q;
+            chanceSalesAmount += q * Number(order.amount || 0) / totalQty;
           }
         });
       });
+    }
+
+    // 渲染 Chance / Billete 销售额
+    function renderSalesAmount() {
+      var chanceEl = document.getElementById('merchant-chance-sales');
+      var billeteEl = document.getElementById('merchant-billete-sales');
+      if (chanceEl) chanceEl.textContent = chanceSalesAmount.toFixed(2);
+      if (billeteEl) billeteEl.textContent = billeteSalesAmount.toFixed(2);
     }
 
     // Chance TOP12（按销量排序前12个号码；开奖后本期销量会清空，自然显示暂无数据）
@@ -4257,6 +4293,9 @@
           return s === 'paid' || s === 1 || s === 2 || s === 'settled' || s === 3 || s === 'won';
         });
         calculateSales();
+        renderSalesAmount();
+        renderChanceTop10();
+        renderBilleteTop10();
         renderPeriodOrderList(document.getElementById('period-order-filter') ? document.getElementById('period-order-filter').value : '');
         loadDashboard();
       } catch (err) {
