@@ -4934,24 +4934,34 @@
     }
 
     /**
+     * Uint8Array → 无空格小写 hex 字符串（@capacitor-community/bluetooth-le v8 要求的格式）
+     * 与插件内部 dataViewToHexString 输出一致，如 [0x1B,0x40] → "1b40"
+     */
+    function _toCapHex(u8) {
+      var hex = '';
+      for (var i = 0; i < u8.length; i++) hex += u8[i].toString(16).padStart(2, '0');
+      return hex;
+    }
+
+    /**
      * 为 Capacitor BLE 连接创建与 Web Bluetooth 兼容的 _printerChar 包装器。
      * 这样 sendToPrinter / keepAlive / isPrinterConnected 统一走 Web 逻辑，无需 CAP 分支。
      */
     function _makeCapPrinterChar(deviceId, serviceUUID, charUUID, canWriteWithout) {
-      function toB64(data) {
+      function toHex(data) {
         var u8 = data instanceof Uint8Array ? data : new Uint8Array(data.buffer || data);
-        return _toB64(u8);
+        return _toCapHex(u8);
       }
       return {
         properties: { write: true, writeWithoutResponse: canWriteWithout },
         writeValueWithResponse: async function(data) {
-          await _CapBle.write({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toB64(data) });
+          await _CapBle.write({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toHex(data) });
         },
         writeValueWithoutResponse: async function(data) {
-          await _CapBle.writeWithoutResponse({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toB64(data) });
+          await _CapBle.writeWithoutResponse({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toHex(data) });
         },
         writeValue: async function(data) {
-          await _CapBle.write({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toB64(data) });
+          await _CapBle.write({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toHex(data) });
         }
       };
     }
