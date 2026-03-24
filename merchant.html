@@ -4841,9 +4841,8 @@
       return false;
     }
 
-    /** 登录/进入收银台后：静默重连（APP 模式跳过，每次手动选设备） */
+    /** 登录/进入收银台后：静默重连 */
     async function checkPrinterOnLogin() {
-      if (_isCapApp) return; // APP 关闭即断连，重开需手动选打印机
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       const reason = printUnsupportedReason();
       if (reason) {
@@ -4855,9 +4854,8 @@
     }
 
     let _printerVisibilityReconnectAt = 0;
-    /** 刷新、从后台切回、前进后退缓存恢复时尝试静默重连（APP 模式不自动重连） */
+    /** 刷新、从后台切回、前进后退缓存恢复时尝试静默重连 */
     async function trySilentPrinterReconnectOnResume() {
-      if (_isCapApp) return;
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       if (printUnsupportedReason()) return;
       if (isPrinterConnected()) return;
