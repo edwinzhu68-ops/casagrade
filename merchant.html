@@ -5104,11 +5104,6 @@
           _reconnectTimer = setTimeout(function() { autoReconnectPrinter(); }, 500);
         });
         _capDisconnectHandlerId = handler;
-          stopPrinterKeepAlive();
-          updatePrinterStatusUI();
-          if (_reconnectTimer) clearTimeout(_reconnectTimer);
-          _reconnectTimer = setTimeout(function() { autoReconnectPrinter(); }, 500);
-        });
       } catch(e) {}
       // 先获取全部服务，再遍历特征，找到可写特征即可（避免 UUID 不匹配漏掉）
       var found = false;
