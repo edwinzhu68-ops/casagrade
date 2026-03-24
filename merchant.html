@@ -2349,11 +2349,34 @@
             requestAnimationFrame(tick);
           };
         })
-        .catch(function (err) {
+        .catch(async function (err) {
           document.getElementById('scan-form-area').classList.remove('hidden');
           document.getElementById('scan-camera-area').classList.add('hidden');
-          showToast(t('alert_camera_denied') + ' (' + (err.message || '') + ')', 'error');
+          // 检测权限拒绝错误，弹出设置引导
+          var isPermissionDenied = (
+            err.name === 'NotAllowedError' ||
+            err.name === 'PermissionDeniedError' ||
+            (err.message && /permission|denied|not allowed|camera/i.test(err.message))
+          );
+          if (isPermissionDenied && _isCapApp) {
+            showPermissionDeniedDialog();
+          } else {
+            showToast(t('alert_camera_denied') + ' (' + (err.message || '') + ')', 'error');
+          }
         });
+    }
+
+    /** 权限被拒绝对话框（仅 APP 模式） */
+    function showPermissionDeniedDialog() {
+      var msg = 'La cámara está bloqueada. Por favor activa el permiso de cámara en Ajustes para escanear.';
+      var confirmed = confirm(msg + '\n\n¿Abrir Ajustes ahora?');
+      if (confirmed && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AppLauncher) {
+        try {
+          window.Capacitor.Plugins.AppLauncher.openUrl({
+            url: 'package:com.casagrade.lottery.merchant'
+          }).catch(function() {});
+        } catch(e) {}
+      }
     }
 
     function stopQrScan() {
