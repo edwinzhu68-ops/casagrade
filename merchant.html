@@ -5672,8 +5672,10 @@
         if (!numStr) return;
         const isBil  = numStr.length >= 4;
         const lineAmt = '$' + (qty * (isBil ? 1 : 0.25)).toFixed(2);
-        // 号码和金额大字加粗
-        rowBig(numStr + ' x' + qty, lineAmt);
+        // 号码和金额：正常大小加粗
+        push(...BON);
+        row(numStr + ' x' + qty, lineAmt);
+        push(...BOFF);
       });
 
       txt(DIV); LF();
