@@ -5088,13 +5088,16 @@
       if (!text || typeof QRCode === 'undefined' || typeof QRCode.toCanvas !== 'function') return [];
       const qrCanvas = document.createElement('canvas');
       try {
-        await new Promise((resolve, reject) => {
-          QRCode.toCanvas(qrCanvas, text, {
-            width: 220, margin: 2,
-            color: { dark: '#000000', light: '#ffffff' },
-            errorCorrectionLevel: 'H'
-          }, (err) => err ? reject(err) : resolve());
-        });
+        await Promise.race([
+          new Promise((resolve, reject) => {
+            QRCode.toCanvas(qrCanvas, text, {
+              width: 220, margin: 2,
+              color: { dark: '#000000', light: '#ffffff' },
+              errorCorrectionLevel: 'H'
+            }, (err) => err ? reject(err) : resolve());
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('QR timeout')), 3000))
+        ]);
       } catch (e) { return []; }
       const ctx = qrCanvas.getContext('2d');
       const w = qrCanvas.width, h = qrCanvas.height;
