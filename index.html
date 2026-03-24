@@ -1849,6 +1849,8 @@
       apply(bL, true, clientLotteryMode === 'NACIONAL');
       apply(bT, !!(currentShop && currentShop.tica_enabled), clientLotteryMode === 'TICA');
       apply(bN, !!(currentShop && currentShop.nica_enabled), clientLotteryMode === 'NICA');
+      // 按钮状态和标签必须始终同步
+      syncBilletePaletLabel();
     }
 
     function setClientLotteryMode(mode) {
