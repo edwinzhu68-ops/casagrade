@@ -4868,6 +4868,7 @@
         var name = dev.name || result.localName || result.name || '';
         var rssi = result.rssi;
         if (!id) return;
+        if (!name) return; // 隐藏无名设备
         _devices[id] = { name: name, rssi: rssi };
         _render();
         var statusEl = document.getElementById('ble-picker-status');
@@ -5334,11 +5335,22 @@
       }
     }
 
-    /** 断连后自动重试（APP 模式不自动重连，Web BLE 用 _printerDevice 引用） */
+    /** 断连后自动重试 */
     async function autoReconnectPrinter() {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
-      if (_isCapApp) return; // APP 断连后需手动重新选设备
       if (_isCapApp && _CapBle) {
+        const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
+        const savedName = localStorage.getItem('lottery_printer_name') || '';
+        if (!savedId) return;
+        const delays = [1000, 3000, 6000, 12000];
+        for (const delay of delays) {
+          try {
+            await new Promise(r => setTimeout(r, delay));
+            if (_capDeviceId) return; // 已被其他路径重连
+            const ok = await _doConnectCap(savedId, savedName, false);
+            if (ok) return;
+          } catch {}
+        }
         return;
       }
       if (!_printerDevice) return;
