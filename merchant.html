@@ -3748,9 +3748,11 @@
       fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)))
         .then(function (r) { return r.json(); })
         .then(function (order) {
-          autoPrintOrder(order);
-          var toggle = document.getElementById('cashier-eticket-toggle');
-          if (toggle && toggle.checked) {
+          var etToggle = document.getElementById('cashier-eticket-toggle');
+          var isEtEnabled = etToggle && etToggle.checked;
+          // 互斥模式：电子单开→只出电子单；电子单关→只出纸单
+          if (!isEtEnabled) autoPrintOrder(order);
+          if (isEtEnabled) {
             fillCashierEticket(order);
             showCashierEticket();
           }
@@ -4543,9 +4545,9 @@
         if (fresh) {
           showOrderDetail(fresh, currentOrder._hash);
           // 与「确认收款」一致：已启用打印且已连接时，用最新订单数据自动出票
-          try {
-            autoPrintOrder(fresh);
-          } catch (ePrint) {}
+          var etToggle = document.getElementById('cashier-eticket-toggle');
+          var isEtEnabled = etToggle && etToggle.checked;
+          if (!isEtEnabled) { try { autoPrintOrder(fresh); } catch (ePrint) {} }
         } else {
           exitOrderDetailEdit();
         }
@@ -4582,10 +4584,14 @@
         if (res.ok) {
           showPaymentSuccessToast();
           // 用确认后最新数据打印，与 quickConfirm 保持一致
-          fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`)
-            .then(r => r.json())
-            .then(freshOrder => autoPrintOrder(freshOrder))
-            .catch(() => autoPrintOrder(currentOrder));
+          var etToggle = document.getElementById('cashier-eticket-toggle');
+          var isEtEnabled = etToggle && etToggle.checked;
+          if (!isEtEnabled) {
+            fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`)
+              .then(r => r.json())
+              .then(freshOrder => autoPrintOrder(freshOrder))
+              .catch(() => autoPrintOrder(currentOrder));
+          }
           closeModal('modal-order');
           loadDashboard();
         } else {
