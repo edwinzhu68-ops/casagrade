@@ -604,6 +604,41 @@
     </div>
   </div>
 
+  <!-- 订单详情电子单截图区（屏外，仅供 html2canvas 截图，不显示给用户） -->
+  <div id="order-detail-eticket-body" class="bg-white p-5 space-y-3 w-80" style="position:fixed;left:-9999px;top:0;z-index:-1;">
+    <div class="text-center pb-2 border-b border-gray-200">
+      <p class="text-xs text-gray-400 mb-1">casagrade · Lotería</p>
+      <p class="text-xl font-bold font-mono text-gray-900" id="odet-shop">--</p>
+    </div>
+    <div class="flex justify-center">
+      <div id="odet-qr" class="bg-white p-2 rounded-xl shadow-inner inline-block border border-gray-100"></div>
+    </div>
+    <div class="flex justify-between text-sm">
+      <span class="text-gray-500">N.º de pedido</span>
+      <span class="font-mono font-bold text-gray-800" id="odet-order-id">--</span>
+    </div>
+    <div class="flex justify-between text-sm">
+      <span class="text-gray-500">Fecha</span>
+      <span class="text-gray-700" id="odet-placed-at">--</span>
+    </div>
+    <div>
+      <p class="text-xs text-gray-400 mb-1">Números y cantidades</p>
+      <div id="odet-lines" class="text-sm text-gray-700 space-y-0.5"></div>
+    </div>
+    <div class="border-t border-gray-200 pt-3 flex justify-between items-center">
+      <span class="font-bold text-gray-800">Total</span>
+      <span class="text-2xl font-bold text-green-600">$<span id="odet-amount">0</span></span>
+    </div>
+    <div id="odet-note-box" class="hidden rounded-xl bg-yellow-50 border border-yellow-300 px-3 py-2">
+      <p class="text-xs text-yellow-700 font-bold" id="odet-note-text"></p>
+    </div>
+    <div class="rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 px-3 py-2.5 text-center">
+      <p class="text-[11px] text-green-700 font-bold leading-snug">📱 ¡Haz tu pedido desde casa, sin filas!</p>
+      <p class="text-[10px] text-green-600 mt-0.5">Escanea · Elige · Apuesta — todo desde tu celular</p>
+      <p class="text-[11px] font-bold text-green-800 mt-1 tracking-wide">www.casagrade.com</p>
+    </div>
+  </div>
+
   <!-- 订单详情弹窗（z 高于本期订单弹窗，点单号时详情盖在本期订单上） -->
   <div id="modal-order" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)closeOrderDetailModal()">
     <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
@@ -656,6 +691,9 @@
         <button type="button" onclick="saveOrderDetailEdit()" class="flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="order_edit_save">保存修改</button>
       </div>
       <div id="modal-order-actions-normal" class="flex gap-3 flex-wrap">
+        <button type="button" id="modal-btn-whatsapp" onclick="shareOrderDetailWhatsApp()" class="flex-1 min-w-[30%] bg-[#25D366] text-white py-4 rounded-xl font-bold flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.121.555 4.112 1.526 5.837L0 24l6.318-1.508A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.886 0-3.655-.49-5.187-1.345L2 22l1.368-4.729A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+        </button>
         <button type="button" id="modal-btn-modify" onclick="enterOrderDetailEdit()" class="hidden flex-1 min-w-[30%] bg-amber-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_modify_order">修改</button>
         <button type="button" id="modal-btn-print" onclick="printCurrentOrder()" class="flex-1 min-w-[30%] bg-blue-600 text-white py-4 rounded-xl font-bold">🖨️</button>
         <button type="button" id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 min-w-[30%] bg-red-700 text-white py-4 rounded-xl font-bold" data-i18n="btn_delete">🗑 删除</button>
@@ -3688,6 +3726,86 @@
         if (btn) { btn.disabled = false; btn.innerHTML = whatsappIconHtml; }
       }
     }
+    // ── 订单详情 WhatsApp 分享 ─────────────────────────────────
+    async function shareOrderDetailWhatsApp() {
+      if (!currentOrder) return;
+      var btn = document.getElementById('modal-btn-whatsapp');
+      var origHtml = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+      var order = currentOrder;
+      var orderNum = String(order.order_number || order.orderNumber || '--');
+
+      // 填充截图区
+      var shopEl  = document.getElementById('odet-shop');
+      var idEl    = document.getElementById('odet-order-id');
+      var dateEl  = document.getElementById('odet-placed-at');
+      var linesEl = document.getElementById('odet-lines');
+      var amtEl   = document.getElementById('odet-amount');
+      var noteBox = document.getElementById('odet-note-box');
+      var noteTxt = document.getElementById('odet-note-text');
+      var qrEl    = document.getElementById('odet-qr');
+
+      if (shopEl) shopEl.textContent = currentShop ? ('Tienda #' + currentShop.shop_number) : '--';
+      if (idEl)   idEl.textContent = orderNum;
+      if (dateEl) {
+        var d = order.created_at ? new Date(order.created_at) : new Date();
+        dateEl.textContent = d.toLocaleString('es-PA', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      }
+      if (linesEl) {
+        linesEl.innerHTML = '';
+        (order.numbers || []).forEach(function (item) {
+          var numStr = String(item.n != null ? item.n : (item.number != null ? item.number : ''));
+          var qty = Number(item.q != null ? item.q : (item.quantity != null ? item.quantity : 1)) || 1;
+          var unitPrice = numStr.replace(/\D/g, '').length >= 4 ? 1 : 0.25;
+          var row = document.createElement('div');
+          row.className = 'flex justify-between';
+          row.innerHTML = '<span class="font-mono">' + numStr + '</span><span class="text-gray-500">×' + qty + ' = $' + (qty * unitPrice).toFixed(2) + '</span>';
+          linesEl.appendChild(row);
+        });
+      }
+      if (amtEl) amtEl.textContent = parseFloat(order.amount || 0).toFixed(2);
+
+      var _note = getOrderNote(orderNum);
+      if (noteBox && noteTxt) {
+        noteTxt.textContent = _note ? ('备注：' + _note) : '';
+        noteBox.classList.toggle('hidden', !_note);
+      }
+
+      // QR
+      if (qrEl) {
+        qrEl.innerHTML = '';
+        var lk = (order.lottery_kind || order.lotteryKind || order.lottery_type || order.game_type || '').toUpperCase();
+        if (lk !== 'TICA' && lk !== 'NICA') lk = 'NACIONAL';
+        var payload = { type: 'lottery_order', orderId: order.id || order.order_id || null,
+          orderNumber: orderNum, orderHash: order.order_hash || order.orderHash || null,
+          amount: order.amount, shopId: currentShop ? currentShop.shop_id : null, lotteryKind: lk };
+        var QR = typeof QRCode !== 'undefined' ? QRCode : null;
+        if (QR && typeof QR.toCanvas === 'function') {
+          var qrCanvas = document.createElement('canvas');
+          qrEl.appendChild(qrCanvas);
+          await new Promise(function (resolve) {
+            QR.toCanvas(qrCanvas, JSON.stringify(payload), { width: 180, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#000000', light: '#ffffff' } }, resolve);
+          });
+        }
+      }
+
+      try {
+        var body = document.getElementById('order-detail-eticket-body');
+        var canvas = await html2canvas(body, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        canvas.toBlob(async function (blob) {
+          var file = new File([blob], 'pedido_' + orderNum + '.png', { type: 'image/png' });
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file] }); if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } return; } catch (e) {}
+          }
+          var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+          a.download = 'pedido_' + orderNum + '.png'; a.click();
+          if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+        }, 'image/png');
+      } catch (e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+      }
+    }
+
     // ── 电子单弹窗结束 ─────────────────────────────────────────
 
     async function submitMerchantCashierOrderAfterOverLimitTrim() {
