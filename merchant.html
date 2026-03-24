@@ -648,7 +648,7 @@
       </div>
       <div id="modal-order-actions-normal" class="flex gap-3 flex-wrap">
         <button type="button" id="modal-btn-modify" onclick="enterOrderDetailEdit()" class="hidden flex-1 min-w-[30%] bg-amber-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_modify_order">修改</button>
-        <button type="button" id="modal-btn-print" onclick="printCurrentOrder()" class="hidden flex-1 min-w-[30%] bg-blue-600 text-white py-4 rounded-xl font-bold">🖨️</button>
+        <button type="button" id="modal-btn-print" onclick="printCurrentOrder()" class="flex-1 min-w-[30%] bg-blue-600 text-white py-4 rounded-xl font-bold">🖨️</button>
         <button type="button" id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 min-w-[30%] bg-red-700 text-white py-4 rounded-xl font-bold" data-i18n="btn_delete">🗑 删除</button>
         <button type="button" id="modal-btn-confirm-pay" onclick="confirmPayment()" class="hidden flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_confirm_pay">确认收款</button>
         <button type="button" id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 min-w-[40%] bg-amber-500 text-white py-4 rounded-xl font-bold" data-i18n="redeem_title">兑奖</button>
@@ -3940,7 +3940,7 @@
       var canModifyOrder = isPending || order.status === 1 || order.status === 'paid';
       document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
       document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
-      document.getElementById('modal-btn-print').classList.toggle('hidden', !isPrinterConnected());
+      document.getElementById('modal-btn-print').classList.remove('hidden');
       var modBtn = document.getElementById('modal-btn-modify');
       if (modBtn) modBtn.classList.toggle('hidden', !canModifyOrder);
 
@@ -5410,6 +5410,10 @@
     }
     async function printCurrentOrder() {
       if (!currentOrder) return;
+      if (!isPrinterConnected()) {
+        connectPrinter();
+        return;
+      }
       const btn = document.getElementById('modal-btn-print');
       if (btn) btn.disabled = true;
       const orderNumber = currentOrder.order_number || currentOrder.orderNumber;
