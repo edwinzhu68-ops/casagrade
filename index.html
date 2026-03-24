@@ -3515,10 +3515,6 @@
               showPage('page-shop');
               startClientStopCountdown();
               updateHeaderAccount();
-              // 如果有保存的订单号，自动打开
-              if (lastOrder) {
-                openClientOrderDetail(lastOrder);
-              }
               show();
             }).catch(function() {
               showPage('page-home');
@@ -3529,10 +3525,6 @@
         }
       } catch (e) {}
       showPage('page-home');
-      // 如果有保存的订单号，自动打开
-      if (lastOrder) {
-        openClientOrderDetail(lastOrder);
-      }
       show();
     })();
 
