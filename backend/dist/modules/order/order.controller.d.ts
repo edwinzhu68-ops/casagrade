@@ -155,6 +155,22 @@ export declare class ShopController {
         tica_enabled: boolean;
         nica_enabled: boolean;
     }>;
+    updateShopRates(shopId: string, body: {
+        rateBillete1?: number | null;
+        rateBillete2?: number | null;
+        rateBillete3?: number | null;
+        rateChance1?: number | null;
+        rateChance2?: number | null;
+        rateChance3?: number | null;
+    }): Promise<{
+        success: boolean;
+        rate_billete_1: any;
+        rate_billete_2: any;
+        rate_billete_3: any;
+        rate_chance_1: any;
+        rate_chance_2: any;
+        rate_chance_3: any;
+    }>;
     getShopOrders(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string): Promise<{
         shopId: number;
         shopNumber: string;

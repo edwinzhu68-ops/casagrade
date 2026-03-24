@@ -18,11 +18,12 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("typeorm");
 const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
+const shop_entity_1 = require("../../entities/shop.entity");
 const admin_token_guard_1 = require("../../guards/admin-token.guard");
 const draw_day_service_1 = require("./draw-day.service");
 const draw_queries_1 = require("../../utils/draw-queries");
 const draw_period_no_1 = require("../../utils/draw-period-no");
-const BILLETE_RATE = {
+const BILLETE_RATE_DEFAULT = {
     exact: [2000, 600, 300],
     first3: [50, 20, 10],
     last3: [50, 20, 10],
@@ -30,8 +31,24 @@ const BILLETE_RATE = {
     last2: [3, 2, 1],
     last1: [1, 0, 0],
 };
-const CHANCE_RATE = [14, 3, 2];
-function calcBilletePrizeForOneDraw(betNum, winRaw, qty, prizeIndex) {
+function shopExactRates(shop) {
+    if (!shop)
+        return [2000, 600, 300];
+    const r1 = shop.rate_billete_1 != null ? Number(shop.rate_billete_1) : 2000;
+    const r2 = shop.rate_billete_2 != null ? Number(shop.rate_billete_2) : 600;
+    const r3 = shop.rate_billete_3 != null ? Number(shop.rate_billete_3) : 300;
+    return [r1, r2, r3];
+}
+function shopChanceRates(shop) {
+    if (!shop)
+        return [14, 3, 2];
+    const r1 = shop.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14;
+    const r2 = shop.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3;
+    const r3 = shop.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2;
+    return [r1, r2, r3];
+}
+const CHANCE_RATE_DEFAULT = [14, 3, 2];
+function calcBilletePrizeForOneDraw(betNum, winRaw, qty, prizeIndex, exactRates = [2000, 600, 300]) {
     const originalLen = winRaw.replace(/\D/g, '').length;
     if (qty <= 0 || originalLen < 2)
         return 0;
@@ -40,21 +57,21 @@ function calcBilletePrizeForOneDraw(betNum, winRaw, qty, prizeIndex) {
     const w = (wDigits.length > 4 ? wDigits.slice(-4) : wDigits).padStart(4, '0');
     if (originalLen < 4) {
         if (b.substring(2, 4) === w.substring(2, 4))
-            return BILLETE_RATE.last2[prizeIndex] * qty;
+            return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
         return 0;
     }
     if (b === w)
-        return BILLETE_RATE.exact[prizeIndex] * qty;
+        return exactRates[prizeIndex] * qty;
     if (b.substring(0, 3) === w.substring(0, 3))
-        return BILLETE_RATE.first3[prizeIndex] * qty;
+        return BILLETE_RATE_DEFAULT.first3[prizeIndex] * qty;
     if (b.substring(1, 4) === w.substring(1, 4))
-        return BILLETE_RATE.last3[prizeIndex] * qty;
+        return BILLETE_RATE_DEFAULT.last3[prizeIndex] * qty;
     if (b.substring(0, 2) === w.substring(0, 2))
-        return BILLETE_RATE.first2[prizeIndex] * qty;
+        return BILLETE_RATE_DEFAULT.first2[prizeIndex] * qty;
     if (b.substring(2, 4) === w.substring(2, 4))
-        return BILLETE_RATE.last2[prizeIndex] * qty;
+        return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
     if (b.substring(3, 4) === w.substring(3, 4))
-        return BILLETE_RATE.last1[prizeIndex] * qty;
+        return BILLETE_RATE_DEFAULT.last1[prizeIndex] * qty;
     return 0;
 }
 async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero) {
@@ -67,11 +84,19 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
     const orders = await dataSource.getRepository(order_entity_1.Order).find({
         where: { status: 1, draw_id: drawId },
     });
+    const shopIds = [...new Set(orders.map(o => o.shop_id))];
+    const shops = shopIds.length > 0
+        ? await dataSource.getRepository(shop_entity_1.Shop).findByIds(shopIds)
+        : [];
+    const shopMap = new Map(shops.map(s => [s.shop_id, s]));
     await dataSource.transaction(async (manager) => {
         for (const order of orders) {
             let totalWin = 0;
             const numbers = order.numbers || [];
             const winBreakdown = [];
+            const shop = shopMap.get(order.shop_id) ?? null;
+            const exactRates = shopExactRates(shop);
+            const chanceRates = shopChanceRates(shop);
             for (const bet of numbers) {
                 const num = String(bet.n ?? '');
                 const qty = Number(bet.q) || 0;
@@ -81,9 +106,9 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
                 if (numLen >= 4) {
                     const betNum = num.slice(-4).padStart(4, '0');
                     const isGordito = win2.length <= 2 && win3.length <= 2;
-                    const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
-                    const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
-                    const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
+                    const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0, exactRates);
+                    const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1, exactRates);
+                    const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2, exactRates);
                     lineWin = win1Val + win2Val + win3Val;
                     const matches = [];
                     if (win1Val > 0)
@@ -99,20 +124,20 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
                     const betCh = num.slice(-2).padStart(2, '0');
                     let winVal = 0;
                     if (betCh === ch1) {
-                        winVal += CHANCE_RATE[0] * qty;
+                        winVal += chanceRates[0] * qty;
                         matchInfo += (matchInfo ? '+' : '') + '头奖';
                     }
                     if (betCh === ch2) {
-                        winVal += CHANCE_RATE[1] * qty;
+                        winVal += chanceRates[1] * qty;
                         matchInfo += (matchInfo ? '+' : '') + '二奖';
                     }
                     if (betCh === ch3) {
-                        winVal += CHANCE_RATE[2] * qty;
+                        winVal += chanceRates[2] * qty;
                         matchInfo += (matchInfo ? '+' : '') + '三奖';
                     }
                     lineWin = winVal;
                     if (matchInfo)
-                        matchInfo += '(14+3+2)';
+                        matchInfo += `(${chanceRates[0]}+${chanceRates[1]}+${chanceRates[2]})`;
                 }
                 totalWin += lineWin;
                 winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });

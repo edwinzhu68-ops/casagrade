@@ -17,6 +17,12 @@ export declare class Shop {
     nica_enabled: boolean;
     accepting_tica_orders: boolean;
     accepting_nica_orders: boolean;
+    rate_billete_1: number | null;
+    rate_billete_2: number | null;
+    rate_billete_3: number | null;
+    rate_chance_1: number | null;
+    rate_chance_2: number | null;
+    rate_chance_3: number | null;
     subscription_expires_at: Date | null;
     created_at: Date;
     updated_at: Date;

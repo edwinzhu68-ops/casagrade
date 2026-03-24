@@ -67,6 +67,12 @@ export declare class MerchantController implements OnModuleInit {
             subscription_expires_at: Date;
             limit_chance: any;
             limit_billete: any;
+            rate_billete_1: any;
+            rate_billete_2: any;
+            rate_billete_3: any;
+            rate_chance_1: any;
+            rate_chance_2: any;
+            rate_chance_3: any;
             tica_enabled: boolean;
             nica_enabled: boolean;
             accepting_tica_orders: boolean;

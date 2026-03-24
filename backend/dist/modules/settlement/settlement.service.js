@@ -42,6 +42,9 @@ let SettlementService = SettlementService_1 = class SettlementService {
         const orders = await this.orderRepo.find({
             where: { status: 1, draw_id: drawId },
         });
+        const shopIds = [...new Set(orders.map(o => o.shop_id))];
+        const shops = shopIds.length > 0 ? await this.shopRepo.findByIds(shopIds) : [];
+        const shopMap = new Map(shops.map(s => [s.shop_id, s]));
         const results = {
             totalOrders: orders.length,
             totalSales: 0,
@@ -50,7 +53,8 @@ let SettlementService = SettlementService_1 = class SettlementService {
             results: [],
         };
         for (const order of orders) {
-            const orderResult = this.settleOrderWithDrawResult(order, winning);
+            const shop = shopMap.get(order.shop_id) ?? null;
+            const orderResult = this.settleOrderWithDrawResult(order, winning, shop);
             results.results.push(orderResult);
             results.totalSales += orderResult.sales;
             results.totalPayout += orderResult.payout;
@@ -89,6 +93,9 @@ let SettlementService = SettlementService_1 = class SettlementService {
         const orders = await this.orderRepo.find({
             where: { status: 1, draw_id: drawId },
         });
+        const shopIds = [...new Set(orders.map(o => o.shop_id))];
+        const shops = shopIds.length > 0 ? await this.shopRepo.findByIds(shopIds) : [];
+        const shopMap = new Map(shops.map(s => [s.shop_id, s]));
         const results = {
             totalOrders: orders.length,
             totalSales: 0,
@@ -97,7 +104,8 @@ let SettlementService = SettlementService_1 = class SettlementService {
             results: [],
         };
         for (const order of orders) {
-            const orderResult = this.settleTicaNicaOrder(order, n123, winning);
+            const shop = shopMap.get(order.shop_id) ?? null;
+            const orderResult = this.settleTicaNicaOrder(order, n123, winning, shop);
             results.results.push(orderResult);
             results.totalSales += orderResult.sales;
             results.totalPayout += orderResult.payout;
@@ -154,10 +162,20 @@ let SettlementService = SettlementService_1 = class SettlementService {
             tercero: n.n3,
         };
     }
-    settleOrderWithDrawResult(order, winning) {
+    settleOrderWithDrawResult(order, winning, shop = null) {
         const numbers = order.numbers;
         const gameType = order.game_type;
         const sales = Number(order.amount);
+        const exactRates = [
+            shop?.rate_billete_1 != null ? Number(shop.rate_billete_1) : 2000,
+            shop?.rate_billete_2 != null ? Number(shop.rate_billete_2) : 600,
+            shop?.rate_billete_3 != null ? Number(shop.rate_billete_3) : 300,
+        ];
+        const chanceRates = [
+            shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
+            shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
+            shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
+        ];
         let payout = 0;
         const wins = [];
         for (const num of numbers) {
@@ -165,7 +183,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
             const quantity = num.q;
             const numLen = numStr.replace(/\D/g, '').length;
             if (numLen >= 4) {
-                const result = this.calculateBilletePayout(numStr, winning, quantity);
+                const result = this.calculateBilletePayout(numStr, winning, quantity, exactRates);
                 if (result.totalPayout > 0) {
                     wins.push({
                         number: numStr,
@@ -176,7 +194,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 payout += result.totalPayout;
             }
             else if (numLen >= 2) {
-                const result = this.calculateChancePayout(numStr, winning, quantity);
+                const result = this.calculateChancePayout(numStr, winning, quantity, chanceRates);
                 if (result.totalPayout > 0) {
                     wins.push({
                         number: numStr,
@@ -195,12 +213,17 @@ let SettlementService = SettlementService_1 = class SettlementService {
             wins,
         };
     }
-    settleTicaNicaOrder(order, n123, chanceWinning) {
+    settleTicaNicaOrder(order, n123, chanceWinning, shop = null) {
         const numbers = order.numbers;
         const gameType = order.game_type;
         const sales = Number(order.amount);
         let payout = 0;
         const wins = [];
+        const chanceRates = [
+            shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
+            shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
+            shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
+        ];
         for (const num of numbers) {
             const numStr = num.n;
             const quantity = num.q;
@@ -217,7 +240,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 payout += result.totalPayout;
             }
             else if (numLen >= 2) {
-                const result = this.calculateChancePayout(numStr, chanceWinning, quantity);
+                const result = this.calculateChancePayout(numStr, chanceWinning, quantity, chanceRates);
                 if (result.totalPayout > 0) {
                     wins.push({
                         number: numStr,
@@ -253,7 +276,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
         }
         return { matches, totalPayout };
     }
-    calculateBilletePayout(num, winning, qty) {
+    calculateBilletePayout(num, winning, qty, exactRates = [2000, 600, 300]) {
         const paddedNum = num.slice(-4).padStart(4, '0');
         const p = winning.primer;
         const s = winning.segundo;
@@ -265,8 +288,8 @@ let SettlementService = SettlementService_1 = class SettlementService {
         let totalPayout = 0;
         if (primerNorm) {
             if (paddedNum === primerNorm) {
-                matches.push(`头奖四位 ${paddedNum} x2000`);
-                totalPayout += 2000 * qty;
+                matches.push(`头奖四位 ${paddedNum} x${exactRates[0]}`);
+                totalPayout += exactRates[0] * qty;
             }
             else if (paddedNum.slice(0, 3) === primerNorm.slice(0, 3)) {
                 matches.push(`头奖前三位 x50`);
@@ -297,8 +320,8 @@ let SettlementService = SettlementService_1 = class SettlementService {
         }
         if (segundoNorm) {
             if (paddedNum === segundoNorm) {
-                matches.push(`二奖四位 ${paddedNum} x600`);
-                totalPayout += 600 * qty;
+                matches.push(`二奖四位 ${paddedNum} x${exactRates[1]}`);
+                totalPayout += exactRates[1] * qty;
             }
             else if (paddedNum.slice(0, 3) === segundoNorm.slice(0, 3)) {
                 matches.push(`二奖前三位 x20`);
@@ -321,8 +344,8 @@ let SettlementService = SettlementService_1 = class SettlementService {
         }
         if (terceroNorm) {
             if (paddedNum === terceroNorm) {
-                matches.push(`三奖四位 ${paddedNum} x300`);
-                totalPayout += 300 * qty;
+                matches.push(`三奖四位 ${paddedNum} x${exactRates[2]}`);
+                totalPayout += exactRates[2] * qty;
             }
             else if (paddedNum.slice(0, 3) === terceroNorm.slice(0, 3)) {
                 matches.push(`三奖前三位 x10`);
@@ -345,7 +368,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
         }
         return { matches, totalPayout };
     }
-    calculateChancePayout(num, winning, quantity) {
+    calculateChancePayout(num, winning, quantity, rates = [14, 3, 2]) {
         const paddedNum = num.padStart(2, '0');
         const primerLast2 = winning.primer.slice(-2);
         const segundoLast2 = winning.segundo.slice(-2);
@@ -353,16 +376,16 @@ let SettlementService = SettlementService_1 = class SettlementService {
         const matches = [];
         let totalPayout = 0;
         if (paddedNum === primerLast2) {
-            matches.push(`头奖后两位 ${paddedNum} x14`);
-            totalPayout += 14 * quantity;
+            matches.push(`头奖后两位 ${paddedNum} x${rates[0]}`);
+            totalPayout += rates[0] * quantity;
         }
         if (paddedNum === segundoLast2) {
-            matches.push(`二奖后两位 ${paddedNum} x3`);
-            totalPayout += 3 * quantity;
+            matches.push(`二奖后两位 ${paddedNum} x${rates[1]}`);
+            totalPayout += rates[1] * quantity;
         }
         if (paddedNum === terceroLast2) {
-            matches.push(`三奖后两位 ${paddedNum} x2`);
-            totalPayout += 2 * quantity;
+            matches.push(`三奖后两位 ${paddedNum} x${rates[2]}`);
+            totalPayout += rates[2] * quantity;
         }
         return { matches, totalPayout };
     }

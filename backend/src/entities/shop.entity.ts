@@ -93,6 +93,30 @@ export class Shop {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   rate_chance_3: number | null;
 
+  /** TICA/NICA 1串2 赔率（≥1中奖，0=不中，默认1000） */
+  @Column({ name: 'chain_1_2', type: 'decimal', precision: 10, scale: 2, default: 1000 })
+  chain_1_2: number;
+
+  /** TICA/NICA 1串3 赔率（≥1中奖，0=不中，默认1000） */
+  @Column({ name: 'chain_1_3', type: 'decimal', precision: 10, scale: 2, default: 1000 })
+  chain_1_3: number;
+
+  /** TICA/NICA 2串1 赔率（≥1中奖，0=不中，默认0） */
+  @Column({ name: 'chain_2_1', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  chain_2_1: number;
+
+  /** TICA/NICA 2串3 赔率（≥1中奖，0=不中，默认200） */
+  @Column({ name: 'chain_2_3', type: 'decimal', precision: 10, scale: 2, default: 200 })
+  chain_2_3: number;
+
+  /** TICA/NICA 3串1 赔率（≥1中奖，0=不中，默认0） */
+  @Column({ name: 'chain_3_1', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  chain_3_1: number;
+
+  /** TICA/NICA 3串2 赔率（≥1中奖，0=不中，默认0） */
+  @Column({ name: 'chain_3_2', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  chain_3_2: number;
+
   /** 订阅到期时间（null = 未激活或永久） */
   @Column({ type: 'datetime', nullable: true })
   subscription_expires_at: Date | null;

@@ -859,6 +859,12 @@ export class ShopController {
       rateChance1?: number | null;
       rateChance2?: number | null;
       rateChance3?: number | null;
+      chain12?: number | null;
+      chain13?: number | null;
+      chain21?: number | null;
+      chain23?: number | null;
+      chain31?: number | null;
+      chain32?: number | null;
     },
   ) {
     const shopRepo = this.dataSource.getRepository(Shop);
@@ -872,6 +878,12 @@ export class ShopController {
     if (body.rateChance1 !== undefined) (shop as any).rate_chance_1 = toRate(body.rateChance1, 14);
     if (body.rateChance2 !== undefined) (shop as any).rate_chance_2 = toRate(body.rateChance2, 3);
     if (body.rateChance3 !== undefined) (shop as any).rate_chance_3 = toRate(body.rateChance3, 2);
+    if (body.chain12 !== undefined) (shop as any).chain_1_2 = body.chain12;
+    if (body.chain13 !== undefined) (shop as any).chain_1_3 = body.chain13;
+    if (body.chain21 !== undefined) (shop as any).chain_2_1 = body.chain21;
+    if (body.chain23 !== undefined) (shop as any).chain_2_3 = body.chain23;
+    if (body.chain31 !== undefined) (shop as any).chain_3_1 = body.chain31;
+    if (body.chain32 !== undefined) (shop as any).chain_3_2 = body.chain32;
     await shopRepo.save(shop);
     return {
       success: true,
@@ -881,6 +893,12 @@ export class ShopController {
       rate_chance_1: (shop as any).rate_chance_1,
       rate_chance_2: (shop as any).rate_chance_2,
       rate_chance_3: (shop as any).rate_chance_3,
+      chain_1_2: (shop as any).chain_1_2,
+      chain_1_3: (shop as any).chain_1_3,
+      chain_2_1: (shop as any).chain_2_1,
+      chain_2_3: (shop as any).chain_2_3,
+      chain_3_1: (shop as any).chain_3_1,
+      chain_3_2: (shop as any).chain_3_2,
     };
   }
 

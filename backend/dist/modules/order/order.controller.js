@@ -769,6 +769,35 @@ let ShopController = ShopController_1 = class ShopController {
             nica_enabled: shop.nica_enabled,
         };
     }
+    async updateShopRates(shopId, body) {
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
+        if (!shop)
+            throw new common_1.NotFoundException('店铺不存在');
+        const toRate = (v, def) => v != null && isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
+        if (body.rateBillete1 !== undefined)
+            shop.rate_billete_1 = toRate(body.rateBillete1, 2000);
+        if (body.rateBillete2 !== undefined)
+            shop.rate_billete_2 = toRate(body.rateBillete2, 600);
+        if (body.rateBillete3 !== undefined)
+            shop.rate_billete_3 = toRate(body.rateBillete3, 300);
+        if (body.rateChance1 !== undefined)
+            shop.rate_chance_1 = toRate(body.rateChance1, 14);
+        if (body.rateChance2 !== undefined)
+            shop.rate_chance_2 = toRate(body.rateChance2, 3);
+        if (body.rateChance3 !== undefined)
+            shop.rate_chance_3 = toRate(body.rateChance3, 2);
+        await shopRepo.save(shop);
+        return {
+            success: true,
+            rate_billete_1: shop.rate_billete_1,
+            rate_billete_2: shop.rate_billete_2,
+            rate_billete_3: shop.rate_billete_3,
+            rate_chance_1: shop.rate_chance_1,
+            rate_chance_2: shop.rate_chance_2,
+            rate_chance_3: shop.rate_chance_3,
+        };
+    }
     async getShopOrders(shopId, limit = '100', status, suffix, drawId, lotteryKind) {
         const id = parseInt(String(shopId || '').trim(), 10);
         if (isNaN(id) || id <= 0) {
@@ -819,6 +848,14 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "updateShopLimits", null);
+__decorate([
+    (0, common_1.Patch)(':shopId/rates'),
+    __param(0, (0, common_1.Param)('shopId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ShopController.prototype, "updateShopRates", null);
 __decorate([
     (0, common_1.Get)(':shopId/orders'),
     __param(0, (0, common_1.Param)('shopId')),
