@@ -3784,10 +3784,17 @@
       }
       if (linesEl) {
         linesEl.innerHTML = '';
+        var orderGameType = (order.game_type || order.lottery_kind || order.lotteryKind || '').toUpperCase();
         (order.numbers || []).forEach(function (item) {
           var numStr = String(item.n != null ? item.n : (item.number != null ? item.number : ''));
           var qty = Number(item.q != null ? item.q : (item.quantity != null ? item.quantity : 1)) || 1;
-          var unitPrice = numStr.replace(/\D/g, '').length >= 4 ? 1 : 0.25;
+          // 优先用订单 game_type，次选 item.isBi，最后才按位数判断
+          var isBillete = orderGameType === 'BILLETE' || orderGameType === 'NACIONAL'
+            ? true
+            : orderGameType === 'CHANCE'
+              ? false
+              : (item.isBi != null ? !!item.isBi : numStr.replace(/\D/g, '').length >= 4);
+          var unitPrice = isBillete ? 1 : 0.25;
           var row = document.createElement('div');
           row.className = 'flex justify-between';
           row.innerHTML = '<span class="font-mono">' + numStr + '</span><span class="text-gray-500">×' + qty + ' = $' + (qty * unitPrice).toFixed(2) + '</span>';
