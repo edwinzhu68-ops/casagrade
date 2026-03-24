@@ -451,7 +451,7 @@
         sales_label: '销售额',
         today_sales_paid: '今日销售额 (已付款)',
         chance_sales: 'Chance 销售额',
-        billete_sales: 'Palet 销售额',
+        billete_sales: 'Billete 销售额',
         total_payout: '总赔付',
         profit_label: '利润',
         today_profit: '今日利润',
@@ -467,7 +467,7 @@
         win_amount_label: '中奖金额',
         numbers_label: '号码',
         close: '关闭',
-        billete_winners: '🎫 Palet中奖',
+        billete_winners: '🎫 Billete中奖',
         chance_winners: '🎯 Chance中奖',
         no_winners: '暂无中奖',
         no_lucky: '未中奖',
@@ -534,7 +534,7 @@
         sales_label: 'Ventas',
         today_sales_paid: 'Ventas de hoy (pagados)',
         chance_sales: 'Ventas Chance',
-        billete_sales: 'Ventas Palet',
+        billete_sales: 'Ventas Billete',
         total_payout: 'Total premios',
         profit_label: 'Beneficio',
         today_profit: 'Beneficio hoy',
@@ -550,7 +550,7 @@
         win_amount_label: 'Premio',
         numbers_label: 'Números',
         close: 'Cerrar',
-        billete_winners: '🎫 Premios Palet',
+        billete_winners: '🎫 Premios Billete',
         chance_winners: '🎯 Premios Chance',
         no_winners: 'Sin premios',
         no_lucky: 'Sin suerte',
@@ -619,6 +619,8 @@
       if (k !== 'TICA' && k !== 'NICA') {
         _resultLocalKindBadgeState = { kind: null, drawId: null };
         row.classList.add('hidden');
+        // NACIONAL: restore Billete labels
+        _updatePaletBilleteLabels('NACIONAL');
         return;
       }
       _resultLocalKindBadgeState = { kind: k, drawId: currentDrawId };
@@ -631,11 +633,32 @@
       } else {
         pill.className = 'text-xs px-2 py-0.5 rounded-full font-medium bg-purple-900/50 text-purple-200';
       }
+      // TICA/NICA: use Palet labels
+      _updatePaletBilleteLabels(k);
+    }
+
+    /** 更新 stats 区 4 位数彩种的标签：NACIONAL 用 Billete，TICA/NICA 用 Palet */
+    function _updatePaletBilleteLabels(kind) {
+      var isPalet = (kind === 'TICA' || kind === 'NICA');
+      var salesEl = document.querySelector('[data-i18n="billete_sales"]');
+      var winnersEl = document.querySelector('[data-i18n="billete_winners"]');
+      var lang = getResultLang();
+      if (salesEl) {
+        salesEl.textContent = isPalet
+          ? (lang === 'zh' ? 'Palet 销售额' : 'Ventas Palet')
+          : (lang === 'zh' ? 'Billete 销售额' : 'Ventas Billete');
+      }
+      if (winnersEl) {
+        winnersEl.textContent = isPalet
+          ? (lang === 'zh' ? '🎫 Palet中奖' : '🎫 Premios Palet')
+          : (lang === 'zh' ? '🎫 Billete中奖' : '🎫 Premios Billete');
+      }
     }
     function hideResultLocalKindBadge() {
       _resultLocalKindBadgeState = { kind: null, drawId: null };
       var row = document.getElementById('result-kind-badge-row');
       if (row) row.classList.add('hidden');
+      _updatePaletBilleteLabels('NACIONAL');
     }
     function refreshResultLocalKindBadgeI18n() {
       var st = _resultLocalKindBadgeState;
@@ -675,6 +698,7 @@
       try { refreshResultLocalKindBadgeI18n(); } catch (eRb) {}
       try { refreshLocalHistoryToggleI18n(); } catch (eLh) {}
       try { refreshLocalSettleTitleI18n(); } catch (eLs) {}
+      try { _updatePaletBilleteLabels(getResultPageKind()); } catch (ePl) {}
     }
 
     /** TICA/NICA 历史数据卡片：展开/收起（本机记忆） */
@@ -767,6 +791,7 @@
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-result').classList.remove('hidden');
         applyResultLang();
+        _updatePaletBilleteLabels(getResultPageKind());
         loadData();
         startResultPoll();
 

@@ -248,7 +248,7 @@
       <!-- Billete 热门号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4 relative z-10">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold" data-i18n="billete_hot">Palet 热门号码</h3>
+          <h3 class="font-bold" data-i18n="billete_hot">Billete 热门号码</h3>
           <button type="button" id="btn-billete-viewall" onclick="showBilleteDetail()" class="text-blue-400 text-sm font-medium cursor-pointer hover:text-blue-300 hover:underline relative z-10 py-1 px-2 -m-2" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="billete-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -269,7 +269,7 @@
             </div>
           </div>
           <div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="billete_limit_label">Palet 每号最多</p>
+            <p class="text-xs text-gray-400 mb-1" data-i18n="billete_limit_label">Billete 每号最多</p>
             <div class="flex items-center">
               <input type="number" id="limit-billete" value="10"
                 class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
@@ -355,7 +355,7 @@
     <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
       <div class="flex justify-between items-center mb-3">
         <div>
-          <h2 class="text-xl font-bold" data-i18n="billete_detail_title">Palet 销售明细</h2>
+          <h2 class="text-xl font-bold" data-i18n="billete_detail_title">Billete 销售明细</h2>
           <div class="mt-1 flex gap-1 text-[11px]">
             <button id="billete-sort-number" onclick="showBilleteDetail('number')" class="px-2 py-0.5 rounded-full bg-blue-600 text-white" data-i18n="sort_by_number">按号码</button>
             <button id="billete-sort-qty" onclick="showBilleteDetail('qty')" class="px-2 py-0.5 rounded-full bg-gray-700 text-gray-200" data-i18n="sort_by_qty">按销量</button>
@@ -425,7 +425,7 @@
       <!-- Billete / Chance（单价与顾客端 localStorage 一致，标签由脚本刷新） -->
       <div class="flex gap-2 mb-0 shrink-0">
         <button type="button" id="cashier-btn-billete" onclick="setMerchantCashierGameType('BILLETE')"
-          class="flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm">Palet ($1)</button>
+          class="flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm">Billete ($1)</button>
         <button type="button" id="cashier-btn-chance" onclick="setMerchantCashierGameType('CHANCE')"
           class="flex-1 bg-gray-700 text-gray-200 py-2 rounded-xl font-bold text-sm border border-gray-600">Chance ($0.25)</button>
       </div>
@@ -871,20 +871,20 @@
         forgot_cancel: '取消',
         forgot_send: '发送',
         chance_hot: 'Chance 热门号码',
-        billete_hot: 'Palet 热门号码',
+        billete_hot: 'Billete 热门号码',
         view_all: '查看全部 →',
         no_data: '暂无数据',
         after_draw_cleared: '开奖后已清空',
         settings_title: '⚙️ 销售限额',
         chance_limit_label: 'Chance 每号最多',
-        billete_limit_label: 'Palet 每号最多',
+        billete_limit_label: 'Billete 每号最多',
         limit_unit: '张',
         chance_price_label: 'Chance 单价',
-        billete_price_label: 'Palet 单价',
+        billete_price_label: 'Billete 单价',
         btn_save: '保存',
         settings_note: '价格仅影响客户端下单金额计算。',
         chance_detail_title: 'Chance 销售明细',
-        billete_detail_title: 'Palet 销售明细',
+        billete_detail_title: 'Billete 销售明细',
         sort_by_number: '按号码',
         sort_by_qty: '按销量',
         order_detail_title: '订单详情',
@@ -956,7 +956,7 @@
         keyboard_number_title: '输入彩票号码',
         keyboard_qty_title: '输入购买数量',
         btn_add: '添加',
-        cashier_game_billete: 'Palet',
+        cashier_game_billete: 'Billete',
         cashier_game_chance: 'Chance',
         cashier_number_label: '号码',
         cashier_qty_label: '数量',
@@ -966,7 +966,7 @@
         cashier_total: '合计',
         cashier_submit: '一键生成并收款',
         cashier_empty_lines: '请先添加至少一行号码',
-        cashier_need_4_digits: 'Palet 须输入满 4 位数字（与顾客端一致）',
+        cashier_need_4_digits: 'Billete 须输入满 4 位数字（与顾客端一致）',
         cashier_need_2_digits: 'Chance 请输入 1～2 位数字（不足 2 位将左侧补 0，与顾客端一致）',
         cashier_overlimit_title: '超出销售限额',
         cashier_overlimit_msg: '以下号码超出本期限额。确认后将按可售数量自动调低本条数量（逻辑与顾客端下单页一致），然后再次提交。',
@@ -977,7 +977,7 @@
         cashier_stop_sale: '当前不可下单（停售或未开售）',
         cashier_confirm_partial: '订单已生成，但确认收款失败，请在「等待付款」里手动确认',
         cashier_remove: '移除',
-        cashier_use_numpad: '与顾客端一致：Palet 固定 4 格、Chance 固定 2 格；下方九宫格输入（手机不弹系统键盘）。',
+        cashier_use_numpad: '与顾客端一致：Billete 固定 4 格、Chance 固定 2 格；下方九宫格输入（手机不弹系统键盘）。',
         cashier_numpad_clear: '清空',
         cashier_numpad_back: '退格',
         cashier_qty_minus: '减',
@@ -1162,20 +1162,20 @@
         forgot_cancel: 'Cancelar',
         forgot_send: 'Enviar',
         chance_hot: 'Chance más jugados',
-        billete_hot: 'Palet más jugados',
+        billete_hot: 'Billete más jugados',
         view_all: 'Ver todo →',
         no_data: 'Sin datos',
         after_draw_cleared: 'Borrado tras el sorteo',
         settings_title: '⚙️ Límites y precios',
         chance_limit_label: 'Chance máx. por número',
-        billete_limit_label: 'Palet máx. por número',
+        billete_limit_label: 'Billete máx. por número',
         limit_unit: 'unid.',
         chance_price_label: 'Precio Chance',
-        billete_price_label: 'Precio Palet',
+        billete_price_label: 'Precio Billete',
         btn_save: 'Guardar',
         settings_note: 'El precio solo afecta el cálculo en la app del cliente.',
         chance_detail_title: 'Detalle Chance',
-        billete_detail_title: 'Detalle Palet',
+        billete_detail_title: 'Detalle Billete',
         sort_by_number: 'Por número',
         sort_by_qty: 'Por ventas',
         order_detail_title: 'Detalle del pedido',
@@ -1247,7 +1247,7 @@
         keyboard_number_title: 'Introduce el número de lotería',
         keyboard_qty_title: 'Introduce la cantidad a comprar',
         btn_add: 'Agregar',
-        cashier_game_billete: 'Palet',
+        cashier_game_billete: 'Billete',
         cashier_game_chance: 'Chance',
         cashier_number_label: 'Número',
         cashier_qty_label: 'Cantidad',
@@ -1257,7 +1257,7 @@
         cashier_total: 'Total',
         cashier_submit: 'Crear y cobrar',
         cashier_empty_lines: 'Añada al menos una línea',
-        cashier_need_4_digits: 'Palet: debe completar 4 dígitos (igual que la app cliente)',
+        cashier_need_4_digits: 'Billete: debe completar 4 dígitos (igual que la app cliente)',
         cashier_need_2_digits: 'Chance: 1–2 dígitos (si falta, se rellena con 0 a la izquierda, igual que la app cliente)',
         cashier_overlimit_title: 'Supera el límite de ventas',
         cashier_overlimit_msg: 'Estos números superan el límite del periodo. Al confirmar se ajustará la cantidad al máximo vendible (misma lógica que la app cliente) y se volverá a enviar.',
@@ -1268,7 +1268,7 @@
         cashier_stop_sale: 'No se puede apostar ahora (venta cerrada)',
         cashier_confirm_partial: 'Pedido creado, pero falló confirmar pago; confírmelo en «Esperando pago»',
         cashier_remove: 'Quitar',
-        cashier_use_numpad: 'Igual que la app cliente: Palet 4 cifras, Chance 2 cifras; teclado abajo (sin teclado del sistema).',
+        cashier_use_numpad: 'Igual que la app cliente: Billete 4 cifras, Chance 2 cifras; teclado abajo (sin teclado del sistema).',
         cashier_numpad_clear: 'Borrar',
         cashier_numpad_back: 'Borrar dígito',
         cashier_qty_minus: 'Menos',
@@ -1765,6 +1765,7 @@
       merchantWorkbenchKind = k;
       renderMerchantWorkbenchNav();
       loadDashboard();
+      updateCashierBilleteChanceButtonLabels();
     }
     function renderMerchantWorkbenchNav() {
       var nav = document.getElementById('merchant-workbench-nav');
@@ -3382,7 +3383,8 @@
       var pr = getCashierUnitPrices();
       var bBtn = document.getElementById('cashier-btn-billete');
       var cBtn = document.getElementById('cashier-btn-chance');
-      if (bBtn) bBtn.textContent = 'Palet ($' + pr.billete.toFixed(2) + ')';
+      var isPalet = (merchantWorkbenchKind === 'TICA' || merchantWorkbenchKind === 'NICA');
+      if (bBtn) bBtn.textContent = (isPalet ? 'Palet' : 'Billete') + ' ($' + pr.billete.toFixed(2) + ')';
       if (cBtn) cBtn.textContent = 'Chance ($' + pr.chance.toFixed(2) + ')';
     }
 
