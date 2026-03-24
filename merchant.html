@@ -2417,10 +2417,8 @@
       var stream = null;
       navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          focusMode: 'continuous'
+          facingMode: { ideal: 'environment' },
+          advanced: [{ focusMode: 'continuous' }]
         }
       })
         .then(function (s) {
