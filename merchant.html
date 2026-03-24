@@ -5566,6 +5566,7 @@
       const BON    = [0x1B,0x45,0x01];
       const BOFF   = [0x1B,0x45,0x00];
       const BIG    = [0x1D,0x21,0x11];
+      const MED    = [0x1D,0x21,0x01];  // 宽1倍高2倍，视觉约1.5倍
       const NORM   = [0x1D,0x21,0x00];
       const CUT    = [0x1B,0x64,0x05, 0x1D,0x56,0x42,0x00];
       const DIV    = '--------------------------------';
@@ -5656,9 +5657,9 @@
       txt(DIV); LF();
       row('Tienda',     String(shopNumber));
       row('Pedido',     orderNum);
-      push(...BON);
+      push(...BON,...MED);
       row('Importe', '$' + amount);
-      push(...BOFF);
+      push(...NORM,...BOFF);
       txt(DIV); LF();
       push(...BON);
       txt('Numeros'); LF();
@@ -5673,16 +5674,15 @@
         if (!numStr) return;
         const isBil  = numStr.length >= 4;
         const lineAmt = '$' + (qty * (isBil ? 1 : 0.25)).toFixed(2);
-        // 号码和金额：正常大小加粗
-        push(...BON);
+        push(...BON,...MED);
         row(numStr + ' x' + qty, lineAmt);
-        push(...BOFF);
+        push(...NORM,...BOFF);
       });
 
       txt(DIV); LF();
-      push(...BON);
+      push(...BON,...MED);
       row('Total', '$' + amount);
-      push(...BOFF);
+      push(...NORM,...BOFF);
       LF();
       push(...CUT);
       return new Uint8Array(buf);
