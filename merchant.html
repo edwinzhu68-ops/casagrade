@@ -2339,6 +2339,7 @@
                 var data = code.data.trim();
                 document.getElementById('scan-input').value = data;
                 stopQrScan();
+                playBeep();
                 scanOrder();
                 return;
               }
@@ -2377,6 +2378,20 @@
           }).catch(function() {});
         } catch(e) {}
       }
+    }
+
+    function playBeep() {
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 1800;
+        gain.gain.value = 0.15;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } catch(e) {}
     }
 
     function stopQrScan() {
