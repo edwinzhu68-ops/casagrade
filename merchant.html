@@ -468,15 +468,13 @@
             <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-500 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
           </label>
         </div>
-        <!-- 打印机提示 + 激活开关：在确认下单下方，逻辑同设置里蓝牙热敏打印 -->
-        <div id="cashier-printer-panel" class="hidden pt-3 mt-1 border-t border-gray-600/50 flex items-center justify-between gap-3">
-          <p id="cashier-printer-banner" class="text-sm text-gray-300 flex-1 min-w-0 leading-snug text-left">🖨️ 打印小票（需连接打印机）</p>
-          <div id="cashier-printer-toggle-wrap" class="shrink-0">
-            <label class="relative inline-flex items-center cursor-pointer" data-i18n-title="cashier_btn_activate_print" title="激活">
-              <input type="checkbox" id="cashier-print-quick-toggle" class="sr-only peer" onchange="onCashierPrinterQuickToggle(this.checked)">
-              <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-gray-900 peer-focus-visible:ring-blue-400 peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm"></div>
-            </label>
-          </div>
+        <!-- 打印机连接状态：代客下单弹窗底部显示打印机连接状态+连接按钮 -->
+        <div id="cashier-printer-panel" class="pt-3 mt-1 border-t border-gray-600/50 flex items-center justify-between gap-3">
+          <p id="cashier-printer-status" class="text-sm text-gray-300 flex-1 min-w-0 leading-snug text-left">🖨️ <span id="cashier-printer-status-text">检测中...</span></p>
+          <button type="button" id="cashier-btn-connect-printer" onclick="connectPrinter()"
+            class="shrink-0 bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg font-bold">
+            连接
+          </button>
         </div>
       </div>
     </div>
@@ -4883,18 +4881,20 @@
       updatePrinterStatusUI();
     }
 
-    /** 代客下单弹窗：已连接则隐藏底部打印机行；否则显示「请连接打印机」+ 拨动开关并与设置同步 */
+    /** 代客下单弹窗底部打印机状态：显示连接状态+连接按钮，始终可见 */
     function updateCashierPrinterBanner() {
       var panel = document.getElementById('cashier-printer-panel');
-      var modal = document.getElementById('modal-cashier-order');
-      if (!modal || modal.classList.contains('hidden')) return;
-      if (!panel) return;
+      var statusText = document.getElementById('cashier-printer-status-text');
+      var connectBtn = document.getElementById('cashier-btn-connect-printer');
+      if (!panel || !statusText) return;
       if (isPrinterConnected()) {
-        panel.classList.add('hidden');
+        statusText.textContent = '✅ 打印机已连接';
+        statusText.className = 'text-sm text-green-400 flex-1 min-w-0 leading-snug text-left';
+        if (connectBtn) { connectBtn.classList.add('hidden'); }
       } else {
-        panel.classList.remove('hidden');
-        var qt = document.getElementById('cashier-print-quick-toggle');
-        if (qt) qt.checked = localStorage.getItem('lottery_print_enabled') === '1';
+        statusText.textContent = '⚠️ 打印机未连接';
+        statusText.className = 'text-sm text-red-400 flex-1 min-w-0 leading-snug text-left';
+        if (connectBtn) { connectBtn.classList.remove('hidden'); }
       }
     }
 
