@@ -324,7 +324,7 @@
             </div>
           </div>
         </div>
-        <p class="text-xs text-gray-500">留空 = 使用默认值。修改只影响<strong class="text-gray-300">未来开奖</strong>的结算，已结算订单不受影响。</p>
+        <p class="text-xs text-gray-500">修改只影响<strong class="text-gray-300">未来开奖</strong>的结算，已结算订单不受影响。</p>
       </div>
       <div class="p-4 border-t border-gray-700 flex gap-3">
         <button type="button" onclick="closeRatesModal()" class="flex-1 bg-gray-600 text-white py-3 rounded-xl font-bold">取消</button>
@@ -2669,14 +2669,15 @@
     }
 
     // ── 赔率设置 ──────────────────────────────────────────────
+    var RATE_DEFAULTS = { b1: 2000, b2: 600, b3: 300, c1: 14, c2: 3, c3: 2 };
     function openRatesModal() {
       if (!currentShop) { showToast('请先登录', 'error'); return; }
-      document.getElementById('rate-input-b1').value = currentShop.rate_billete_1 != null ? currentShop.rate_billete_1 : '';
-      document.getElementById('rate-input-b2').value = currentShop.rate_billete_2 != null ? currentShop.rate_billete_2 : '';
-      document.getElementById('rate-input-b3').value = currentShop.rate_billete_3 != null ? currentShop.rate_billete_3 : '';
-      document.getElementById('rate-input-c1').value = currentShop.rate_chance_1 != null ? currentShop.rate_chance_1 : '';
-      document.getElementById('rate-input-c2').value = currentShop.rate_chance_2 != null ? currentShop.rate_chance_2 : '';
-      document.getElementById('rate-input-c3').value = currentShop.rate_chance_3 != null ? currentShop.rate_chance_3 : '';
+      document.getElementById('rate-input-b1').value = currentShop.rate_billete_1 != null ? Number(currentShop.rate_billete_1) : RATE_DEFAULTS.b1;
+      document.getElementById('rate-input-b2').value = currentShop.rate_billete_2 != null ? Number(currentShop.rate_billete_2) : RATE_DEFAULTS.b2;
+      document.getElementById('rate-input-b3').value = currentShop.rate_billete_3 != null ? Number(currentShop.rate_billete_3) : RATE_DEFAULTS.b3;
+      document.getElementById('rate-input-c1').value = currentShop.rate_chance_1 != null ? Number(currentShop.rate_chance_1) : RATE_DEFAULTS.c1;
+      document.getElementById('rate-input-c2').value = currentShop.rate_chance_2 != null ? Number(currentShop.rate_chance_2) : RATE_DEFAULTS.c2;
+      document.getElementById('rate-input-c3').value = currentShop.rate_chance_3 != null ? Number(currentShop.rate_chance_3) : RATE_DEFAULTS.c3;
       document.getElementById('modal-rates').classList.remove('hidden');
     }
     function closeRatesModal() {
@@ -2699,7 +2700,7 @@
       try {
         var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/rates', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('merchant_token') || '') },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || '') },
           body: JSON.stringify(body),
         });
         var data = await res.json().catch(function() { return {}; });
