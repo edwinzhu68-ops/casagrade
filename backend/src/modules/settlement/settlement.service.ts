@@ -81,6 +81,11 @@ export class SettlementService {
       where: { status: 1, draw_id: drawId },
     });
 
+    // 加载所有涉及的店铺，获取自定义赔率
+    const shopIds = [...new Set(orders.map(o => o.shop_id))];
+    const shops = shopIds.length > 0 ? await this.shopRepo.findByIds(shopIds) : [];
+    const shopMap = new Map<number, Shop>(shops.map(s => [s.shop_id, s]));
+
     const results = {
       totalOrders: orders.length,
       totalSales: 0,
@@ -91,7 +96,8 @@ export class SettlementService {
 
     // 先统计所有订单结算结果（无副作用）
     for (const order of orders) {
-      const orderResult = this.settleOrderWithDrawResult(order, winning);
+      const shop = shopMap.get(order.shop_id) ?? null;
+      const orderResult = this.settleOrderWithDrawResult(order, winning, shop);
       results.results.push(orderResult);
       results.totalSales += orderResult.sales;
       results.totalPayout += orderResult.payout;
@@ -145,6 +151,11 @@ export class SettlementService {
       where: { status: 1, draw_id: drawId },
     });
 
+    // 加载店铺获取自定义 Chance 赔率（TICA/NICA Billete 保持固定额）
+    const shopIds = [...new Set(orders.map(o => o.shop_id))];
+    const shops = shopIds.length > 0 ? await this.shopRepo.findByIds(shopIds) : [];
+    const shopMap = new Map<number, Shop>(shops.map(s => [s.shop_id, s]));
+
     const results = {
       totalOrders: orders.length,
       totalSales: 0,
@@ -155,7 +166,8 @@ export class SettlementService {
 
     // 方案迭代：TICA 与 NICA 结算完全相同（F/L 头二奖固定额 + Chance 与 Lotería 同逻辑）
     for (const order of orders) {
-      const orderResult = this.settleTicaNicaOrder(order, n123, winning);
+      const shop = shopMap.get(order.shop_id) ?? null;
+      const orderResult = this.settleTicaNicaOrder(order, n123, winning, shop);
       results.results.push(orderResult);
       results.totalSales += orderResult.sales;
       results.totalPayout += orderResult.payout;
@@ -223,7 +235,7 @@ export class SettlementService {
   /**
    * 结算单个订单（仅全国 NACIONAL：Lotería Billete 阶梯 + Chance）
    */
-  private settleOrderWithDrawResult(order: Order, winning: DrawResult): {
+  private settleOrderWithDrawResult(order: Order, winning: DrawResult, shop: Shop | null = null): {
     orderId: number;
     gameType: string;
     sales: number;
@@ -234,6 +246,17 @@ export class SettlementService {
     const gameType = order.game_type;
     const sales = Number(order.amount);
 
+    const exactRates: [number, number, number] = [
+      shop?.rate_billete_1 != null ? Number(shop.rate_billete_1) : 2000,
+      shop?.rate_billete_2 != null ? Number(shop.rate_billete_2) : 600,
+      shop?.rate_billete_3 != null ? Number(shop.rate_billete_3) : 300,
+    ];
+    const chanceRates: [number, number, number] = [
+      shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
+      shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
+      shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
+    ];
+
     let payout = 0;
     const wins: any[] = [];
 
@@ -243,7 +266,7 @@ export class SettlementService {
 
       const numLen = numStr.replace(/\D/g, '').length;
       if (numLen >= 4) {
-        const result = this.calculateBilletePayout(numStr, winning, quantity);
+        const result = this.calculateBilletePayout(numStr, winning, quantity, exactRates);
         if (result.totalPayout > 0) {
           wins.push({
             number: numStr,
@@ -253,7 +276,7 @@ export class SettlementService {
         }
         payout += result.totalPayout;
       } else if (numLen >= 2) {
-        const result = this.calculateChancePayout(numStr, winning, quantity);
+        const result = this.calculateChancePayout(numStr, winning, quantity, chanceRates);
         if (result.totalPayout > 0) {
           wins.push({
             number: numStr,
@@ -277,7 +300,7 @@ export class SettlementService {
   /**
    * TICA / NICA（与方案迭代一致）：Billete 头/二奖固定金额；Chance 与 Lotería 相同（N1→primer…）
    */
-  private settleTicaNicaOrder(order: Order, n123: WinningN123, chanceWinning: DrawResult): {
+  private settleTicaNicaOrder(order: Order, n123: WinningN123, chanceWinning: DrawResult, shop: Shop | null = null): {
     orderId: number;
     gameType: string;
     sales: number;
@@ -289,6 +312,11 @@ export class SettlementService {
     const sales = Number(order.amount);
     let payout = 0;
     const wins: any[] = [];
+    const chanceRates: [number, number, number] = [
+      shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
+      shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
+      shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
+    ];
 
     for (const num of numbers) {
       const numStr = num.n;
@@ -305,7 +333,7 @@ export class SettlementService {
         }
         payout += result.totalPayout;
       } else if (numLen >= 2) {
-        const result = this.calculateChancePayout(numStr, chanceWinning, quantity);
+        const result = this.calculateChancePayout(numStr, chanceWinning, quantity, chanceRates);
         if (result.totalPayout > 0) {
           wins.push({
             number: numStr,
@@ -362,6 +390,7 @@ export class SettlementService {
     num: string,
     winning: DrawResult,
     qty: number,
+    exactRates: [number, number, number] = [2000, 600, 300],
   ): BilleteResult {
     const paddedNum = num.slice(-4).padStart(4, '0');
     const p = winning.primer;
@@ -377,8 +406,8 @@ export class SettlementService {
     // 头奖：只取最高一档
     if (primerNorm) {
       if (paddedNum === primerNorm) {
-        matches.push(`头奖四位 ${paddedNum} x2000`);
-        totalPayout += 2000 * qty;
+        matches.push(`头奖四位 ${paddedNum} x${exactRates[0]}`);
+        totalPayout += exactRates[0] * qty;
       } else if (paddedNum.slice(0, 3) === primerNorm.slice(0, 3)) {
         matches.push(`头奖前三位 x50`);
         totalPayout += 50 * qty;
@@ -406,8 +435,8 @@ export class SettlementService {
     // 二奖：只取最高一档
     if (segundoNorm) {
       if (paddedNum === segundoNorm) {
-        matches.push(`二奖四位 ${paddedNum} x600`);
-        totalPayout += 600 * qty;
+        matches.push(`二奖四位 ${paddedNum} x${exactRates[1]}`);
+        totalPayout += exactRates[1] * qty;
       } else if (paddedNum.slice(0, 3) === segundoNorm.slice(0, 3)) {
         matches.push(`二奖前三位 x20`);
         totalPayout += 20 * qty;
@@ -428,8 +457,8 @@ export class SettlementService {
     // 三奖：只取最高一档
     if (terceroNorm) {
       if (paddedNum === terceroNorm) {
-        matches.push(`三奖四位 ${paddedNum} x300`);
-        totalPayout += 300 * qty;
+        matches.push(`三奖四位 ${paddedNum} x${exactRates[2]}`);
+        totalPayout += exactRates[2] * qty;
       } else if (paddedNum.slice(0, 3) === terceroNorm.slice(0, 3)) {
         matches.push(`三奖前三位 x10`);
         totalPayout += 10 * qty;
@@ -452,12 +481,13 @@ export class SettlementService {
 
   /**
    * Chance 赔付计算：只比一二三奖的后两位（奖号 2 位就对 2 位）
-   * 头奖 14x、二奖 3x、三奖 2x
+   * 默认赔率：头奖 14x、二奖 3x、三奖 2x；可通过 rates 参数覆盖
    */
   private calculateChancePayout(
     num: string,
     winning: DrawResult,
     quantity: number,
+    rates: [number, number, number] = [14, 3, 2],
   ): ChanceResult {
     const paddedNum = num.padStart(2, '0');
     const primerLast2 = winning.primer.slice(-2);
@@ -468,16 +498,16 @@ export class SettlementService {
     let totalPayout = 0;
 
     if (paddedNum === primerLast2) {
-      matches.push(`头奖后两位 ${paddedNum} x14`);
-      totalPayout += 14 * quantity;
+      matches.push(`头奖后两位 ${paddedNum} x${rates[0]}`);
+      totalPayout += rates[0] * quantity;
     }
     if (paddedNum === segundoLast2) {
-      matches.push(`二奖后两位 ${paddedNum} x3`);
-      totalPayout += 3 * quantity;
+      matches.push(`二奖后两位 ${paddedNum} x${rates[1]}`);
+      totalPayout += rates[1] * quantity;
     }
     if (paddedNum === terceroLast2) {
-      matches.push(`三奖后两位 ${paddedNum} x2`);
-      totalPayout += 2 * quantity;
+      matches.push(`三奖后两位 ${paddedNum} x${rates[2]}`);
+      totalPayout += rates[2] * quantity;
     }
 
     return { matches, totalPayout };

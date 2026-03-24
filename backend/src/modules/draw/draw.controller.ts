@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Inject, Logger, UseGuards, NotFoundExcepti
 import { DataSource } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
+import { Shop } from '../../entities/shop.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
 import { DrawDayService } from './draw-day.service';
 import {
@@ -22,7 +23,7 @@ import { getNextPeriodNoForScope } from '../../utils/draw-period-no';
  * - 后两位中：[3, 2, 1]
  * - 最后一位中：仅一等奖 1 → [1, 0, 0]
  */
-const BILLETE_RATE: Record<string, [number, number, number]> = {
+const BILLETE_RATE_DEFAULT: Record<string, [number, number, number]> = {
   exact: [2000, 600, 300],
   first3: [50, 20, 10],
   last3: [50, 20, 10],
@@ -31,19 +32,41 @@ const BILLETE_RATE: Record<string, [number, number, number]> = {
   last1: [1, 0, 0],
 };
 
+/** 从 Shop 实体读取自定义赔率（若未设置则用默认值） */
+function shopExactRates(shop: Shop | null): [number, number, number] {
+  if (!shop) return [2000, 600, 300];
+  const r1 = shop.rate_billete_1 != null ? Number(shop.rate_billete_1) : 2000;
+  const r2 = shop.rate_billete_2 != null ? Number(shop.rate_billete_2) : 600;
+  const r3 = shop.rate_billete_3 != null ? Number(shop.rate_billete_3) : 300;
+  return [r1, r2, r3];
+}
+function shopChanceRates(shop: Shop | null): [number, number, number] {
+  if (!shop) return [14, 3, 2];
+  const r1 = shop.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14;
+  const r2 = shop.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3;
+  const r3 = shop.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2;
+  return [r1, r2, r3];
+}
+
 /**
  * Chance（你说的为准）：
  * - 0.25 一张；只看一二三奖的「后两位」，无论开奖号几位数。
  * - 头奖后两位中：14 元/张；二奖后两位中：3 元/张；三奖后两位中：2 元/张；三奖可叠加。
  */
-const CHANCE_RATE: [number, number, number] = [14, 3, 2];
+const CHANCE_RATE_DEFAULT: [number, number, number] = [14, 3, 2];
 
 /**
  * 单个奖级计算：从高到低只取最高匹配档，返回 该档对应奖级的赔率×数量。
  * prizeIndex: 0=一等奖 1=二等奖 2=三等奖
  * 匹配顺序：4位 → 前3 → 后3 → 前2 → 后2 → 后1。
  */
-function calcBilletePrizeForOneDraw(betNum: string, winRaw: string, qty: number, prizeIndex: 0 | 1 | 2): number {
+function calcBilletePrizeForOneDraw(
+  betNum: string,
+  winRaw: string,
+  qty: number,
+  prizeIndex: 0 | 1 | 2,
+  exactRates: [number, number, number] = [2000, 600, 300],
+): number {
   const originalLen = winRaw.replace(/\D/g, '').length;
   if (qty <= 0 || originalLen < 2) return 0;
   const b = betNum.slice(-4).padStart(4, '0');
@@ -51,15 +74,15 @@ function calcBilletePrizeForOneDraw(betNum: string, winRaw: string, qty: number,
   const w = (wDigits.length > 4 ? wDigits.slice(-4) : wDigits).padStart(4, '0');
   // 奖号不足4位（如2位数）：只比后两位，不做精确/前三/后三等高档比较
   if (originalLen < 4) {
-    if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE.last2[prizeIndex] * qty;
+    if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
     return 0;
   }
-  if (b === w) return BILLETE_RATE.exact[prizeIndex] * qty;
-  if (b.substring(0, 3) === w.substring(0, 3)) return BILLETE_RATE.first3[prizeIndex] * qty;
-  if (b.substring(1, 4) === w.substring(1, 4)) return BILLETE_RATE.last3[prizeIndex] * qty;
-  if (b.substring(0, 2) === w.substring(0, 2)) return BILLETE_RATE.first2[prizeIndex] * qty;
-  if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE.last2[prizeIndex] * qty;
-  if (b.substring(3, 4) === w.substring(3, 4)) return BILLETE_RATE.last1[prizeIndex] * qty;
+  if (b === w) return exactRates[prizeIndex] * qty;
+  if (b.substring(0, 3) === w.substring(0, 3)) return BILLETE_RATE_DEFAULT.first3[prizeIndex] * qty;
+  if (b.substring(1, 4) === w.substring(1, 4)) return BILLETE_RATE_DEFAULT.last3[prizeIndex] * qty;
+  if (b.substring(0, 2) === w.substring(0, 2)) return BILLETE_RATE_DEFAULT.first2[prizeIndex] * qty;
+  if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
+  if (b.substring(3, 4) === w.substring(3, 4)) return BILLETE_RATE_DEFAULT.last1[prizeIndex] * qty;
   return 0;
 }
 
@@ -85,12 +108,22 @@ async function settleOrdersForDraw(
     where: { status: 1, draw_id: drawId },
   });
 
+  // 加载所有涉及的店铺，构建 shopId → rates 映射
+  const shopIds = [...new Set(orders.map(o => o.shop_id))];
+  const shops = shopIds.length > 0
+    ? await dataSource.getRepository(Shop).findByIds(shopIds)
+    : [];
+  const shopMap = new Map<number, Shop>(shops.map(s => [s.shop_id, s]));
+
   // 用事务包装所有结算更新，失败自动回滚
   await dataSource.transaction(async (manager) => {
     for (const order of orders) {
       let totalWin = 0;
       const numbers = (order.numbers as { n: string; q: number }[]) || [];
       const winBreakdown: { n: string; q: number; win: number; match?: string }[] = [];
+      const shop = shopMap.get(order.shop_id) ?? null;
+      const exactRates = shopExactRates(shop);
+      const chanceRates = shopChanceRates(shop);
 
       for (const bet of numbers) {
         const num = String(bet.n ?? '');
@@ -106,9 +139,9 @@ async function settleOrdersForDraw(
           // - GORDITO（二三奖为2位）：只与头奖比对
           const betNum = num.slice(-4).padStart(4, '0');
           const isGordito = win2.length <= 2 && win3.length <= 2;
-          const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0);
-          const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1);
-          const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2);
+          const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0, exactRates);
+          const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1, exactRates);
+          const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2, exactRates);
           lineWin = win1Val + win2Val + win3Val;
           // 记录匹配档位
           const matches: string[] = [];
@@ -117,14 +150,14 @@ async function settleOrdersForDraw(
           if (win3Val > 0) matches.push('三奖');
           if (matches.length > 0) matchInfo = matches.join('+');
         } else if (numLen >= 2) {
-          // Chance：取后2位 [14,3,2]，三奖叠加
+          // Chance：取后2位，三奖叠加
           const betCh = num.slice(-2).padStart(2, '0');
           let winVal = 0;
-          if (betCh === ch1) { winVal += CHANCE_RATE[0] * qty; matchInfo += (matchInfo ? '+' : '') + '头奖'; }
-          if (betCh === ch2) { winVal += CHANCE_RATE[1] * qty; matchInfo += (matchInfo ? '+' : '') + '二奖'; }
-          if (betCh === ch3) { winVal += CHANCE_RATE[2] * qty; matchInfo += (matchInfo ? '+' : '') + '三奖'; }
+          if (betCh === ch1) { winVal += chanceRates[0] * qty; matchInfo += (matchInfo ? '+' : '') + '头奖'; }
+          if (betCh === ch2) { winVal += chanceRates[1] * qty; matchInfo += (matchInfo ? '+' : '') + '二奖'; }
+          if (betCh === ch3) { winVal += chanceRates[2] * qty; matchInfo += (matchInfo ? '+' : '') + '三奖'; }
           lineWin = winVal;
-          if (matchInfo) matchInfo += '(14+3+2)';
+          if (matchInfo) matchInfo += `(${chanceRates[0]}+${chanceRates[1]}+${chanceRates[2]})`;
         }
         totalWin += lineWin;
         winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });

@@ -69,6 +69,30 @@ export class Shop {
   @Column({ type: 'boolean', default: true })
   accepting_nica_orders: boolean;
 
+  /** Billete 头奖四位全中赔率（null → 默认 2000） */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  rate_billete_1: number | null;
+
+  /** Billete 二奖四位全中赔率（null → 默认 600） */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  rate_billete_2: number | null;
+
+  /** Billete 三奖四位全中赔率（null → 默认 300） */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  rate_billete_3: number | null;
+
+  /** Chance 头奖赔率（null → 默认 14） */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  rate_chance_1: number | null;
+
+  /** Chance 二奖赔率（null → 默认 3） */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  rate_chance_2: number | null;
+
+  /** Chance 三奖赔率（null → 默认 2） */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  rate_chance_3: number | null;
+
   /** 订阅到期时间（null = 未激活或永久） */
   @Column({ type: 'datetime', nullable: true })
   subscription_expires_at: Date | null;

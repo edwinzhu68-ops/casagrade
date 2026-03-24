@@ -846,6 +846,45 @@ export class ShopController {
   }
 
   /**
+   * PATCH /api/shop/:shopId/rates - 保存店铺自定义赔率
+   */
+  @Patch(':shopId/rates')
+  async updateShopRates(
+    @Param('shopId') shopId: string,
+    @Body()
+    body: {
+      rateBillete1?: number | null;
+      rateBillete2?: number | null;
+      rateBillete3?: number | null;
+      rateChance1?: number | null;
+      rateChance2?: number | null;
+      rateChance3?: number | null;
+    },
+  ) {
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    const toRate = (v: number | null | undefined, def: number) =>
+      v != null && isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
+    if (body.rateBillete1 !== undefined) (shop as any).rate_billete_1 = toRate(body.rateBillete1, 2000);
+    if (body.rateBillete2 !== undefined) (shop as any).rate_billete_2 = toRate(body.rateBillete2, 600);
+    if (body.rateBillete3 !== undefined) (shop as any).rate_billete_3 = toRate(body.rateBillete3, 300);
+    if (body.rateChance1 !== undefined) (shop as any).rate_chance_1 = toRate(body.rateChance1, 14);
+    if (body.rateChance2 !== undefined) (shop as any).rate_chance_2 = toRate(body.rateChance2, 3);
+    if (body.rateChance3 !== undefined) (shop as any).rate_chance_3 = toRate(body.rateChance3, 2);
+    await shopRepo.save(shop);
+    return {
+      success: true,
+      rate_billete_1: (shop as any).rate_billete_1,
+      rate_billete_2: (shop as any).rate_billete_2,
+      rate_billete_3: (shop as any).rate_billete_3,
+      rate_chance_1: (shop as any).rate_chance_1,
+      rate_chance_2: (shop as any).rate_chance_2,
+      rate_chance_3: (shop as any).rate_chance_3,
+    };
+  }
+
+  /**
    * GET /api/shop/:shopId/orders - 获取店铺订单列表（兼容旧链接）
    */
   @Get(':shopId/orders')
