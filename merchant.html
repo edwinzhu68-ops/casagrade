@@ -4976,7 +4976,7 @@
       var statusEl = document.getElementById('printer-status');
       if (statusEl) { statusEl.textContent = t('printer_connecting').replace('{name}', deviceName || t('bt_device')); statusEl.className = 'text-xs text-blue-400'; }
       try {
-        await _CapBle.connect({ deviceId: deviceId });
+        await _CapBle.connect({ deviceId: deviceId, autoConnect: true });
       } catch(e) {
         if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
         return false;
