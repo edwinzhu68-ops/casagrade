@@ -5762,10 +5762,10 @@
     }
 
     async function autoPrintOrder(order) {
-      // 互斥模式：电子单关闭 + 打印机已连接 → 直接打印，无需 lottery_print_enabled
+      // 互斥模式：电子单关闭 + 打印机已连接 → 直接打印
       var etToggle = document.getElementById('cashier-eticket-toggle');
       var isEtOff = !etToggle || !etToggle.checked;
-      if (!isEtOff && localStorage.getItem('lottery_print_enabled') !== '1') return;
+      // 电子单开时不打印（走电子单流程），电子单关时直接打
       // APP 模式：不做自动重连（对已连接设备重复 connect 会导致 Android 原生崩溃）
       // Web 模式：可用 _printerDevice 引用安全重连
       if (!isPrinterConnected()) {
