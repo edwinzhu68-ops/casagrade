@@ -4095,11 +4095,18 @@
 
         if (res.ok) {
           showPaymentSuccessToast();
-          // 拉完整订单数据后打印（quickConfirm 入参只有订单号，需单独请求）
-          fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`)
-            .then(r => r.json())
-            .then(order => autoPrintOrder(order))
-            .catch(() => {});
+          // 互斥模式：电子单关闭 + 打印机已连接 → 先打印再刷新（避免并发导致 APP 崩溃）
+          var etToggle = document.getElementById('cashier-eticket-toggle');
+          var isEtEnabled = etToggle && etToggle.checked;
+          if (!isEtEnabled && isPrinterConnected()) {
+            try {
+              var freshRes = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`);
+              var freshOrder = await freshRes.json();
+              await autoPrintOrder(freshOrder);
+            } catch (pe) {
+              console.warn('[PRINT] quickConfirm print error:', pe);
+            }
+          }
           await loadDashboard();
         } else {
           var errData = await res.json().catch(function () { return {}; });
@@ -4586,11 +4593,15 @@
           // 用确认后最新数据打印，与 quickConfirm 保持一致
           var etToggle = document.getElementById('cashier-eticket-toggle');
           var isEtEnabled = etToggle && etToggle.checked;
-          if (!isEtEnabled) {
-            fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`)
-              .then(r => r.json())
-              .then(freshOrder => autoPrintOrder(freshOrder))
-              .catch(() => autoPrintOrder(currentOrder));
+          if (!isEtEnabled && isPrinterConnected()) {
+            try {
+              var freshRes = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`);
+              var freshOrder = await freshRes.json();
+              await autoPrintOrder(freshOrder);
+            } catch (pe) {
+              console.warn('[PRINT] confirmPayment print error:', pe);
+              try { await autoPrintOrder(currentOrder); } catch(e2) {}
+            }
           }
           closeModal('modal-order');
           loadDashboard();
@@ -5719,8 +5730,11 @@
             } else {
               await _CapBle.write({ deviceId: devId, service: svcId, characteristic: charId, value: val });
             }
-          } catch(e) {}
-          await new Promise(r => setTimeout(r, 5));
+          } catch(e) {
+            console.warn('[PRINT] CAP BLE write error at chunk ' + i + ':', e.message || e);
+            return; // 写入失败立即停止，防止后续 chunk 继续触发 native 崩溃
+          }
+          await new Promise(r => setTimeout(r, 20));
         }
         return;
       }
