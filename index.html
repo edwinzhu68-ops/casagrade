@@ -1865,11 +1865,14 @@
       updateUI();
     }
 
-    // 单独导出 setBilletePaletLabel 供外部调用，确保按钮文字正确
+    // 同步 Billete/Palet 按钮文字：Lotería→Billete, TICA/NICA→Palet
     function syncBilletePaletLabel() {
+      var btn = document.getElementById('btn-billete');
+      if (!btn) return;
       var isPalet = (clientLotteryMode === 'TICA' || clientLotteryMode === 'NICA');
-      var billeteLabel = isPalet ? 'Palet' : 'Billete';
-      if (document.getElementById('btn-billete')) document.getElementById('btn-billete').textContent = billeteLabel + ' ($1)';
+      var label = isPalet ? 'Palet' : 'Billete';
+      var price = '$' + priceBillete;
+      btn.textContent = label + ' (' + price + ')';
     }
 
     function updateBetStatusUI() {
@@ -2042,11 +2045,14 @@
       defaultQuantity = type === 'BILLETE' ? 1 : 1;
 
       document.getElementById('btn-billete').className = type === 'BILLETE'
-        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold'
-        : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
+        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm'
+        : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold text-sm';
       document.getElementById('btn-chance').className = type === 'CHANCE'
-        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold'
-        : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
+        ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm'
+        : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold text-sm';
+
+      // 每次切换玩法时同步 Billete/Palet 标签
+      syncBilletePaletLabel();
 
       currentNumber = '';
       currentQuantity = '';
