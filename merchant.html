@@ -2415,41 +2415,78 @@
       }
 
       var stream = null;
-      navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          advanced: [{ focusMode: 'continuous' }]
-        }
-      })
-        .then(function (s) {
-          scanStreamRef = stream = s;
-          video.srcObject = s;
-          video.setAttribute('playsinline', true);
-          video.play();
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          function tick() {
-            if (!scanStreamRef) return;
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+
+      // 尝试用主摄约束启动摄像头，失败则 fallback 到最简约束
+      // 注意：
+      //   1. 去掉非标准的 focusMode advanced 约束（华为 EMUI/鸿蒙不支持，会导致对焦异常）
+      //   2. 指定 1280x720 分辨率以引导浏览器选主摄（多摄手机超广角分辨率低，主摄优先高分辨率）
+      //   3. facingMode exact:'environment' 仅当有明确后置摄像头时适用，用 ideal 更安全
+      var videoConstraintsPrimary = {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      };
+      var videoConstraintsFallback = {
+        facingMode: { ideal: 'environment' }
+      };
+
+      function startScanStream(constraints) {
+        return navigator.mediaDevices.getUserMedia({ video: constraints });
+      }
+
+      function bindScanStream(s) {
+        scanStreamRef = stream = s;
+        video.srcObject = s;
+        video.setAttribute('playsinline', true);
+        video.play();
+
+        // 尝试通过 ImageCapture API 启用连续自动对焦（Chrome 68+ 支持）
+        try {
+          var track = s.getVideoTracks()[0];
+          if (track && typeof ImageCapture !== 'undefined') {
+            var ic = new ImageCapture(track);
+            ic.getPhotoCapabilities().then(function(caps) {
+              if (caps.focusMode && caps.focusMode.includes('continuous')) {
+                track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function(){});
+              }
+            }).catch(function(){});
+          }
+        } catch(e) {}
+
+        function tick() {
+          if (!scanStreamRef) return;
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            // 以视频实际分辨率设置 canvas，确保 1:1 不缩放，避免因 CSS 缩放导致 jsQR 读到模糊图像
+            if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
               canvas.width = video.videoWidth;
               canvas.height = video.videoHeight;
-              ctx.drawImage(video, 0, 0);
-              var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              var code = jsQR(imageData.data, imageData.width, imageData.height);
-              if (code && code.data) {
-                var data = code.data.trim();
-                document.getElementById('scan-input').value = data;
-                stopQrScan();
-                playBeep();
-                scanOrder();
-                return;
-              }
             }
-            scanAnimationId = requestAnimationFrame(tick);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code && code.data) {
+              var data = code.data.trim();
+              document.getElementById('scan-input').value = data;
+              stopQrScan();
+              playBeep();
+              scanOrder();
+              return;
+            }
           }
-          video.onloadedmetadata = function () {
-            requestAnimationFrame(tick);
-          };
+          scanAnimationId = requestAnimationFrame(tick);
+        }
+        video.onloadedmetadata = function () {
+          requestAnimationFrame(tick);
+        };
+      }
+
+      startScanStream(videoConstraintsPrimary)
+        .catch(function() {
+          // 高分辨率约束失败时 fallback 到最简约束
+          return startScanStream(videoConstraintsFallback);
+        })
+        .then(function(s) {
+          bindScanStream(s);
         })
         .catch(async function (err) {
           document.getElementById('scan-form-area').classList.remove('hidden');
