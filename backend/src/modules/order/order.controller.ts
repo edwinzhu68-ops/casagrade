@@ -583,26 +583,11 @@ export class OrderController implements OnModuleInit {
       throw new NotFoundException('订单不存在');
     }
 
-    // 检查30分钟超时
-    const createdAt = new Date(order.created_at);
-    const now = new Date();
-    const diffMs = now.getTime() - createdAt.getTime();
-    const THIRTY_MIN = 30 * 60 * 1000;
-
     if (order.status !== 0) {
       if (order.status === 1) {
         return { success: true, message: '订单已确认付款' };
       }
       throw new BadRequestException('订单状态不是待支付');
-    }
-
-    // 检查30分钟超时
-    if (diffMs > THIRTY_MIN) {
-      await orderRepo.update(order.order_id, {
-        status: -1, // Canceled
-        canceled_at: new Date(),
-      } as any);
-      throw new BadRequestException('订单已超过30分钟未支付，已自动取消');
     }
 
     // 若订单没有归属期（draw_id 为空），归入当前待开奖期，以便老板端「本期订单」正确统计

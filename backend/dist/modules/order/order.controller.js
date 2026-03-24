@@ -523,22 +523,11 @@ let OrderController = OrderController_1 = class OrderController {
         if (!order) {
             throw new common_1.NotFoundException('订单不存在');
         }
-        const createdAt = new Date(order.created_at);
-        const now = new Date();
-        const diffMs = now.getTime() - createdAt.getTime();
-        const THIRTY_MIN = 30 * 60 * 1000;
         if (order.status !== 0) {
             if (order.status === 1) {
                 return { success: true, message: '订单已确认付款' };
             }
             throw new common_1.BadRequestException('订单状态不是待支付');
-        }
-        if (diffMs > THIRTY_MIN) {
-            await orderRepo.update(order.order_id, {
-                status: -1,
-                canceled_at: new Date(),
-            });
-            throw new common_1.BadRequestException('订单已超过30分钟未支付，已自动取消');
         }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const orderLt = String(order.lottery_type || 'NACIONAL').toUpperCase();
