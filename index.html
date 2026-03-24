@@ -1860,7 +1860,7 @@
       updateClientLotteryDividerBar();
       syncDrawAtSecondaryRowsVisibility(clientLotteryMode);
       updateBetStatusUI();
-      // 切换 TICA/NICA 时同步更新 Billete → Palet 按钮文字
+      // 切换彩种模式时同步更新 Billete → Palet 按钮文字
       var isPalet = (clientLotteryMode === 'TICA' || clientLotteryMode === 'NICA');
       var billeteLabel = isPalet ? 'Palet' : 'Billete';
       if (document.getElementById('btn-billete')) document.getElementById('btn-billete').textContent = billeteLabel + ' ($1)';
