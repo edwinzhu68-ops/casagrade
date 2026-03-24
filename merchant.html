@@ -234,24 +234,10 @@
         </div>
       </div>
 
-      <!-- Chance / Billete 销售额 -->
-      <div class="bg-gray-800 rounded-2xl p-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div class="bg-gray-900/60 rounded-xl p-3 text-center">
-            <p class="text-xs text-gray-400 mb-1" data-i18n="chance_sales_label">Chance 销售额</p>
-            <p class="text-2xl font-bold text-blue-400" id="merchant-chance-sales">0.00</p>
-          </div>
-          <div class="bg-gray-900/60 rounded-xl p-3 text-center">
-            <p class="text-xs text-gray-400 mb-1" data-i18n="billete_sales_label">Billete 销售额</p>
-            <p class="text-2xl font-bold text-amber-400" id="merchant-billete-sales">0.00</p>
-          </div>
-        </div>
-      </div>
-
       <!-- Chance 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold" data-i18n="chance_hot">Chance</h3>
+          <h3 class="font-bold">Chance <span class="text-blue-400 text-sm font-normal" id="merchant-chance-sales">$0.00</span></h3>
           <button id="btn-chance-viewall" onclick="showChanceDetail()" class="text-blue-400 text-sm" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="chance-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -262,7 +248,7 @@
       <!-- Billete 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4 relative z-10">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold" data-i18n="billete_hot">Billete</h3>
+          <h3 class="font-bold">Billete <span class="text-amber-400 text-sm font-normal" id="merchant-billete-sales">$0.00</span></h3>
           <button type="button" id="btn-billete-viewall" onclick="showBilleteDetail()" class="text-blue-400 text-sm font-medium cursor-pointer hover:text-blue-300 hover:underline relative z-10 py-1 px-2 -m-2" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="billete-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -884,8 +870,6 @@
         forgot_email_placeholder: '输入邮箱',
         forgot_cancel: '取消',
         forgot_send: '发送',
-        chance_sales_label: 'Chance 销售额',
-        billete_sales_label: 'Billete 销售额',
         chance_hot: 'Chance',
         billete_hot: 'Billete',
         view_all: '查看全部 →',
@@ -1177,8 +1161,6 @@
         forgot_email_placeholder: 'Tu correo electrónico',
         forgot_cancel: 'Cancelar',
         forgot_send: 'Enviar',
-        chance_sales_label: 'Ventas Chance',
-        billete_sales_label: 'Ventas Billete',
         chance_hot: 'Chance',
         billete_hot: 'Billete',
         view_all: 'Ver todo →',
@@ -3057,8 +3039,8 @@
     function renderSalesAmount() {
       var chanceEl = document.getElementById('merchant-chance-sales');
       var billeteEl = document.getElementById('merchant-billete-sales');
-      if (chanceEl) chanceEl.textContent = chanceSalesAmount.toFixed(2);
-      if (billeteEl) billeteEl.textContent = billeteSalesAmount.toFixed(2);
+      if (chanceEl) chanceEl.textContent = '$' + chanceSalesAmount.toFixed(2);
+      if (billeteEl) billeteEl.textContent = '$' + billeteSalesAmount.toFixed(2);
     }
 
     // Chance TOP12（按销量排序前12个号码；开奖后本期销量会清空，自然显示暂无数据）
