@@ -2042,6 +2042,11 @@
         ? 'flex-1 bg-green-600 text-white py-2 rounded-xl font-bold'
         : 'flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-bold';
 
+      // 同步 Billete/Palet 标签（确保切回 NACIONAL 时正确显示）
+      var isPalet = (clientLotteryMode === 'TICA' || clientLotteryMode === 'NICA');
+      var billeteLabel = isPalet ? 'Palet' : 'Billete';
+      document.getElementById('btn-billete').textContent = billeteLabel + ' ($1)';
+
       currentNumber = '';
       currentQuantity = '';
       updateKeyboardDisplay();
