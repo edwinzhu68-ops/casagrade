@@ -2370,15 +2370,15 @@
       document.getElementById('modal-scan').classList.add('hidden');
     }
 
-    // 通过 Capacitor Camera 插件申请原生相机权限
+    // 通过 Capacitor BarcodeScanner 插件申请原生相机权限
     async function requestCapCameraPermission() {
       try {
-        var Cam = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera;
-        if (!Cam) return true;
-        var status = await Cam.checkPermissions();
+        var BS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner;
+        if (!BS) return true;
+        var status = await BS.checkPermissions();
         if (status.camera === 'granted') return true;
         if (status.camera === 'denied') return false; // 已被永久拒绝
-        var req = await Cam.requestPermissions({ permissions: ['camera'] });
+        var req = await BS.requestPermissions();
         return req.camera === 'granted';
       } catch (e) {
         return true; // 插件不存在时放行，交给 getUserMedia 自行处理
