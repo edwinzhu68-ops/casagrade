@@ -2370,8 +2370,23 @@
       document.getElementById('modal-scan').classList.add('hidden');
     }
 
+    // 通过 Capacitor Camera 插件申请原生相机权限
+    async function requestCapCameraPermission() {
+      try {
+        var Cam = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera;
+        if (!Cam) return true;
+        var status = await Cam.checkPermissions();
+        if (status.camera === 'granted') return true;
+        if (status.camera === 'denied') return false; // 已被永久拒绝
+        var req = await Cam.requestPermissions({ permissions: ['camera'] });
+        return req.camera === 'granted';
+      } catch (e) {
+        return true; // 插件不存在时放行，交给 getUserMedia 自行处理
+      }
+    }
+
     // 打开摄像头扫码
-    function startQrScan() {
+    async function startQrScan() {
       var video = document.getElementById('scan-video');
       var canvas = document.getElementById('scan-canvas');
       var ctx = canvas.getContext('2d');
@@ -2382,6 +2397,23 @@
       }
       document.getElementById('scan-form-area').classList.add('hidden');
       document.getElementById('scan-camera-area').classList.remove('hidden');
+
+      // APP 环境：先通过 Capacitor 申请原生相机权限
+      if (_isCapApp) {
+        var granted = await requestCapCameraPermission();
+        if (!granted) {
+          document.getElementById('scan-form-area').classList.remove('hidden');
+          document.getElementById('scan-camera-area').classList.add('hidden');
+          showPermissionDeniedDialog();
+          return;
+        }
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast(t('alert_no_camera'), 'error');
+        return;
+      }
+
       var stream = null;
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(function (s) {
