@@ -5280,6 +5280,7 @@
 
     // ── 发送打印 ──────────────────────────────────────────
     async function sendToPrinter(data) {
+      console.log('[PRINT] sendToPrinter called, isCapApp=' + _isCapApp + ', data.length=' + data.length + ', capDeviceId=' + _capDeviceId + ', capCharUUID=' + _capCharUUID);
       const CHUNK = 100;
       if (_isCapApp) {
         // Capacitor 原生 BLE 写入
@@ -5306,21 +5307,24 @@
         return;
       }
       // Web Bluetooth 写入（浏览器模式）
-      if (!_printerChar) return; // 安全检查：防止 null.properties 崩溃
+      // 必须用 writeValueWithResponse（有 ACK）：无 ACK 的 writeWithoutResponse 在大数据量时
+      // BLE 栈可能丢包/乱序，导致位图字节偏移，打印出方块乱码。
+      if (!_printerChar) return;
+      const canWrite   = _printerChar.properties && _printerChar.properties.write;
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
-      const WEB_CHUNK = 20; // Web BLE MTU 最小 20 字节，与 APP 保持一致避免乱码
+      const WEB_CHUNK = 20;
       for (let i = 0; i < data.length; i += WEB_CHUNK) {
         const chunk = data.slice(i, i + WEB_CHUNK);
         try {
-          if (canWithout) {
-            await _printerChar.writeValueWithoutResponse(chunk);
-          } else if (_printerChar.writeValueWithResponse) {
+          if (canWrite && _printerChar.writeValueWithResponse) {
             await _printerChar.writeValueWithResponse(chunk);
+          } else if (canWithout) {
+            await _printerChar.writeValueWithoutResponse(chunk);
+            await new Promise(r => setTimeout(r, 5));
           } else {
             await _printerChar.writeValue(chunk);
           }
         } catch(e) {}
-        await new Promise(r => setTimeout(r, 5));
       }
     }
 
@@ -5337,9 +5341,12 @@
           return;
         }
       }
+      console.log('[PRINT] connected, isCapApp=' + _isCapApp + ', capDeviceId=' + _capDeviceId);
       let receipt;
       try {
+        console.log('[PRINT] building receipt...');
         receipt = await buildReceipt(order, currentShop?.shop_number || '');
+        console.log('[PRINT] receipt built, length=' + receipt.length);
       } catch (e) {
         console.warn('buildReceipt 失败:', e.message);
         showPrinterWarning('🖨️ 构建小票失败：' + e.message);
