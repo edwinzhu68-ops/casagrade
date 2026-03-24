@@ -1851,6 +1851,7 @@
     }
 
     function setClientLotteryMode(mode) {
+      // 先检查再赋值，防止禁用彩种时锁定模式
       if (mode === 'TICA' && (!currentShop || !currentShop.tica_enabled)) return;
       if (mode === 'NICA' && (!currentShop || !currentShop.nica_enabled)) return;
       clientLotteryMode = mode;
