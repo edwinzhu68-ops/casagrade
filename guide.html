@@ -109,6 +109,154 @@
     </div>
   </div>
 
+  <!-- 更新公告 -->
+  <div class="max-w-2xl mx-auto px-4 mt-3">
+    <button onclick="openChangelog()"
+      class="w-full bg-gray-900 border border-gray-700 hover:border-gray-500 rounded-2xl px-4 py-3 text-left flex items-center gap-3 transition-colors group">
+      <div class="shrink-0 w-8 h-8 bg-green-600/20 border border-green-500/40 rounded-xl flex items-center justify-center text-sm">🆕</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-green-400 text-xs font-bold">v1.9</span>
+          <span class="text-gray-500 text-[10px]">2026-03-24</span>
+          <span class="ml-auto text-gray-500 text-[10px] group-hover:text-gray-300 transition-colors" data-zh="查看全部更新 →" data-es="Ver todo →">查看全部更新 →</span>
+        </div>
+        <p class="text-gray-300 text-xs mt-0.5 truncate" data-zh="打印崩溃修复 · 代客下单电子单可滚动" data-es="Fix crash al imprimir · ticket electrónico con scroll">打印崩溃修复 · 代客下单电子单可滚动</p>
+      </div>
+    </button>
+  </div>
+
+  <!-- 更新公告弹窗 -->
+  <div id="modal-changelog" class="hidden fixed inset-0 bg-black/80 z-50 flex items-end justify-center p-4" onclick="if(event.target===this)closeChangelog()">
+    <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-700 shrink-0">
+        <h2 class="font-black text-white text-sm" data-zh="📋 更新公告" data-es="📋 Historial de versiones">📋 更新公告</h2>
+        <button onclick="closeChangelog()" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+      <div class="overflow-y-auto flex-1 px-4 py-3 space-y-3">
+
+        <!-- v1.9 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-green-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.9</span>
+            <span class="text-gray-500 text-[10px]">2026-03-24</span>
+            <span class="ml-auto text-green-400 text-[10px] font-bold" data-zh="最新" data-es="Último">最新</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-green-400 shrink-0">•</span><span data-zh="修复 APP 打印崩溃问题（页面刷新后打印导致崩溃）" data-es="Fix: crash al imprimir tras actualizar la página en la APP">修复 APP 打印崩溃问题（页面刷新后打印导致崩溃）</span></li>
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-green-400 shrink-0">•</span><span data-zh="代客下单电子单支持上下滚动，号码多时不再撑满屏幕" data-es="El ticket electrónico de caja ahora es desplazable cuando hay muchos números">代客下单电子单支持上下滚动，号码多时不再撑满屏幕</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.8 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.8</span>
+            <span class="text-gray-500 text-[10px]">2026-03-23</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="代客下单电子单 WhatsApp 转发，点击直接分享" data-es="Ticket electrónico de caja: compartir por WhatsApp con un toque">代客下单电子单 WhatsApp 转发，点击直接分享</span></li>
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="电子单转发后自动继续下一单，按钮始终可点" data-es="Tras compartir el ticket, el sistema continúa automáticamente al siguiente pedido">电子单转发后自动继续下一单，按钮始终可点</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.7 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.7</span>
+            <span class="text-gray-500 text-[10px]">2026-03-22</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="代客下单新增电子单开关，下单成功后弹出电子单" data-es="Nueva opción de ticket electrónico en la caja, se muestra tras confirmar el pedido">代客下单新增电子单开关，下单成功后弹出电子单</span></li>
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="电子单包含店号、订单号、下单时间、号码明细、金额" data-es="El ticket electrónico incluye nº de tienda, pedido, fecha, números y monto">电子单包含店号、订单号、下单时间、号码明细、金额</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.6 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.6</span>
+            <span class="text-gray-500 text-[10px]">2026-03-21</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="工作台订单详情页点击转发后自动关闭弹窗" data-es="El detalle del pedido se cierra automáticamente al compartir">工作台订单详情页点击转发后自动关闭弹窗</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.5 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.5</span>
+            <span class="text-gray-500 text-[10px]">2026-03-20</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="老板端 WhatsApp 转发按钮不再变沙漏，始终可点击" data-es="El botón de compartir por WhatsApp ya no se bloquea, siempre activo">老板端 WhatsApp 转发按钮不再变沙漏，始终可点击</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.4 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.4</span>
+            <span class="text-gray-500 text-[10px]">2026-03-19</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="客户端进入订单详情时默认显示下单页面" data-es="Al entrar al detalle del pedido, la página de pedido se muestra por defecto">客户端进入订单详情时默认显示下单页面</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.3 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.3</span>
+            <span class="text-gray-500 text-[10px]">2026-03-18</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="说明页网址 casagrade.com / casagrade.com/merchant 可直接点击跳转" data-es="Los enlaces casagrade.com / casagrade.com/merchant en la guía son clicables">说明页网址 casagrade.com / casagrade.com/merchant 可直接点击跳转</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.2 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.2</span>
+            <span class="text-gray-500 text-[10px]">2026-03-17</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="APP 蓝牙打印机连接一次后永久自动重连，无需每次手动配对" data-es="La impresora Bluetooth de la APP se reconecta automáticamente sin emparejar manualmente">APP 蓝牙打印机连接一次后永久自动重连，无需每次手动配对</span></li>
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="蓝牙搜索只显示有名字的设备，过滤无名未知设备" data-es="La búsqueda Bluetooth muestra solo dispositivos con nombre, ocultando dispositivos desconocidos">蓝牙搜索只显示有名字的设备，过滤无名未知设备</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.1 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.1</span>
+            <span class="text-gray-500 text-[10px]">2026-03-15</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="说明页 APP 下载区域重新设计，客户端/老板端分两列" data-es="Rediseño de la sección de descarga de la APP en la guía, cliente/comerciante en dos columnas">说明页 APP 下载区域重新设计，客户端/老板端分两列</span></li>
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="彩票说明精简，移除冗余的分类标签" data-es="Descripción de lotería simplificada, etiquetas redundantes eliminadas">彩票说明精简，移除冗余的分类标签</span></li>
+          </ul>
+        </div>
+
+        <!-- v1.0 -->
+        <div class="bg-gray-800 rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v1.0</span>
+            <span class="text-gray-500 text-[10px]">2026-03-14</span>
+            <span class="ml-auto text-gray-500 text-[10px]" data-zh="首发" data-es="Lanzamiento">首发</span>
+          </div>
+          <ul class="space-y-1">
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="系统正式上线，支持 Lotería Nacional / TICA / NICA" data-es="Lanzamiento del sistema con soporte para Lotería Nacional, TICA y NICA">系统正式上线，支持 Lotería Nacional / TICA / NICA</span></li>
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="客户端 APP + 老板端 APP 双端发布" data-es="Publicación de APP cliente y APP comerciante">客户端 APP + 老板端 APP 双端发布</span></li>
+            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">•</span><span data-zh="支持扫码/现金双通道收款，自动结算，蓝牙打印" data-es="Pago por QR y efectivo, liquidación automática, impresión Bluetooth">支持扫码/现金双通道收款，自动结算，蓝牙打印</span></li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- 以前 vs 现在 -->
   <div class="max-w-2xl mx-auto px-4 mt-5">
     <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -986,6 +1134,13 @@
       lang = lang === 'zh' ? 'es' : 'zh';
       localStorage.setItem('guide_lang', lang);
       applyLang();
+    }
+
+    function openChangelog() {
+      document.getElementById('modal-changelog').classList.remove('hidden');
+    }
+    function closeChangelog() {
+      document.getElementById('modal-changelog').classList.add('hidden');
     }
 
     applyLang();
