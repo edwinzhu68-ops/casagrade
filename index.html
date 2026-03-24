@@ -1830,7 +1830,7 @@
         if (currentShop.shop_id != null) persistClientLotteryModeForShop(currentShop.shop_id, clientLotteryMode);
       } catch (ePm) {}
       syncBilletePaletLabel();
-      updateClientModeButtons();
+      syncBilletePaletLabel(); updateClientModeButtons();
       updateClientLotteryDividerBar();
     }
 
@@ -1859,7 +1859,7 @@
       if (mode === 'NICA' && (!currentShop || !currentShop.nica_enabled)) return;
       clientLotteryMode = mode;
       if (currentShop && currentShop.shop_id != null) persistClientLotteryModeForShop(currentShop.shop_id, mode);
-      updateClientModeButtons();
+      syncBilletePaletLabel(); updateClientModeButtons();
       updateClientLotteryDividerBar();
       syncDrawAtSecondaryRowsVisibility(clientLotteryMode);
       updateBetStatusUI();
