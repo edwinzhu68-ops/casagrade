@@ -4920,29 +4920,40 @@
     // ── Capacitor 原生 BLE 桥（Android APP 模式）───────────
     // _isCapApp 已在文件顶部定义（PWA 区域之前），此处仅定义 BLE 相关变量
     const _CapBle   = _isCapApp ? (window.Capacitor.Plugins && window.Capacitor.Plugins.BluetoothLe || null) : null;
-    let _capDeviceId        = null;   // 已连接设备 ID
-    let _capServiceUUID     = null;   // 打印机服务 UUID
-    let _capCharUUID        = null;   // 打印机特征 UUID
-    let _capCanWriteWithout = false;  // 是否支持无响应写入
-    let _capConnectLock     = false;  // 并发连接锁，防止重复调用导致崩溃
-    let _capDisconnectHandlerId = null; // 断连监听器 ID，用于移除旧监听器
+    let _capDeviceId        = null;   // 已连接设备 ID（仅用于断连/重连）
+    let _capConnectLock     = false;  // 并发连接锁
+    let _capDisconnectHandlerId = null; // 断连监听器 ID
     // APP 启动时初始化 BLE 权限
     if (_isCapApp && _CapBle) { try { _CapBle.initialize(); } catch(e) {} }
 
-    /** Uint8Array → base64（Web Bluetooth 需要） */
+    /** Uint8Array → base64 */
     function _toB64(u8) {
       var s = '';
       for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
       return btoa(s);
     }
-    /** Uint8Array → 空格分隔 hex（Capacitor BluetoothLe 插件需要） */
-    function _toHex(u8) {
-      var hex = '';
-      for (var i = 0; i < u8.length; i++) {
-        if (i > 0) hex += ' ';
-        hex += u8[i].toString(16).padStart(2, '0').toUpperCase();
+
+    /**
+     * 为 Capacitor BLE 连接创建与 Web Bluetooth 兼容的 _printerChar 包装器。
+     * 这样 sendToPrinter / keepAlive / isPrinterConnected 统一走 Web 逻辑，无需 CAP 分支。
+     */
+    function _makeCapPrinterChar(deviceId, serviceUUID, charUUID, canWriteWithout) {
+      function toB64(data) {
+        var u8 = data instanceof Uint8Array ? data : new Uint8Array(data.buffer || data);
+        return _toB64(u8);
       }
-      return hex;
+      return {
+        properties: { write: true, writeWithoutResponse: canWriteWithout },
+        writeValueWithResponse: async function(data) {
+          await _CapBle.write({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toB64(data) });
+        },
+        writeValueWithoutResponse: async function(data) {
+          await _CapBle.writeWithoutResponse({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toB64(data) });
+        },
+        writeValue: async function(data) {
+          await _CapBle.write({ deviceId: deviceId, service: serviceUUID, characteristic: charUUID, value: toB64(data) });
+        }
+      };
     }
 
     // ── BLE 设备选择器（APP 模式 startScan 扫描全量设备） ──────────
@@ -5042,27 +5053,21 @@
 
     /** 统一判断打印机是否已连接（兼容 Web BLE 和 Capacitor 两种模式） */
     function isPrinterConnected() {
-      return _isCapApp ? !!_capDeviceId : !!_printerChar;
+      return !!_printerChar;
     }
     let currentDrawDate = null;   // 当期开奖日期，加载数据时更新，用于打印小票
 
-    /** 每 25 秒发一次 ESC @ 心跳，保持 BLE 连接不断 */
+    /** 每 25 秒发一次 ESC @ 心跳，保持 BLE 连接不断（APP/Web 统一逻辑） */
     function startPrinterKeepAlive() {
-      if (_isCapApp) return; // APP 模式暂时禁用心跳排查崩溃
       if (_keepAliveTimer) clearInterval(_keepAliveTimer);
       _keepAliveTimer = setInterval(async () => {
         if (!isPrinterConnected()) return;
         try {
-          const ping = new Uint8Array([0x1B, 0x40]); // ESC @ 初始化（无害）
-          if (_isCapApp && _capDeviceId) {
-            const val = _toB64(ping);
-            await _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: val });
-          } else {
-            const canWithout = _printerChar.properties?.writeWithoutResponse;
-            if (canWithout) await _printerChar.writeValueWithoutResponse(ping);
-            else if (_printerChar.writeValueWithResponse) await _printerChar.writeValueWithResponse(ping);
-            else await _printerChar.writeValue(ping);
-          }
+          const ping = new Uint8Array([0x1B, 0x40]);
+          const canWithout = _printerChar.properties?.writeWithoutResponse;
+          if (canWithout) await _printerChar.writeValueWithoutResponse(ping);
+          else if (_printerChar.writeValueWithResponse) await _printerChar.writeValueWithResponse(ping);
+          else await _printerChar.writeValue(ping);
         } catch {}
       }, 25000);
     }
@@ -5077,96 +5082,86 @@
       { service: '49535343-fe7d-4ae5-8fa9-9fafd205e455', char: '49535343-8841-43f4-a8d4-ecbe34729bb3' },
     ];
 
-    /** Capacitor 底层：拿到 deviceId 后建立 BLE 连接并发现打印特征 */
+    /**
+     * Capacitor BLE 连接（参考 Web 版 _doConnect 逻辑重写）。
+     * 连接成功后用 _makeCapPrinterChar 包装成与 Web Bluetooth 一致的 _printerChar，
+     * 后续 sendToPrinter / keepAlive / isPrinterConnected 统一走 Web 路径。
+     */
     async function _doConnectCap(deviceId, deviceName, printTest) {
-      // 防止并发调用：已在连接中则直接返回
       if (_capConnectLock) return false;
       _capConnectLock = true;
-      // 已连接则跳过（避免重复 connect 导致 Android 崩溃）
-      if (_capDeviceId === deviceId) {
+      if (_capDeviceId === deviceId && _printerChar) {
         _capConnectLock = false;
         return true;
       }
       var statusEl = document.getElementById('printer-status');
       if (statusEl) { statusEl.textContent = t('printer_connecting').replace('{name}', deviceName || t('bt_device')); statusEl.className = 'text-xs text-blue-400'; }
       try {
-        await _CapBle.connect({ deviceId: deviceId, autoConnect: true });
+        await _CapBle.connect({ deviceId: deviceId });
       } catch(e) {
         _capConnectLock = false;
         if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
         return false;
       }
       _capConnectLock = false;
-      _printerDevice = null; // 清空 Web BLE 引用，避免混用
+      _printerDevice = null;
       // 等待 Android 服务发现完成
       await new Promise(function(r) { setTimeout(r, 800); });
+      // 断连监听：与 Web 版 gattserverdisconnected 对应
       try {
-        // 移除旧的断连监听器，防止累积
         if (_capDisconnectHandlerId) {
           try { _CapBle.removeListener(_capDisconnectHandlerId); } catch(e) {}
           _capDisconnectHandlerId = null;
         }
-        var handler = _CapBle.addListener('disconnected|' + deviceId, function() {
+        _capDisconnectHandlerId = _CapBle.addListener('disconnected|' + deviceId, function() {
           _capDeviceId = null;
+          _printerChar = null;
           _capDisconnectHandlerId = null;
           stopPrinterKeepAlive();
           updatePrinterStatusUI();
           if (_reconnectTimer) clearTimeout(_reconnectTimer);
           _reconnectTimer = setTimeout(function() { autoReconnectPrinter(); }, 500);
         });
-        _capDisconnectHandlerId = handler;
       } catch(e) {}
-      // 先获取全部服务，再遍历特征，找到可写特征即可（避免 UUID 不匹配漏掉）
+      // 发现服务和特征（与 Web 版遍历 PRINTER_PROFILES 对应）
       var found = false;
-      var _dbgLines = [];
       try {
         var svcResult = await _CapBle.getServices({ deviceId: deviceId });
         var services = (svcResult && svcResult.services) || [];
-        _dbgLines.push('svcs:' + services.length);
         outer: for (var si = 0; si < services.length; si++) {
           var svc = services[si];
           var svcUuid = svc.uuid || '';
-          // getServices 已包含 characteristics，无需再单独调用 getCharacteristics
           var chars = svc.characteristics || [];
-          _dbgLines.push(svcUuid.slice(0,8) + ':' + chars.length + 'chars');
           for (var ci = 0; ci < chars.length; ci++) {
             var ch = chars[ci];
             var props = ch.properties || {};
-            _dbgLines.push((ch.uuid||'').slice(0,8) + ' w:' + (props.write||0) + ' wo:' + (props.writeWithoutResponse||0));
             if (props.write || props.writeWithoutResponse) {
-              _capDeviceId        = deviceId;
-              _capServiceUUID     = svcUuid;
-              _capCharUUID        = ch.uuid;
-              _capCanWriteWithout = !!props.writeWithoutResponse;
+              // 用包装器创建与 Web Bluetooth 兼容的 _printerChar
+              _printerChar = _makeCapPrinterChar(deviceId, svcUuid, ch.uuid, !!props.writeWithoutResponse);
+              _capDeviceId = deviceId;
               found = true;
               break outer;
             }
           }
         }
       } catch(e) {
-        _dbgLines.push('getServices err:' + (e&&e.message||e));
+        console.warn('[CAP] getServices error:', e.message || e);
       }
-      if (!found) { try { await _CapBle.disconnect({ deviceId: deviceId }); } catch(e) {} }
-      if (found) {
-        localStorage.setItem('lottery_printer_name', deviceName || '');
-        localStorage.setItem('lottery_cap_printer_device_id', deviceId);
-        updatePrinterStatusUI();
-        document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
-        startPrinterKeepAlive();
-        if (printTest) {
-          // 等连接稳定后再打测试页，防止 Android BLE 写入崩溃
-          await new Promise(r => setTimeout(r, 300));
-          try { await sendToPrinter(buildTestReceipt()); } catch(e) { console.warn('[PRINT] CAP test print failed:', e.message || e); }
-        }
-        return true;
+      if (!found) {
+        try { await _CapBle.disconnect({ deviceId: deviceId }); } catch(e) {}
+        localStorage.removeItem('lottery_cap_printer_device_id');
+        if (statusEl) { statusEl.textContent = t('printer_no_char'); statusEl.className = 'text-xs text-red-400'; }
+        return false;
       }
-      localStorage.removeItem('lottery_cap_printer_device_id');
-      // 调试信息显示在状态栏，不被 updatePrinterStatusUI 覆盖
-      if (statusEl) {
-        statusEl.textContent = _dbgLines.length ? _dbgLines.join(' | ') : t('printer_no_char');
-        statusEl.className = 'text-xs text-yellow-400';
-      }
-      return false;
+      // 连接成功：与 Web 版 _doConnect 成功路径一致
+      localStorage.setItem('lottery_printer_name', deviceName || '');
+      localStorage.setItem('lottery_cap_printer_device_id', deviceId);
+      updatePrinterStatusUI();
+      document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
+      startPrinterKeepAlive();
+      // 测试打印（与 Web 版一致）
+      if (printTest) { try { await sendToPrinter(buildTestReceipt()); } catch(e) { console.warn('[CAP] test print failed:', e); } }
+      return true;
     }
 
     function hasBLE() {
@@ -5353,7 +5348,7 @@
       localStorage.setItem('lottery_print_enabled', checked ? '1' : '0');
       if (!checked) {
         _printerChar = null;
-        if (_isCapApp && _capDeviceId) { try { _CapBle.disconnect({ deviceId: _capDeviceId }); } catch(e) {} _capDeviceId = null; }
+        if (_capDeviceId) { try { _CapBle && _CapBle.disconnect({ deviceId: _capDeviceId }); } catch(e) {} _capDeviceId = null; }
         stopPrinterKeepAlive();
       }
       const reason = printUnsupportedReason();
@@ -5463,33 +5458,31 @@
       }
     }
 
-    /** 断连后自动重试 */
+    /** 断连后自动重试（APP/Web 统一） */
     async function autoReconnectPrinter() {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
+      if (isPrinterConnected()) return;
+      // APP 模式：用保存的 deviceId 重连
       if (_isCapApp && _CapBle) {
-        if (_capDeviceId || _capConnectLock) return; // 已在连接中或已连接，跳过
+        if (_capConnectLock) return;
         const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
         const savedName = localStorage.getItem('lottery_printer_name') || '';
         if (!savedId) return;
-        const delays = [1000, 3000, 6000, 12000];
+        const delays = [1000, 3000, 6000];
         for (const delay of delays) {
-          try {
-            await new Promise(r => setTimeout(r, delay));
-            if (_capDeviceId) return; // 已被其他路径重连
-            const ok = await _doConnectCap(savedId, savedName, false);
-            if (ok) return;
-          } catch {}
+          await new Promise(r => setTimeout(r, delay));
+          if (isPrinterConnected()) return;
+          try { if (await _doConnectCap(savedId, savedName, false)) return; } catch {}
         }
         return;
       }
+      // Web 模式：用缓存的 _printerDevice 重连
       if (!_printerDevice) return;
       const delays = [500, 2000, 5000];
       for (const delay of delays) {
-        try {
-          await new Promise(r => setTimeout(r, delay));
-          const ok = await _doConnect(_printerDevice, false);
-          if (ok) return;
-        } catch {}
+        await new Promise(r => setTimeout(r, delay));
+        if (isPrinterConnected()) return;
+        try { if (await _doConnect(_printerDevice, false)) return; } catch {}
       }
     }
 
@@ -5712,58 +5705,27 @@
       return new Uint8Array(buf);
     }
 
-    // ── 发送打印 ──────────────────────────────────────────
+    // ── 发送打印（APP/Web 统一逻辑）──────────────────────────
     async function sendToPrinter(data) {
-      console.log('[PRINT] sendToPrinter called, isCapApp=' + _isCapApp + ', data.length=' + data.length + ', capDeviceId=' + _capDeviceId + ', capCharUUID=' + _capCharUUID);
-      const CHUNK = 100;
-      if (_isCapApp) {
-        // Capacitor 原生 BLE 写入
-        // 安全检查：任一 BLE 参数为空时直接返回，防止向 native 传 null 导致崩溃
-        if (!_capDeviceId || !_capServiceUUID || !_capCharUUID) return;
-        // 捕获到局部变量：防止 disconnect 事件在打印途中把 _capDeviceId 置 null
-        const devId  = _capDeviceId;
-        const svcId  = _capServiceUUID;
-        const charId = _capCharUUID;
-        const canWO  = _capCanWriteWithout;
-        const CAP_CHUNK = 20;
-        for (let i = 0; i < data.length; i += CAP_CHUNK) {
-          const chunk = data.slice(i, i + CAP_CHUNK);
-          const val = _toB64(chunk);
-          try {
-            if (canWO) {
-              await _CapBle.writeWithoutResponse({ deviceId: devId, service: svcId, characteristic: charId, value: val });
-            } else {
-              await _CapBle.write({ deviceId: devId, service: svcId, characteristic: charId, value: val });
-            }
-          } catch(e) {
-            console.warn('[PRINT] CAP BLE write error at chunk ' + i + ':', e.message || e);
-            return; // 写入失败立即停止，防止后续 chunk 继续触发 native 崩溃
-          }
-          // BLE 写入间隔，防止打印机过载
-          await new Promise(r => setTimeout(r, 5));
-          await new Promise(r => setTimeout(r, 20));
-        }
-        return;
-      }
-      // Web Bluetooth 写入（浏览器模式）
-      // 必须用 writeValueWithResponse（有 ACK）：无 ACK 的 writeWithoutResponse 在大数据量时
-      // BLE 栈可能丢包/乱序，导致位图字节偏移，打印出方块乱码。
       if (!_printerChar) return;
+      console.log('[PRINT] sendToPrinter, length=' + data.length);
       const canWrite   = _printerChar.properties && _printerChar.properties.write;
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
-      const WEB_CHUNK = 20;
-      for (let i = 0; i < data.length; i += WEB_CHUNK) {
-        const chunk = data.slice(i, i + WEB_CHUNK);
+      const CHUNK = 20;
+      for (let i = 0; i < data.length; i += CHUNK) {
+        const chunk = data.slice(i, i + CHUNK);
         try {
           if (canWrite && _printerChar.writeValueWithResponse) {
             await _printerChar.writeValueWithResponse(chunk);
-          } else if (canWithout) {
+          } else if (canWithout && _printerChar.writeValueWithoutResponse) {
             await _printerChar.writeValueWithoutResponse(chunk);
-            await new Promise(r => setTimeout(r, 5));
-          } else {
+          } else if (_printerChar.writeValue) {
             await _printerChar.writeValue(chunk);
           }
-        } catch(e) {}
+        } catch(e) {
+          console.warn('[PRINT] write error at chunk ' + i + ':', e.message || e);
+          return;
+        }
       }
     }
 
@@ -5772,10 +5734,9 @@
       var etToggle = document.getElementById('cashier-eticket-toggle');
       var isEtOff = !etToggle || !etToggle.checked;
       // 电子单开时不打印（走电子单流程），电子单关时直接打
-      // APP 模式：不做自动重连（对已连接设备重复 connect 会导致 Android 原生崩溃）
-      // Web 模式：可用 _printerDevice 引用安全重连
       if (!isPrinterConnected()) {
-        if (!_isCapApp && _printerDevice) {
+        // 尝试自动重连
+        if (_printerDevice) {
           try { await _doConnect(_printerDevice, false); } catch {}
         }
         if (!isPrinterConnected()) {
@@ -5783,7 +5744,6 @@
           return;
         }
       }
-      console.log('[PRINT] connected, isCapApp=' + _isCapApp + ', capDeviceId=' + _capDeviceId);
       let receipt;
       try {
         console.log('[PRINT] building receipt...');
