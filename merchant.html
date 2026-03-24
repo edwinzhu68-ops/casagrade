@@ -234,10 +234,10 @@
         </div>
       </div>
 
-      <!-- Chance 号码（开奖后清空） -->
+      <!-- Chance 热门号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold">Chance <span class="text-gray-400 text-sm font-normal">销售额</span> <span class="text-blue-400 text-sm font-normal" id="merchant-chance-sales">$0.00</span></h3>
+          <h3 class="font-bold" data-i18n="chance_hot">Chance 热门号码</h3>
           <button id="btn-chance-viewall" onclick="showChanceDetail()" class="text-blue-400 text-sm" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="chance-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -245,10 +245,10 @@
         </div>
       </div>
 
-      <!-- Billete 号码（开奖后清空） -->
+      <!-- Billete 热门号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4 relative z-10">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold">Billete <span class="text-gray-400 text-sm font-normal">销售额</span> <span class="text-amber-400 text-sm font-normal" id="merchant-billete-sales">$0.00</span></h3>
+          <h3 class="font-bold" data-i18n="billete_hot">Billete 热门号码</h3>
           <button type="button" id="btn-billete-viewall" onclick="showBilleteDetail()" class="text-blue-400 text-sm font-medium cursor-pointer hover:text-blue-300 hover:underline relative z-10 py-1 px-2 -m-2" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="billete-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -341,12 +341,8 @@
         <button onclick="closeModal('modal-chance')" class="text-gray-400">✕</button>
       </div>
       <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400">Chance <span data-i18n="chance_modal_sales_label">销售额</span></span>
-        <span id="chance-modal-sales" class="text-blue-400 font-bold text-lg">$0.00</span>
-      </div>
-      <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400" data-i18n="total_sales_label">总销售额</span>
-        <span id="chance-modal-total-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
+        <span id="chance-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
       </div>
 
       <div id="chance-grid" class="grid grid-cols-10 gap-1 text-xs">
@@ -368,12 +364,8 @@
         <button onclick="closeModal('modal-billete')" class="text-gray-400">✕</button>
       </div>
       <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400">Billete <span data-i18n="billete_modal_sales_label">销售额</span></span>
-        <span id="billete-modal-sales" class="text-amber-400 font-bold text-lg">$0.00</span>
-      </div>
-      <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400" data-i18n="total_sales_label">总销售额</span>
-        <span id="billete-modal-total-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
+        <span id="billete-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
       </div>
 
       <div id="billete-list" class="space-y-1 max-h-96 overflow-y-auto">
@@ -878,13 +870,10 @@
         forgot_email_placeholder: '输入邮箱',
         forgot_cancel: '取消',
         forgot_send: '发送',
-        chance_hot: 'Chance',
-        billete_hot: 'Billete',
+        chance_hot: 'Chance 热门号码',
+        billete_hot: 'Billete 热门号码',
         view_all: '查看全部 →',
         no_data: '暂无数据',
-        chance_modal_sales_label: '销售额',
-        billete_modal_sales_label: '销售额',
-        total_sales_label: '总销售额',
         after_draw_cleared: '开奖后已清空',
         settings_title: '⚙️ 销售限额',
         chance_limit_label: 'Chance 每号最多',
@@ -1172,13 +1161,10 @@
         forgot_email_placeholder: 'Tu correo electrónico',
         forgot_cancel: 'Cancelar',
         forgot_send: 'Enviar',
-        chance_hot: 'Chance',
-        billete_hot: 'Billete',
+        chance_hot: 'Chance más jugados',
+        billete_hot: 'Billete más jugados',
         view_all: 'Ver todo →',
         no_data: 'Sin datos',
-        chance_modal_sales_label: 'Ventas',
-        billete_modal_sales_label: 'Ventas',
-        total_sales_label: 'Ventas totales',
         after_draw_cleared: 'Borrado tras el sorteo',
         settings_title: '⚙️ Límites y precios',
         chance_limit_label: 'Chance máx. por número',
@@ -2981,8 +2967,7 @@
         // 计算销量（当期订单）
         calculateSales();
 
-        // 渲染 Chance / Billete 销售额 + TOP12
-        renderSalesAmount();
+        // 渲染TOP10
         renderChanceTop10();
         renderBilleteTop10();
 
@@ -3002,13 +2987,9 @@
     }
 
     // 计算销量：只统计本期已付款订单（与本期订单、本期销售额一致）；开奖后不再用全部已付款兜底，热门号码清空
-    var chanceSalesAmount = 0;
-    var billeteSalesAmount = 0;
     function calculateSales() {
       chanceSales = {};
       billeteSales = {};
-      chanceSalesAmount = 0;
-      billeteSalesAmount = 0;
       var paidOrders = (ordersForCurrentDraw && ordersForCurrentDraw.length) ? ordersForCurrentDraw : [];
       if (DEBUG) {
         var gtCounts = {};
@@ -3028,9 +3009,6 @@
       paidOrders.forEach(function (order) {
         var list = order.numbers || order.bet_numbers || [];
         if (!list.length) return;
-        var totalQty = list.reduce(function (s, x) {
-          return s + (Number(x.q != null ? x.q : x.quantity) || 0);
-        }, 0) || 1;
         list.forEach(function (n) {
           var q = Number(n.q != null ? n.q : n.quantity) || 0;
           var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
@@ -3039,22 +3017,12 @@
           if (str.length >= 4) {
             var numBi = str.slice(-4).padStart(4, '0');
             if (numBi.length === 4) billeteSales[numBi] = (billeteSales[numBi] || 0) + q;
-            billeteSalesAmount += q * Number(order.amount || 0) / totalQty;
           } else if (str.length >= 2) {
             var numCh = str.slice(-2).padStart(2, '0');
             if (numCh.length === 2) chanceSales[numCh] = (chanceSales[numCh] || 0) + q;
-            chanceSalesAmount += q * Number(order.amount || 0) / totalQty;
           }
         });
       });
-    }
-
-    // 渲染 Chance / Billete 销售额
-    function renderSalesAmount() {
-      var chanceEl = document.getElementById('merchant-chance-sales');
-      var billeteEl = document.getElementById('merchant-billete-sales');
-      if (chanceEl) chanceEl.textContent = '$' + chanceSalesAmount.toFixed(2);
-      if (billeteEl) billeteEl.textContent = '$' + billeteSalesAmount.toFixed(2);
     }
 
     // Chance TOP12（按销量排序前12个号码；开奖后本期销量会清空，自然显示暂无数据）
@@ -3179,11 +3147,9 @@
       }
 
       var chSalesEl = document.getElementById('chance-modal-sales');
-      if (chSalesEl) chSalesEl.textContent = '$' + chanceSalesAmount.toFixed(2);
-      var chTotalEl = document.getElementById('chance-modal-total-sales');
-      if (chTotalEl) {
+      if (chSalesEl) {
         var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
-        chTotalEl.textContent = '$' + total.toFixed(2);
+        chSalesEl.textContent = '$' + total.toFixed(2);
       }
 
       document.getElementById('modal-chance').classList.remove('hidden');
@@ -3248,11 +3214,9 @@
       }
 
       var biSalesEl = document.getElementById('billete-modal-sales');
-      if (biSalesEl) biSalesEl.textContent = '$' + billeteSalesAmount.toFixed(2);
-      var biTotalEl = document.getElementById('billete-modal-total-sales');
-      if (biTotalEl) {
+      if (biSalesEl) {
         var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
-        biTotalEl.textContent = '$' + total.toFixed(2);
+        biSalesEl.textContent = '$' + total.toFixed(2);
       }
 
       document.getElementById('modal-billete').classList.remove('hidden');
@@ -3748,11 +3712,9 @@
       fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)))
         .then(function (r) { return r.json(); })
         .then(function (order) {
-          var etToggle = document.getElementById('cashier-eticket-toggle');
-          var isEtEnabled = etToggle && etToggle.checked;
-          // 互斥模式：电子单开→只出电子单；电子单关→只出纸单
-          if (!isEtEnabled) autoPrintOrder(order);
-          if (isEtEnabled) {
+          autoPrintOrder(order);
+          var toggle = document.getElementById('cashier-eticket-toggle');
+          if (toggle && toggle.checked) {
             fillCashierEticket(order);
             showCashierEticket();
           }
@@ -4095,18 +4057,11 @@
 
         if (res.ok) {
           showPaymentSuccessToast();
-          // 互斥模式：电子单关闭 + 打印机已连接 → 先打印再刷新（避免并发导致 APP 崩溃）
-          var etToggle = document.getElementById('cashier-eticket-toggle');
-          var isEtEnabled = etToggle && etToggle.checked;
-          if (!isEtEnabled && isPrinterConnected()) {
-            try {
-              var freshRes = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`);
-              var freshOrder = await freshRes.json();
-              await autoPrintOrder(freshOrder);
-            } catch (pe) {
-              console.warn('[PRINT] quickConfirm print error:', pe);
-            }
-          }
+          // 拉完整订单数据后打印（quickConfirm 入参只有订单号，需单独请求）
+          fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`)
+            .then(r => r.json())
+            .then(order => autoPrintOrder(order))
+            .catch(() => {});
           await loadDashboard();
         } else {
           var errData = await res.json().catch(function () { return {}; });
@@ -4302,9 +4257,6 @@
           return s === 'paid' || s === 1 || s === 2 || s === 'settled' || s === 3 || s === 'won';
         });
         calculateSales();
-        renderSalesAmount();
-        renderChanceTop10();
-        renderBilleteTop10();
         renderPeriodOrderList(document.getElementById('period-order-filter') ? document.getElementById('period-order-filter').value : '');
         loadDashboard();
       } catch (err) {
@@ -4552,9 +4504,9 @@
         if (fresh) {
           showOrderDetail(fresh, currentOrder._hash);
           // 与「确认收款」一致：已启用打印且已连接时，用最新订单数据自动出票
-          var etToggle = document.getElementById('cashier-eticket-toggle');
-          var isEtEnabled = etToggle && etToggle.checked;
-          if (!isEtEnabled) { try { autoPrintOrder(fresh); } catch (ePrint) {} }
+          try {
+            autoPrintOrder(fresh);
+          } catch (ePrint) {}
         } else {
           exitOrderDetailEdit();
         }
@@ -4591,18 +4543,10 @@
         if (res.ok) {
           showPaymentSuccessToast();
           // 用确认后最新数据打印，与 quickConfirm 保持一致
-          var etToggle = document.getElementById('cashier-eticket-toggle');
-          var isEtEnabled = etToggle && etToggle.checked;
-          if (!isEtEnabled && isPrinterConnected()) {
-            try {
-              var freshRes = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`);
-              var freshOrder = await freshRes.json();
-              await autoPrintOrder(freshOrder);
-            } catch (pe) {
-              console.warn('[PRINT] confirmPayment print error:', pe);
-              try { await autoPrintOrder(currentOrder); } catch(e2) {}
-            }
-          }
+          fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`)
+            .then(r => r.json())
+            .then(freshOrder => autoPrintOrder(freshOrder))
+            .catch(() => autoPrintOrder(currentOrder));
           closeModal('modal-order');
           loadDashboard();
         } else {
@@ -4924,8 +4868,6 @@
     let _capServiceUUID     = null;   // 打印机服务 UUID
     let _capCharUUID        = null;   // 打印机特征 UUID
     let _capCanWriteWithout = false;  // 是否支持无响应写入
-    let _capConnectLock     = false;  // 并发连接锁，防止重复调用导致崩溃
-    let _capDisconnectHandlerId = null; // 断连监听器 ID，用于移除旧监听器
     // APP 启动时初始化 BLE 权限
     if (_isCapApp && _CapBle) { try { _CapBle.initialize(); } catch(e) {} }
 
@@ -5079,42 +5021,25 @@
 
     /** Capacitor 底层：拿到 deviceId 后建立 BLE 连接并发现打印特征 */
     async function _doConnectCap(deviceId, deviceName, printTest) {
-      // 防止并发调用：已在连接中则直接返回
-      if (_capConnectLock) return false;
-      _capConnectLock = true;
-      // 已连接则跳过（避免重复 connect 导致 Android 崩溃）
-      if (_capDeviceId === deviceId) {
-        _capConnectLock = false;
-        return true;
-      }
       var statusEl = document.getElementById('printer-status');
       if (statusEl) { statusEl.textContent = t('printer_connecting').replace('{name}', deviceName || t('bt_device')); statusEl.className = 'text-xs text-blue-400'; }
       try {
         await _CapBle.connect({ deviceId: deviceId, autoConnect: true });
       } catch(e) {
-        _capConnectLock = false;
         if (statusEl) { statusEl.textContent = t('printer_connect_fail') + ': ' + (e.message || ''); statusEl.className = 'text-xs text-red-400'; }
         return false;
       }
-      _capConnectLock = false;
       _printerDevice = null; // 清空 Web BLE 引用，避免混用
       // 等待 Android 服务发现完成
       await new Promise(function(r) { setTimeout(r, 800); });
       try {
-        // 移除旧的断连监听器，防止累积
-        if (_capDisconnectHandlerId) {
-          try { _CapBle.removeListener(_capDisconnectHandlerId); } catch(e) {}
-          _capDisconnectHandlerId = null;
-        }
-        var handler = _CapBle.addListener('disconnected|' + deviceId, function() {
+        _CapBle.addListener('disconnected|' + deviceId, function() {
           _capDeviceId = null;
-          _capDisconnectHandlerId = null;
           stopPrinterKeepAlive();
           updatePrinterStatusUI();
           if (_reconnectTimer) clearTimeout(_reconnectTimer);
           _reconnectTimer = setTimeout(function() { autoReconnectPrinter(); }, 500);
         });
-        _capDisconnectHandlerId = handler;
       } catch(e) {}
       // 先获取全部服务，再遍历特征，找到可写特征即可（避免 UUID 不匹配漏掉）
       var found = false;
@@ -5153,11 +5078,6 @@
         updatePrinterStatusUI();
         document.getElementById('printer-warning') && document.getElementById('printer-warning').classList.add('hidden');
         startPrinterKeepAlive();
-        if (printTest) {
-          // 等连接稳定后再打测试页，防止 Android BLE 写入崩溃
-          await new Promise(r => setTimeout(r, 300));
-          try { await sendToPrinter(buildTestReceipt()); } catch(e) { console.warn('[PRINT] CAP test print failed:', e.message || e); }
-        }
         return true;
       }
       localStorage.removeItem('lottery_cap_printer_device_id');
@@ -5467,7 +5387,6 @@
     async function autoReconnectPrinter() {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       if (_isCapApp && _CapBle) {
-        if (_capDeviceId || _capConnectLock) return; // 已在连接中或已连接，跳过
         const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
         const savedName = localStorage.getItem('lottery_printer_name') || '';
         if (!savedId) return;
@@ -5728,20 +5647,15 @@
         const CAP_CHUNK = 20;
         for (let i = 0; i < data.length; i += CAP_CHUNK) {
           const chunk = data.slice(i, i + CAP_CHUNK);
-          const val = _toB64(chunk);
+          const val = _toHex(chunk);
           try {
             if (canWO) {
               await _CapBle.writeWithoutResponse({ deviceId: devId, service: svcId, characteristic: charId, value: val });
             } else {
               await _CapBle.write({ deviceId: devId, service: svcId, characteristic: charId, value: val });
             }
-          } catch(e) {
-            console.warn('[PRINT] CAP BLE write error at chunk ' + i + ':', e.message || e);
-            return; // 写入失败立即停止，防止后续 chunk 继续触发 native 崩溃
-          }
-          // BLE 写入间隔，防止打印机过载
+          } catch(e) {}
           await new Promise(r => setTimeout(r, 5));
-          await new Promise(r => setTimeout(r, 20));
         }
         return;
       }
@@ -5768,10 +5682,7 @@
     }
 
     async function autoPrintOrder(order) {
-      // 互斥模式：电子单关闭 + 打印机已连接 → 直接打印
-      var etToggle = document.getElementById('cashier-eticket-toggle');
-      var isEtOff = !etToggle || !etToggle.checked;
-      // 电子单开时不打印（走电子单流程），电子单关时直接打
+      if (localStorage.getItem('lottery_print_enabled') !== '1') return;
       // APP 模式：不做自动重连（对已连接设备重复 connect 会导致 Android 原生崩溃）
       // Web 模式：可用 _printerDevice 引用安全重连
       if (!isPrinterConnected()) {
