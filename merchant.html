@@ -5312,16 +5312,14 @@
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
       for (let i = 0; i < data.length; i += CHUNK) {
         const chunk = data.slice(i, i + CHUNK);
-        const isQR = chunk[0] === 0x1D;
-        const extraDelay = isQR ? 50 : 10;
         if (canWithout) {
           await _printerChar.writeValueWithoutResponse(chunk);
-          await new Promise(r => setTimeout(r, extraDelay));
         } else if (_printerChar.writeValueWithResponse) {
           await _printerChar.writeValueWithResponse(chunk);
         } else {
           await _printerChar.writeValue(chunk);
         }
+        await new Promise(r => setTimeout(r, 5));
       }
     }
 
