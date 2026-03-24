@@ -5724,7 +5724,7 @@
         const CAP_CHUNK = 20;
         for (let i = 0; i < data.length; i += CAP_CHUNK) {
           const chunk = data.slice(i, i + CAP_CHUNK);
-          const val = _toHex(chunk);
+          const val = _toB64(chunk);
           try {
             if (canWO) {
               await _CapBle.writeWithoutResponse({ deviceId: devId, service: svcId, characteristic: charId, value: val });
