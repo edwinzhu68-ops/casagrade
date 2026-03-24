@@ -5081,6 +5081,46 @@
     }
 
     // ── ESC/POS 构建 ─────────────────────────────────────
+
+    /**
+     * 用 QRCode.js 生成 QR 位图，转换为 ESC/POS GS v 0 指令字节数组。
+     * 比 GS ( k 兼容性更好（GS ( k 在部分杂牌打印机上不支持）。
+     */
+    async function buildQRBitmapBytes(text) {
+      if (!text || typeof QRCode === 'undefined' || typeof QRCode.toCanvas !== 'function') return [];
+      const qrCanvas = document.createElement('canvas');
+      try {
+        await new Promise((resolve, reject) => {
+          QRCode.toCanvas(qrCanvas, text, {
+            width: 160, margin: 2,
+            color: { dark: '#000000', light: '#ffffff' },
+            errorCorrectionLevel: 'H'
+          }, (err) => err ? reject(err) : resolve());
+        });
+      } catch (e) { return []; }
+      const ctx = qrCanvas.getContext('2d');
+      const w = qrCanvas.width, h = qrCanvas.height;
+      const pixels = ctx.getImageData(0, 0, w, h).data;
+      const bytesPerRow = Math.ceil(w / 8);
+      const bitmap = [];
+      for (let y = 0; y < h; y++) {
+        for (let bx = 0; bx < bytesPerRow; bx++) {
+          let byte = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const x = bx * 8 + bit;
+            if (x < w) {
+              const idx = (y * w + x) * 4;
+              if ((pixels[idx] + pixels[idx + 1] + pixels[idx + 2]) / 3 < 128) byte |= (1 << (7 - bit));
+            }
+          }
+          bitmap.push(byte);
+        }
+      }
+      const xL = bytesPerRow & 0xFF, xH = (bytesPerRow >> 8) & 0xFF;
+      const yL = h & 0xFF, yH = (h >> 8) & 0xFF;
+      return [0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...bitmap];
+    }
+
     function encLatin1(s) {
       const a = [];
       for (let i = 0; i < s.length; i++) a.push(s.charCodeAt(i) < 256 ? s.charCodeAt(i) : 63);
@@ -5090,7 +5130,7 @@
     /**
      * 已确认订单热敏小票：工作台「确认收款」与「代客下单」确认后均走 autoPrintOrder → 此处，内容一致。
      */
-    function buildReceipt(order, shopNumber) {
+    async function buildReceipt(order, shopNumber) {
       const buf = [];
       const push = (...b) => buf.push(...b);
       const txt  = s  => push(...encLatin1(s));
@@ -5126,18 +5166,15 @@
       txt('si ganas.'); LF();
       LF();
 
-      // ── QR 码（简化版：只含订单号，与历史逻辑一致）──
-      const simpleQR = orderNum;
-      const qrBytes2 = encLatin1(simpleQR);
-      const pL2 = (qrBytes2.length + 3) & 0xFF;
-      const pH2 = ((qrBytes2.length + 3) >> 8) & 0xFF;
-      push(...CENTER);
-      push(0x1D,0x28,0x6B,0x04,0x00,0x31,0x41,0x32,0x00);
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x43,0x0A);
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x45,0x30);
-      push(0x1D,0x28,0x6B,pL2,pH2,0x31,0x50,0x30,...qrBytes2);
-      push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x51,0x30);
-      LF(); LF();
+      // ── QR 码（GS v 0 位图方式，兼容所有 ESC/POS 打印机）──
+      if (orderNum) {
+        const qrBmp = await buildQRBitmapBytes(orderNum);
+        if (qrBmp.length) {
+          push(...CENTER);
+          for (let i = 0; i < qrBmp.length; i++) buf.push(qrBmp[i]);
+          LF(); LF();
+        }
+      }
 
       // ── 2. 日期（inline "标签: 值"）──
       push(...CENTER);
@@ -5303,7 +5340,7 @@
       }
       let receipt;
       try {
-        receipt = buildReceipt(order, currentShop?.shop_number || '');
+        receipt = await buildReceipt(order, currentShop?.shop_number || '');
       } catch (e) {
         console.warn('buildReceipt 失败:', e.message);
         showPrinterWarning('🖨️ 构建小票失败：' + e.message);
