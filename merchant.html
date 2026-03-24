@@ -3781,6 +3781,7 @@
         }
       }
 
+      closeModal('modal-order');
       try {
         var body = document.getElementById('order-detail-eticket-body');
         var canvas = await html2canvas(body, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
