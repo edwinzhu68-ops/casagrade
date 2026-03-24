@@ -237,7 +237,7 @@
       <!-- Chance 热门号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold" data-i18n="chance_hot">Chance 热门号码</h3>
+          <h3 class="font-bold">Chance <span class="text-gray-400 text-sm font-normal">销售额</span> <span class="text-blue-400 text-sm font-normal" id="merchant-chance-sales">$0.00</span></h3>
           <button id="btn-chance-viewall" onclick="showChanceDetail()" class="text-blue-400 text-sm" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="chance-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -245,10 +245,10 @@
         </div>
       </div>
 
-      <!-- Billete 热门号码（开奖后清空） -->
+      <!-- Billete 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4 relative z-10">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold" data-i18n="billete_hot">Billete 热门号码</h3>
+          <h3 class="font-bold">Billete <span class="text-gray-400 text-sm font-normal">销售额</span> <span class="text-amber-400 text-sm font-normal" id="merchant-billete-sales">$0.00</span></h3>
           <button type="button" id="btn-billete-viewall" onclick="showBilleteDetail()" class="text-blue-400 text-sm font-medium cursor-pointer hover:text-blue-300 hover:underline relative z-10 py-1 px-2 -m-2" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="billete-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -341,8 +341,12 @@
         <button onclick="closeModal('modal-chance')" class="text-gray-400">✕</button>
       </div>
       <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
-        <span id="chance-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+        <span class="text-gray-400">Chance <span data-i18n="chance_modal_sales_label">销售额</span></span>
+        <span id="chance-modal-sales" class="text-blue-400 font-bold text-lg">$0.00</span>
+      </div>
+      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+        <span class="text-gray-400" data-i18n="total_sales_label">总销售额</span>
+        <span id="chance-modal-total-sales" class="text-green-400 font-bold text-lg">$0.00</span>
       </div>
 
       <div id="chance-grid" class="grid grid-cols-10 gap-1 text-xs">
@@ -364,8 +368,12 @@
         <button onclick="closeModal('modal-billete')" class="text-gray-400">✕</button>
       </div>
       <div class="mb-3 px-1 flex items-center justify-between text-sm">
-        <span class="text-gray-400" data-i18n="period_sales">本期销售额</span>
-        <span id="billete-modal-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+        <span class="text-gray-400">Billete <span data-i18n="billete_modal_sales_label">销售额</span></span>
+        <span id="billete-modal-sales" class="text-amber-400 font-bold text-lg">$0.00</span>
+      </div>
+      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+        <span class="text-gray-400" data-i18n="total_sales_label">总销售额</span>
+        <span id="billete-modal-total-sales" class="text-green-400 font-bold text-lg">$0.00</span>
       </div>
 
       <div id="billete-list" class="space-y-1 max-h-96 overflow-y-auto">
