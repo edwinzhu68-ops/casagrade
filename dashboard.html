@@ -1166,6 +1166,11 @@
         banner.classList.remove('hidden');
         // 停止轮询（号码已到，无需继续）
         if (firebasePollTimer) stopFirebasePoll();
+        // 弹窗提醒发送开奖结果
+        document.getElementById('alert-draw-1st').textContent = rawDigits(d.primer) || d.primer;
+        document.getElementById('alert-draw-2nd').textContent = rawDigits(d.segundo) || d.segundo;
+        document.getElementById('alert-draw-3rd').textContent = rawDigits(d.tercero) || d.tercero;
+        document.getElementById('modal-draw-complete-alert').classList.remove('hidden');
         // 滚动到横幅位置提醒用户
         banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
@@ -2200,6 +2205,35 @@
       });
     }
   </script>
+
+  <!-- 轮询检测到开奖完成提醒弹窗 -->
+  <div id="modal-draw-complete-alert" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+      <div class="text-4xl mb-3">🎉</div>
+      <h2 class="text-lg font-bold mb-1">开奖完成</h2>
+      <p class="text-xs text-gray-400 mb-4">轮询检测到开奖号码已全部出炉，请发送开奖结果</p>
+      <div class="bg-gray-900 rounded-xl p-4 mb-5 font-mono space-y-2 text-left">
+        <div class="flex justify-between items-center">
+          <span class="text-yellow-400 font-bold">🥇 头奖</span>
+          <span id="alert-draw-1st" class="text-yellow-300 text-xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-300 font-bold">🥈 二奖</span>
+          <span id="alert-draw-2nd" class="text-gray-200 text-xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-orange-400 font-bold">🥉 三奖</span>
+          <span id="alert-draw-3rd" class="text-orange-300 text-xl font-bold tracking-widest"></span>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('modal-draw-complete-alert').classList.add('hidden')"
+          class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-xl font-bold text-sm">稍后</button>
+        <button onclick="document.getElementById('modal-draw-complete-alert').classList.add('hidden'); confirmManualDraw();"
+          class="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold text-sm">立即发送开奖结果</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 发送开奖结果确认弹窗 -->
   <div id="modal-draw-confirm" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
