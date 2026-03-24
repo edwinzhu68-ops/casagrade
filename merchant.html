@@ -4528,11 +4528,20 @@
     // APP 启动时初始化 BLE 权限
     if (_isCapApp && _CapBle) { try { _CapBle.initialize(); } catch(e) {} }
 
-    /** Uint8Array → base64（Capacitor write 接口需要） */
+    /** Uint8Array → base64（Web Bluetooth 需要） */
     function _toB64(u8) {
       var s = '';
       for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
       return btoa(s);
+    }
+    /** Uint8Array → 空格分隔 hex（Capacitor BluetoothLe 插件需要） */
+    function _toHex(u8) {
+      var hex = '';
+      for (var i = 0; i < u8.length; i++) {
+        if (i > 0) hex += ' ';
+        hex += u8[i].toString(16).padStart(2, '0').toUpperCase();
+      }
+      return hex;
     }
 
     // ── BLE 设备选择器（APP 模式 startScan 扫描全量设备） ──────────
@@ -5214,20 +5223,32 @@
     // ── 发送打印 ──────────────────────────────────────────
     async function sendToPrinter(data) {
       const CHUNK = 100;
-      if (_isCapApp && _capDeviceId) {
-        // Capacitor 原生 BLE 写入（writeWithoutResponse 与网页版一致，不等 ACK）
-        const writeFn = (typeof _CapBle.writeWithoutResponse === 'function')
-          ? function(v) { return _CapBle.writeWithoutResponse({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: v }); }
-          : function(v) { return _CapBle.write({ deviceId: _capDeviceId, service: _capServiceUUID, characteristic: _capCharUUID, value: v }); };
-        for (let i = 0; i < data.length; i += CHUNK) {
-          const chunk = data.slice(i, i + CHUNK);
-          const val = _toB64(chunk);
-          try { await writeFn(val); } catch(e) {}
-          await new Promise(r => setTimeout(r, 30));
+      if (_isCapApp) {
+        // Capacitor 原生 BLE 写入
+        // 安全检查：任一 BLE 参数为空时直接返回，防止向 native 传 null 导致崩溃
+        if (!_capDeviceId || !_capServiceUUID || !_capCharUUID) return;
+        // 捕获到局部变量：防止 disconnect 事件在打印途中把 _capDeviceId 置 null
+        const devId  = _capDeviceId;
+        const svcId  = _capServiceUUID;
+        const charId = _capCharUUID;
+        const canWO  = _capCanWriteWithout;
+        const CAP_CHUNK = 20;
+        for (let i = 0; i < data.length; i += CAP_CHUNK) {
+          const chunk = data.slice(i, i + CAP_CHUNK);
+          const val = _toHex(chunk);
+          try {
+            if (canWO) {
+              await _CapBle.writeWithoutResponse({ deviceId: devId, service: svcId, characteristic: charId, value: val });
+            } else {
+              await _CapBle.write({ deviceId: devId, service: svcId, characteristic: charId, value: val });
+            }
+          } catch(e) {}
+          await new Promise(r => setTimeout(r, 50));
         }
         return;
       }
       // Web Bluetooth 写入（浏览器模式）
+      if (!_printerChar) return; // 安全检查：防止 null.properties 崩溃
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
       for (let i = 0; i < data.length; i += CHUNK) {
         const chunk = data.slice(i, i + CHUNK);
@@ -5246,13 +5267,10 @@
 
     async function autoPrintOrder(order) {
       if (localStorage.getItem('lottery_print_enabled') !== '1') return;
-      // 连接已断开（空闲超时）→ 先尝试自动重连，再打印
+      // APP 模式：不做自动重连（对已连接设备重复 connect 会导致 Android 原生崩溃）
+      // Web 模式：可用 _printerDevice 引用安全重连
       if (!isPrinterConnected()) {
-        if (_isCapApp && _CapBle) {
-          const savedId   = localStorage.getItem('lottery_cap_printer_device_id') || '';
-          const savedName = localStorage.getItem('lottery_printer_name') || '';
-          if (savedId) { try { await _doConnectCap(savedId, savedName, false); } catch(e) {} }
-        } else if (_printerDevice) {
+        if (!_isCapApp && _printerDevice) {
           try { await _doConnect(_printerDevice, false); } catch {}
         }
         if (!isPrinterConnected()) {
