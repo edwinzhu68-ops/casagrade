@@ -2043,6 +2043,14 @@
       var n1 = (document.getElementById('local-n1') && document.getElementById('local-n1').value) || '';
       var n2 = (document.getElementById('local-n2') && document.getElementById('local-n2').value) || '';
       var n3 = (document.getElementById('local-n3') && document.getElementById('local-n3').value) || '';
+      // 验证：必须填满3个两位数字
+      var valid2 = /^\d{2}$/;
+      if (!valid2.test(n1) || !valid2.test(n2) || !valid2.test(n3)) {
+        showToast(getResultLang() === 'zh'
+          ? '请输入3个两位数字（00-99）'
+          : 'Ingresa 3 números de 2 cifras (00-99)', 'error');
+        return;
+      }
       try {
         var body = { shopId: currentShop.shop_id, kind: kind, n1: n1, n2: n2, n3: n3 };
         var out = await postLocalLotterySettlePayload(body);
@@ -2815,21 +2823,33 @@
       if (chainSection) chainSection.classList.toggle('hidden', !isLocal);
       if (isLocal) {
         var chainKeys = ['chain12','chain13','chain21','chain23','chain31','chain32'];
-        var dbKeys = ['chain_1_2','chain_1_3','chain_2_1','chain_2_3','chain_3_1','chain_3_2'];
+        // NICA 用独立字段，TICA 用原字段
+        var ticaDbKeys = ['chain_1_2','chain_1_3','chain_2_1','chain_2_3','chain_3_1','chain_3_2'];
+        var nicaDbKeys = ['nica_chain_1_2','nica_chain_1_3','nica_chain_2_1','nica_chain_2_3','nica_chain_3_1','nica_chain_3_2'];
+        var dbKeys = (kind === 'NICA') ? nicaDbKeys : ticaDbKeys;
         for (var i = 0; i < chainKeys.length; i++) {
-          var val = rv(dbKeys[i], RATE_DEFAULTS[chainKeys[i]]);
+          // NICA: 先读 nica_ 字段，null 时 fallback 到 TICA 字段
+          var val = rv(dbKeys[i], rv(ticaDbKeys[i], RATE_DEFAULTS[chainKeys[i]]));
           var inp = document.getElementById('rate-input-' + chainKeys[i]);
           var disp = document.getElementById('rate-display-' + chainKeys[i]);
           if (inp) inp.value = val;
           if (disp) disp.textContent = val;
         }
-        // TICA/NICA Chance 赔率（复用 rate_chance_1/2/3，与 Lotería 共用字段）
+        // Chance 赔率：NICA 独立，TICA 复用 rate_chance_*
+        var localC1, localC2, localC3;
+        if (kind === 'NICA') {
+          localC1 = rv('nica_chance_1', c1);
+          localC2 = rv('nica_chance_2', c2);
+          localC3 = rv('nica_chance_3', c3);
+        } else {
+          localC1 = c1; localC2 = c2; localC3 = c3;
+        }
         var lc1 = document.getElementById('rate-input-local-c1');
         var lc2 = document.getElementById('rate-input-local-c2');
         var lc3 = document.getElementById('rate-input-local-c3');
-        if (lc1) { lc1.value = c1; document.getElementById('rate-display-local-c1').textContent = c1; }
-        if (lc2) { lc2.value = c2; document.getElementById('rate-display-local-c2').textContent = c2; }
-        if (lc3) { lc3.value = c3; document.getElementById('rate-display-local-c3').textContent = c3; }
+        if (lc1) { lc1.value = localC1; document.getElementById('rate-display-local-c1').textContent = localC1; }
+        if (lc2) { lc2.value = localC2; document.getElementById('rate-display-local-c2').textContent = localC2; }
+        if (lc3) { lc3.value = localC3; document.getElementById('rate-display-local-c3').textContent = localC3; }
       }
       document.getElementById('modal-rates').classList.remove('hidden');
     }
@@ -2861,8 +2881,8 @@
         body.rateChance1 = toNum('rate-input-c1');
         body.rateChance2 = toNum('rate-input-c2');
         body.rateChance3 = toNum('rate-input-c3');
-      } else {
-        // TICA/NICA：Chain 串赔率 + Chance 赔率
+      } else if (kind === 'TICA') {
+        // TICA：Chain 串赔率 + Chance 赔率（存到 chain_* 和 rate_chance_*）
         body.chain12 = toNumOrZero('rate-input-chain12');
         body.chain13 = toNumOrZero('rate-input-chain13');
         body.chain21 = toNumOrZero('rate-input-chain21');
@@ -2872,6 +2892,17 @@
         body.rateChance1 = toNum('rate-input-local-c1');
         body.rateChance2 = toNum('rate-input-local-c2');
         body.rateChance3 = toNum('rate-input-local-c3');
+      } else {
+        // NICA：独立赔率字段
+        body.nicaChain12 = toNumOrZero('rate-input-chain12');
+        body.nicaChain13 = toNumOrZero('rate-input-chain13');
+        body.nicaChain21 = toNumOrZero('rate-input-chain21');
+        body.nicaChain23 = toNumOrZero('rate-input-chain23');
+        body.nicaChain31 = toNumOrZero('rate-input-chain31');
+        body.nicaChain32 = toNumOrZero('rate-input-chain32');
+        body.nicaChance1 = toNum('rate-input-local-c1');
+        body.nicaChance2 = toNum('rate-input-local-c2');
+        body.nicaChance3 = toNum('rate-input-local-c3');
       }
       try {
         var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/rates', {
@@ -2894,6 +2925,16 @@
         if (data.chain_2_3 !== undefined) currentShop.chain_2_3 = data.chain_2_3;
         if (data.chain_3_1 !== undefined) currentShop.chain_3_1 = data.chain_3_1;
         if (data.chain_3_2 !== undefined) currentShop.chain_3_2 = data.chain_3_2;
+        // NICA 独立赔率缓存
+        if (data.nica_chain_1_2 !== undefined) currentShop.nica_chain_1_2 = data.nica_chain_1_2;
+        if (data.nica_chain_1_3 !== undefined) currentShop.nica_chain_1_3 = data.nica_chain_1_3;
+        if (data.nica_chain_2_1 !== undefined) currentShop.nica_chain_2_1 = data.nica_chain_2_1;
+        if (data.nica_chain_2_3 !== undefined) currentShop.nica_chain_2_3 = data.nica_chain_2_3;
+        if (data.nica_chain_3_1 !== undefined) currentShop.nica_chain_3_1 = data.nica_chain_3_1;
+        if (data.nica_chain_3_2 !== undefined) currentShop.nica_chain_3_2 = data.nica_chain_3_2;
+        if (data.nica_chance_1 !== undefined) currentShop.nica_chance_1 = data.nica_chance_1;
+        if (data.nica_chance_2 !== undefined) currentShop.nica_chance_2 = data.nica_chance_2;
+        if (data.nica_chance_3 !== undefined) currentShop.nica_chance_3 = data.nica_chance_3;
         closeRatesModal();
         showToast('赔率已保存', 'success');
       } catch(e) {
