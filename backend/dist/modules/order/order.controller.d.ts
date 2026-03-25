@@ -89,7 +89,7 @@ export declare class OrderController implements OnModuleInit {
     }>;
     confirmOrder(orderNumber: string, body: {
         shopId: number;
-    }): Promise<{
+    }, req: any): Promise<{
         success: boolean;
         message: string;
         order_id?: undefined;
@@ -104,7 +104,7 @@ export declare class OrderController implements OnModuleInit {
     }>;
     redeemOrder(orderNumber: string, body: {
         shopId: number;
-    }): Promise<{
+    }, req: any): Promise<{
         success: boolean;
         order_number: string;
         win_amount: number;

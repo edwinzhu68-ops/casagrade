@@ -574,7 +574,14 @@ export class OrderController implements OnModuleInit {
    * POST /api/orders/:orderNumber/confirm - 老板确认收款
    */
   @Post(':orderNumber/confirm')
-  async confirmOrder(@Param('orderNumber') orderNumber: string, @Body() body: { shopId: number }) {
+  async confirmOrder(@Param('orderNumber') orderNumber: string, @Body() body: { shopId: number }, @Req() req: any) {
+    // 鉴权：验证 Bearer token
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
     const orderRepo = this.dataSource.getRepository(Order);
     const order = await orderRepo.findOne({
       where: { order_number: orderNumber },
@@ -627,7 +634,15 @@ export class OrderController implements OnModuleInit {
   async redeemOrder(
     @Param('orderNumber') orderNumber: string,
     @Body() body: { shopId: number },
+    @Req() req: any,
   ) {
+    // 鉴权：验证 Bearer token
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
     const orderRepo = this.dataSource.getRepository(Order);
     const order = await orderRepo.findOne({
       where: { order_number: orderNumber },

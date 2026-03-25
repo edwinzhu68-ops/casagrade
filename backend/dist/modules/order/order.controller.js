@@ -516,7 +516,13 @@ let OrderController = OrderController_1 = class OrderController {
             paid_at: order.paid_at,
         };
     }
-    async confirmOrder(orderNumber, body) {
+    async confirmOrder(orderNumber, body, req) {
+        const authHeader = (req.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         const order = await orderRepo.findOne({
             where: { order_number: orderNumber },
@@ -551,7 +557,13 @@ let OrderController = OrderController_1 = class OrderController {
             status: 'paid',
         };
     }
-    async redeemOrder(orderNumber, body) {
+    async redeemOrder(orderNumber, body, req) {
+        const authHeader = (req.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         const order = await orderRepo.findOne({
             where: { order_number: orderNumber },
@@ -629,16 +641,18 @@ __decorate([
     (0, common_1.Post)(':orderNumber/confirm'),
     __param(0, (0, common_1.Param)('orderNumber')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], OrderController.prototype, "confirmOrder", null);
 __decorate([
     (0, common_1.Post)(':orderNumber/redeem'),
     __param(0, (0, common_1.Param)('orderNumber')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], OrderController.prototype, "redeemOrder", null);
 exports.OrderController = OrderController = OrderController_1 = __decorate([
