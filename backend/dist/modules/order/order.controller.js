@@ -506,6 +506,7 @@ let OrderController = OrderController_1 = class OrderController {
             lottery_type: order.lottery_type ?? 'NACIONAL',
             status: statusMap[order.status] || 'pending',
             verification_code: order.verification_code,
+            shop_id: order.shop_id,
             shopId: order.shop_id,
             shopNumber: order.shop?.shop_number,
             win_amount: order.win_amount,
@@ -724,6 +725,7 @@ let ShopController = ShopController_1 = class ShopController {
             [-1]: 'canceled',
         };
         return {
+            shop_id: shop.shop_id,
             shopId: shop.shop_id,
             shopNumber: shop.shop_number,
             shopName: shop.shop_name,
@@ -1137,6 +1139,7 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
         return {
             ...base,
             ...localFlags,
+            shop_id: sid,
             shopId: sid,
             orderCount: orders.length,
             orders: orders.map((o) => ({

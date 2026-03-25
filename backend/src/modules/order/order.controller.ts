@@ -559,6 +559,7 @@ export class OrderController implements OnModuleInit {
       lottery_type: (order as any).lottery_type ?? 'NACIONAL',
       status: statusMap[order.status] || 'pending',
       verification_code: order.verification_code,
+      shop_id: order.shop_id,
       shopId: order.shop_id,
       shopNumber: order.shop?.shop_number,
       win_amount: order.win_amount,
@@ -789,6 +790,7 @@ export class ShopController {
     };
 
     return {
+      shop_id: shop.shop_id,
       shopId: shop.shop_id,
       shopNumber: shop.shop_number,
       shopName: shop.shop_name,
@@ -1226,6 +1228,7 @@ export class BetStatusController {
     return {
       ...base,
       ...localFlags,
+      shop_id: sid,
       shopId: sid,
       orderCount: orders.length,
       orders: orders.map((o) => ({

@@ -78,6 +78,7 @@ export declare class OrderController implements OnModuleInit {
         lottery_type: any;
         status: string;
         verification_code: string;
+        shop_id: number;
         shopId: number;
         shopNumber: string;
         win_amount: number;
@@ -117,6 +118,7 @@ export declare class ShopController {
     private readonly logger;
     constructor(dataSource: DataSource);
     listShopOrdersByQuery(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string): Promise<{
+        shop_id: number;
         shopId: number;
         shopNumber: string;
         shopName: string;
@@ -202,6 +204,7 @@ export declare class ShopController {
         nica_chance_3: any;
     }>;
     getShopOrders(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string): Promise<{
+        shop_id: number;
         shopId: number;
         shopNumber: string;
         shopName: string;
@@ -259,6 +262,7 @@ export declare class BetStatusController {
         confirmedDrawDay: string;
         confirmedDrawTime: string;
     } | {
+        shop_id: number;
         shopId: number;
         orderCount: number;
         orders: {
