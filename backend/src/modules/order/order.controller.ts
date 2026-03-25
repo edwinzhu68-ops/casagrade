@@ -827,10 +827,24 @@ export class ShopController {
       ticaEnabled?: boolean;
       nicaEnabled?: boolean;
     },
+    @Req() req: Request,
   ) {
+    const parsedShopId = parseInt(shopId, 10);
+    if (isNaN(parsedShopId)) throw new BadRequestException('shopId 无效');
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
     const shopRepo = this.dataSource.getRepository(Shop);
-    const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
+    const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
     if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
     if (body.limitChance !== undefined) (shop as any).limit_chance = body.limitChance || null;
     if (body.limitBillete !== undefined) (shop as any).limit_billete = body.limitBillete || null;
     if (body.ticaEnabled !== undefined) shop.tica_enabled = !!body.ticaEnabled;
@@ -875,34 +889,51 @@ export class ShopController {
       nicaChance2?: number | null;
       nicaChance3?: number | null;
     },
+    @Req() req: Request,
   ) {
+    const parsedShopId = parseInt(shopId, 10);
+    if (isNaN(parsedShopId)) throw new BadRequestException('shopId 无效');
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
     const shopRepo = this.dataSource.getRepository(Shop);
-    const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
+    const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
     if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+
     const toRate = (v: number | null | undefined, def: number) =>
       v != null && isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
+    const toChainRate = (v: number | null | undefined) =>
+      v != null && isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null;
     if (body.rateBillete1 !== undefined) (shop as any).rate_billete_1 = toRate(body.rateBillete1, 2000);
     if (body.rateBillete2 !== undefined) (shop as any).rate_billete_2 = toRate(body.rateBillete2, 600);
     if (body.rateBillete3 !== undefined) (shop as any).rate_billete_3 = toRate(body.rateBillete3, 300);
     if (body.rateChance1 !== undefined) (shop as any).rate_chance_1 = toRate(body.rateChance1, 14);
     if (body.rateChance2 !== undefined) (shop as any).rate_chance_2 = toRate(body.rateChance2, 3);
     if (body.rateChance3 !== undefined) (shop as any).rate_chance_3 = toRate(body.rateChance3, 2);
-    if (body.chain12 !== undefined) (shop as any).chain_1_2 = body.chain12;
-    if (body.chain13 !== undefined) (shop as any).chain_1_3 = body.chain13;
-    if (body.chain21 !== undefined) (shop as any).chain_2_1 = body.chain21;
-    if (body.chain23 !== undefined) (shop as any).chain_2_3 = body.chain23;
-    if (body.chain31 !== undefined) (shop as any).chain_3_1 = body.chain31;
-    if (body.chain32 !== undefined) (shop as any).chain_3_2 = body.chain32;
+    if (body.chain12 !== undefined) (shop as any).chain_1_2 = toChainRate(body.chain12);
+    if (body.chain13 !== undefined) (shop as any).chain_1_3 = toChainRate(body.chain13);
+    if (body.chain21 !== undefined) (shop as any).chain_2_1 = toChainRate(body.chain21);
+    if (body.chain23 !== undefined) (shop as any).chain_2_3 = toChainRate(body.chain23);
+    if (body.chain31 !== undefined) (shop as any).chain_3_1 = toChainRate(body.chain31);
+    if (body.chain32 !== undefined) (shop as any).chain_3_2 = toChainRate(body.chain32);
     // NICA 独立赔率
-    if (body.nicaChain12 !== undefined) (shop as any).nica_chain_1_2 = body.nicaChain12;
-    if (body.nicaChain13 !== undefined) (shop as any).nica_chain_1_3 = body.nicaChain13;
-    if (body.nicaChain21 !== undefined) (shop as any).nica_chain_2_1 = body.nicaChain21;
-    if (body.nicaChain23 !== undefined) (shop as any).nica_chain_2_3 = body.nicaChain23;
-    if (body.nicaChain31 !== undefined) (shop as any).nica_chain_3_1 = body.nicaChain31;
-    if (body.nicaChain32 !== undefined) (shop as any).nica_chain_3_2 = body.nicaChain32;
-    if (body.nicaChance1 !== undefined) (shop as any).nica_chance_1 = body.nicaChance1;
-    if (body.nicaChance2 !== undefined) (shop as any).nica_chance_2 = body.nicaChance2;
-    if (body.nicaChance3 !== undefined) (shop as any).nica_chance_3 = body.nicaChance3;
+    if (body.nicaChain12 !== undefined) (shop as any).nica_chain_1_2 = toChainRate(body.nicaChain12);
+    if (body.nicaChain13 !== undefined) (shop as any).nica_chain_1_3 = toChainRate(body.nicaChain13);
+    if (body.nicaChain21 !== undefined) (shop as any).nica_chain_2_1 = toChainRate(body.nicaChain21);
+    if (body.nicaChain23 !== undefined) (shop as any).nica_chain_2_3 = toChainRate(body.nicaChain23);
+    if (body.nicaChain31 !== undefined) (shop as any).nica_chain_3_1 = toChainRate(body.nicaChain31);
+    if (body.nicaChain32 !== undefined) (shop as any).nica_chain_3_2 = toChainRate(body.nicaChain32);
+    if (body.nicaChance1 !== undefined) (shop as any).nica_chance_1 = toRate(body.nicaChance1, 14);
+    if (body.nicaChance2 !== undefined) (shop as any).nica_chance_2 = toRate(body.nicaChance2, 3);
+    if (body.nicaChance3 !== undefined) (shop as any).nica_chance_3 = toRate(body.nicaChance3, 2);
     await shopRepo.save(shop);
     return {
       success: true,

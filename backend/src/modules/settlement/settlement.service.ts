@@ -243,6 +243,9 @@ export class SettlementService {
     wins: any[];
   } {
     const numbers = order.numbers as { n: string; q: number }[];
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      return { orderId: order.order_id, gameType: order.game_type || '', sales: Number(order.amount), payout: 0, wins: [] };
+    }
     const gameType = order.game_type;
     const sales = Number(order.amount);
 
@@ -308,6 +311,9 @@ export class SettlementService {
     wins: any[];
   } {
     const numbers = order.numbers as { n: string; q: number }[];
+    if (!Array.isArray(numbers) || numbers.length === 0) {
+      return { orderId: order.order_id, gameType: order.game_type || '', sales: Number(order.amount), payout: 0, wins: [] };
+    }
     const gameType = order.game_type;
     const sales = Number(order.amount);
     let payout = 0;
