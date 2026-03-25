@@ -2561,7 +2561,7 @@
       try {
         const res = await fetch(`${API_BASE}/api/orders/${orderNumber}/redeem`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
           body: JSON.stringify({ shopId: currentShop.shop_id })
         });
         if (res.ok) {

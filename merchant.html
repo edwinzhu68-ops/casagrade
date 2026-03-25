@@ -2735,7 +2735,7 @@
       try {
         const res = await fetch(`${API_BASE}/api/orders/${currentRedeemOrder.order_number}/redeem`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
           body: JSON.stringify({
             shopId: currentShop.shop_id
           })
@@ -2743,6 +2743,7 @@
         const data = await res.json();
         if (res.ok && data.success) {
           var redeemedNum = currentRedeemOrder.order_number;
+          var redeemedAmt = currentRedeemOrder.win_amount || 0;
           var nowTs = new Date().toISOString();
           [allOrders, periodOrders].forEach(function(arr) {
             arr.forEach(function(o) {
@@ -2750,6 +2751,7 @@
             });
           });
           document.getElementById('modal-redeem').classList.add('hidden');
+          showToast('✅ ' + t('status_redeemed') + ' #' + redeemedNum.slice(-5) + ' — $' + redeemedAmt.toFixed(2), 'success', 4000);
           currentRedeemOrder = null;
           var pf = document.getElementById('period-order-filter');
           renderPeriodOrderList(pf ? pf.value : '');
@@ -3806,7 +3808,7 @@
       if (_noteVal) saveOrderNote(String(orderNumber), _noteVal);
       const cres = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)) + '/confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
         body: JSON.stringify({ shopId: currentShop.shop_id }),
       });
       if (!cres.ok) {
@@ -4161,7 +4163,7 @@
       try {
         const res = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}/confirm`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
           body: JSON.stringify({ shopId: currentShop.shop_id })
         });
 
@@ -4683,7 +4685,7 @@
       try {
         const res = await fetch(`${API_BASE}/api/orders/${orderNumber}/confirm`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
           body: JSON.stringify({ shopId: currentShop.shop_id })
         });
 

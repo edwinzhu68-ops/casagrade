@@ -936,15 +936,34 @@
       }
     }
 
-    // 店铺页轮询未付款订单：老板端确认后自动从未付款列表移除并加入已付款，界面立即更新
+    // 店铺页轮询未付款订单：指数退避（2.5s→5s→10s→...最大30s），10分钟后停止
+    var _pollDelay = 2500;
+    var _pollStartTime = 0;
+    var _pollMaxDuration = 10 * 60 * 1000; // 10分钟
     function startPendingOrdersPoll() {
       if (clientPendingOrdersPollInterval) return;
-      clientPendingOrdersPollInterval = setInterval(pollPendingOrdersStatus, 2500);
+      _pollDelay = 2500;
+      _pollStartTime = Date.now();
+      schedulePendingPoll();
       pollPendingOrdersStatus();
     }
+    function schedulePendingPoll() {
+      if (clientPendingOrdersPollInterval) clearTimeout(clientPendingOrdersPollInterval);
+      if (Date.now() - _pollStartTime > _pollMaxDuration) {
+        clientPendingOrdersPollInterval = null;
+        return;
+      }
+      clientPendingOrdersPollInterval = setTimeout(function() {
+        pollPendingOrdersStatus().then(function() {
+          _pollDelay = Math.min(_pollDelay * 1.5, 30000);
+          schedulePendingPoll();
+        });
+      }, _pollDelay);
+    }
+    function resetPollBackoff() { _pollDelay = 2500; _pollStartTime = Date.now(); }
     function stopPendingOrdersPoll() {
       if (clientPendingOrdersPollInterval) {
-        clearInterval(clientPendingOrdersPollInterval);
+        clearTimeout(clientPendingOrdersPollInterval);
         clientPendingOrdersPollInterval = null;
       }
     }
