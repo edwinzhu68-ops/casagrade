@@ -2323,22 +2323,18 @@
 
       orders.forEach(order => {
         if (!order.numbers) return;
-        // 按号码位数区分：4位是Billete，2位是Chance（不再按game_type字段区分）
-        const totalQty = order.numbers.reduce((s, x) => {
-          const q = Number(x.q != null ? x.q : (x.quantity != null ? x.quantity : 1)) || 1;
-          return s + q;
-        }, 0) || 1;
+        // 按号码位数区分：≥4位=Billete($1)，<4位=Chance($0.25)，与后端金额验算一致
         order.numbers.forEach(n => {
           const numVal = n.n != null ? n.n : (n.number != null ? n.number : n);
           const numStr = String(numVal || '').replace(/\D/g, '');
           const numLen = numStr.length;
           const qty = Number(n.q != null ? n.q : (n.quantity != null ? n.quantity : 1)) || 1;
           if (numLen >= 4) {
-            billeteSales += qty * Number(order.amount || 0) / totalQty;
+            billeteSales += qty * 1;
             const numBi = numStr.slice(-4).padStart(4, '0');
             billeteCountMap[numBi] = (billeteCountMap[numBi] || 0) + qty;
           } else if (numLen >= 2) {
-            chanceSales += qty * Number(order.amount || 0) / totalQty;
+            chanceSales += qty * 0.25;
             const numCh = numStr.slice(-2).padStart(2, '0');
             chanceCountMap[numCh] = (chanceCountMap[numCh] || 0) + qty;
           }
