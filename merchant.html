@@ -2682,7 +2682,8 @@
             });
           if (orders.length === 0 && raw.length > 4) {
             var exact = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(raw)}`).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
-            if (exact && exact.shop_id === currentShop.shop_id && (exact.status === 3 || exact.status === 'won') && !(exact.redeemed_at && exact.redeemed_at !== '' && exact.redeemed_at !== 'null')) {
+            var exactShopId = exact ? (exact.shop_id != null ? exact.shop_id : exact.shopId) : null;
+            if (exact && exactShopId === currentShop.shop_id && (exact.status === 3 || exact.status === 'won') && !(exact.redeemed_at && exact.redeemed_at !== '' && exact.redeemed_at !== 'null')) {
               if (inputEl) inputEl.value = '';
               showRedeemModal(exact, null);
               return;
