@@ -186,7 +186,7 @@
   <!-- 键盘弹窗 -->
   <div id="keyboard-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end"
        onclick="if (event.target === this) closeKeyboard()">
-    <div class="bg-white rounded-t-3xl w-full max-w-md mx-auto p-4">
+    <div class="bg-white rounded-t-3xl w-full max-w-md mx-auto p-4" style="padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));"
       <!-- Título del teclado -->
       <div class="text-center mb-4">
         <p id="keyboard-title" class="text-lg font-bold text-blue-600" data-i18n="keyboard_number_title">Introduce el número de lotería</p>

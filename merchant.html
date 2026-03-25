@@ -497,7 +497,7 @@
   <!-- 代客下单底部键盘（与 index.html keyboard-modal 一致：号码格 / 九宫格 / 添加） -->
   <div id="cashier-keyboard-modal" class="hidden fixed inset-0 bg-black/50 z-[62] flex items-end"
     onclick="if(event.target===this)cashierCloseKeyboard()">
-    <div class="bg-gray-800 rounded-t-3xl w-full max-w-md mx-auto p-4 pt-3 border-t border-gray-600 shadow-2xl" onclick="event.stopPropagation()">
+    <div class="bg-gray-800 rounded-t-3xl w-full max-w-md mx-auto p-4 pt-3 border-t border-gray-600 shadow-2xl" style="padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between gap-2 mb-3">
         <span class="w-10 shrink-0" aria-hidden="true"></span>
         <p id="cashier-keyboard-title" class="text-lg font-bold text-blue-400 text-center flex-1 min-w-0 px-1" data-i18n="keyboard_number_title">Introduce el número de lotería</p>
