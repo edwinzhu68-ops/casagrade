@@ -3036,6 +3036,14 @@
       if (currentShop) { if (DEBUG) console.log("Auto loading data..."); loadData(); }
     }, 5000); setTimeout(() => { if(currentShop && allOrders.length === 0) loadData(); }, 2000);
 
+    // 页面从后台恢复时立刻刷新（修复：手机切换页面后 setInterval 被暂停导致数据不更新）
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden && currentShop) {
+        if (DEBUG) console.log("Page became visible, reloading data...");
+        loadData();
+      }
+    });
+
 // 启动初始化
 initResultPage();
     // 如果有URL参数，3秒后加载数据
