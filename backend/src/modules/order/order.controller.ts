@@ -865,6 +865,15 @@ export class ShopController {
       chain23?: number | null;
       chain31?: number | null;
       chain32?: number | null;
+      nicaChain12?: number | null;
+      nicaChain13?: number | null;
+      nicaChain21?: number | null;
+      nicaChain23?: number | null;
+      nicaChain31?: number | null;
+      nicaChain32?: number | null;
+      nicaChance1?: number | null;
+      nicaChance2?: number | null;
+      nicaChance3?: number | null;
     },
   ) {
     const shopRepo = this.dataSource.getRepository(Shop);
@@ -884,6 +893,16 @@ export class ShopController {
     if (body.chain23 !== undefined) (shop as any).chain_2_3 = body.chain23;
     if (body.chain31 !== undefined) (shop as any).chain_3_1 = body.chain31;
     if (body.chain32 !== undefined) (shop as any).chain_3_2 = body.chain32;
+    // NICA 独立赔率
+    if (body.nicaChain12 !== undefined) (shop as any).nica_chain_1_2 = body.nicaChain12;
+    if (body.nicaChain13 !== undefined) (shop as any).nica_chain_1_3 = body.nicaChain13;
+    if (body.nicaChain21 !== undefined) (shop as any).nica_chain_2_1 = body.nicaChain21;
+    if (body.nicaChain23 !== undefined) (shop as any).nica_chain_2_3 = body.nicaChain23;
+    if (body.nicaChain31 !== undefined) (shop as any).nica_chain_3_1 = body.nicaChain31;
+    if (body.nicaChain32 !== undefined) (shop as any).nica_chain_3_2 = body.nicaChain32;
+    if (body.nicaChance1 !== undefined) (shop as any).nica_chance_1 = body.nicaChance1;
+    if (body.nicaChance2 !== undefined) (shop as any).nica_chance_2 = body.nicaChance2;
+    if (body.nicaChance3 !== undefined) (shop as any).nica_chance_3 = body.nicaChance3;
     await shopRepo.save(shop);
     return {
       success: true,
@@ -899,6 +918,15 @@ export class ShopController {
       chain_2_3: (shop as any).chain_2_3,
       chain_3_1: (shop as any).chain_3_1,
       chain_3_2: (shop as any).chain_3_2,
+      nica_chain_1_2: (shop as any).nica_chain_1_2,
+      nica_chain_1_3: (shop as any).nica_chain_1_3,
+      nica_chain_2_1: (shop as any).nica_chain_2_1,
+      nica_chain_2_3: (shop as any).nica_chain_2_3,
+      nica_chain_3_1: (shop as any).nica_chain_3_1,
+      nica_chain_3_2: (shop as any).nica_chain_3_2,
+      nica_chance_1: (shop as any).nica_chance_1,
+      nica_chance_2: (shop as any).nica_chance_2,
+      nica_chance_3: (shop as any).nica_chance_3,
     };
   }
 

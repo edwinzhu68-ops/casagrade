@@ -117,6 +117,35 @@ export class Shop {
   @Column({ name: 'chain_3_2', type: 'decimal', precision: 10, scale: 2, default: 0 })
   chain_3_2: number;
 
+  // ── NICA 独立赔率（TICA 用上面的 chain_* 和 rate_chance_*；NICA 用下面的字段，null 时 fallback 到 TICA 的值） ──
+
+  @Column({ name: 'nica_chain_1_2', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chain_1_2: number | null;
+
+  @Column({ name: 'nica_chain_1_3', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chain_1_3: number | null;
+
+  @Column({ name: 'nica_chain_2_1', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chain_2_1: number | null;
+
+  @Column({ name: 'nica_chain_2_3', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chain_2_3: number | null;
+
+  @Column({ name: 'nica_chain_3_1', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chain_3_1: number | null;
+
+  @Column({ name: 'nica_chain_3_2', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chain_3_2: number | null;
+
+  @Column({ name: 'nica_chance_1', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chance_1: number | null;
+
+  @Column({ name: 'nica_chance_2', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chance_2: number | null;
+
+  @Column({ name: 'nica_chance_3', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  nica_chance_3: number | null;
+
   /** 订阅到期时间（null = 未激活或永久） */
   @Column({ type: 'datetime', nullable: true })
   subscription_expires_at: Date | null;

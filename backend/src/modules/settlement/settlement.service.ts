@@ -312,13 +312,29 @@ export class SettlementService {
     const sales = Number(order.amount);
     let payout = 0;
     const wins: any[] = [];
-    const chanceRates: [number, number, number] = [
+
+    // NICA 有独立赔率字段，null 时 fallback 到 TICA 的值
+    const lotteryType = ((order as any).lottery_type || '').toString().toUpperCase();
+    const isNica = lotteryType === 'NICA';
+
+    const chanceRates: [number, number, number] = isNica ? [
+      shop?.nica_chance_1 != null ? Number(shop.nica_chance_1) : (shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14),
+      shop?.nica_chance_2 != null ? Number(shop.nica_chance_2) : (shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3),
+      shop?.nica_chance_3 != null ? Number(shop.nica_chance_3) : (shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2),
+    ] : [
       shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
       shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
       shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
     ];
 
-    const chain = {
+    const chain = isNica ? {
+      c12: shop?.nica_chain_1_2 != null ? Number(shop.nica_chain_1_2) : (shop?.chain_1_2 != null ? Number(shop.chain_1_2) : 1000),
+      c13: shop?.nica_chain_1_3 != null ? Number(shop.nica_chain_1_3) : (shop?.chain_1_3 != null ? Number(shop.chain_1_3) : 1000),
+      c21: shop?.nica_chain_2_1 != null ? Number(shop.nica_chain_2_1) : (shop?.chain_2_1 != null ? Number(shop.chain_2_1) : 0),
+      c23: shop?.nica_chain_2_3 != null ? Number(shop.nica_chain_2_3) : (shop?.chain_2_3 != null ? Number(shop.chain_2_3) : 200),
+      c31: shop?.nica_chain_3_1 != null ? Number(shop.nica_chain_3_1) : (shop?.chain_3_1 != null ? Number(shop.chain_3_1) : 0),
+      c32: shop?.nica_chain_3_2 != null ? Number(shop.nica_chain_3_2) : (shop?.chain_3_2 != null ? Number(shop.chain_3_2) : 0),
+    } : {
       c12: shop?.chain_1_2 != null ? Number(shop.chain_1_2) : 1000,
       c13: shop?.chain_1_3 != null ? Number(shop.chain_1_3) : 1000,
       c21: shop?.chain_2_1 != null ? Number(shop.chain_2_1) : 0,
