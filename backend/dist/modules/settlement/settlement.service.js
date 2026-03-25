@@ -124,6 +124,15 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 });
             }
             await manager.update(draw_entity_1.Draw, drawId, { status: 'completed' });
+            const cancelResult = await manager
+                .createQueryBuilder()
+                .update(order_entity_1.Order)
+                .set({ status: -1 })
+                .where('draw_id = :drawId AND status = 0', { drawId })
+                .execute();
+            if (cancelResult.affected && cancelResult.affected > 0) {
+                this.logger.log(`[${lt}] 自动取消 ${cancelResult.affected} 笔未付款订单 draw_id=${drawId}`);
+            }
         });
         this.logger.log(`[${lt}] 店内结算完成 draw_id=${drawId}: ${results.totalOrders}单, 赔付$${results.totalPayout}`);
         return results;
