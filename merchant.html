@@ -237,7 +237,7 @@
       <!-- Chance 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold">Chance <span class="text-gray-400 text-sm font-normal">销售额</span> <span class="text-blue-400 text-sm font-normal" id="merchant-chance-sales">$0.00</span></h3>
+          <h3 class="font-bold">Chance <span class="text-gray-400 text-sm font-normal" data-i18n="sales_amount">销售额</span> <span class="text-blue-400 text-sm font-normal" id="merchant-chance-sales">$0.00</span></h3>
           <button id="btn-chance-viewall" onclick="showChanceDetail()" class="text-blue-400 text-sm" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="chance-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -248,7 +248,7 @@
       <!-- Billete 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4 relative z-10">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold">Billete <span class="text-gray-400 text-sm font-normal">销售额</span> <span class="text-amber-400 text-sm font-normal" id="merchant-billete-sales">$0.00</span></h3>
+          <h3 class="font-bold">Billete <span class="text-gray-400 text-sm font-normal" data-i18n="sales_amount">销售额</span> <span class="text-amber-400 text-sm font-normal" id="merchant-billete-sales">$0.00</span></h3>
           <button type="button" id="btn-billete-viewall" onclick="showBilleteDetail()" class="text-blue-400 text-sm font-medium cursor-pointer hover:text-blue-300 hover:underline relative z-10 py-1 px-2 -m-2" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="billete-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -313,8 +313,8 @@
               </span>
             </label>
           </div>
-          <p class="text-xs text-gray-400">TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。</p>
-          <button type="button" onclick="saveLocalLotteryShopSettings()" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm">保存 TICA / NICA 设置</button>
+          <p class="text-xs text-gray-400" data-i18n="local_lottery_desc">TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。</p>
+          <button type="button" onclick="saveLocalLotteryShopSettings()" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm" data-i18n="btn_save_local_lottery">保存 TICA / NICA 设置</button>
         </div>
       </details>
 
@@ -476,7 +476,7 @@
         <p id="cashier-submit-btn-hint" class="text-xs text-center text-amber-400 mt-0.5 hidden"></p>
         <!-- 电子单开关 -->
         <div class="flex items-center justify-between pt-2 mt-1 border-t border-gray-600/50">
-          <span class="text-sm text-gray-300">📋 电子单（下单后弹出）</span>
+          <span class="text-sm text-gray-300" data-i18n="eticket_toggle_label">📋 电子单（下单后弹出）</span>
           <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" id="cashier-eticket-toggle" class="sr-only peer" onchange="localStorage.setItem('cashier_eticket_enabled',this.checked?'1':'0')">
             <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-500 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
@@ -484,7 +484,7 @@
         </div>
         <!-- 打印机连接状态：代客下单弹窗底部显示打印机连接状态+连接按钮 -->
         <div id="cashier-printer-panel" class="pt-3 mt-1 border-t border-gray-600/50 flex items-center justify-between gap-3">
-          <p id="cashier-printer-status" class="text-sm text-gray-300 flex-1 min-w-0 leading-snug text-left">🖨️ <span id="cashier-printer-status-text">检测中...</span></p>
+          <p id="cashier-printer-status" class="text-sm text-gray-300 flex-1 min-w-0 leading-snug text-left">🖨️ <span id="cashier-printer-status-text" data-i18n="printer_detecting">检测中...</span></p>
           <button type="button" id="cashier-btn-connect-printer" onclick="connectPrinter()"
             class="shrink-0 bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg font-bold">
             连接
@@ -544,16 +544,16 @@
     <div class="bg-gray-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-gray-600">
       <div class="p-4 border-b border-gray-700 flex items-center justify-between">
         <div>
-          <p class="font-bold text-white">选择打印机</p>
-          <p id="ble-picker-status" class="text-xs text-blue-400 mt-0.5">正在扫描...</p>
+          <p class="font-bold text-white" data-i18n="ble_picker_title">选择打印机</p>
+          <p id="ble-picker-status" class="text-xs text-blue-400 mt-0.5" data-i18n="ble_scanning">正在扫描...</p>
         </div>
         <div class="flex items-center gap-2">
-          <button id="ble-picker-stop-btn" onclick="blePicker.stopScan()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg font-bold">停止</button>
+          <button id="ble-picker-stop-btn" onclick="blePicker.stopScan()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg font-bold" data-i18n="btn_stop">停止</button>
           <button onclick="blePicker.cancel()" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white text-2xl rounded-lg hover:bg-gray-700">×</button>
         </div>
       </div>
       <div id="ble-picker-list" class="max-h-72 overflow-y-auto divide-y divide-gray-700/50">
-        <p class="text-center text-gray-500 text-sm py-8">附近没有找到蓝牙设备</p>
+        <p class="text-center text-gray-500 text-sm py-8" data-i18n="ble_no_devices">附近没有找到蓝牙设备</p>
       </div>
     </div>
   </div>
@@ -587,6 +587,7 @@
           <span class="font-bold text-gray-800">Total</span>
           <span class="text-2xl font-bold text-green-600">$<span id="et-amount">0</span></span>
         </div>
+        <p class="text-[10px] text-red-500 text-center mt-1">Verifique sus números. No se aceptan cambios después del sorteo.</p>
         <!-- 广告条 -->
         <div class="rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 px-3 py-2.5 text-center">
           <p class="text-[11px] text-green-700 font-bold leading-snug">📱 ¡Haz tu pedido desde casa, sin filas!</p>
@@ -602,11 +603,11 @@
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
             <path d="M12 0C5.373 0 0 5.373 0 12c0 2.121.555 4.112 1.526 5.837L0 24l6.318-1.508A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.886 0-3.655-.49-5.187-1.345L2 22l1.368-4.729A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
           </svg>
-          转发到 WhatsApp
+          <span data-i18n="btn_share_whatsapp">转发到 WhatsApp</span>
         </button>
         <button type="button" onclick="closeCashierEticket()"
           class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm">
-          继续下一单
+          <span data-i18n="btn_next_order">继续下一单</span>
         </button>
       </div>
     </div>
@@ -637,6 +638,7 @@
       <span class="font-bold text-gray-800">Total</span>
       <span class="text-2xl font-bold text-green-600">$<span id="odet-amount">0</span></span>
     </div>
+    <p class="text-[10px] text-red-500 text-center mt-1">Verifique sus números. No se aceptan cambios después del sorteo.</p>
     <div id="odet-note-box" class="hidden rounded-xl bg-yellow-50 border border-yellow-300 px-3 py-2">
       <p class="text-xs text-yellow-700 font-bold" id="odet-note-text"></p>
     </div>
@@ -707,7 +709,7 @@
         <button type="button" id="modal-btn-delete" onclick="confirmDeleteOrder()" class="flex-1 min-w-[30%] bg-red-700 text-white py-4 rounded-xl font-bold" data-i18n="btn_delete">🗑 删除</button>
         <button type="button" id="modal-btn-confirm-pay" onclick="confirmPayment()" class="hidden flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_confirm_pay">确认收款</button>
         <button type="button" id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 min-w-[40%] bg-amber-500 text-white py-4 rounded-xl font-bold" data-i18n="redeem_title">兑奖</button>
-        <button type="button" id="modal-btn-reorder" onclick="reorderToCashier()" class="hidden w-full bg-blue-600 text-white py-4 rounded-xl font-bold">🔄 重新下单</button>
+        <button type="button" id="modal-btn-reorder" onclick="reorderToCashier()" class="hidden w-full bg-blue-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_reorder">🔄 重新下单</button>
       </div>
     </div>
   </div>
@@ -1142,7 +1144,20 @@
         pwa_title: '📲 添加到桌面',
         pwa_btn_install: '立即添加',
         pwa_installed: '✅ 已安装到桌面，请从桌面图标打开。',
-        pwa_guide_label: '选择你的浏览器：'
+        pwa_guide_label: '选择你的浏览器：',
+        btn_share_whatsapp: '转发到 WhatsApp',
+        btn_next_order: '继续下一单',
+        sales_amount: '销售额',
+        local_lottery_desc: 'TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。',
+        btn_save_local_lottery: '保存 TICA / NICA 设置',
+        eticket_toggle_label: '📋 电子单（下单后弹出）',
+        printer_detecting: '检测中...',
+        ble_picker_title: '选择打印机',
+        ble_scanning: '正在扫描...',
+        btn_stop: '停止',
+        ble_no_devices: '附近没有找到蓝牙设备',
+        btn_reorder: '🔄 重新下单',
+        printer_disabled: '未启用'
       },
       es: {
         lang_switch_title: 'Cambiar a español',
@@ -1436,7 +1451,20 @@
         pwa_title: '📲 Añadir al inicio',
         pwa_btn_install: 'Añadir ahora',
         pwa_installed: '✅ Ya está instalada. Ábrela desde el icono del escritorio.',
-        pwa_guide_label: 'Elige tu navegador:'
+        pwa_guide_label: 'Elige tu navegador:',
+        btn_share_whatsapp: 'Enviar por WhatsApp',
+        btn_next_order: 'Siguiente pedido',
+        sales_amount: 'Ventas',
+        local_lottery_desc: 'TICA y NICA son loterías de otros países, diferentes a la Lotería de Panamá (oficial). Al activar y guardar, aparecerán en la página del cliente; si no se activan, no se mostrarán.',
+        btn_save_local_lottery: 'Guardar config. TICA / NICA',
+        eticket_toggle_label: '📋 E-ticket (aparece al crear pedido)',
+        printer_detecting: 'Detectando...',
+        ble_picker_title: 'Seleccionar impresora',
+        ble_scanning: 'Escaneando...',
+        btn_stop: 'Detener',
+        ble_no_devices: 'No se encontraron dispositivos Bluetooth cerca',
+        btn_reorder: '🔄 Repetir pedido',
+        printer_disabled: 'No habilitada'
       }
     };
 
@@ -1593,8 +1621,9 @@
         if (!raw) return;
         var j = JSON.parse(raw);
         if (!j || Number(j.shop_id) !== Number(shop.shop_id)) return;
-        shop.tica_enabled = !!(shop.tica_enabled || j.tica_enabled);
-        shop.nica_enabled = !!(shop.nica_enabled || j.nica_enabled);
+        // 仅当后端未返回字段（undefined）时才用本地缓存兜底，后端明确返回 false 时以后端为准
+        if (shop.tica_enabled == null) shop.tica_enabled = !!j.tica_enabled;
+        if (shop.nica_enabled == null) shop.nica_enabled = !!j.nica_enabled;
       } catch (e) {}
     }
     function persistMerchantShopLocalFlags(shop) {
@@ -1743,7 +1772,8 @@
 
     function getOrderLotteryType(o) {
       var lt = o && (o.lottery_type != null ? o.lottery_type : (o.lotteryType != null ? o.lotteryType : 'NACIONAL'));
-      return String(lt).toUpperCase();
+      var str = String(lt || '').trim().toUpperCase();
+      return (str && str !== 'NULL') ? str : 'NACIONAL';
     }
     function orderMatchesMerchantWorkbench(o, wb) {
       var t = getOrderLotteryType(o);
@@ -2826,13 +2856,17 @@
         if (currentShop.tica_enabled) {
           try {
             nextLocalTica = await fetchLocalLotteryCurrentForMerchant(sid, 'TICA');
-          } catch (eT) {}
+          } catch (eT) {
+            console.warn('获取 TICA 当前期失败:', eT);
+          }
           if (dashGen !== merchantDashboardLoadGeneration) return;
         }
         if (currentShop.nica_enabled) {
           try {
             nextLocalNica = await fetchLocalLotteryCurrentForMerchant(sid, 'NICA');
-          } catch (eN) {}
+          } catch (eN) {
+            console.warn('获取 NICA 当前期失败:', eN);
+          }
           if (dashGen !== merchantDashboardLoadGeneration) return;
         }
         merchantLocalDrawTica = currentShop.tica_enabled ? nextLocalTica : null;
@@ -2879,20 +2913,33 @@
           }
         } else if (merchantWorkbenchKind === 'TICA') {
           var ldT = merchantLocalDrawTica && (merchantLocalDrawTica.draw_id != null ? merchantLocalDrawTica.draw_id : merchantLocalDrawTica.drawId);
-          periodOrders = ldT != null
-            ? scopedOrders.filter(function (o) {
+          if (ldT != null) {
+            periodOrders = scopedOrders.filter(function (o) {
               var od = o.draw_id != null ? o.draw_id : o.drawId;
               return od == ldT;
-            })
-            : [];
+            });
+          } else {
+            // draw_id 获取失败时 fallback：显示该彩种所有已付款订单，避免订单"消失"
+            console.warn('TICA draw_id 未获取到，fallback 显示全部 TICA 订单');
+            periodOrders = scopedOrders.filter(function (o) {
+              var s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
+              return s === 'paid' || s === 1 || s === 2 || s === 'settled' || s === 3 || s === 'won';
+            });
+          }
         } else {
           var ldN = merchantLocalDrawNica && (merchantLocalDrawNica.draw_id != null ? merchantLocalDrawNica.draw_id : merchantLocalDrawNica.drawId);
-          periodOrders = ldN != null
-            ? scopedOrders.filter(function (o) {
+          if (ldN != null) {
+            periodOrders = scopedOrders.filter(function (o) {
               var od = o.draw_id != null ? o.draw_id : o.drawId;
               return od == ldN;
-            })
-            : [];
+            });
+          } else {
+            console.warn('NICA draw_id 未获取到，fallback 显示全部 NICA 订单');
+            periodOrders = scopedOrders.filter(function (o) {
+              var s = (typeof o.status === 'string') ? o.status.toLowerCase() : o.status;
+              return s === 'paid' || s === 1 || s === 2 || s === 'settled' || s === 3 || s === 'won';
+            });
+          }
         }
 
         ordersForCurrentDraw = periodOrders.filter(function (o) {
@@ -2954,7 +3001,10 @@
         const redeemPendingOrders = scopedOrders.filter(function (o) {
           var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
           if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
-          if (redeemStatsDrawId == null) return false;
+          if (redeemStatsDrawId == null) {
+            // draw_id 获取失败时 fallback：显示该彩种所有未兑奖中奖单
+            return merchantWorkbenchKind !== 'NACIONAL';
+          }
           var oDraw = o.draw_id != null ? o.draw_id : o.drawId;
           return Number(oDraw) === Number(redeemStatsDrawId);
         });
@@ -3883,7 +3933,7 @@
       }
       if (linesEl) {
         linesEl.innerHTML = '';
-        var orderGameType = (order.game_type || order.lottery_kind || order.lotteryKind || '').toUpperCase();
+        var orderGameType = (order.game_type || order.gameType || '').toUpperCase();
         (order.numbers || []).forEach(function (item) {
           var numStr = String(item.n != null ? item.n : (item.number != null ? item.number : ''));
           var qty = Number(item.q != null ? item.q : (item.quantity != null ? item.quantity : 1)) || 1;
@@ -3911,7 +3961,7 @@
       // QR
       if (qrEl) {
         qrEl.innerHTML = '';
-        var lk = (order.lottery_kind || order.lotteryKind || order.lottery_type || order.game_type || '').toUpperCase();
+        var lk = (order.lottery_type || order.lotteryType || order.lottery_kind || order.lotteryKind || '').toUpperCase();
         if (lk !== 'TICA' && lk !== 'NICA') lk = 'NACIONAL';
         var payload = { type: 'lottery_order', orderId: order.id || order.order_id || null,
           orderNumber: orderNum, orderHash: order.order_hash || order.orderHash || null,
@@ -4988,7 +5038,7 @@
         if (!list) return;
         var keys = Object.keys(_devices);
         if (keys.length === 0) {
-          list.innerHTML = '<p class="text-center text-gray-500 text-sm py-8">附近没有找到蓝牙设备</p>';
+          list.innerHTML = '<p class="text-center text-gray-500 text-sm py-8" data-i18n="ble_no_devices">附近没有找到蓝牙设备</p>';
           return;
         }
         list.innerHTML = keys.map(function(id) {
@@ -5673,6 +5723,10 @@
       push(...BON,...MED);
       row('Importe', '$' + amount);
       push(...NORM,...BOFF);
+      LF();
+      txt('Verifique sus numeros.'); LF();
+      txt('No se aceptan cambios'); LF();
+      txt('despues del sorteo.'); LF();
       txt(DIV); LF();
       push(...BON);
       txt('Numeros'); LF();
@@ -6032,7 +6086,7 @@
             </label>
           </div>
           <p class="text-xs text-gray-500 mb-2" data-i18n="print_description">启用后，所有已付款订单确认时将自动打印小票。需使用 Chrome 或 Edge 浏览器，并连接蓝牙热敏打印机。</p>
-          <div id="printer-status" class="text-xs text-gray-400">未启用</div>
+          <div id="printer-status" class="text-xs text-gray-400" data-i18n="printer_disabled">未启用</div>
           <button id="btn-connect-printer" onclick="connectPrinter()" class="hidden mt-2 w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_connect_printer">
             🔗 连接打印机
           </button>
