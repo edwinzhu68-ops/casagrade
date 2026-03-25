@@ -336,6 +336,55 @@
             </div>
           </div>
         </div>
+        <!-- Chain 串赔率（仅 TICA/NICA 显示） -->
+        <div id="chain-rates-section" class="hidden">
+          <p class="text-xs font-bold text-purple-400 mb-2 uppercase tracking-wide">🔗 Palet 串赔率（TICA/NICA）</p>
+          <p class="text-[10px] text-gray-500 mb-2">Palet 1234 开奖 12 34 56 → 前两位F=12 后两位L=34，与N1/N2/N3匹配</p>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">1串2</label>
+              <input type="number" id="rate-input-chain12" min="0" max="99999" step="1" placeholder="1000"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-purple-500"
+                oninput="syncRateDisplay('chain12', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-chain12">1000</span></p>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">1串3</label>
+              <input type="number" id="rate-input-chain13" min="0" max="99999" step="1" placeholder="1000"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-purple-500"
+                oninput="syncRateDisplay('chain13', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-chain13">1000</span></p>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">2串1</label>
+              <input type="number" id="rate-input-chain21" min="0" max="99999" step="1" placeholder="0"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-purple-500"
+                oninput="syncRateDisplay('chain21', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-chain21">0</span></p>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">2串3</label>
+              <input type="number" id="rate-input-chain23" min="0" max="99999" step="1" placeholder="200"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-purple-500"
+                oninput="syncRateDisplay('chain23', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-chain23">200</span></p>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">3串1</label>
+              <input type="number" id="rate-input-chain31" min="0" max="99999" step="1" placeholder="0"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-purple-500"
+                oninput="syncRateDisplay('chain31', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-chain31">0</span></p>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">3串2</label>
+              <input type="number" id="rate-input-chain32" min="0" max="99999" step="1" placeholder="0"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-purple-500"
+                oninput="syncRateDisplay('chain32', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-chain32">0</span></p>
+            </div>
+          </div>
+        </div>
         <p class="text-xs text-gray-500">修改只影响<strong class="text-gray-300">未来开奖</strong>的结算，已结算订单不受影响。</p>
       </div>
       <div class="p-4 border-t border-gray-700 flex gap-3">
@@ -2708,15 +2757,16 @@
     }
 
     // ── 赔率设置 ──────────────────────────────────────────────
-    var RATE_DEFAULTS = { b1: 2000, b2: 600, b3: 300, c1: 14, c2: 3, c3: 2 };
+    var RATE_DEFAULTS = { b1: 2000, b2: 600, b3: 300, c1: 14, c2: 3, c3: 2, chain12: 1000, chain13: 1000, chain21: 0, chain23: 200, chain31: 0, chain32: 0 };
     function openRatesModal() {
       if (!currentShop) { showToast('请先登录', 'error'); return; }
-      var b1 = currentShop.rate_billete_1 != null ? Number(currentShop.rate_billete_1) : RATE_DEFAULTS.b1;
-      var b2 = currentShop.rate_billete_2 != null ? Number(currentShop.rate_billete_2) : RATE_DEFAULTS.b2;
-      var b3 = currentShop.rate_billete_3 != null ? Number(currentShop.rate_billete_3) : RATE_DEFAULTS.b3;
-      var c1 = currentShop.rate_chance_1 != null ? Number(currentShop.rate_chance_1) : RATE_DEFAULTS.c1;
-      var c2 = currentShop.rate_chance_2 != null ? Number(currentShop.rate_chance_2) : RATE_DEFAULTS.c2;
-      var c3 = currentShop.rate_chance_3 != null ? Number(currentShop.rate_chance_3) : RATE_DEFAULTS.c3;
+      var rv = function(field, def) { return currentShop[field] != null ? Number(currentShop[field]) : def; };
+      var b1 = rv('rate_billete_1', RATE_DEFAULTS.b1);
+      var b2 = rv('rate_billete_2', RATE_DEFAULTS.b2);
+      var b3 = rv('rate_billete_3', RATE_DEFAULTS.b3);
+      var c1 = rv('rate_chance_1', RATE_DEFAULTS.c1);
+      var c2 = rv('rate_chance_2', RATE_DEFAULTS.c2);
+      var c3 = rv('rate_chance_3', RATE_DEFAULTS.c3);
       document.getElementById('rate-input-b1').value = b1;
       document.getElementById('rate-input-b2').value = b2;
       document.getElementById('rate-input-b3').value = b3;
@@ -2729,6 +2779,21 @@
       document.getElementById('rate-display-c1').textContent = c1;
       document.getElementById('rate-display-c2').textContent = c2;
       document.getElementById('rate-display-c3').textContent = c3;
+      // Chain 串赔率（仅 TICA/NICA 显示）
+      var kind = getResultPageKind();
+      var chainSection = document.getElementById('chain-rates-section');
+      if (chainSection) chainSection.classList.toggle('hidden', kind === 'NACIONAL');
+      if (kind !== 'NACIONAL') {
+        var chainKeys = ['chain12','chain13','chain21','chain23','chain31','chain32'];
+        var dbKeys = ['chain_1_2','chain_1_3','chain_2_1','chain_2_3','chain_3_1','chain_3_2'];
+        for (var i = 0; i < chainKeys.length; i++) {
+          var val = rv(dbKeys[i], RATE_DEFAULTS[chainKeys[i]]);
+          var inp = document.getElementById('rate-input-' + chainKeys[i]);
+          var disp = document.getElementById('rate-display-' + chainKeys[i]);
+          if (inp) inp.value = val;
+          if (disp) disp.textContent = val;
+        }
+      }
       document.getElementById('modal-rates').classList.remove('hidden');
     }
     function syncRateDisplay(key, val) {
@@ -2744,6 +2809,10 @@
         var v = parseFloat(document.getElementById(id).value);
         return (isFinite(v) && v > 0) ? v : null;
       };
+      var toNumOrZero = function(id) {
+        var v = parseFloat(document.getElementById(id).value);
+        return (isFinite(v) && v >= 0) ? v : null;
+      };
       var body = {
         rateBillete1: toNum('rate-input-b1'),
         rateBillete2: toNum('rate-input-b2'),
@@ -2752,6 +2821,16 @@
         rateChance2: toNum('rate-input-c2'),
         rateChance3: toNum('rate-input-c3'),
       };
+      // Chain 串赔率（TICA/NICA 模式才发送）
+      var kind = getResultPageKind();
+      if (kind !== 'NACIONAL') {
+        body.chain12 = toNumOrZero('rate-input-chain12');
+        body.chain13 = toNumOrZero('rate-input-chain13');
+        body.chain21 = toNumOrZero('rate-input-chain21');
+        body.chain23 = toNumOrZero('rate-input-chain23');
+        body.chain31 = toNumOrZero('rate-input-chain31');
+        body.chain32 = toNumOrZero('rate-input-chain32');
+      }
       try {
         var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/rates', {
           method: 'PATCH',
@@ -2767,6 +2846,12 @@
         currentShop.rate_chance_1 = data.rate_chance_1;
         currentShop.rate_chance_2 = data.rate_chance_2;
         currentShop.rate_chance_3 = data.rate_chance_3;
+        if (data.chain_1_2 !== undefined) currentShop.chain_1_2 = data.chain_1_2;
+        if (data.chain_1_3 !== undefined) currentShop.chain_1_3 = data.chain_1_3;
+        if (data.chain_2_1 !== undefined) currentShop.chain_2_1 = data.chain_2_1;
+        if (data.chain_2_3 !== undefined) currentShop.chain_2_3 = data.chain_2_3;
+        if (data.chain_3_1 !== undefined) currentShop.chain_3_1 = data.chain_3_1;
+        if (data.chain_3_2 !== undefined) currentShop.chain_3_2 = data.chain_3_2;
         closeRatesModal();
         showToast('赔率已保存', 'success');
       } catch(e) {
