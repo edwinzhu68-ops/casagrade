@@ -684,23 +684,27 @@
     function getResultLang() { return localStorage.getItem(RESULT_LANG_KEY) || 'zh'; }
 
     /** TICA/NICA 顶栏小角标（与收银台「开奖日期」pill 同字号），切换语言时刷新文案 */
-    var _resultLocalKindBadgeState = { kind: null, drawId: null };
-    function syncResultLocalKindBadge(kind, currentDrawId) {
+    var _resultLocalKindBadgeState = { kind: null, drawId: null, periodNo: null };
+    function syncResultLocalKindBadge(kind, currentDrawId, periodNo) {
       var row = document.getElementById('result-kind-badge-row');
       var pill = document.getElementById('result-header-kind-badge');
       if (!row || !pill) return;
       var k = String(kind || '').toUpperCase();
       if (k !== 'TICA' && k !== 'NICA') {
-        _resultLocalKindBadgeState = { kind: null, drawId: null };
+        _resultLocalKindBadgeState = { kind: null, drawId: null, periodNo: null };
         row.classList.add('hidden');
-        // NACIONAL: restore Billete labels
         _updatePaletBilleteLabels('NACIONAL');
         return;
       }
-      _resultLocalKindBadgeState = { kind: k, drawId: currentDrawId };
+      _resultLocalKindBadgeState = { kind: k, drawId: currentDrawId, periodNo: periodNo };
       row.classList.remove('hidden');
-      var dId = (currentDrawId != null && String(currentDrawId).trim() !== '') ? Number(currentDrawId) : NaN;
-      var mid = (isFinite(dId) && dId > 0) ? ('#' + dId) : t('badge_in_progress');
+      // 优先显示 period_no（彩种内期次），fallback 到 draw_id
+      var displayNo = (periodNo != null && isFinite(Number(periodNo)) && Number(periodNo) > 0) ? Number(periodNo) : null;
+      if (displayNo == null) {
+        var dId = (currentDrawId != null && String(currentDrawId).trim() !== '') ? Number(currentDrawId) : NaN;
+        displayNo = (isFinite(dId) && dId > 0) ? dId : null;
+      }
+      var mid = displayNo ? ('#' + displayNo) : t('badge_in_progress');
       pill.textContent = k + ' · ' + mid;
       if (k === 'TICA') {
         pill.className = 'text-xs px-2 py-0.5 rounded-full font-medium bg-blue-900/50 text-blue-300';
@@ -737,7 +741,7 @@
     function refreshResultLocalKindBadgeI18n() {
       var st = _resultLocalKindBadgeState;
       if (!st || !st.kind) return;
-      syncResultLocalKindBadge(st.kind, st.drawId);
+      syncResultLocalKindBadge(st.kind, st.drawId, st.periodNo);
     }
 
     function toggleResultLang() {
@@ -1804,6 +1808,7 @@
         allOrders = ordersData.orders || [];
 
         const currentDrawId = cur && (cur.draw_id != null ? cur.draw_id : cur.drawId);
+        const currentPeriodNo = cur && (cur.period_no != null ? cur.period_no : cur.periodNo);
         const scoped = buildScopedOrdersForLocalKind(allOrders, kind);
         const scopedPaid = scoped.filter(isPaidSettledOrWonStatus);
 
@@ -1995,7 +2000,7 @@
 
         var pl = document.getElementById('result-period-label');
         if (pl) pl.textContent = '';
-        syncResultLocalKindBadge(kind, currentDrawId);
+        syncResultLocalKindBadge(kind, currentDrawId, currentPeriodNo);
 
         if (settleHint) settleHint.textContent = '';
       } catch (e) {
