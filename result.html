@@ -2106,7 +2106,11 @@
     }
 
     // 加载数据
+    var _isLoadingData = false;
     async function loadData() {
+      if (_isLoadingData) return;
+      _isLoadingData = true;
+      try {
       if (DEBUG) console.log("loadData called, currentShop:", currentShop);
       if (!currentShop) return;
 
@@ -2232,6 +2236,7 @@
       } catch (err) {
         console.error(err);
       }
+      } finally { _isLoadingData = false; }
     }
 
     // 加载最近 20 期结算记录；点进某期可看详情
@@ -2852,9 +2857,9 @@
         var lc1 = document.getElementById('rate-input-local-c1');
         var lc2 = document.getElementById('rate-input-local-c2');
         var lc3 = document.getElementById('rate-input-local-c3');
-        if (lc1) { lc1.value = localC1; document.getElementById('rate-display-local-c1').textContent = localC1; }
-        if (lc2) { lc2.value = localC2; document.getElementById('rate-display-local-c2').textContent = localC2; }
-        if (lc3) { lc3.value = localC3; document.getElementById('rate-display-local-c3').textContent = localC3; }
+        if (lc1) { lc1.value = localC1; var d1 = document.getElementById('rate-display-local-c1'); if (d1) d1.textContent = localC1; }
+        if (lc2) { lc2.value = localC2; var d2 = document.getElementById('rate-display-local-c2'); if (d2) d2.textContent = localC2; }
+        if (lc3) { lc3.value = localC3; var d3 = document.getElementById('rate-display-local-c3'); if (d3) d3.textContent = localC3; }
       }
       document.getElementById('modal-rates').classList.remove('hidden');
     }

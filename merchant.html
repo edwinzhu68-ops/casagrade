@@ -2281,10 +2281,10 @@
       }
       const chanceVal = document.getElementById('limit-chance').value.trim();
       const billeteVal = document.getElementById('limit-billete').value.trim();
-      const newChance = chanceVal === '' ? null : (parseInt(chanceVal) || null);
-      const newBillete = billeteVal === '' ? null : (parseInt(billeteVal) || null);
+      const newChance = chanceVal === '' ? null : (parseInt(chanceVal) > 0 ? parseInt(chanceVal) : null);
+      const newBillete = billeteVal === '' ? null : (parseInt(billeteVal) > 0 ? parseInt(billeteVal) : null);
       try {
-        const res = await fetch(`/api/shop/${currentShop.shop_id}/limits`, {
+        const res = await fetch(`${API_BASE}/api/shop/${currentShop.shop_id}/limits`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
           body: JSON.stringify({ limitChance: newChance, limitBillete: newBillete })
@@ -3072,7 +3072,7 @@
       container.innerHTML = sorted.map(function (item) {
         var num = item[0];
         var qty = item[1];
-        var percent = qty / limits.chance;
+        var percent = (limits.chance != null && limits.chance > 0) ? qty / limits.chance : 0;
         var colorClass = 'text-green-400';
         if (percent >= 1) colorClass = 'text-red-500';
         else if (percent >= 0.8) colorClass = 'text-orange-400';
@@ -3098,7 +3098,7 @@
       container.innerHTML = sorted.map(function (item) {
         var num = item[0];
         var qty = item[1];
-        var percent = qty / limits.billete;
+        var percent = (limits.billete != null && limits.billete > 0) ? qty / limits.billete : 0;
         var colorClass = 'text-green-400';
         if (percent >= 1) colorClass = 'text-red-500';
         else if (percent >= 0.8) colorClass = 'text-orange-400';
@@ -3785,8 +3785,8 @@
           var row = document.createElement('div');
           row.className = 'flex justify-between';
           var qty = item.q || item.quantity || 1;
-          row.innerHTML = '<span class="font-mono">' + (item.n || item.number) + '</span>'
-            + '<span class="text-gray-500">×' + qty + ' = $' + (qty * unitPrice).toFixed(2) + '</span>';
+          row.innerHTML = '<span class="font-mono">' + esc(item.n || item.number) + '</span>'
+            + '<span class="text-gray-500">×' + esc(qty) + ' = $' + (qty * unitPrice).toFixed(2) + '</span>';
           linesEl.appendChild(row);
         });
       }
