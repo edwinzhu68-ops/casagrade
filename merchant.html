@@ -4263,20 +4263,45 @@
         winSection.classList.add('hidden');
       }
 
-      // 按钮显隐：未付款→确认付款，已中奖未兑→兑奖；待付款/已付款可修改（已开奖/已中奖后端拒绝）
+      // 按钮显隐：根据订单状态精确控制
       var isPending = order.status === 0 || order.status === 'pending';
+      var isPaid = order.status === 1 || order.status === 'paid';
       var isRedeemed = !!(order.redeemed_at && order.redeemed_at !== '' && order.redeemed_at !== 'null');
       var isWonNotRedeemed = isWon && !isRedeemed;
       var isSettledNoWin = (order.status === 2 || order.status === 'settled') && !isWon;
       var canReorder = isSettledNoWin || (isWon && isRedeemed);
-      var canModifyOrder = isPending || order.status === 1 || order.status === 'paid';
+      var canModifyOrder = isPending || isPaid;
+
+      // 已中奖未兑：只显示兑奖按钮
+      // 未中奖(settled)：显示重新下单
+      // 已兑奖：显示"已兑奖"状态提示 + 重新下单
+      // 待付款/已付款：正常显示所有操作按钮
       document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
       document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
-      document.getElementById('modal-btn-print').classList.remove('hidden');
+      document.getElementById('modal-btn-whatsapp').classList.toggle('hidden', isWonNotRedeemed || isSettledNoWin || (isWon && isRedeemed));
+      document.getElementById('modal-btn-print').classList.toggle('hidden', isWonNotRedeemed || isSettledNoWin || (isWon && isRedeemed));
+      document.getElementById('modal-btn-delete').classList.toggle('hidden', isWonNotRedeemed || isSettledNoWin || (isWon && isRedeemed));
       var modBtn = document.getElementById('modal-btn-modify');
       if (modBtn) modBtn.classList.toggle('hidden', !canModifyOrder);
       var reorderBtn = document.getElementById('modal-btn-reorder');
       if (reorderBtn) reorderBtn.classList.toggle('hidden', !canReorder);
+
+      // 已兑奖状态提示
+      var redeemedBanner = document.getElementById('detail-redeemed-banner');
+      if (!redeemedBanner) {
+        redeemedBanner = document.createElement('div');
+        redeemedBanner.id = 'detail-redeemed-banner';
+        redeemedBanner.className = 'text-center py-2 rounded-xl font-bold text-sm mb-2';
+        var actionsEl = document.getElementById('modal-order-actions-normal');
+        if (actionsEl) actionsEl.parentNode.insertBefore(redeemedBanner, actionsEl);
+      }
+      if (isWon && isRedeemed) {
+        redeemedBanner.textContent = '✅ ' + t('status_redeemed');
+        redeemedBanner.className = 'text-center py-2 rounded-xl font-bold text-sm mb-2 bg-green-900/40 text-green-400 border border-green-500/30';
+        redeemedBanner.classList.remove('hidden');
+      } else {
+        redeemedBanner.classList.add('hidden');
+      }
 
       // 备注区
       var _noteNum = String(order.order_number || order.orderNumber || '');
