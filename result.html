@@ -146,8 +146,15 @@
           <input type="text" id="local-n3" maxlength="2" inputmode="numeric" placeholder="N3"
             class="w-full text-center font-mono text-2xl bg-gray-700 border border-gray-600 rounded-xl py-2 focus:border-purple-500 focus:outline-none" />
         </div>
-        <button type="button" id="btn-local-settle" onclick="submitLocalLotterySettle()"
-          class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-xl font-bold text-white shadow-lg" data-i18n="local_settle_btn">确认开奖并结算</button>
+        <div class="flex gap-2">
+          <button type="button" id="btn-local-settle" onclick="submitLocalLotterySettle()"
+            class="flex-1 bg-purple-600 hover:bg-purple-500 py-3 rounded-xl font-bold text-white shadow-lg" data-i18n="local_settle_btn">确认开奖并结算</button>
+          <button type="button" id="btn-local-toggle-sale" onclick="toggleLocalSaleStatus()"
+            class="px-4 py-3 rounded-xl font-bold text-white shadow-lg">
+          </button>
+        </div>
+        <!-- 停售/销售状态提示 -->
+        <div id="local-sale-status-banner" class="mt-2 rounded-lg px-3 py-2 text-center text-sm font-bold hidden"></div>
         <p id="local-settle-hint" class="text-xs text-gray-500 mt-2"></p>
       </div>
 
@@ -589,6 +596,10 @@
         local_history_collapse: '收起',
         local_settle_title_kind: '📊 {kind} · 开奖结算',
         local_settle_btn: '确认开奖并结算',
+        local_stop_sale: '停售',
+        local_start_sale: '开售',
+        local_sale_on: '正在销售中',
+        local_sale_off: '已停售',
         filter_suffix_4: '后4位',
         filter_suffix_title: '输入订单号后4位筛选',
         no_match_orders: '无匹配订单',
@@ -673,6 +684,10 @@
         local_history_collapse: 'Contraer',
         local_settle_title_kind: '📊 {kind} · Liquidación',
         local_settle_btn: 'Confirmar sorteo y liquidar',
+        local_stop_sale: 'Parar',
+        local_start_sale: 'Abrir',
+        local_sale_on: 'Ventas abiertas',
+        local_sale_off: 'Ventas cerradas',
         filter_suffix_4: 'Últ. 4',
         filter_suffix_title: 'Filtrar por los últimos 4 dígitos del pedido',
         no_match_orders: 'Sin pedidos coincidentes',
@@ -1782,6 +1797,7 @@
       document.querySelectorAll('.national-only').forEach(function (el) { el.classList.add('hidden'); });
       var settleCard = document.getElementById('local-lottery-settle-card');
       if (settleCard) settleCard.classList.remove('hidden');
+      fetchLocalSaleStatus();
       var title = document.getElementById('local-settle-title');
       if (title) {
         var tpl = t('local_settle_title_kind');
@@ -2039,6 +2055,72 @@
         if (res.status !== 404 && res.status !== 405) return last;
       }
       return last;
+    }
+
+    // ── TICA/NICA 停售/销售切换 ─────────────────────────────
+    var localSaleAccepting = true; // 当前是否接单
+
+    function updateLocalSaleUI() {
+      var btn = document.getElementById('btn-local-toggle-sale');
+      var banner = document.getElementById('local-sale-status-banner');
+      if (!btn) return;
+      if (localSaleAccepting) {
+        btn.className = 'px-4 py-3 rounded-xl font-bold text-white shadow-lg bg-red-600 hover:bg-red-500';
+        btn.textContent = t('local_stop_sale');
+        if (banner) {
+          banner.className = 'mt-2 rounded-lg px-3 py-2 text-center text-sm font-bold bg-green-600/20 border border-green-500 text-green-300';
+          banner.textContent = '🟢 ' + t('local_sale_on');
+          banner.classList.remove('hidden');
+        }
+      } else {
+        btn.className = 'px-4 py-3 rounded-xl font-bold text-white shadow-lg bg-green-600 hover:bg-green-500';
+        btn.textContent = t('local_start_sale');
+        if (banner) {
+          banner.className = 'mt-2 rounded-lg px-3 py-2 text-center text-sm font-bold bg-red-600/20 border border-red-500 text-red-300';
+          banner.textContent = '🔴 ' + t('local_sale_off');
+          banner.classList.remove('hidden');
+        }
+      }
+    }
+
+    async function fetchLocalSaleStatus() {
+      if (!currentShop) return;
+      try {
+        var r = await fetch(API_BASE + '/api/bet-status?shopId=' + encodeURIComponent(currentShop.shop_id), { cache: 'no-store' });
+        if (r.ok) {
+          var j = await r.json();
+          var kind = getResultPageKind();
+          if (kind === 'TICA') localSaleAccepting = j.acceptingTicaOrders !== false;
+          else if (kind === 'NICA') localSaleAccepting = j.acceptingNicaOrders !== false;
+        }
+      } catch (e) {}
+      updateLocalSaleUI();
+    }
+
+    async function toggleLocalSaleStatus() {
+      if (!currentShop) return;
+      var kind = getResultPageKind();
+      if (kind !== 'TICA' && kind !== 'NICA') return;
+      var newVal = !localSaleAccepting;
+      var body = {};
+      if (kind === 'TICA') body.acceptingTicaOrders = newVal;
+      else body.acceptingNicaOrders = newVal;
+      try {
+        var r = await fetch(API_BASE + '/api/local-lottery/accepting?shopId=' + encodeURIComponent(currentShop.shop_id), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || '') },
+          body: JSON.stringify(body),
+        });
+        if (r.ok) {
+          localSaleAccepting = newVal;
+          updateLocalSaleUI();
+        } else {
+          var err = await r.json().catch(function () { return {}; });
+          alert(err.message || err.error || 'Error');
+        }
+      } catch (e) {
+        alert('Network error');
+      }
     }
 
     async function submitLocalLotterySettle() {
