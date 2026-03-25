@@ -2629,7 +2629,8 @@
         .then(res => res.json())
         .then(data => {
           closeScan();
-          if (currentShop && (data.shop_id != null) && data.shop_id !== currentShop.shop_id) {
+          var dataShopId = data.shop_id != null ? data.shop_id : data.shopId;
+          if (currentShop && (dataShopId != null) && dataShopId !== currentShop.shop_id) {
             showToast(t('alert_wrong_shop'), 'error');
             return;
           }
