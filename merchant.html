@@ -2472,8 +2472,8 @@
       //   3. facingMode exact:'environment' 仅当有明确后置摄像头时适用，用 ideal 更安全
       var videoConstraintsPrimary = {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        width: { ideal: 640 },
+        height: { ideal: 480 }
       };
       var videoConstraintsFallback = {
         facingMode: { ideal: 'environment' }
@@ -2508,14 +2508,17 @@
             // 华为等 Android 机型：HAVE_ENOUGH_DATA 触发时 videoWidth/videoHeight 可能仍为 0
             // 必须等到有效尺寸才能设置 canvas，否则会产生 0x0 canvas 导致 jsQR 收到空数据
             if (video.videoWidth > 0 && video.videoHeight > 0) {
-              // 以视频实际分辨率设置 canvas，确保 1:1 不缩放，避免因 CSS 缩放导致 jsQR 读到模糊图像
-              if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+              // 裁剪中心70%区域给jsQR，减少处理像素量，加速识别
+              var vw = video.videoWidth, vh = video.videoHeight;
+              var cropW = Math.round(vw * 0.7), cropH = Math.round(vh * 0.7);
+              var cropX = Math.round((vw - cropW) / 2), cropY = Math.round((vh - cropH) / 2);
+              if (canvas.width !== cropW || canvas.height !== cropH) {
+                canvas.width = cropW;
+                canvas.height = cropH;
               }
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              var code = jsQR(imageData.data, imageData.width, imageData.height);
+              ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+              var imageData = ctx.getImageData(0, 0, cropW, cropH);
+              var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
               if (code && code.data) {
                 var data = code.data.trim();
                 document.getElementById('scan-input').value = data;
