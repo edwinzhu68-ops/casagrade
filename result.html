@@ -161,7 +161,7 @@
       <!-- 等待兑奖 -->
       <div class="card-result rounded-2xl p-5 shadow-xl">
         <div class="flex items-center justify-between gap-2 mb-3">
-          <h3 class="font-bold text-emerald-400" data-i18n="wait_redeem">等待兑奖</h3>
+          <h3 class="font-bold text-emerald-400"><span data-i18n="wait_redeem">等待兑奖</span> <span id="redeem-summary" class="text-xs font-normal text-gray-400"></span></h3>
           <input type="text" id="redeem-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
             class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
             oninput="filterRedeemBySuffix(this.value)" title="输入订单号后4位筛选" />
@@ -2449,6 +2449,18 @@
 
       // 筛选已中奖未兑奖的订单
       var redeemOrders = lastRedeemOrders.filter(isUnredeemedWinningOrder);
+
+      // 更新统计：剩余订单数 + 待兑金额
+      var summaryEl = document.getElementById('redeem-summary');
+      if (summaryEl) {
+        if (redeemOrders.length === 0) {
+          summaryEl.textContent = '';
+        } else {
+          var totalPending = 0;
+          redeemOrders.forEach(function(o) { totalPending += getOrderWinAmount(o); });
+          summaryEl.textContent = '(' + redeemOrders.length + ' / $' + totalPending.toFixed(2) + ')';
+        }
+      }
 
       if (suf) {
         redeemOrders = redeemOrders.filter(function(o) {
