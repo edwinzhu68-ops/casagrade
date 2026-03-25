@@ -271,15 +271,15 @@ let OrderController = OrderController_1 = class OrderController {
                 if (dbType === 'postgres') {
                     soldRows = await this.dataSource.query(`SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
              FROM orders, jsonb_array_elements(numbers::jsonb) AS item
-             WHERE draw_id = $1 AND status != -1
-             GROUP BY item->>'n'`, [currentDraw.draw_id]);
+             WHERE draw_id = $1 AND shop_id = $2 AND status != -1
+             GROUP BY item->>'n'`, [currentDraw.draw_id, Number(shopId)]);
                 }
                 else {
                     soldRows = await this.dataSource.query(`SELECT json_extract(value, '$.n') AS num,
                     SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
              FROM orders, json_each(numbers)
-             WHERE draw_id = ? AND status != -1
-             GROUP BY json_extract(value, '$.n')`, [currentDraw.draw_id]);
+             WHERE draw_id = ? AND shop_id = ? AND status != -1
+             GROUP BY json_extract(value, '$.n')`, [currentDraw.draw_id, Number(shopId)]);
                 }
                 const soldMap = Object.fromEntries(soldRows.map(r => [r.num, Number(r.qty)]));
                 const overLimitItems = [];
@@ -435,15 +435,15 @@ let OrderController = OrderController_1 = class OrderController {
                 if (dbType === 'postgres') {
                     soldRows = await this.dataSource.query(`SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
              FROM orders, jsonb_array_elements(numbers::jsonb) AS item
-             WHERE draw_id = $1 AND status != -1 AND order_id <> $2
-             GROUP BY item->>'n'`, [fresh.draw_id, fresh.order_id]);
+             WHERE draw_id = $1 AND shop_id = $2 AND status != -1 AND order_id <> $3
+             GROUP BY item->>'n'`, [fresh.draw_id, fresh.shop_id, fresh.order_id]);
                 }
                 else {
                     soldRows = await this.dataSource.query(`SELECT json_extract(value, '$.n') AS num,
                     SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
              FROM orders, json_each(numbers)
-             WHERE draw_id = ? AND status != -1 AND order_id != ?
-             GROUP BY json_extract(value, '$.n')`, [fresh.draw_id, fresh.order_id]);
+             WHERE draw_id = ? AND shop_id = ? AND status != -1 AND order_id != ?
+             GROUP BY json_extract(value, '$.n')`, [fresh.draw_id, fresh.shop_id, fresh.order_id]);
                 }
                 const soldMap = Object.fromEntries(soldRows.map(r => [r.num, Number(r.qty)]));
                 const overLimitItems = [];
