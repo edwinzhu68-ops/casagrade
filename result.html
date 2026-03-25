@@ -384,6 +384,31 @@
               <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-chain32">0</span></p>
             </div>
           </div>
+          <!-- TICA/NICA Chance 赔率 -->
+          <p class="text-xs font-bold text-blue-400 mb-2 mt-4 uppercase tracking-wide">🎯 Chance（每张）</p>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">N1</label>
+              <input type="number" id="rate-input-local-c1" min="1" max="9999" step="1" placeholder="14"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                oninput="syncRateDisplay('local-c1', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-local-c1">14</span></p>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">N2</label>
+              <input type="number" id="rate-input-local-c2" min="1" max="9999" step="1" placeholder="3"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                oninput="syncRateDisplay('local-c2', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-local-c2">3</span></p>
+            </div>
+            <div>
+              <label class="text-xs text-gray-400 block mb-1">N3</label>
+              <input type="number" id="rate-input-local-c3" min="1" max="9999" step="1" placeholder="2"
+                class="w-full bg-gray-700 border border-gray-600 text-white text-center font-mono text-sm rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                oninput="syncRateDisplay('local-c3', this.value)">
+              <p class="text-xs text-green-400 text-center mt-1">当前: <span id="rate-display-local-c3">2</span></p>
+            </div>
+          </div>
         </div>
         <p class="text-xs text-gray-500">修改只影响<strong class="text-gray-300">未来开奖</strong>的结算，已结算订单不受影响。</p>
       </div>
@@ -2788,7 +2813,7 @@
       if (billeteSection) billeteSection.classList.toggle('hidden', isLocal);
       if (chanceSection) chanceSection.classList.toggle('hidden', isLocal);
       if (chainSection) chainSection.classList.toggle('hidden', !isLocal);
-      if (kind !== 'NACIONAL') {
+      if (isLocal) {
         var chainKeys = ['chain12','chain13','chain21','chain23','chain31','chain32'];
         var dbKeys = ['chain_1_2','chain_1_3','chain_2_1','chain_2_3','chain_3_1','chain_3_2'];
         for (var i = 0; i < chainKeys.length; i++) {
@@ -2798,6 +2823,13 @@
           if (inp) inp.value = val;
           if (disp) disp.textContent = val;
         }
+        // TICA/NICA Chance 赔率（复用 rate_chance_1/2/3，与 Lotería 共用字段）
+        var lc1 = document.getElementById('rate-input-local-c1');
+        var lc2 = document.getElementById('rate-input-local-c2');
+        var lc3 = document.getElementById('rate-input-local-c3');
+        if (lc1) { lc1.value = c1; document.getElementById('rate-display-local-c1').textContent = c1; }
+        if (lc2) { lc2.value = c2; document.getElementById('rate-display-local-c2').textContent = c2; }
+        if (lc3) { lc3.value = c3; document.getElementById('rate-display-local-c3').textContent = c3; }
       }
       document.getElementById('modal-rates').classList.remove('hidden');
     }
@@ -2818,23 +2850,28 @@
         var v = parseFloat(document.getElementById(id).value);
         return (isFinite(v) && v >= 0) ? v : null;
       };
-      var body = {
-        rateBillete1: toNum('rate-input-b1'),
-        rateBillete2: toNum('rate-input-b2'),
-        rateBillete3: toNum('rate-input-b3'),
-        rateChance1: toNum('rate-input-c1'),
-        rateChance2: toNum('rate-input-c2'),
-        rateChance3: toNum('rate-input-c3'),
-      };
-      // Chain 串赔率（TICA/NICA 模式才发送）
       var kind = getResultPageKind();
-      if (kind !== 'NACIONAL') {
+      var isLocal = (kind === 'TICA' || kind === 'NICA');
+      var body = {};
+      if (!isLocal) {
+        // Lotería：Billete + Chance 赔率
+        body.rateBillete1 = toNum('rate-input-b1');
+        body.rateBillete2 = toNum('rate-input-b2');
+        body.rateBillete3 = toNum('rate-input-b3');
+        body.rateChance1 = toNum('rate-input-c1');
+        body.rateChance2 = toNum('rate-input-c2');
+        body.rateChance3 = toNum('rate-input-c3');
+      } else {
+        // TICA/NICA：Chain 串赔率 + Chance 赔率
         body.chain12 = toNumOrZero('rate-input-chain12');
         body.chain13 = toNumOrZero('rate-input-chain13');
         body.chain21 = toNumOrZero('rate-input-chain21');
         body.chain23 = toNumOrZero('rate-input-chain23');
         body.chain31 = toNumOrZero('rate-input-chain31');
         body.chain32 = toNumOrZero('rate-input-chain32');
+        body.rateChance1 = toNum('rate-input-local-c1');
+        body.rateChance2 = toNum('rate-input-local-c2');
+        body.rateChance3 = toNum('rate-input-local-c3');
       }
       try {
         var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/rates', {
