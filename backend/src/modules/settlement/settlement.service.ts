@@ -186,6 +186,16 @@ export class SettlementService {
         } as any);
       }
       await manager.update(Draw, drawId, { status: 'completed' } as any);
+      // TICA/NICA 开奖后自动取消该期所有未付款订单(status=0 → status=-1)
+      const cancelResult = await manager
+        .createQueryBuilder()
+        .update(Order)
+        .set({ status: -1 } as any)
+        .where('draw_id = :drawId AND status = 0', { drawId })
+        .execute();
+      if (cancelResult.affected && cancelResult.affected > 0) {
+        this.logger.log(`[${lt}] 自动取消 ${cancelResult.affected} 笔未付款订单 draw_id=${drawId}`);
+      }
     });
 
     this.logger.log(
