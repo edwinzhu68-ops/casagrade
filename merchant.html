@@ -651,8 +651,9 @@
 
   <!-- 订单详情弹窗（z 高于本期订单弹窗，点单号时详情盖在本期订单上） -->
   <div id="modal-order" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)closeOrderDetailModal()">
-    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="bg-gray-800 rounded-2xl w-full max-w-md relative max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
       <button type="button" onclick="closeOrderDetailModal()" class="absolute top-3 right-3 z-10 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white text-2xl leading-none rounded-lg hover:bg-gray-700/80" data-i18n-title="modal_close_x" title="关闭" aria-label="Close">&times;</button>
+      <div class="p-6 pb-0 overflow-y-auto flex-1 min-h-0">
       <div class="text-center mb-4">
         <div class="text-4xl mb-2">📝</div>
         <h2 class="text-xl font-bold" data-i18n="order_detail_title">订单详情</h2>
@@ -695,7 +696,9 @@
           placeholder="备注（客人姓名 / 电话）"
           oninput="var d=document.getElementById('modal-order-note-display');var v=this.value.trim();d.textContent=v?'备注：'+v:'';d.classList.toggle('hidden',!v);">
       </div>
+      </div><!-- 关闭滚动区域 -->
 
+      <div class="p-6 pt-3 flex-shrink-0">
       <div id="modal-order-actions-edit" class="hidden flex gap-3 flex-wrap">
         <button type="button" onclick="cancelOrderDetailEdit()" class="flex-1 min-w-[40%] bg-gray-600 text-white py-4 rounded-xl font-bold" data-i18n="order_edit_cancel">取消编辑</button>
         <button type="button" onclick="saveOrderDetailEdit()" class="flex-1 min-w-[40%] bg-green-600 text-white py-4 rounded-xl font-bold" data-i18n="order_edit_save">保存修改</button>
@@ -711,6 +714,7 @@
         <button type="button" id="modal-btn-redeem" onclick="redeemFromDetail()" class="hidden flex-1 min-w-[40%] bg-amber-500 text-white py-4 rounded-xl font-bold" data-i18n="redeem_title">兑奖</button>
         <button type="button" id="modal-btn-reorder" onclick="reorderToCashier()" class="hidden w-full bg-blue-600 text-white py-4 rounded-xl font-bold" data-i18n="btn_reorder">🔄 重新下单</button>
       </div>
+      </div><!-- 关闭按钮固定区域 -->
     </div>
   </div>
 
@@ -4293,8 +4297,10 @@
     // 从订单详情弹窗触发兑奖
     function redeemFromDetail() {
       if (!currentOrder) return;
+      var order = currentOrder;
+      var hash = currentOrder._hash;
       closeModal('modal-order');
-      showRedeemModal(currentOrder, currentOrder._hash);
+      showRedeemModal(order, hash);
     }
 
     // 从历史订单详情重新代客下单（填入相同号码打开代客下单弹窗）
