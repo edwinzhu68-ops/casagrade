@@ -109,6 +109,66 @@ __decorate([
     __metadata("design:type", Number)
 ], Shop.prototype, "rate_chance_3", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'chain_1_2', type: 'decimal', precision: 10, scale: 2, default: 1000 }),
+    __metadata("design:type", Number)
+], Shop.prototype, "chain_1_2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'chain_1_3', type: 'decimal', precision: 10, scale: 2, default: 1000 }),
+    __metadata("design:type", Number)
+], Shop.prototype, "chain_1_3", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'chain_2_1', type: 'decimal', precision: 10, scale: 2, default: 0 }),
+    __metadata("design:type", Number)
+], Shop.prototype, "chain_2_1", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'chain_2_3', type: 'decimal', precision: 10, scale: 2, default: 200 }),
+    __metadata("design:type", Number)
+], Shop.prototype, "chain_2_3", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'chain_3_1', type: 'decimal', precision: 10, scale: 2, default: 0 }),
+    __metadata("design:type", Number)
+], Shop.prototype, "chain_3_1", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'chain_3_2', type: 'decimal', precision: 10, scale: 2, default: 0 }),
+    __metadata("design:type", Number)
+], Shop.prototype, "chain_3_2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chain_1_2', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chain_1_2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chain_1_3', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chain_1_3", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chain_2_1', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chain_2_1", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chain_2_3', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chain_2_3", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chain_3_1', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chain_3_1", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chain_3_2', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chain_3_2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chance_1', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chance_1", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chance_2', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chance_2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'nica_chance_3', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "nica_chance_3", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'datetime', nullable: true }),
     __metadata("design:type", Date)
 ], Shop.prototype, "subscription_expires_at", void 0);

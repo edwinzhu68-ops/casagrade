@@ -148,7 +148,7 @@ export declare class ShopController {
         limitBillete?: number | null;
         ticaEnabled?: boolean;
         nicaEnabled?: boolean;
-    }): Promise<{
+    }, req: Request): Promise<{
         success: boolean;
         limit_chance: any;
         limit_billete: any;
@@ -162,7 +162,22 @@ export declare class ShopController {
         rateChance1?: number | null;
         rateChance2?: number | null;
         rateChance3?: number | null;
-    }): Promise<{
+        chain12?: number | null;
+        chain13?: number | null;
+        chain21?: number | null;
+        chain23?: number | null;
+        chain31?: number | null;
+        chain32?: number | null;
+        nicaChain12?: number | null;
+        nicaChain13?: number | null;
+        nicaChain21?: number | null;
+        nicaChain23?: number | null;
+        nicaChain31?: number | null;
+        nicaChain32?: number | null;
+        nicaChance1?: number | null;
+        nicaChance2?: number | null;
+        nicaChance3?: number | null;
+    }, req: Request): Promise<{
         success: boolean;
         rate_billete_1: any;
         rate_billete_2: any;
@@ -170,6 +185,21 @@ export declare class ShopController {
         rate_chance_1: any;
         rate_chance_2: any;
         rate_chance_3: any;
+        chain_1_2: any;
+        chain_1_3: any;
+        chain_2_1: any;
+        chain_2_3: any;
+        chain_3_1: any;
+        chain_3_2: any;
+        nica_chain_1_2: any;
+        nica_chain_1_3: any;
+        nica_chain_2_1: any;
+        nica_chain_2_3: any;
+        nica_chain_3_1: any;
+        nica_chain_3_2: any;
+        nica_chance_1: any;
+        nica_chance_2: any;
+        nica_chance_3: any;
     }>;
     getShopOrders(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string): Promise<{
         shopId: number;

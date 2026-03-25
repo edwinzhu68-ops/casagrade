@@ -45,7 +45,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var OrderController_1, ShopController_1, BetStatusController_1;
-var _a, _b, _c;
+var _a, _b, _c, _d, _e;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BetStatusController = exports.ShopController = exports.OrderController = void 0;
 const common_1 = require("@nestjs/common");
@@ -747,11 +747,23 @@ let ShopController = ShopController_1 = class ShopController {
             })),
         };
     }
-    async updateShopLimits(shopId, body) {
+    async updateShopLimits(shopId, body, req) {
+        const parsedShopId = parseInt(shopId, 10);
+        if (isNaN(parsedShopId))
+            throw new common_1.BadRequestException('shopId 无效');
+        const authHeader = (req.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
-        const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
+        const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
         if (!shop)
             throw new common_1.NotFoundException('店铺不存在');
+        if (shop.owner_id !== tokenUserId) {
+            throw new common_2.UnauthorizedException('无权操作此店铺');
+        }
         if (body.limitChance !== undefined)
             shop.limit_chance = body.limitChance || null;
         if (body.limitBillete !== undefined)
@@ -769,12 +781,25 @@ let ShopController = ShopController_1 = class ShopController {
             nica_enabled: shop.nica_enabled,
         };
     }
-    async updateShopRates(shopId, body) {
+    async updateShopRates(shopId, body, req) {
+        const parsedShopId = parseInt(shopId, 10);
+        if (isNaN(parsedShopId))
+            throw new common_1.BadRequestException('shopId 无效');
+        const authHeader = (req.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
-        const shop = await shopRepo.findOne({ where: { shop_id: parseInt(shopId, 10) } });
+        const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
         if (!shop)
             throw new common_1.NotFoundException('店铺不存在');
+        if (shop.owner_id !== tokenUserId) {
+            throw new common_2.UnauthorizedException('无权操作此店铺');
+        }
         const toRate = (v, def) => v != null && isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
+        const toChainRate = (v) => v != null && isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null;
         if (body.rateBillete1 !== undefined)
             shop.rate_billete_1 = toRate(body.rateBillete1, 2000);
         if (body.rateBillete2 !== undefined)
@@ -787,6 +812,36 @@ let ShopController = ShopController_1 = class ShopController {
             shop.rate_chance_2 = toRate(body.rateChance2, 3);
         if (body.rateChance3 !== undefined)
             shop.rate_chance_3 = toRate(body.rateChance3, 2);
+        if (body.chain12 !== undefined)
+            shop.chain_1_2 = toChainRate(body.chain12);
+        if (body.chain13 !== undefined)
+            shop.chain_1_3 = toChainRate(body.chain13);
+        if (body.chain21 !== undefined)
+            shop.chain_2_1 = toChainRate(body.chain21);
+        if (body.chain23 !== undefined)
+            shop.chain_2_3 = toChainRate(body.chain23);
+        if (body.chain31 !== undefined)
+            shop.chain_3_1 = toChainRate(body.chain31);
+        if (body.chain32 !== undefined)
+            shop.chain_3_2 = toChainRate(body.chain32);
+        if (body.nicaChain12 !== undefined)
+            shop.nica_chain_1_2 = toChainRate(body.nicaChain12);
+        if (body.nicaChain13 !== undefined)
+            shop.nica_chain_1_3 = toChainRate(body.nicaChain13);
+        if (body.nicaChain21 !== undefined)
+            shop.nica_chain_2_1 = toChainRate(body.nicaChain21);
+        if (body.nicaChain23 !== undefined)
+            shop.nica_chain_2_3 = toChainRate(body.nicaChain23);
+        if (body.nicaChain31 !== undefined)
+            shop.nica_chain_3_1 = toChainRate(body.nicaChain31);
+        if (body.nicaChain32 !== undefined)
+            shop.nica_chain_3_2 = toChainRate(body.nicaChain32);
+        if (body.nicaChance1 !== undefined)
+            shop.nica_chance_1 = toRate(body.nicaChance1, 14);
+        if (body.nicaChance2 !== undefined)
+            shop.nica_chance_2 = toRate(body.nicaChance2, 3);
+        if (body.nicaChance3 !== undefined)
+            shop.nica_chance_3 = toRate(body.nicaChance3, 2);
         await shopRepo.save(shop);
         return {
             success: true,
@@ -796,6 +851,21 @@ let ShopController = ShopController_1 = class ShopController {
             rate_chance_1: shop.rate_chance_1,
             rate_chance_2: shop.rate_chance_2,
             rate_chance_3: shop.rate_chance_3,
+            chain_1_2: shop.chain_1_2,
+            chain_1_3: shop.chain_1_3,
+            chain_2_1: shop.chain_2_1,
+            chain_2_3: shop.chain_2_3,
+            chain_3_1: shop.chain_3_1,
+            chain_3_2: shop.chain_3_2,
+            nica_chain_1_2: shop.nica_chain_1_2,
+            nica_chain_1_3: shop.nica_chain_1_3,
+            nica_chain_2_1: shop.nica_chain_2_1,
+            nica_chain_2_3: shop.nica_chain_2_3,
+            nica_chain_3_1: shop.nica_chain_3_1,
+            nica_chain_3_2: shop.nica_chain_3_2,
+            nica_chance_1: shop.nica_chance_1,
+            nica_chance_2: shop.nica_chance_2,
+            nica_chance_3: shop.nica_chance_3,
         };
     }
     async getShopOrders(shopId, limit = '100', status, suffix, drawId, lotteryKind) {
@@ -844,16 +914,18 @@ __decorate([
     (0, common_1.Patch)(':shopId/limits'),
     __param(0, (0, common_1.Param)('shopId')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, typeof (_d = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _d : Object]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "updateShopLimits", null);
 __decorate([
     (0, common_1.Patch)(':shopId/rates'),
     __param(0, (0, common_1.Param)('shopId')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, typeof (_e = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _e : Object]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "updateShopRates", null);
 __decorate([

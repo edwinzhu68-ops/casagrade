@@ -80,6 +80,35 @@ export declare class MerchantController implements OnModuleInit {
         }[];
         last_login_at: Date;
         last_login_ua: string;
+    } | {
+        shops: {
+            shop_id: number;
+            shop_number: string;
+            shop_name: string;
+            status: string;
+            commission_rate: number;
+            limit_chance: any;
+            limit_billete: any;
+            rate_billete_1: any;
+            rate_billete_2: any;
+            rate_billete_3: any;
+            rate_chance_1: any;
+            rate_chance_2: any;
+            rate_chance_3: any;
+            chain_1_2: any;
+            chain_1_3: any;
+            chain_2_1: any;
+            chain_2_3: any;
+            chain_3_1: any;
+            chain_3_2: any;
+            subscription_expires_at: Date;
+            tica_enabled: boolean;
+            nica_enabled: boolean;
+            accepting_tica_orders: boolean;
+            accepting_nica_orders: boolean;
+        }[];
+        last_login_at: Date;
+        last_login_ua: string;
     }>;
     getShop(shopId: string): Promise<{
         shop_id: number;

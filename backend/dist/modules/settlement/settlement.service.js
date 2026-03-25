@@ -164,6 +164,9 @@ let SettlementService = SettlementService_1 = class SettlementService {
     }
     settleOrderWithDrawResult(order, winning, shop = null) {
         const numbers = order.numbers;
+        if (!Array.isArray(numbers) || numbers.length === 0) {
+            return { orderId: order.order_id, gameType: order.game_type || '', sales: Number(order.amount), payout: 0, wins: [] };
+        }
         const gameType = order.game_type;
         const sales = Number(order.amount);
         const exactRates = [
@@ -215,21 +218,45 @@ let SettlementService = SettlementService_1 = class SettlementService {
     }
     settleTicaNicaOrder(order, n123, chanceWinning, shop = null) {
         const numbers = order.numbers;
+        if (!Array.isArray(numbers) || numbers.length === 0) {
+            return { orderId: order.order_id, gameType: order.game_type || '', sales: Number(order.amount), payout: 0, wins: [] };
+        }
         const gameType = order.game_type;
         const sales = Number(order.amount);
         let payout = 0;
         const wins = [];
-        const chanceRates = [
+        const lotteryType = (order.lottery_type || '').toString().toUpperCase();
+        const isNica = lotteryType === 'NICA';
+        const chanceRates = isNica ? [
+            shop?.nica_chance_1 != null ? Number(shop.nica_chance_1) : (shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14),
+            shop?.nica_chance_2 != null ? Number(shop.nica_chance_2) : (shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3),
+            shop?.nica_chance_3 != null ? Number(shop.nica_chance_3) : (shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2),
+        ] : [
             shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
             shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
             shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
         ];
+        const chain = isNica ? {
+            c12: shop?.nica_chain_1_2 != null ? Number(shop.nica_chain_1_2) : (shop?.chain_1_2 != null ? Number(shop.chain_1_2) : 1000),
+            c13: shop?.nica_chain_1_3 != null ? Number(shop.nica_chain_1_3) : (shop?.chain_1_3 != null ? Number(shop.chain_1_3) : 1000),
+            c21: shop?.nica_chain_2_1 != null ? Number(shop.nica_chain_2_1) : (shop?.chain_2_1 != null ? Number(shop.chain_2_1) : 0),
+            c23: shop?.nica_chain_2_3 != null ? Number(shop.nica_chain_2_3) : (shop?.chain_2_3 != null ? Number(shop.chain_2_3) : 200),
+            c31: shop?.nica_chain_3_1 != null ? Number(shop.nica_chain_3_1) : (shop?.chain_3_1 != null ? Number(shop.chain_3_1) : 0),
+            c32: shop?.nica_chain_3_2 != null ? Number(shop.nica_chain_3_2) : (shop?.chain_3_2 != null ? Number(shop.chain_3_2) : 0),
+        } : {
+            c12: shop?.chain_1_2 != null ? Number(shop.chain_1_2) : 1000,
+            c13: shop?.chain_1_3 != null ? Number(shop.chain_1_3) : 1000,
+            c21: shop?.chain_2_1 != null ? Number(shop.chain_2_1) : 0,
+            c23: shop?.chain_2_3 != null ? Number(shop.chain_2_3) : 200,
+            c31: shop?.chain_3_1 != null ? Number(shop.chain_3_1) : 0,
+            c32: shop?.chain_3_2 != null ? Number(shop.chain_3_2) : 0,
+        };
         for (const num of numbers) {
             const numStr = num.n;
             const quantity = num.q;
             const numLen = numStr.replace(/\D/g, '').length;
             if (numLen >= 4) {
-                const result = this.calculateTicaNicaBilletePayout(numStr, n123, quantity);
+                const result = this.calculateTicaNicaBilletePayout(numStr, n123, quantity, chain);
                 if (result.totalPayout > 0) {
                     wins.push({
                         number: numStr,
@@ -259,21 +286,25 @@ let SettlementService = SettlementService_1 = class SettlementService {
             wins,
         };
     }
-    calculateTicaNicaBilletePayout(num, n123, qty) {
-        const padded = num.replace(/\D/g, '').slice(-4).padStart(4, '0');
-        const F = padded.slice(0, 2);
-        const L = padded.slice(2, 4);
+    calculateTicaNicaBilletePayout(num, n123, qty, chain) {
+        const bet = num.replace(/\D/g, '').slice(-4).padStart(4, '0');
+        const F = bet.slice(0, 2);
+        const L = bet.slice(2, 4);
         const { n1, n2, n3 } = n123;
         const matches = [];
         let totalPayout = 0;
-        if (F === n1 && (L === n2 || L === n3)) {
-            matches.push(`TICA/NICA 头奖 F=${F} L=${L} x${SHOP_LOCAL_BILLETE_HEAD}`);
-            totalPayout += SHOP_LOCAL_BILLETE_HEAD * qty;
-        }
-        else if (F === n2 && L === n3) {
-            matches.push(`TICA/NICA 二奖 F=${F} L=${L} x${SHOP_LOCAL_BILLETE_SECOND}`);
-            totalPayout += SHOP_LOCAL_BILLETE_SECOND * qty;
-        }
+        const add = (label, mult) => {
+            if (mult > 0) {
+                matches.push(`${label} x${mult}`);
+                totalPayout += mult * qty;
+            }
+        };
+        add('1串2', (F === n1 && L === n2) ? chain.c12 : 0);
+        add('1串3', (F === n1 && L === n3) ? chain.c13 : 0);
+        add('2串1', (F === n2 && L === n1) ? chain.c21 : 0);
+        add('2串3', (F === n2 && L === n3) ? chain.c23 : 0);
+        add('3串1', (F === n3 && L === n1) ? chain.c31 : 0);
+        add('3串2', (F === n3 && L === n2) ? chain.c32 : 0);
         return { matches, totalPayout };
     }
     calculateBilletePayout(num, winning, qty, exactRates = [2000, 600, 300]) {
