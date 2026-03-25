@@ -3025,25 +3025,27 @@
           return s === 'paid' || s === 1;
         });
       }
+      // 单价：从 localStorage 读取（与代客下单、订单详情一致）
+      var _priceBillete = 1, _priceChance = 0.25;
+      try { var _pb = parseFloat(localStorage.getItem('price_billete')); if (!isNaN(_pb) && _pb > 0) _priceBillete = _pb; } catch(e) {}
+      try { var _pc = parseFloat(localStorage.getItem('price_chance')); if (!isNaN(_pc) && _pc > 0) _priceChance = _pc; } catch(e) {}
+
       paidOrders.forEach(function (order) {
         var list = order.numbers || order.bet_numbers || [];
         if (!list.length) return;
-        var totalQty = list.reduce(function (s, x) {
-          return s + (Number(x.q != null ? x.q : x.quantity) || 0);
-        }, 0) || 1;
         list.forEach(function (n) {
           var q = Number(n.q != null ? n.q : n.quantity) || 0;
           var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
           var str = String(numVal).replace(/\D/g, '');
-          // 按号码位数区分：4位是Billete，2位是Chance
+          // 按号码位数区分：4位是Billete，2位是Chance；用固定单价计算销售额
           if (str.length >= 4) {
             var numBi = str.slice(-4).padStart(4, '0');
             if (numBi.length === 4) billeteSales[numBi] = (billeteSales[numBi] || 0) + q;
-            billeteSalesAmount += q * Number(order.amount || 0) / totalQty;
+            billeteSalesAmount += q * _priceBillete;
           } else if (str.length >= 2) {
             var numCh = str.slice(-2).padStart(2, '0');
             if (numCh.length === 2) chanceSales[numCh] = (chanceSales[numCh] || 0) + q;
-            chanceSalesAmount += q * Number(order.amount || 0) / totalQty;
+            chanceSalesAmount += q * _priceChance;
           }
         });
       });
