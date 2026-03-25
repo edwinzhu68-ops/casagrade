@@ -3033,18 +3033,12 @@
       paidOrders.forEach(function (order) {
         var list = order.numbers || order.bet_numbers || [];
         if (!list.length) return;
-        var gt = (order.game_type || order.gameType || '').toUpperCase();
         list.forEach(function (n) {
           var q = Number(n.q != null ? n.q : n.quantity) || 0;
           var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
           var str = String(numVal).replace(/\D/g, '');
-          // 按号码位数判断 Billete/Chance，与后端金额验算一致（≥4位=Billete，<4位=Chance）
-          // game_type 为 BILLETE/CHANCE 时以 game_type 为准，MIXTO/空值按位数
-          var isBi = gt === 'BILLETE'
-            ? true
-            : gt === 'CHANCE'
-              ? false
-              : str.length >= 4;
+          // 始终按号码位数判断，与后端金额验算一致（≥4位=Billete，<4位=Chance）
+          var isBi = str.length >= 4;
           if (isBi) {
             var numBi = str.slice(-4).padStart(4, '0');
             if (numBi.length === 4) billeteSales[numBi] = (billeteSales[numBi] || 0) + q;
@@ -3797,17 +3791,12 @@
       if (linesEl) {
         linesEl.innerHTML = '';
         var nums = order.numbers || [];
-        var orderGameType = (order.game_type || order.gameType || '').toUpperCase();
         nums.forEach(function (item) {
           var row = document.createElement('div');
           row.className = 'flex justify-between';
           var qty = item.q || item.quantity || 1;
           var numStr = String(item.n || item.number || '');
-          var isBillete = orderGameType === 'BILLETE'
-            ? true
-            : orderGameType === 'CHANCE'
-              ? false
-              : numStr.replace(/\D/g, '').length >= 4;
+          var isBillete = numStr.replace(/\D/g, '').length >= 4;
           var unitPrice = isBillete ? 1 : 0.25;
           row.innerHTML = '<span class="font-mono">' + esc(numStr) + '</span>'
             + '<span class="text-gray-500">×' + esc(qty) + ' = $' + (qty * unitPrice).toFixed(2) + '</span>';
