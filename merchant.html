@@ -3033,22 +3033,26 @@
       paidOrders.forEach(function (order) {
         var list = order.numbers || order.bet_numbers || [];
         if (!list.length) return;
-        // 优先用订单的 game_type 区分 Billete/Chance，比按位数判断更准确
         var gt = (order.game_type || order.gameType || '').toUpperCase();
-        var isBilleteOrder = gt === 'BILLETE' || gt === 'PALET' || gt === '';
-        var isChanceOrder = gt === 'CHANCE';
         list.forEach(function (n) {
           var q = Number(n.q != null ? n.q : n.quantity) || 0;
           var numVal = n.n != null ? n.n : (n.number != null ? n.number : '');
           var str = String(numVal).replace(/\D/g, '');
-          if (isChanceOrder || (!isBilleteOrder && str.length === 2)) {
-            var numCh = str.slice(-2).padStart(2, '0');
-            if (numCh.length === 2) chanceSales[numCh] = (chanceSales[numCh] || 0) + q;
-            chanceSalesAmount += q * _priceChance;
-          } else {
+          // 按号码位数判断 Billete/Chance，与后端金额验算一致（≥4位=Billete，<4位=Chance）
+          // game_type 为 BILLETE/CHANCE 时以 game_type 为准，MIXTO/空值按位数
+          var isBi = gt === 'BILLETE'
+            ? true
+            : gt === 'CHANCE'
+              ? false
+              : str.length >= 4;
+          if (isBi) {
             var numBi = str.slice(-4).padStart(4, '0');
             if (numBi.length === 4) billeteSales[numBi] = (billeteSales[numBi] || 0) + q;
             billeteSalesAmount += q * _priceBillete;
+          } else {
+            var numCh = str.slice(-2).padStart(2, '0');
+            if (numCh.length === 2) chanceSales[numCh] = (chanceSales[numCh] || 0) + q;
+            chanceSalesAmount += q * _priceChance;
           }
         });
       });
