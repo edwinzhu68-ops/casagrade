@@ -497,7 +497,7 @@
             <span class="text-gray-500" data-i18n="label_paid">Importe pagado</span>
             <span class="text-2xl font-bold text-green-600">$<span id="confirmed-amount">0</span></span>
           </div>
-          <p class="text-[10px] text-red-500 text-center mb-2">Verifique sus números. No se aceptan cambios después del sorteo.</p>
+          <p class="text-[10px] text-red-500 text-center mb-2">Verifique sus números. No se aceptan reclamos después del sorteo.</p>
           <div class="mb-2">
             <p class="text-gray-500 text-xs mb-1" data-i18n="label_numbers">Números y cantidades</p>
             <div id="confirmed-order-detail" class="text-xs text-gray-700 space-y-0.5">
@@ -1041,6 +1041,12 @@
           if (!res.ok) continue;
           var data = await res.json();
           var isPaid = data.status === 1 || data.status === 'paid';
+          var isCancelled = data.status === -1 || data.status === 'cancelled';
+          if (isCancelled) {
+            removePendingOrderByNumber(orderNumber);
+            changed = true;
+            continue;
+          }
           if (!isPaid) {
             if (syncUnpaidOrderFromServer(orderNumber, data)) changed = true;
             continue;
