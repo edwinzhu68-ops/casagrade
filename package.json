@@ -13,7 +13,9 @@
     "@capacitor/app": "^8.0.0",
     "@capacitor/app-launcher": "^8.0.0",
     "@capacitor/barcode-scanner": "^3.0.2",
-    "@capacitor/core": "^8.0.0"
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.0.0",
