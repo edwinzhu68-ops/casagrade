@@ -1,6 +1,6 @@
 {
   "version": "2.1",
-  "minVersion": "2.1",
+  "minVersion": "2.0",
   "downloadUrl": "https://casagrade.com/download/lottery-merchant.apk",
   "changelog": "Compartir tickets por WhatsApp directamente\nEscaneo de QR más rápido con cámara nativa"
 }
