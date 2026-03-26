@@ -2413,8 +2413,12 @@
       stopQrScan();
     }
 
-    // 一点直接扫码：打开弹窗并立即打开摄像头
+    // 一点直接扫码：APP用原生扫码，网页打开弹窗+摄像头
     function openScanDirect() {
+      if (_isCapApp && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorBarcodeScanner) {
+        startQrScan();
+        return;
+      }
       document.getElementById('modal-scan').classList.remove('hidden');
       document.getElementById('scan-input').value = '';
       document.getElementById('scan-form-area').classList.add('hidden');
