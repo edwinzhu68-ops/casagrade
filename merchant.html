@@ -499,6 +499,7 @@
       </div>
     </div>
   </div>
+  <input type="file" id="ocr-file-input" accept="image/*" class="hidden" onchange="handleOcrFile(this)">
 
   <!-- 代客下单底部键盘（与 index.html keyboard-modal 一致：号码格 / 九宫格 / 添加） -->
   <div id="cashier-keyboard-modal" class="hidden fixed inset-0 bg-black/50 z-[62] flex items-end"
@@ -3622,36 +3623,34 @@
         showToast('AI引擎加载中，请稍后重试 / Motor AI cargando, intente luego', 'error');
         return;
       }
-      var input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.capture = 'environment';
-      input.style.display = 'none';
-      document.body.appendChild(input);
-      input.onchange = async function() {
-        document.body.removeChild(input);
-        if (!input.files || !input.files[0]) return;
-        var file = input.files[0];
-        showToast(lang === 'zh' ? '正在处理图片...' : 'Procesando imagen...', 'info');
-        try {
-          var processed = await preprocessImage(file);
-          showToast(lang === 'zh' ? '正在识别数字...' : 'Reconociendo números...', 'info');
-          var worker = await getOcrWorker();
-          var result = await worker.recognize(processed);
-          var text = result.data.text;
-          console.log('OCR raw text:', text);
-          var parsed = parseOcrNumbers(text);
-          if (parsed.length === 0) {
-            showToast(lang === 'zh' ? '未识别到号码，请重试' : 'No se reconocieron números, intente de nuevo', 'error');
-            return;
-          }
-          showOcrResultModal(parsed);
-        } catch(e) {
-          console.error('OCR error:', e);
-          showToast((lang === 'zh' ? '识别失败: ' : 'Error: ') + (e.message || e), 'error');
+      var input = document.getElementById('ocr-file-input');
+      if (input) {
+        input.value = '';
+        input.click();
+      }
+    }
+
+    async function handleOcrFile(input) {
+      if (!input.files || !input.files[0]) return;
+      var file = input.files[0];
+      showToast(lang === 'zh' ? '正在处理图片...' : 'Procesando imagen...', 'info');
+      try {
+        var processed = await preprocessImage(file);
+        showToast(lang === 'zh' ? '正在识别数字...' : 'Reconociendo números...', 'info');
+        var worker = await getOcrWorker();
+        var result = await worker.recognize(processed);
+        var text = result.data.text;
+        console.log('OCR raw text:', text);
+        var parsed = parseOcrNumbers(text);
+        if (parsed.length === 0) {
+          showToast(lang === 'zh' ? '未识别到号码，请重试' : 'No se reconocieron números, intente de nuevo', 'error');
+          return;
         }
-      };
-      input.click();
+        showOcrResultModal(parsed);
+      } catch(e) {
+        console.error('OCR error:', e);
+        showToast((lang === 'zh' ? '识别失败: ' : 'Error: ') + (e.message || e), 'error');
+      }
     }
 
     function preprocessImage(file) {
