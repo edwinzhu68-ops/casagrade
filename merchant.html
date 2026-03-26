@@ -3508,11 +3508,19 @@
       var offCls = 'flex-1 bg-gray-700 text-gray-200 py-2 rounded-xl font-bold text-sm border border-gray-600';
       if (bBtn) bBtn.className = merchantCashierGameType === 'BILLETE' ? onCls : offCls;
       if (cBtn) cBtn.className = merchantCashierGameType === 'CHANCE' ? onCls : offCls;
-      // 九宫格内按钮样式
+      // 九宫格内按钮样式 + 文字
       var kbB = document.getElementById('kb-btn-billete');
       var kbC = document.getElementById('kb-btn-chance');
-      if (kbB) kbB.className = 'px-3 py-1.5 rounded-lg text-xs font-bold ' + (merchantCashierGameType === 'BILLETE' ? 'bg-emerald-600 text-white' : 'bg-gray-600 text-gray-300');
+      var wb = getMerchantWorkbenchKind();
+      var isLocal = wb === 'TICA' || wb === 'NICA';
+      if (kbB) {
+        kbB.className = 'px-3 py-1.5 rounded-lg text-xs font-bold ' + (merchantCashierGameType === 'BILLETE' ? 'bg-emerald-600 text-white' : 'bg-gray-600 text-gray-300');
+        kbB.textContent = isLocal ? 'Palet' : 'Billete';
+      }
       if (kbC) kbC.className = 'px-3 py-1.5 rounded-lg text-xs font-bold ' + (merchantCashierGameType === 'CHANCE' ? 'bg-emerald-600 text-white' : 'bg-gray-600 text-gray-300');
+      // 确认下单按钮双语
+      var kbSubmitBtn = document.getElementById('kb-btn-submit');
+      if (kbSubmitBtn) kbSubmitBtn.textContent = getMerchantLang() === 'zh' ? '确认下单' : 'Confirmar';
       updateCashierBilleteChanceButtonLabels();
       cashierUpdateKeyboardDisplay();
       cashierUpdateShopBetUi();
