@@ -147,10 +147,10 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                 const rawDate = String(lastCompleted.draw_date || '').slice(0, 10);
                 if (!rawDate)
                     return;
-                const dayAfterDate = new Date(rawDate + 'T12:00:00');
-                dayAfterDate.setDate(dayAfterDate.getDate() + 1);
-                const dayAfterISO = `${dayAfterDate.getFullYear()}-${String(dayAfterDate.getMonth() + 1).padStart(2, '0')}-${String(dayAfterDate.getDate()).padStart(2, '0')}`;
-                if (todayISO < dayAfterISO)
+                const completedBase = snapToStandardDrawDay(new Date(rawDate + 'T12:00:00'));
+                const nextDrawDate = getNextDrawDatePanama(completedBase);
+                const nextDrawISO = `${nextDrawDate.getFullYear()}-${String(nextDrawDate.getMonth() + 1).padStart(2, '0')}-${String(nextDrawDate.getDate()).padStart(2, '0')}`;
+                if (todayISO < nextDrawISO)
                     return;
                 await drawRepo
                     .createQueryBuilder()
@@ -173,7 +173,7 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                     period_no: periodNo,
                 });
                 await drawRepo.save(next);
-                this.logger.log(`次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}`);
+                this.logger.log(`下期开奖日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}`);
             }
         }
         catch (e) {
