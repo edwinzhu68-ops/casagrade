@@ -162,24 +162,30 @@
       <div class="card-result rounded-2xl p-5 shadow-xl">
         <div class="flex items-center justify-between gap-2 mb-3">
           <h3 class="font-bold text-emerald-400"><span data-i18n="wait_redeem">等待兑奖</span> <span id="redeem-summary" class="text-sm font-bold text-amber-400"></span></h3>
-          <input type="text" id="redeem-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
-            class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
-            oninput="filterRedeemBySuffix(this.value)" title="输入订单号后4位筛选" />
+          <div class="flex items-center gap-2">
+            <input type="text" id="redeem-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
+              class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
+              oninput="filterRedeemBySuffix(this.value)" title="输入订单号后4位筛选" />
+            <button type="button" id="redeem-expand-btn" onclick="toggleRedeemExpand()" class="text-xs text-emerald-400 hover:text-emerald-300 whitespace-nowrap">Ver todo</button>
+          </div>
         </div>
         <div id="result-redeem-list" class="space-y-2 max-h-48 overflow-y-auto text-sm">
           <p class="text-gray-500 text-sm" data-i18n="no_redeem">暂无待兑奖订单</p>
         </div>
       </div>
 
-      <!-- 已付款订单（按订单号后四位排序；已中奖黄色、未中奖灰色，与客户端一致） -->
+      <!-- 全部订单（按订单号后四位排序；已中奖黄色、未中奖灰色，与客户端一致） -->
       <div class="card-result rounded-2xl p-5 shadow-xl">
         <div class="flex items-center justify-between gap-2 mb-1">
-          <h3 class="font-bold text-lg" data-i18n="paid_orders_title">📋 已付款订单</h3>
-          <input type="text" id="paid-order-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
-            class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-green-500 focus:outline-none"
-            oninput="filterPaidOrdersBySuffix(this.value)" title="输入订单号后4位筛选" />
+          <h3 class="font-bold text-lg">📋 Todos los pedidos</h3>
+          <div class="flex items-center gap-2">
+            <input type="text" id="paid-order-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
+              class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-green-500 focus:outline-none"
+              oninput="filterPaidOrdersBySuffix(this.value)" title="输入订单号后4位筛选" />
+            <button type="button" id="paid-expand-btn" onclick="togglePaidExpand()" class="text-xs text-blue-400 hover:text-blue-300 whitespace-nowrap">Ver todo</button>
+          </div>
         </div>
-        <p class="text-xs text-gray-400 mb-3" data-i18n="paid_orders_hint">点击订单查看详情 · 按订单号后四位排序</p>
+        <p class="text-xs text-gray-400 mb-3">Toque un pedido para ver detalles · Ordenado por últimos 4 dígitos</p>
         <div id="result-paid-order-list" class="space-y-2 max-h-80 overflow-y-auto text-sm font-mono">
           <p class="text-gray-500 text-sm text-center py-6" data-i18n="no_paid_orders">暂无已付款订单</p>
         </div>
@@ -2485,6 +2491,27 @@
           '<span class="font-mono text-sm text-emerald-200">#' + short + (_note ? '<span class="text-yellow-300 font-normal text-xs ml-1">（' + esc(_note) + '）</span>' : '') + '</span>' +
           '<span class="font-bold text-emerald-400">$' + winAmt.toFixed(2) + '</span></button>';
       }).join('');
+    }
+
+    var _redeemExpanded = false;
+    function toggleRedeemExpand() {
+      _redeemExpanded = !_redeemExpanded;
+      var list = document.getElementById('result-redeem-list');
+      var btn = document.getElementById('redeem-expand-btn');
+      if (list) {
+        if (_redeemExpanded) { list.style.maxHeight = 'none'; if (btn) btn.textContent = 'Colapsar'; }
+        else { list.style.maxHeight = '12rem'; if (btn) btn.textContent = 'Ver todo'; }
+      }
+    }
+    var _paidExpanded = false;
+    function togglePaidExpand() {
+      _paidExpanded = !_paidExpanded;
+      var list = document.getElementById('result-paid-order-list');
+      var btn = document.getElementById('paid-expand-btn');
+      if (list) {
+        if (_paidExpanded) { list.style.maxHeight = 'none'; if (btn) btn.textContent = 'Colapsar'; }
+        else { list.style.maxHeight = '20rem'; if (btn) btn.textContent = 'Ver todo'; }
+      }
     }
 
     function filterRedeemBySuffix(value) {
