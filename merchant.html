@@ -6118,7 +6118,7 @@
           .then(function(data) {
             if (!data || !data.v) return;
             if (!_appVersion) { _appVersion = data.v; return; }
-            if (data.v !== _appVersion) showUpdateBanner();
+            if (data.v !== _appVersion) location.reload();
           })
           .catch(function() {});
       }
@@ -6133,7 +6133,7 @@
           (lang === 'zh' ? '立即刷新' : 'Actualizar') + '</button>';
         document.body.appendChild(banner);
       }
-      setInterval(checkAppVersion, 5 * 60 * 1000); // 每 5 分钟检查
+      setInterval(checkAppVersion, 30 * 1000); // 每 30 秒检查
       document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') checkAppVersion();
       });
