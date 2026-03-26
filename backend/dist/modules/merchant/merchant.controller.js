@@ -55,6 +55,7 @@ const shop_binding_entity_1 = require("../../entities/shop-binding.entity");
 const card_code_entity_1 = require("../../entities/card-code.entity");
 const order_entity_1 = require("../../entities/order.entity");
 const draw_entity_1 = require("../../entities/draw.entity");
+const session_entity_1 = require("../../entities/session.entity");
 const draw_queries_1 = require("../../utils/draw-queries");
 const local_lottery_service_1 = require("../local-lottery/local-lottery.service");
 const crypto = __importStar(require("crypto"));
@@ -132,6 +133,7 @@ async function findShopByNumber(shopRepo, number) {
         .where(`s.shop_aliases LIKE :pattern`, { pattern: `%"${safe}"%` })
         .getOne() ?? null;
 }
+const MAX_SESSIONS = 3;
 let MerchantController = MerchantController_1 = class MerchantController {
     constructor(dataSource, localLotteryService) {
         this.dataSource = dataSource;
@@ -343,20 +345,33 @@ let MerchantController = MerchantController_1 = class MerchantController {
             throw new common_1.UnauthorizedException('密码错误');
         }
         loginFailMap.delete(ip);
-        if (user.session_token && !dto.force_login) {
-            return {
-                has_active_session: true,
-                last_login_at: user.last_login_at ?? null,
-                last_login_ua: user.last_login_ua ?? null,
-            };
+        const sessionRepo = this.dataSource.getRepository(session_entity_1.Session);
+        const ua = (req.headers?.['user-agent'] || '').slice(0, 200) || null;
+        const deviceType = (dto.device_type || 'web').toLowerCase() === 'app' ? 'app' : 'web';
+        const deviceName = dto.device_name || ua || deviceType;
+        const existingSessions = await sessionRepo.find({
+            where: { user_id: user.user_id },
+            order: { created_at: 'ASC' },
+        });
+        if (existingSessions.length >= MAX_SESSIONS) {
+            const toRemove = existingSessions.slice(0, existingSessions.length - MAX_SESSIONS + 1);
+            await sessionRepo.remove(toRemove);
         }
         const sessionToken = crypto.randomBytes(32).toString('hex');
+        const newSession = sessionRepo.create({
+            user_id: user.user_id,
+            token: sessionToken,
+            device_type: deviceType,
+            device_name: deviceName,
+            last_active: new Date(),
+        });
+        await sessionRepo.save(newSession);
         user.session_token = sessionToken;
         user.last_login_at = new Date();
-        user.last_login_ua = (req.headers?.['user-agent'] || '').slice(0, 512) || null;
+        user.last_login_ua = ua;
         await userRepo.save(user);
         const token = createSignedToken(user.user_id, user.account_number);
-        this.logger.log(`老板登录: ${user.account_number}, 角色: ${user.role}`);
+        this.logger.log(`老板登录: ${user.account_number}, 设备: ${deviceType}, 角色: ${user.role}`);
         return {
             token,
             session_token: sessionToken,
@@ -370,14 +385,40 @@ let MerchantController = MerchantController_1 = class MerchantController {
     async logout(req) {
         try {
             const { userId } = this.parseTokenFull(req);
-            const userRepo = this.dataSource.getRepository(user_entity_1.User);
-            const user = await userRepo.findOne({ where: { user_id: userId } });
-            if (user) {
-                user.session_token = null;
-                await userRepo.save(user);
+            const sessionToken = (req.headers?.['x-session-token'] || '').trim();
+            const sessionRepo = this.dataSource.getRepository(session_entity_1.Session);
+            if (sessionToken) {
+                await sessionRepo.delete({ user_id: userId, token: sessionToken });
             }
         }
         catch { }
+        return { success: true };
+    }
+    async getSessions(req) {
+        const { userId } = this.parseTokenFull(req);
+        const sessionRepo = this.dataSource.getRepository(session_entity_1.Session);
+        const sessions = await sessionRepo.find({
+            where: { user_id: userId },
+            order: { created_at: 'DESC' },
+        });
+        const currentToken = (req.headers?.['x-session-token'] || '').trim();
+        return sessions.map(s => ({
+            session_id: s.session_id,
+            device_type: s.device_type,
+            device_name: s.device_name,
+            created_at: s.created_at,
+            is_current: s.token === currentToken,
+        }));
+    }
+    async deleteSession(sessionId, req) {
+        const { userId } = this.parseTokenFull(req);
+        const sessionRepo = this.dataSource.getRepository(session_entity_1.Session);
+        const session = await sessionRepo.findOne({
+            where: { session_id: Number(sessionId), user_id: userId },
+        });
+        if (!session)
+            throw new common_1.NotFoundException('会话不存在');
+        await sessionRepo.remove(session);
         return { success: true };
     }
     async getShops(userId, req) {
@@ -1283,6 +1324,21 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "logout", null);
+__decorate([
+    (0, common_1.Get)('sessions'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], MerchantController.prototype, "getSessions", null);
+__decorate([
+    (0, common_1.Delete)('sessions/:sessionId'),
+    __param(0, (0, common_1.Param)('sessionId')),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], MerchantController.prototype, "deleteSession", null);
 __decorate([
     (0, common_1.Get)('shops'),
     __param(0, (0, common_1.Query)('userId')),

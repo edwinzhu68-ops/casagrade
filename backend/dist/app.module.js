@@ -21,11 +21,12 @@ const draw_entity_1 = require("./entities/draw.entity");
 const user_entity_1 = require("./entities/user.entity");
 const shop_binding_entity_1 = require("./entities/shop-binding.entity");
 const card_code_entity_1 = require("./entities/card-code.entity");
+const session_entity_1 = require("./entities/session.entity");
 const database_init_service_1 = require("./services/database-init.service");
 function getTypeOrmConfig() {
     const dbType = (process.env.DB_TYPE || 'sqlite');
     const common = {
-        entities: [order_entity_1.Order, shop_entity_1.Shop, draw_entity_1.Draw, user_entity_1.User, shop_binding_entity_1.ShopBinding, card_code_entity_1.CardCode],
+        entities: [order_entity_1.Order, shop_entity_1.Shop, draw_entity_1.Draw, user_entity_1.User, shop_binding_entity_1.ShopBinding, card_code_entity_1.CardCode, session_entity_1.Session],
         synchronize: process.env.NODE_ENV !== 'production',
         logging: false,
     };

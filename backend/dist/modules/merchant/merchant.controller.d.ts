@@ -6,6 +6,8 @@ interface LoginDto {
     accountNumber?: string;
     password: string;
     force_login?: boolean;
+    device_type?: string;
+    device_name?: string;
 }
 interface RegisterDto {
     account?: string;
@@ -36,15 +38,6 @@ export declare class MerchantController implements OnModuleInit {
         message: string;
     }>;
     login(dto: LoginDto, req: any): Promise<{
-        has_active_session: boolean;
-        last_login_at: Date;
-        last_login_ua: string;
-        token?: undefined;
-        session_token?: undefined;
-        userId?: undefined;
-        accountNumber?: undefined;
-        role?: undefined;
-    } | {
         token: string;
         session_token: string;
         userId: number;
@@ -52,9 +45,18 @@ export declare class MerchantController implements OnModuleInit {
         role: string;
         last_login_at: Date;
         last_login_ua: string;
-        has_active_session?: undefined;
     }>;
     logout(req: any): Promise<{
+        success: boolean;
+    }>;
+    getSessions(req: any): Promise<{
+        session_id: number;
+        device_type: string;
+        device_name: string;
+        created_at: Date;
+        is_current: boolean;
+    }[]>;
+    deleteSession(sessionId: string, req: any): Promise<{
         success: boolean;
     }>;
     getShops(userId: string, req: any): Promise<{
