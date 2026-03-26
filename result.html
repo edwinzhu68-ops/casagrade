@@ -793,6 +793,8 @@
       const next = getResultLang() === 'zh' ? 'es' : 'zh';
       localStorage.setItem(RESULT_LANG_KEY, next);
       applyResultLang();
+      var btn = document.getElementById('btn-result-lang');
+      if (btn) btn.textContent = next === 'zh' ? '🇵🇦' : '🇨🇳';
     }
     function refreshLocalSettleTitleI18n() {
       var card = document.getElementById('local-lottery-settle-card');
@@ -822,6 +824,8 @@
       try { refreshLocalHistoryToggleI18n(); } catch (eLh) {}
       try { refreshLocalSettleTitleI18n(); } catch (eLs) {}
       try { _updatePaletBilleteLabels(getResultPageKind()); } catch (ePl) {}
+      var langBtn = document.getElementById('btn-result-lang');
+      if (langBtn) langBtn.textContent = lang === 'zh' ? '🇵🇦' : '🇨🇳';
     }
 
     /** TICA/NICA 历史数据卡片：展开/收起（本机记忆） */
