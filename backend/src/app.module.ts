@@ -12,6 +12,7 @@ import { Draw } from './entities/draw.entity';
 import { User } from './entities/user.entity';
 import { ShopBinding } from './entities/shop-binding.entity';
 import { CardCode } from './entities/card-code.entity';
+import { Session } from './entities/session.entity';
 import { DatabaseInitService } from './services/database-init.service';
 
 /**
@@ -22,7 +23,7 @@ import { DatabaseInitService } from './services/database-init.service';
 function getTypeOrmConfig(): Parameters<typeof TypeOrmModule.forRoot>[0] {
   const dbType = (process.env.DB_TYPE || 'sqlite') as 'sqlite' | 'postgres';
   const common = {
-    entities: [Order, Shop, Draw, User, ShopBinding, CardCode],
+    entities: [Order, Shop, Draw, User, ShopBinding, CardCode, Session],
     synchronize: process.env.NODE_ENV !== 'production', // 生产环境用 DatabaseInitService 建索引
     logging: false,
   };

@@ -6,6 +6,7 @@ import { ShopBinding } from '../../entities/shop-binding.entity';
 import { CardCode } from '../../entities/card-code.entity';
 import { Order } from '../../entities/order.entity';
 import { Draw } from '../../entities/draw.entity';
+import { Session } from '../../entities/session.entity';
 import { findNationalLastCompletedDraw, findNationalPendingDraw } from '../../utils/draw-queries';
 import { LocalLotteryService } from '../local-lottery/local-lottery.service';
 import * as crypto from 'crypto';
@@ -100,7 +101,11 @@ interface LoginDto {
   accountNumber?: string;
   password: string;
   force_login?: boolean;
+  device_type?: string; // 'web' | 'app'
+  device_name?: string;
 }
+
+const MAX_SESSIONS = 3;
 
 interface RegisterDto {
   account?: string;
@@ -365,24 +370,42 @@ export class MerchantController implements OnModuleInit {
     // 登录成功：清除限流记录
     loginFailMap.delete(ip);
 
-    // 单设备登录：已有 session 且非强制登录 → 返回提示让前端确认
-    if (user.session_token && !dto.force_login) {
-      return {
-        has_active_session: true,
-        last_login_at: user.last_login_at ?? null,
-        last_login_ua: user.last_login_ua ?? null,
-      };
+    // 多设备会话管理（最多3台，不分类型）
+    const sessionRepo = this.dataSource.getRepository(Session);
+    const ua = (req.headers?.['user-agent'] || '').slice(0, 200) || null;
+    const deviceType = (dto.device_type || 'web').toLowerCase() === 'app' ? 'app' : 'web';
+    const deviceName = dto.device_name || ua || deviceType;
+
+    const existingSessions = await sessionRepo.find({
+      where: { user_id: user.user_id },
+      order: { created_at: 'ASC' },
+    });
+
+    // 超限则踢掉最早的
+    if (existingSessions.length >= MAX_SESSIONS) {
+      const toRemove = existingSessions.slice(0, existingSessions.length - MAX_SESSIONS + 1);
+      await sessionRepo.remove(toRemove);
     }
 
-    // 生成新 session token（顶掉旧设备）
+    // 创建新会话
     const sessionToken = crypto.randomBytes(32).toString('hex');
+    const newSession = sessionRepo.create({
+      user_id: user.user_id,
+      token: sessionToken,
+      device_type: deviceType,
+      device_name: deviceName,
+      last_active: new Date(),
+    });
+    await sessionRepo.save(newSession);
+
+    // 同时更新 User 表（保持向后兼容）
     user.session_token = sessionToken;
     user.last_login_at = new Date();
-    user.last_login_ua = (req.headers?.['user-agent'] || '').slice(0, 512) || null;
+    user.last_login_ua = ua;
     await userRepo.save(user);
 
     const token = createSignedToken(user.user_id, user.account_number);
-    this.logger.log(`老板登录: ${user.account_number}, 角色: ${user.role}`);
+    this.logger.log(`老板登录: ${user.account_number}, 设备: ${deviceType}, 角色: ${user.role}`);
 
     return {
       token,
@@ -402,10 +425,48 @@ export class MerchantController implements OnModuleInit {
   async logout(@Req() req: any) {
     try {
       const { userId } = this.parseTokenFull(req);
-      const userRepo = this.dataSource.getRepository(User);
-      const user = await userRepo.findOne({ where: { user_id: userId } });
-      if (user) { user.session_token = null; await userRepo.save(user); }
+      const sessionToken = (req.headers?.['x-session-token'] || '').trim();
+      const sessionRepo = this.dataSource.getRepository(Session);
+      if (sessionToken) {
+        await sessionRepo.delete({ user_id: userId, token: sessionToken });
+      }
     } catch {}
+    return { success: true };
+  }
+
+  /**
+   * GET /merchant/sessions - 获取当前用户所有在线设备
+   */
+  @Get('sessions')
+  async getSessions(@Req() req: any) {
+    const { userId } = this.parseTokenFull(req);
+    const sessionRepo = this.dataSource.getRepository(Session);
+    const sessions = await sessionRepo.find({
+      where: { user_id: userId },
+      order: { created_at: 'DESC' },
+    });
+    const currentToken = (req.headers?.['x-session-token'] || '').trim();
+    return sessions.map(s => ({
+      session_id: s.session_id,
+      device_type: s.device_type,
+      device_name: s.device_name,
+      created_at: s.created_at,
+      is_current: s.token === currentToken,
+    }));
+  }
+
+  /**
+   * DELETE /merchant/sessions/:sessionId - 断开指定设备
+   */
+  @Delete('sessions/:sessionId')
+  async deleteSession(@Param('sessionId') sessionId: string, @Req() req: any) {
+    const { userId } = this.parseTokenFull(req);
+    const sessionRepo = this.dataSource.getRepository(Session);
+    const session = await sessionRepo.findOne({
+      where: { session_id: Number(sessionId), user_id: userId },
+    });
+    if (!session) throw new NotFoundException('会话不存在');
+    await sessionRepo.remove(session);
     return { success: true };
   }
 
