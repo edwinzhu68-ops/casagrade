@@ -52,7 +52,7 @@ jobs:
           APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
           scp -o StrictHostKeyChecking=no -i /tmp/deploy_key \
             "$APK" \
-            "root@${{ secrets.SERVER_HOST }}:/var/www/lottery-system/download/lottery-customer.apk"
+            "root@${{ secrets.SERVER_HOST }}:/var/www/lottery-preview/download/lottery-customer.apk"
 
       - name: Purge Cloudflare cache
         run: |
