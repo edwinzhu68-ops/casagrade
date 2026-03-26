@@ -2422,40 +2422,28 @@
       document.getElementById('modal-scan').classList.add('hidden');
     }
 
-    // 通过 Capacitor BarcodeScanner 插件申请原生相机权限
+    // 相机权限由原生scanBarcode内部自动处理，无需手动申请
     async function requestCapCameraPermission() {
-      try {
-        var BS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner;
-        if (!BS) return true;
-        var status = await BS.checkPermissions();
-        if (status.camera === 'granted') return true;
-        if (status.camera === 'denied') return false; // 已被永久拒绝
-        var req = await BS.requestPermissions();
-        return req.camera === 'granted';
-      } catch (e) {
-        return true; // 插件不存在时放行，交给 getUserMedia 自行处理
-      }
+      return true;
     }
 
     // 打开摄像头扫码
     async function startQrScan() {
       // APP 环境优先使用原生扫码（毫秒级识别）
-      if (_isCapApp && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner) {
+      if (_isCapApp && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorBarcodeScanner) {
         try {
-          var BarcodeScanner = window.Capacitor.Plugins.BarcodeScanner;
-          var permResult = await BarcodeScanner.checkPermission({ force: true });
-          if (!permResult.granted) { showPermissionDeniedDialog(); return; }
-          document.body.classList.add('barcode-scanner-active');
-          var result = await BarcodeScanner.startScan();
-          document.body.classList.remove('barcode-scanner-active');
-          if (result.hasContent && result.content) {
-            document.getElementById('scan-input').value = result.content.trim();
+          var result = await window.Capacitor.Plugins.CapacitorBarcodeScanner.scanBarcode({
+            scanButton: false,
+            scanText: ' ',
+            scanInstructions: ' '
+          });
+          if (result && result.ScanResult) {
+            document.getElementById('scan-input').value = result.ScanResult.trim();
             playBeep();
             scanOrder();
             return;
           }
         } catch(e) {
-          document.body.classList.remove('barcode-scanner-active');
           // 原生扫码失败，fallback 到 jsQR
         }
       }
