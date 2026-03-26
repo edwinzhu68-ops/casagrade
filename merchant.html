@@ -3607,20 +3607,7 @@
     }
 
     // ── AI OCR 手写单识别 ─────────────────────────────
-    var _ocrWorker = null;
-    async function getOcrWorker() {
-      if (_ocrWorker) return _ocrWorker;
-      showToast(lang === 'zh' ? '正在加载识别引擎...' : 'Cargando motor de reconocimiento...', 'info');
-      _ocrWorker = await Tesseract.createWorker('eng', 1, {
-        workerPath: '/libs/worker.min.js',
-        corePath: '/libs/',
-        langPath: '/libs/',
-      });
-      await _ocrWorker.setParameters({
-        tessedit_char_whitelist: '0123456789xX×*:. -=,',
-      });
-      return _ocrWorker;
-    }
+    // Tesseract legacy mode（不用Worker，兼容WebView）
 
     // OCR file input 事件绑定
     (function() {
@@ -3645,13 +3632,15 @@
     async function handleOcrFile(input) {
       if (!input.files || !input.files[0]) return;
       var file = input.files[0];
-      alert('A: file size=' + file.size);
+      showToast(lang === 'zh' ? '正在识别...' : 'Reconociendo...', 'info');
       try {
-        alert('B: loading worker, Tesseract=' + (typeof Tesseract));
-        var worker = await getOcrWorker();
-        alert('C: worker ready, recognizing...');
-        var result = await worker.recognize(file);
-        alert('D: done, text=' + (result.data.text || '').substring(0, 50));
+        var result = await Tesseract.recognize(file, 'eng', {
+          logger: function(m) {
+            if (m.status === 'recognizing text') {
+              showToast((lang === 'zh' ? '识别进度: ' : 'Progreso: ') + Math.round(m.progress * 100) + '%', 'info');
+            }
+          }
+        });
         var text = result.data.text;
         console.log('OCR raw text:', text);
         var parsed = parseOcrNumbers(text);
