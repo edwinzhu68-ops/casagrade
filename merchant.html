@@ -4237,12 +4237,10 @@
       var lt = String(order.lottery_type || order.lotteryType || 'NACIONAL').toUpperCase();
       var ltRow = document.getElementById('detail-lottery-type-row');
       var ltEl = document.getElementById('detail-lottery-type');
-      if (lt !== 'NACIONAL' && ltRow && ltEl) {
-        ltEl.textContent = lt === 'TICA' ? 'TICA' : lt === 'NICA' ? 'NICA' : lt;
-        ltEl.className = 'font-bold ' + (lt === 'TICA' ? 'text-purple-400' : 'text-cyan-400');
+      if (ltRow && ltEl) {
+        ltEl.textContent = lt === 'TICA' ? 'TICA' : lt === 'NICA' ? 'NICA' : 'LOTERÍA';
+        ltEl.className = 'font-bold ' + (lt === 'TICA' ? 'text-purple-400' : lt === 'NICA' ? 'text-cyan-400' : 'text-yellow-400');
         ltRow.classList.remove('hidden');
-      } else if (ltRow) {
-        ltRow.classList.add('hidden');
       }
       document.getElementById('detail-amount').textContent = (order.amount != null ? Number(order.amount) : 0).toFixed(2);
       document.getElementById('detail-status').textContent = (statusKeys[idx] ? t(statusKeys[idx]) : t('status_unknown'));
