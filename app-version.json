@@ -1,0 +1,6 @@
+{
+  "version": "2.0.0",
+  "minVersion": "2.0.0",
+  "downloadUrl": "https://casagrade.com/download/merchant.apk",
+  "changelog": "Escaneo de QR más rápido con cámara nativa\nMayor estabilidad sin depender de servidores externos"
+}

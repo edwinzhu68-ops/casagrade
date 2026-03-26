@@ -13,7 +13,9 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script>window.html2canvas || document.write('<script src="libs/html2canvas.min.js"><\/script>')</script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script>window.QRCode || document.write('<script src="libs/qrcode.min.js"><\/script>')</script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -783,6 +785,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script>window.jsQR || document.write('<script src="libs/jsQR.min.js"><\/script>')</script>
   <script>
     function showToast(msg, type) {
       var colors = { error: 'bg-red-500', success: 'bg-green-500', warning: 'bg-yellow-400 text-gray-900', info: 'bg-gray-800' };
@@ -2437,6 +2440,28 @@
 
     // 打开摄像头扫码
     async function startQrScan() {
+      // APP 环境优先使用原生扫码（毫秒级识别）
+      if (_isCapApp && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner) {
+        try {
+          var BarcodeScanner = window.Capacitor.Plugins.BarcodeScanner;
+          var permResult = await BarcodeScanner.checkPermission({ force: true });
+          if (!permResult.granted) { showPermissionDeniedDialog(); return; }
+          document.body.classList.add('barcode-scanner-active');
+          var result = await BarcodeScanner.startScan();
+          document.body.classList.remove('barcode-scanner-active');
+          if (result.hasContent && result.content) {
+            document.getElementById('scan-input').value = result.content.trim();
+            playBeep();
+            scanOrder();
+            return;
+          }
+        } catch(e) {
+          document.body.classList.remove('barcode-scanner-active');
+          // 原生扫码失败，fallback 到 jsQR
+        }
+      }
+
+      // 浏览器/fallback：使用 jsQR
       var video = document.getElementById('scan-video');
       var canvas = document.getElementById('scan-canvas');
       var ctx = canvas.getContext('2d');
@@ -4839,6 +4864,30 @@
 
     // ── Capacitor 原生环境检测（需在所有 PWA/BLE 逻辑之前定义）──
     const _isCapApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    const APP_VERSION = '2.0.0'; // 当前APP内置版本号，打包时更新
+
+    // ── APP 版本检测 ─────────────────────────────
+    if (_isCapApp) {
+      (function checkAppUpdate() {
+        fetch(API_BASE.replace('/api','') + '/app-version.json?t=' + Date.now())
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data || !data.version) return;
+            if (data.minVersion && APP_VERSION < data.minVersion) {
+              // 强制更新
+              var overlay = document.createElement('div');
+              overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;';
+              overlay.innerHTML = '<div style="background:#1f2937;border-radius:16px;padding:32px;max-width:340px;text-align:center;">' +
+                '<h2 style="color:#10b981;font-size:22px;font-weight:bold;margin-bottom:12px;">Nueva versión disponible</h2>' +
+                '<p style="color:#d1d5db;font-size:14px;margin-bottom:8px;">v' + data.version + '</p>' +
+                '<p style="color:#9ca3af;font-size:13px;margin-bottom:20px;white-space:pre-line;">' + (data.changelog || '') + '</p>' +
+                '<a href="' + data.downloadUrl + '" style="display:block;background:#10b981;color:white;padding:14px;border-radius:12px;font-weight:bold;font-size:16px;text-decoration:none;">Actualizar ahora</a>' +
+                '</div>';
+              document.body.appendChild(overlay);
+            }
+          }).catch(function(){});
+      })();
+    }
 
     // ── APP 下载 / PWA 添加到桌面 ─────────────────────────────
     // Android 下载地址（把 APK 上传到服务器后填入）

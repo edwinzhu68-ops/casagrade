@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
+  <script>window.html2canvas || document.write('<script src="libs/html2canvas.min.js"><\/script>')</script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -515,6 +516,7 @@
 
   <!-- 二维码库（1.5.1 含 browser build；1.5.2+ 的 npm 包可能缺 build 导致假码） -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script>window.QRCode || document.write('<script src="libs/qrcode.min.js"><\/script>')</script>
 
   <script>
     function showToast(msg, type) {
