@@ -163,7 +163,7 @@
         <div class="mb-3 grid grid-cols-[auto_auto_1fr_auto] grid-rows-2 gap-x-2 gap-y-1 items-center">
           <button type="button" onclick="startResultScan()" class="row-span-2 bg-blue-600 hover:bg-blue-500 text-white w-12 h-full rounded-xl text-2xl flex items-center justify-center" title="Escanear QR">📷</button>
           <span class="font-bold text-emerald-400 text-sm whitespace-nowrap">Espera</span>
-          <input type="text" id="redeem-filter-input" data-i18n-placeholder="filter_suffix_4" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
+          <input type="text" id="redeem-filter-input" placeholder="Buscar" maxlength="12" inputmode="numeric" pattern="[0-9]*"
             class="row-span-2 min-w-0 text-center py-3 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
             oninput="filterRedeemBySuffix(this.value)" />
           <span id="redeem-summary" class="text-xs font-bold text-amber-400 text-right whitespace-nowrap"></span>
