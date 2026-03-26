@@ -4883,10 +4883,7 @@
           .then(function(data) {
             if (!data || !data.version) return;
             if (data.minVersion && APP_VERSION < data.minVersion) {
-              var lang = getMerchantLang();
-              alert(lang === 'zh'
-                ? '有新版本 v' + data.version + '，请到网页重新下载安装最新版APP。\n\n' + (data.changelog || '')
-                : 'Nueva versión v' + data.version + ' disponible.\nPor favor, descargue e instale la última versión desde la página web.\n\n' + (data.changelog || ''));
+              window.location.href = data.downloadUrl;
             }
           }).catch(function(){});
       }, 1500);
