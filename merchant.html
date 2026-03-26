@@ -3644,13 +3644,15 @@
       showToast(lang === 'zh' ? '正在处理图片...' : 'Procesando imagen...', 'info');
       try {
         var processed = await preprocessImage(file);
+        alert('步骤1完成: 图片处理OK');
       } catch(e1) {
-        showToast('图片处理失败: ' + (e1.message || e1), 'error');
+        alert('步骤1失败: ' + (e1.message || e1));
         return;
       }
       try {
-        showToast(lang === 'zh' ? '正在加载AI引擎...' : 'Cargando motor AI...', 'info');
+        alert('步骤2开始: 加载AI引擎');
         var worker = await getOcrWorker();
+        alert('步骤2完成: AI引擎OK');
       } catch(e2) {
         showToast('AI引擎加载失败: ' + (e2.message || e2), 'error');
         return;
