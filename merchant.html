@@ -667,6 +667,10 @@
           <span class="text-gray-400" data-i18n="order_id_label">订单号</span>
           <span class="font-mono font-bold" id="detail-order-id">------</span>
         </div>
+        <div id="detail-lottery-type-row" class="hidden flex justify-between mb-2">
+          <span class="text-gray-400">Lotería</span>
+          <span class="font-bold" id="detail-lottery-type"></span>
+        </div>
         <div class="flex justify-between mb-2">
           <span class="text-gray-400" data-i18n="amount_label">金额</span>
           <span class="text-3xl font-bold text-green-400">$<span id="detail-amount">0</span></span>
@@ -4230,6 +4234,16 @@
       var isWon = order.status === 3 || order.status === 'won';
 
       document.getElementById('detail-order-id').textContent = order.order_number || order.orderNumber || '--';
+      var lt = String(order.lottery_type || order.lotteryType || 'NACIONAL').toUpperCase();
+      var ltRow = document.getElementById('detail-lottery-type-row');
+      var ltEl = document.getElementById('detail-lottery-type');
+      if (lt !== 'NACIONAL' && ltRow && ltEl) {
+        ltEl.textContent = lt === 'TICA' ? 'TICA' : lt === 'NICA' ? 'NICA' : lt;
+        ltEl.className = 'font-bold ' + (lt === 'TICA' ? 'text-purple-400' : 'text-cyan-400');
+        ltRow.classList.remove('hidden');
+      } else if (ltRow) {
+        ltRow.classList.add('hidden');
+      }
       document.getElementById('detail-amount').textContent = (order.amount != null ? Number(order.amount) : 0).toFixed(2);
       document.getElementById('detail-status').textContent = (statusKeys[idx] ? t(statusKeys[idx]) : t('status_unknown'));
       document.getElementById('detail-status').className = (statusColors[idx] || 'text-gray-400') + ' font-bold';
