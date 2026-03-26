@@ -3940,16 +3940,28 @@
       // 尝试 Capacitor Filesystem + Share（直接发到 WhatsApp）
       if (_isCapApp && window.Capacitor && window.Capacitor.Plugins) {
         var CapFs = window.Capacitor.Plugins.Filesystem;
+        var WaShare = window.Capacitor.Plugins.WhatsAppShare;
         var CapShare = window.Capacitor.Plugins.Share;
-        if (CapFs && CapShare) {
+        if (CapFs && (WaShare || CapShare)) {
           var reader = new FileReader();
           reader.onloadend = function () {
             var b64 = reader.result.split(',')[1];
             CapFs.writeFile({ path: fileName, data: b64, directory: 'CACHE' }).then(function(saved) {
-              // 尝试直接打开 WhatsApp
-              CapShare.share({ files: [saved.uri], dialogTitle: 'WhatsApp' }).catch(function(e) {
-                showToast('Error: ' + (e.message || e), 'error');
-              });
+              if (WaShare) {
+                // 直接打开 WhatsApp
+                WaShare.share({ filePath: saved.uri }).catch(function(e) {
+                  // WhatsApp 没装，fallback 到通用分享
+                  if (CapShare) {
+                    CapShare.share({ files: [saved.uri] }).catch(function(){});
+                  } else {
+                    showToast('WhatsApp no instalado', 'warning');
+                  }
+                });
+              } else {
+                CapShare.share({ files: [saved.uri] }).catch(function(e) {
+                  showToast('Error: ' + (e.message || e), 'error');
+                });
+              }
             }).catch(function(e) {
               showToast('Error: ' + (e.message || e), 'error');
             });
