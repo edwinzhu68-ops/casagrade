@@ -1086,9 +1086,7 @@
         settings_short: '⚙️ 设置',
         settings_short_label: '设置',
         print_section_title: '🖨️ 蓝牙热敏打印',
-        print_description: '启用后，所有已付款订单确认时将自动打印小票。需使用 Chrome 或 Edge 浏览器，并连接蓝牙热敏打印机。',
-        print_reconnect_title: '以下情况需要手动重连：',
-        print_reconnect_tips: '• 首次启用时\n• 打印机关机重启后\n• 清除浏览器数据后\n• 自动重连失败时（点击下方按钮）',
+        print_description: '完美使用请下载APP。',
         btn_connect_printer: '🔗 连接打印机',
         card_section_title: '🎫 充值卡密',
         card_code_placeholder: '输入卡密，如 ABCD-EFGH-IJKL',
@@ -1393,9 +1391,7 @@
         settings_short: '⚙️ Ajustes',
         settings_short_label: 'Ajustes',
         print_section_title: '🖨️ Impresora térmica Bluetooth',
-        print_description: 'Al activar, se imprimirá un comprobante al confirmar cada pago. Necesitas Chrome o Edge y una impresora térmica Bluetooth.',
-        print_reconnect_title: 'Cuándo reconectar manualmente:',
-        print_reconnect_tips: '• Primera vez que activas\n• Tras apagar y encender la impresora\n• Tras borrar datos del navegador\n• Si la reconexión automática falla',
+        print_description: 'Para una mejor experiencia, descargue la APP.',
         btn_connect_printer: '🔗 Conectar impresora',
         card_section_title: '🎫 Código de recarga',
         card_code_placeholder: 'Código, ej: ABCD-EFGH-IJKL',
@@ -6139,7 +6135,12 @@
         <button onclick="document.getElementById('modal-settings').classList.add('hidden')" class="text-gray-400 hover:text-white text-2xl leading-none">×</button>
       </div>
       <div class="space-y-4 overflow-y-auto px-6 pb-6">
-        <!-- 1. 充值卡密（最重要：续费才能继续使用） -->
+        <!-- 0. 使用说明 -->
+        <a href="guide.html" target="_blank" class="flex items-center justify-center gap-2 w-full border border-blue-500/40 bg-blue-900/20 hover:bg-blue-900/40 rounded-xl py-3 text-blue-400 font-bold text-sm" data-i18n="link_guide">
+          📖 Instrucciones de uso
+        </a>
+
+        <!-- 1. 充值卡密 -->
         <div class="border border-yellow-600/50 rounded-xl p-3">
           <p class="text-sm font-bold mb-1" data-i18n="card_section_title">🎫 充值卡密</p>
           <p id="subscription-expires-modal" class="hidden text-xs mt-0.5 mb-2 text-red-400"></p>
@@ -6173,29 +6174,14 @@
               <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
             </label>
           </div>
-          <p class="text-xs text-gray-500 mb-2" data-i18n="print_description">启用后，所有已付款订单确认时将自动打印小票。需使用 Chrome 或 Edge 浏览器，并连接蓝牙热敏打印机。</p>
+          <p class="text-xs text-gray-500 mb-2" data-i18n="print_description">完美使用请下载APP。</p>
           <div id="printer-status" class="text-xs text-gray-400" data-i18n="printer_disabled">未启用</div>
           <button id="btn-connect-printer" onclick="connectPrinter()" class="hidden mt-2 w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_connect_printer">
             🔗 连接打印机
           </button>
-          <div class="mt-3 bg-gray-700/50 rounded-lg p-2.5">
-            <p class="text-xs text-gray-400 font-semibold mb-1" data-i18n="print_reconnect_title">以下情况需要手动重连：</p>
-            <p class="text-xs text-gray-500 whitespace-pre-line leading-relaxed" data-i18n="print_reconnect_tips">• 首次启用时
-• 打印机关机重启后
-• 清除浏览器数据后
-• 自动重连失败时（点击上方按钮）</p>
-          </div>
         </div>
 
-        <!-- 4. 添加到桌面 / 下载 APP（便捷性） -->
-        <div id="homescreen-section" class="border border-gray-600 rounded-xl p-3">
-          <p class="text-sm font-bold mb-1" data-i18n="homescreen_title">📲 桌面快捷方式</p>
-          <p class="text-xs text-gray-500 mb-3" data-i18n="homescreen_desc">添加后从桌面图标打开，打印机自动重连，无需每次手动配对。</p>
-          <button id="btn-add-homescreen" onclick="triggerMerchantPwaInstall()"
-            class="w-full bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_add_homescreen">
-            📲 添加到桌面
-          </button>
-        </div>
+        <!-- 4. 已删除"添加到桌面"，APP下载提示在版本检测弹窗中 -->
 
         <!-- 5. 修改密码（账号安全） -->
         <div class="border border-gray-600 rounded-xl p-3">
@@ -6235,11 +6221,6 @@
             <p class="break-all"><span data-i18n="device_label">设备</span>：<span id="device-ua">—</span></p>
           </div>
         </div>
-
-        <!-- 8. 使用说明（参考文档，放最后） -->
-        <a href="guide.html" target="_blank" class="flex items-center justify-center gap-2 w-full border border-blue-500/40 bg-blue-900/20 hover:bg-blue-900/40 rounded-xl py-3 text-blue-400 font-bold text-sm" data-i18n="link_guide">
-          📖 使用说明
-        </a>
 
       </div>
     </div>
