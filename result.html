@@ -1009,7 +1009,8 @@
         .replace(/'/g, '&#39;');
     }
 
-    function getOrderNote(num) {
+    function getOrderNote(num, order) {
+      if (order && order.note) return order.note;
       try { return JSON.parse(localStorage.getItem('lottery_order_notes') || '{}')[String(num)] || ''; } catch(e) { return ''; }
     }
 
@@ -2479,7 +2480,7 @@
         var short = num.length <= 5 ? num : num.slice(-5);
         var winAmt = getOrderWinAmount(o);
         var safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        var _note = getOrderNote(num);
+        var _note = getOrderNote(num, o);
         return '<button type="button" onclick="openResultOrderDetail(\'' + safeNum + '\')" class="w-full text-left border-2 border-emerald-500 bg-emerald-900/30 rounded-xl px-3 py-2 flex justify-between items-center">' +
           '<span class="font-mono text-sm text-emerald-200">#' + short + (_note ? '<span class="text-yellow-300 font-normal text-xs ml-1">（' + esc(_note) + '）</span>' : '') + '</span>' +
           '<span class="font-bold text-emerald-400">$' + winAmt.toFixed(2) + '</span></button>';
@@ -2530,7 +2531,7 @@
         const winAmt = getOrderWinAmount(o);
         const disp = winAmt > 0 ? winAmt.toFixed(2) : Number(o.amount || 0).toFixed(2);
         const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        const _note = getOrderNote(num);
+        const _note = getOrderNote(num, o);
         return `<button type="button" class="period-detail-order-btn w-full text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${rowClass(o)}" data-order-number="${safeNum}">
           <span class="font-mono text-sm flex-shrink-0">#${short}</span>
           <span class="text-yellow-300 text-xs font-normal truncate flex-1 mx-1">${_note ? esc(_note) : ''}</span>
@@ -2638,7 +2639,7 @@
         const winAmt = getOrderWinAmount(o);
         const status = orderStatusLabel(o);
         const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        const _note = getOrderNote(num);
+        const _note = getOrderNote(num, o);
         const amtBlock = winAmt > 0
           ? `<span class="flex flex-col items-end leading-tight">
                <span class="font-mono text-xs text-gray-300">${t('sales_short')} $${amt}</span>

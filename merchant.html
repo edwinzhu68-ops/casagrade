@@ -821,8 +821,9 @@
     try { window.API_BASE = API_BASE; } catch (e) {}
     const DEBUG = false; // 上线设为 false，调试时可改为 true
 
-    /** 备注：按订单号存取，保存在 localStorage */
-    function getOrderNote(num) {
+    /** 备注：优先服务器 note，兜底 localStorage */
+    function getOrderNote(num, order) {
+      if (order && order.note) return order.note;
       try { return JSON.parse(localStorage.getItem('lottery_order_notes') || '{}')[String(num)] || ''; } catch(e) { return ''; }
     }
     function saveOrderNote(num, note) {
@@ -3415,7 +3416,7 @@
             var fullNum = order.order_number || order.orderNumber;
             var safeFull = String(fullNum || '').replace(/'/g, "\\'");
             var numLen = (order.numbers && order.numbers.length) ? order.numbers.length : 0;
-            var _note = getOrderNote(String(fullNum || ''));
+            var _note = getOrderNote(String(fullNum || ''), order);
             return '<div class="bg-gray-700 rounded-xl p-3 flex justify-between items-center">' +
               '<div onclick="viewOrder(\'' + safeFull + '\')" class="flex-1 cursor-pointer">' +
               orderPendingLotteryBadgeHtml(order) +
@@ -3437,7 +3438,7 @@
             var fullNum = order.order_number || order.orderNumber;
             var safeFull = String(fullNum || '').replace(/'/g, "\\'");
             var winAmt = getOrderWinAmount(order);
-            var _note = getOrderNote(String(fullNum || ''));
+            var _note = getOrderNote(String(fullNum || ''), order);
             return '<div class="bg-gray-700 rounded-lg px-3 py-2 flex justify-between items-center">' +
               '<button type="button" onclick="viewOrder(\'' + safeFull + '\')" class="text-left flex-1 font-mono text-sm text-emerald-100 hover:underline">' + t('order_short_label') + ' ' + orderLast4(fullNum) + (_note ? ' <span class="text-yellow-300">（' + esc(_note) + '）</span>' : '') + ' · ' + winAmt.toFixed(2) + '</button>' +
               '<button type="button" onclick="redeemFromList(\'' + safeFull + '\', ' + winAmt + ')" class="ml-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold">' + t('btn_redeem') + '</button>' +
@@ -3809,7 +3810,7 @@
       const cres = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)) + '/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
-        body: JSON.stringify({ shopId: currentShop.shop_id }),
+        body: JSON.stringify({ shopId: currentShop.shop_id, note: _noteVal || undefined }),
       });
       if (!cres.ok) {
         var err2 = await cres.json().catch(function () { return {}; });
@@ -3963,7 +3964,7 @@
       }
       if (amtEl) amtEl.textContent = parseFloat(order.amount || 0).toFixed(2);
 
-      var _note = getOrderNote(orderNum);
+      var _note = getOrderNote(orderNum, order);
       if (noteBox && noteTxt) {
         noteTxt.textContent = _note ? ('备注：' + _note) : '';
         noteBox.classList.toggle('hidden', !_note);
@@ -4307,7 +4308,7 @@
 
       // 备注区
       var _noteNum = String(order.order_number || order.orderNumber || '');
-      var _existNote = getOrderNote(_noteNum);
+      var _existNote = getOrderNote(_noteNum, order);
       var _noteSection = document.getElementById('modal-order-note-section');
       var _noteDisplay = document.getElementById('modal-order-note-display');
       var _noteInput = document.getElementById('modal-order-note-input');
@@ -4449,7 +4450,7 @@
           var rowBg = isWon ? 'bg-emerald-900/40 border-l-4 border-emerald-500' : 'bg-gray-700';
           var statusCls = isWon ? 'text-emerald-300 font-medium' : 'text-gray-400';
           var amtCls = isWon ? 'text-emerald-300' : 'text-green-400';
-          var _note = getOrderNote(num);
+          var _note = getOrderNote(num, o);
           return '<div class="period-order-row flex justify-between items-center ' + rowBg + ' rounded-lg px-3 py-2 cursor-pointer hover:opacity-90 active:opacity-80" data-order-number="' + safeAttr + '" role="button" tabindex="0">' +
             '<span class="text-left flex-1 font-mono text-sm font-bold">' + t('order_short_label') + ' ' + orderLast4(num) + (_note ? '<span class="text-yellow-300 font-normal text-xs ml-1">（' + esc(_note) + '）</span>' : '') + '</span>' +
             '<span class="text-xs mr-2 ' + statusCls + '">' + status + '</span>' +
