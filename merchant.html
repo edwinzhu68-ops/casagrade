@@ -4878,7 +4878,7 @@
 
       // 延迟1秒等版本号读取完成
       setTimeout(function checkAppUpdate() {
-        fetch(API_BASE.replace('/api','') + '/app-version.json?t=' + Date.now())
+        fetch('https://casagrade.com/app-version.json?t=' + Date.now())
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (!data || !data.version) return;
