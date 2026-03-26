@@ -160,19 +160,17 @@
 
       <!-- 等待兑奖 -->
       <div class="card-result rounded-2xl p-5 shadow-xl">
-        <div class="mb-3 flex gap-3">
-          <button type="button" onclick="startResultScan()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 rounded-xl text-3xl flex items-center justify-center flex-shrink-0" title="Escanear QR">📷</button>
-          <div class="flex-1 space-y-2">
-            <div class="flex items-center justify-between">
-              <h3 class="font-bold text-emerald-400" data-i18n="wait_redeem">等待兑奖</h3>
-              <span id="redeem-summary" class="text-sm font-bold text-amber-400"></span>
-            </div>
-            <div class="flex items-center gap-2">
-              <input type="text" id="redeem-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
-                class="flex-1 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
-                oninput="filterRedeemBySuffix(this.value)" title="输入订单号后4位筛选" />
-              <button type="button" id="redeem-expand-btn" onclick="toggleRedeemExpand()" class="text-sm text-emerald-400 hover:text-emerald-300 whitespace-nowrap flex-shrink-0 bg-gray-700 px-3 py-1.5 rounded-lg">Ver todo</button>
-            </div>
+        <div class="mb-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-emerald-400" data-i18n="wait_redeem">等待兑奖</h3>
+            <span id="redeem-summary" class="text-sm font-bold text-amber-400"></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="startResultScan()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-lg flex-shrink-0" title="Escanear QR">📷</button>
+            <input type="text" id="redeem-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
+              class="flex-1 min-w-0 text-center py-2 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
+              oninput="filterRedeemBySuffix(this.value)" title="输入订单号后4位筛选" />
+            <button type="button" id="redeem-expand-btn" onclick="toggleRedeemExpand()" class="text-xs text-emerald-400 hover:text-emerald-300 whitespace-nowrap flex-shrink-0 bg-gray-700 px-2 py-2 rounded-lg">Ver todo</button>
           </div>
         </div>
         <div id="result-redeem-list" class="space-y-2 max-h-48 overflow-y-auto text-sm">
