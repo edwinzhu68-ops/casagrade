@@ -115,6 +115,10 @@ __decorate([
     __metadata("design:type", Date)
 ], Order.prototype, "redeemed_at", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ length: 200, nullable: true }),
+    __metadata("design:type", String)
+], Order.prototype, "note", void 0);
+__decorate([
     (0, typeorm_1.Column)({ length: 64, nullable: true }),
     __metadata("design:type", String)
 ], Order.prototype, "idempotency_key", void 0);

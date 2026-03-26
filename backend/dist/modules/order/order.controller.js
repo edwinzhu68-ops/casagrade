@@ -512,6 +512,7 @@ let OrderController = OrderController_1 = class OrderController {
             win_amount: order.win_amount,
             win_breakdown: order.win_breakdown ?? null,
             redeemed_at: order.redeemed_at ?? null,
+            note: order.note ?? null,
             created_at: order.created_at,
             paid_at: order.paid_at,
         };
@@ -543,6 +544,8 @@ let OrderController = OrderController_1 = class OrderController {
             status: 1,
             paid_at: new Date(),
         };
+        if (body.note != null)
+            updatePayload.note = String(body.note).slice(0, 200);
         if (order.draw_id == null &&
             currentNational?.draw_id != null &&
             (orderLt === 'NACIONAL' || orderLt === '')) {
@@ -757,6 +760,7 @@ let ShopController = ShopController_1 = class ShopController {
                 win_amount: order.win_amount,
                 win_breakdown: order.win_breakdown ?? null,
                 redeemed_at: order.redeemed_at ?? null,
+                note: order.note ?? null,
                 verification_code: order.verification_code,
                 created_at: order.created_at,
                 paid_at: order.paid_at,

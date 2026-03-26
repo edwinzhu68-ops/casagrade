@@ -36,5 +36,6 @@ export declare class Order {
     canceled_at: Date;
     settled_at: Date;
     redeemed_at: Date;
+    note: string;
     idempotency_key: string;
 }

@@ -84,11 +84,13 @@ export declare class OrderController implements OnModuleInit {
         win_amount: number;
         win_breakdown: any;
         redeemed_at: any;
+        note: any;
         created_at: Date;
         paid_at: Date;
     }>;
     confirmOrder(orderNumber: string, body: {
         shopId: number;
+        note?: string;
     }, req: any): Promise<{
         success: boolean;
         message: string;
@@ -139,6 +141,7 @@ export declare class ShopController {
             win_amount: number;
             win_breakdown: any;
             redeemed_at: any;
+            note: any;
             verification_code: string;
             created_at: Date;
             paid_at: Date;
@@ -225,6 +228,7 @@ export declare class ShopController {
             win_amount: number;
             win_breakdown: any;
             redeemed_at: any;
+            note: any;
             verification_code: string;
             created_at: Date;
             paid_at: Date;
