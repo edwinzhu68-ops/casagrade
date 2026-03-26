@@ -3928,7 +3928,36 @@
         var canvas = await html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
         canvas.toBlob(async function (blob) {
           if (!blob) { showToast('Error al generar imagen', 'error'); return; }
-          var file = new File([blob], 'pedido_' + orderNum + '.png', { type: 'image/png' });
+          var fileName = 'pedido_' + orderNum + '.png';
+          // APP环境：用Capacitor原生分享（不会导致WebView重载）
+          if (_isCapApp && window.Capacitor && window.Capacitor.Plugins) {
+            try {
+              var reader = new FileReader();
+              reader.onloadend = async function () {
+                var base64Data = reader.result.split(',')[1];
+                var Filesystem = window.Capacitor.Plugins.Filesystem;
+                var Share = window.Capacitor.Plugins.Share;
+                if (Filesystem && Share) {
+                  var saved = await Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' });
+                  await Share.share({ url: saved.uri, dialogTitle: 'Pedido ' + orderNum });
+                } else {
+                  // 没有原生插件，用Web Share API
+                  var file = new File([blob], fileName, { type: 'image/png' });
+                  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file] });
+                  } else {
+                    showToast('Por favor actualice la APP para compartir', 'warning');
+                  }
+                }
+              };
+              reader.readAsDataURL(blob);
+            } catch (e2) {
+              showToast('Por favor actualice la APP para compartir', 'warning');
+            }
+            return;
+          }
+          // 浏览器环境：用Web Share API
+          var file = new File([blob], fileName, { type: 'image/png' });
           if (navigator.share) {
             try {
               if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -3938,11 +3967,11 @@
               }
             } catch (e) {
               if (e.name !== 'AbortError') {
-                var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pedido_' + orderNum + '.png'; a.click();
+                var a2 = document.createElement('a'); a2.href = URL.createObjectURL(blob); a2.download = fileName; a2.click();
               }
             }
           } else {
-            var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pedido_' + orderNum + '.png'; a.click();
+            var a3 = document.createElement('a'); a3.href = URL.createObjectURL(blob); a3.download = fileName; a3.click();
           }
         }, 'image/png');
       } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
