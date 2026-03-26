@@ -1102,6 +1102,15 @@
         card_section_title: '🎫 充值卡密',
         card_code_placeholder: '输入卡密，如 ABCD-EFGH-IJKL',
         btn_activate: '激活',
+        devices_title: '在线设备',
+        devices_refresh: '刷新',
+        devices_loading: '加载中...',
+        devices_none: '没有在线设备',
+        devices_current: '当前',
+        devices_disconnect: '断开',
+        devices_web: '网页',
+        devices_app: 'APP',
+        devices_disconnected: '已断开',
         pwd_section_title: '🔑 修改密码',
         pwd_current_placeholder: '当前密码',
         pwd_new_placeholder: '新密码（含字母+数字，≥6位）',
@@ -1409,6 +1418,15 @@
         card_section_title: '🎫 Código de recarga',
         card_code_placeholder: 'Código, ej: ABCD-EFGH-IJKL',
         btn_activate: 'Activar',
+        devices_title: 'Dispositivos en línea',
+        devices_refresh: 'Actualizar',
+        devices_loading: 'Cargando...',
+        devices_none: 'Sin dispositivos',
+        devices_current: 'Actual',
+        devices_disconnect: 'Desconectar',
+        devices_web: 'Web',
+        devices_app: 'APP',
+        devices_disconnected: 'Desconectado',
         pwd_section_title: '🔑 Cambiar contraseña',
         pwd_current_placeholder: 'Contraseña actual',
         pwd_new_placeholder: 'Nueva contraseña (letras+números, ≥6 car.)',
@@ -2163,7 +2181,7 @@
         const res = await fetch(`${API_BASE}/api/merchant/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account: account, accountNumber: account, password: password, force_login: !!forceLogin })
+          body: JSON.stringify({ account: account, accountNumber: account, password: password, force_login: !!forceLogin, device_type: _isCapApp ? 'app' : 'web', device_name: navigator.userAgent.slice(0, 100) })
         });
 
         const text = await res.text();
@@ -5999,12 +6017,9 @@
       const enabled = localStorage.getItem('lottery_print_enabled') === '1';
       document.getElementById('print-toggle').checked = enabled;
       updatePrinterStatusUI();
-      // 展示当前登录设备信息
-      const loginAt = localStorage.getItem('lottery_login_at');
-      const loginUa = localStorage.getItem('lottery_login_ua');
-      document.getElementById('device-login-at').textContent = loginAt ? new Date(loginAt).toLocaleString() : '—';
-      const ua = loginUa || '—';
-      document.getElementById('device-ua').textContent = ua.length > 80 ? ua.slice(0, 80) + '…' : ua;
+      // 旧的单设备信息已合并到在线设备列表
+      // 加载在线设备列表
+      loadOnlineDevices();
     }
 
     async function activateCard() {
@@ -6051,6 +6066,63 @@
       el.classList.remove('text-green-400', 'text-red-400', 'hidden');
       el.classList.add(ok ? 'text-green-400' : 'text-red-400');
       el.textContent = msg;
+    }
+
+    // ── 在线设备管理 ──
+    async function loadOnlineDevices() {
+      var container = document.getElementById('online-devices-list');
+      if (!container) return;
+      container.innerHTML = '<p class="text-gray-500 text-xs">' + t('devices_loading') + '</p>';
+      try {
+        var res = await fetch(API_BASE + '/api/merchant/sessions', {
+          headers: {
+            'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || ''),
+            'X-Session-Token': localStorage.getItem('lottery_session_token') || '',
+          },
+        });
+        if (!res.ok) throw new Error('failed');
+        var sessions = await res.json();
+        if (!sessions.length) {
+          container.innerHTML = '<p class="text-gray-500 text-xs">' + t('devices_none') + '</p>';
+          return;
+        }
+        container.innerHTML = sessions.map(function(s) {
+          var typeLabel = s.device_type === 'app' ? t('devices_app') : t('devices_web');
+          var typeBg = s.device_type === 'app' ? 'bg-purple-600' : 'bg-blue-600';
+          var name = s.device_name ? esc(String(s.device_name).slice(0, 40)) : typeLabel;
+          var date = s.created_at ? new Date(s.created_at).toLocaleDateString() : '';
+          var currentBadge = s.is_current ? ' <span class="text-xs text-green-400 font-bold">(' + t('devices_current') + ')</span>' : '';
+          var disconnectBtn = s.is_current ? '' :
+            '<button onclick="disconnectDevice(' + s.session_id + ')" class="text-xs text-red-400 hover:text-red-300 hover:underline">' + t('devices_disconnect') + '</button>';
+          return '<div class="flex items-center justify-between bg-gray-700/50 rounded-lg px-3 py-2">' +
+            '<div class="flex items-center gap-2 flex-1 min-w-0">' +
+            '<span class="text-xs px-1.5 py-0.5 rounded ' + typeBg + ' text-white font-bold">' + typeLabel + '</span>' +
+            '<span class="text-xs text-gray-300 truncate">' + name + currentBadge + '</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-2 flex-shrink-0">' +
+            '<span class="text-xs text-gray-500">' + date + '</span>' +
+            disconnectBtn +
+            '</div></div>';
+        }).join('');
+      } catch(e) {
+        container.innerHTML = '<p class="text-red-400 text-xs">Error</p>';
+      }
+    }
+
+    async function disconnectDevice(sessionId) {
+      try {
+        var res = await fetch(API_BASE + '/api/merchant/sessions/' + sessionId, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || ''),
+            'X-Session-Token': localStorage.getItem('lottery_session_token') || '',
+          },
+        });
+        if (res.ok) {
+          showToast(t('devices_disconnected'), 'success');
+          loadOnlineDevices();
+        }
+      } catch(e) {}
     }
 
     async function doChangePassword() {
@@ -6228,12 +6300,14 @@
           <p id="change-email-result" class="text-xs text-center mt-2 hidden"></p>
         </div>
 
-        <!-- 7. 当前登录设备（仅供参考） -->
+        <!-- 7. 在线设备管理（合并） -->
         <div class="border border-gray-600 rounded-xl p-3">
-          <p class="text-sm font-bold mb-2" data-i18n="device_section_title">📱 当前登录设备</p>
-          <div id="device-info-box" class="text-xs text-gray-400 space-y-1 leading-relaxed">
-            <p><span data-i18n="device_login_time">登录时间</span>：<span id="device-login-at">—</span></p>
-            <p class="break-all"><span data-i18n="device_label">设备</span>：<span id="device-ua">—</span></p>
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm font-bold">📱 <span data-i18n="devices_title">在线设备</span></p>
+            <button onclick="loadOnlineDevices()" class="text-xs text-blue-400 hover:underline" data-i18n="devices_refresh">刷新</button>
+          </div>
+          <div id="online-devices-list" class="space-y-2 text-sm">
+            <p class="text-gray-500 text-xs" data-i18n="devices_loading">加载中...</p>
           </div>
         </div>
 
