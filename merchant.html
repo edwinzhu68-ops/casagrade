@@ -4369,15 +4369,16 @@
       if (!currentOrder) return;
       var numbers = currentOrder.numbers || [];
       if (!numbers.length) { showToast(t('no_orders'), 'error'); return; }
-      closeModal('modal-order');
       // 切换到订单对应的彩种
       var orderLt = String(currentOrder.lottery_type || currentOrder.lotteryType || 'NACIONAL').toUpperCase();
-      if (orderLt === 'TICA' || orderLt === 'NICA') {
+      if (orderLt === 'TICA' || orderLt === 'NICA' || orderLt === 'NACIONAL') {
+        merchantWorkbenchKind = orderLt;
         sessionStorage.setItem(MERCHANT_WORKBENCH_KEY, orderLt);
+        renderMerchantWorkbenchNav();
       }
-      mergeMerchantShopLocalFlags(currentShop);
-      merchantWorkbenchKind = getMerchantWorkbenchKind();
-      await refreshCashierBetSnap();
+      closeModal('modal-order');
+      // 打开代客下单弹窗（会自动刷新bet状态）
+      await openCashierOrderModal();
       // 填入历史号码
       merchantCashierLines = [];
       var _pb = 1, _pc = 0.25;
@@ -4392,17 +4393,10 @@
         if (existing) { existing.q += q; }
         else { merchantCashierLines.push({ n: n, q: q, isBi: isBi, unitPrice: unitPrice }); }
       });
-      merchantCashierHighlightLineIndex = -1;
-      merchantCashierScrollToLastAfterRender = false;
-      var _noteEl = document.getElementById('cashier-note-input');
-      if (_noteEl) _noteEl.value = '';
-      cashierCloseKeyboard();
       // 根据第一条号码切换游戏类型
       var firstIsBi = merchantCashierLines.length > 0 ? merchantCashierLines[0].isBi : true;
       setMerchantCashierGameType(firstIsBi ? 'BILLETE' : 'CHANCE');
       renderMerchantCashierLines();
-      var modal = document.getElementById('modal-cashier-order');
-      if (modal) modal.classList.remove('hidden');
     }
 
     function confirmDeleteOrder() {
