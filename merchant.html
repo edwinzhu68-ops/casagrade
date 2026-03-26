@@ -2662,13 +2662,7 @@
             showToast(t('alert_wrong_shop'), 'error');
             return;
           }
-          const isWon = data.status === 3 || data.status === 'won';
-          const redeemed = data.redeemed_at && data.redeemed_at !== '' && data.redeemed_at !== 'null';
-          if (isWon && redeemed) {
-            showToast(t('alert_already_redeemed'), 'warning');
-          } else {
-            showOrderDetail(data, orderHash);
-          }
+          showOrderDetail(data, orderHash);
         })
         .catch(() => showToast(t('alert_order_not_found'), 'error'));
     }
