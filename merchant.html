@@ -279,7 +279,8 @@
             </div>
           </div>
         </div>
-        <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-3 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
+        <p class="text-xs text-gray-500 mt-2" data-i18n="limit_hint">0 = sin límite</p>
+        <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
       </div>
 
       <!-- 大庄管理中心入口 -->
@@ -900,6 +901,7 @@
         chance_limit_label: 'Chance 每号最多',
         billete_limit_label: 'Billete 每号最多',
         limit_unit: '张',
+        limit_hint: '0 = 无限制',
         chance_price_label: 'Chance 单价',
         billete_price_label: 'Billete 单价',
         btn_save: '保存',
@@ -1205,6 +1207,7 @@
         chance_limit_label: 'Chance máx. por número',
         billete_limit_label: 'Billete máx. por número',
         limit_unit: 'unid.',
+        limit_hint: '0 = sin límite',
         chance_price_label: 'Precio Chance',
         billete_price_label: 'Precio Billete',
         btn_save: 'Guardar',
