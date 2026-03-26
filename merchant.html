@@ -3611,7 +3611,11 @@
     async function getOcrWorker() {
       if (_ocrWorker) return _ocrWorker;
       showToast(lang === 'zh' ? '正在加载识别引擎...' : 'Cargando motor de reconocimiento...', 'info');
-      _ocrWorker = await Tesseract.createWorker('eng');
+      _ocrWorker = await Tesseract.createWorker('eng', 1, {
+        workerPath: '/libs/worker.min.js',
+        corePath: '/libs/',
+        langPath: '/libs/',
+      });
       await _ocrWorker.setParameters({
         tessedit_char_whitelist: '0123456789xX×*:. -=,',
       });
