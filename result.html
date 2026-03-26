@@ -162,12 +162,12 @@
       <div class="card-result rounded-2xl p-5 shadow-xl">
         <div class="mb-3 grid grid-cols-[auto_auto_1fr_auto] grid-rows-2 gap-x-2 gap-y-1 items-center">
           <button type="button" onclick="startResultScan()" class="row-span-2 bg-blue-600 hover:bg-blue-500 text-white w-12 h-full rounded-xl text-2xl flex items-center justify-center" title="Escanear QR">📷</button>
-          <span class="font-bold text-emerald-400 text-sm whitespace-nowrap">Espera</span>
-          <input type="text" id="redeem-filter-input" placeholder="Buscar" maxlength="12" inputmode="numeric" pattern="[0-9]*"
+          <span class="font-bold text-emerald-400 text-sm whitespace-nowrap" data-i18n="wait_line1">等待</span>
+          <input type="text" id="redeem-filter-input" data-i18n-placeholder="search_placeholder" placeholder="搜索" maxlength="12" inputmode="numeric" pattern="[0-9]*"
             class="row-span-2 min-w-0 text-center py-3 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
             oninput="filterRedeemBySuffix(this.value)" />
           <span id="redeem-summary" class="text-xs font-bold text-amber-400 text-right whitespace-nowrap"></span>
-          <span class="font-bold text-emerald-400 text-sm whitespace-nowrap">Cobro</span>
+          <span class="font-bold text-emerald-400 text-sm whitespace-nowrap" data-i18n="wait_line2">兑奖</span>
           <button type="button" id="redeem-expand-btn" onclick="toggleRedeemExpand()" class="text-xs text-emerald-400 hover:text-emerald-300 whitespace-nowrap bg-gray-700 px-2 py-1 rounded-lg text-right">Ver todo</button>
         </div>
         <div id="result-redeem-list" class="space-y-2 max-h-48 overflow-y-auto text-sm">
@@ -562,6 +562,9 @@
         today_profit: '今日利润',
         paid_orders_title: '📋 已付款订单',
         wait_redeem: '等待兑奖',
+        wait_line1: '等待',
+        wait_line2: '兑奖',
+        search_placeholder: '搜索',
         btn_confirm_redeem: '确认兑奖',
         no_redeem: '暂无待兑奖订单',
         paid_orders_hint: '点击订单号查看详情 · 数据保留至本期开奖',
@@ -649,6 +652,9 @@
         today_profit: 'Beneficio hoy',
         paid_orders_title: '📋 Pedidos pagados',
         wait_redeem: 'Esperando premio',
+        wait_line1: 'Espera',
+        wait_line2: 'Cobro',
+        search_placeholder: 'Buscar',
         btn_redeem_all: 'Confirmar premio',
         no_redeem: 'Sin pedidos por cobrar',
         paid_orders_hint: 'Toca el pedido para ver detalle · Se conserva hasta el sorteo',
