@@ -3641,10 +3641,13 @@
     async function handleOcrFile(input) {
       if (!input.files || !input.files[0]) return;
       var file = input.files[0];
-      showToast(lang === 'zh' ? '正在识别...' : 'Reconociendo...', 'info');
+      alert('A: file size=' + file.size);
       try {
+        alert('B: loading worker, Tesseract=' + (typeof Tesseract));
         var worker = await getOcrWorker();
+        alert('C: worker ready, recognizing...');
         var result = await worker.recognize(file);
+        alert('D: done, text=' + (result.data.text || '').substring(0, 50));
         var text = result.data.text;
         console.log('OCR raw text:', text);
         var parsed = parseOcrNumbers(text);
