@@ -3610,12 +3610,9 @@
     async function getOcrWorker() {
       if (_ocrWorker) return _ocrWorker;
       showToast(lang === 'zh' ? '正在加载识别引擎...' : 'Cargando motor de reconocimiento...', 'info');
-      _ocrWorker = await Tesseract.createWorker('eng', 1, {
-        workerPath: 'libs/tesseract.min.js',
-      });
+      _ocrWorker = await Tesseract.createWorker('eng');
       await _ocrWorker.setParameters({
-        tessedit_char_whitelist: '0123456789xX×*. -',
-        tessedit_pageseg_mode: '6',
+        tessedit_char_whitelist: '0123456789xX×*:. -=,',
       });
       return _ocrWorker;
     }
@@ -3645,7 +3642,7 @@
           showOcrResultModal(parsed);
         } catch(e) {
           console.error('OCR error:', e);
-          showToast(lang === 'zh' ? '识别失败: ' + e.message : 'Error: ' + e.message, 'error');
+          showToast(lang === 'zh' ? '识别失败，请重试' : 'Error, intente de nuevo', 'error');
         }
       };
       input.click();
@@ -3678,8 +3675,11 @@
     }
 
     function parseOcrNumbers(text) {
-      // 清理OCR常见错误
-      text = text.replace(/[oO]/g, '0').replace(/[lI|]/g, '1');
+      // 去掉时间戳 (HH:MM)
+      text = text.replace(/\b\d{1,2}:\d{2}\b/g, ' ');
+      // 去掉中文/日文/韩文等非相关文字
+      text = text.replace(/[^\d\sxX×*=\-–—,.]/g, ' ');
+      // 清理OCR常见错误（仅对剩余字符）
       // 提取所有数字
       var allNums = text.match(/\d+/g);
       if (!allNums || allNums.length === 0) return [];
