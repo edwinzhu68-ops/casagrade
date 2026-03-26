@@ -2514,16 +2514,24 @@
         video.setAttribute('playsinline', true);
         video.play();
 
-        // 尝试通过 ImageCapture API 启用连续自动对焦（Chrome 68+ 支持）
+        // 启用连续自动对焦
         try {
           var track = s.getVideoTracks()[0];
-          if (track && typeof ImageCapture !== 'undefined') {
-            var ic = new ImageCapture(track);
-            ic.getPhotoCapabilities().then(function(caps) {
-              if (caps.focusMode && caps.focusMode.includes('continuous')) {
-                track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function(){});
-              }
-            }).catch(function(){});
+          if (track) {
+            // 方法1: 直接applyConstraints（不依赖ImageCapture）
+            var caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
+              track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function(){});
+            }
+            // 方法2: 如果方法1不生效，用ImageCapture兜底
+            if (typeof ImageCapture !== 'undefined') {
+              var ic = new ImageCapture(track);
+              ic.getPhotoCapabilities().then(function(pc) {
+                if (pc.focusMode && pc.focusMode.includes('continuous')) {
+                  track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function(){});
+                }
+              }).catch(function(){});
+            }
           }
         } catch(e) {}
 
