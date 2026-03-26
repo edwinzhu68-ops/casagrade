@@ -85,6 +85,10 @@ export class Order {
   @Column({ type: 'datetime', nullable: true })
   redeemed_at: Date;
 
+  /** 备注 */
+  @Column({ length: 200, nullable: true })
+  note: string;
+
   /** 幂等键：同一 key+shop_id 的重复请求直接返回原订单 */
   @Column({ length: 64, nullable: true })
   idempotency_key: string;

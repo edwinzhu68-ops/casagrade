@@ -565,6 +565,7 @@ export class OrderController implements OnModuleInit {
       win_amount: order.win_amount,
       win_breakdown: (order as any).win_breakdown ?? null,
       redeemed_at: (order as any).redeemed_at ?? null,
+      note: (order as any).note ?? null,
       created_at: order.created_at,
       paid_at: order.paid_at,
     };
@@ -574,7 +575,7 @@ export class OrderController implements OnModuleInit {
    * POST /api/orders/:orderNumber/confirm - 老板确认收款
    */
   @Post(':orderNumber/confirm')
-  async confirmOrder(@Param('orderNumber') orderNumber: string, @Body() body: { shopId: number }, @Req() req: any) {
+  async confirmOrder(@Param('orderNumber') orderNumber: string, @Body() body: { shopId: number; note?: string }, @Req() req: any) {
     // 鉴权：验证 Bearer token
     const authHeader = (req.headers?.['authorization'] || '') as string;
     const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
@@ -606,6 +607,7 @@ export class OrderController implements OnModuleInit {
       status: 1, // Paid
       paid_at: new Date(),
     };
+    if (body.note != null) updatePayload.note = String(body.note).slice(0, 200);
     if (
       order.draw_id == null &&
       currentNational?.draw_id != null &&
@@ -823,6 +825,7 @@ export class ShopController {
         win_amount: order.win_amount,
         win_breakdown: (order as any).win_breakdown ?? null,
         redeemed_at: (order as any).redeemed_at ?? null,
+        note: (order as any).note ?? null,
         verification_code: order.verification_code,
         created_at: order.created_at,
         paid_at: order.paid_at,
