@@ -163,6 +163,7 @@
         <div class="flex items-center justify-between gap-2 mb-3">
           <h3 class="font-bold text-emerald-400"><span data-i18n="wait_redeem">等待兑奖</span> <span id="redeem-summary" class="text-sm font-bold text-amber-400"></span></h3>
           <div class="flex items-center gap-2">
+            <button type="button" onclick="startResultScan()" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded-lg text-sm font-bold" title="Escanear QR">📷</button>
             <input type="text" id="redeem-filter-input" data-i18n-placeholder="filter_suffix_4" data-i18n-title="filter_suffix_title" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
               class="w-24 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
               oninput="filterRedeemBySuffix(this.value)" title="输入订单号后4位筛选" />
@@ -214,6 +215,19 @@
       </div>
 
       <!-- 订单详情弹窗 -->
+      <!-- 扫码弹窗 -->
+      <div id="modal-result-scan" class="hidden fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4" onclick="if(event.target===this)stopResultScan()">
+        <div class="w-full max-w-md">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-white font-bold text-lg">📷 Escanear QR</h3>
+            <button type="button" onclick="stopResultScan()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+          </div>
+          <video id="result-scan-video" class="w-full rounded-xl bg-black" autoplay playsinline></video>
+          <canvas id="result-scan-canvas" class="hidden"></canvas>
+          <p class="text-gray-400 text-center text-sm mt-2">Apunte la cámara al código QR del pedido</p>
+        </div>
+      </div>
+
       <div id="modal-result-order" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeResultOrderModal()">
         <div class="card-result rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl relative">
           <button type="button" onclick="closeResultOrderModal()" class="absolute top-3 right-3 z-10 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white text-2xl leading-none rounded-lg hover:bg-gray-700/80">&times;</button>
@@ -2491,6 +2505,87 @@
           '<span class="font-mono text-sm text-emerald-200">#' + short + (_note ? '<span class="text-yellow-300 font-normal text-xs ml-1">（' + esc(_note) + '）</span>' : '') + '</span>' +
           '<span class="font-bold text-emerald-400">$' + winAmt.toFixed(2) + '</span></button>';
       }).join('');
+    }
+
+    // ── 结算页扫码 ──────────────────────────────
+    var _resultScanStream = null;
+    var _resultScanAnimId = null;
+
+    async function startResultScan() {
+      // APP 环境优先原生扫码
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() &&
+          window.Capacitor.Plugins && window.Capacitor.Plugins.BarcodeScanner) {
+        try {
+          var BS = window.Capacitor.Plugins.BarcodeScanner;
+          var perm = await BS.checkPermission({ force: true });
+          if (!perm.granted) { showToast('Permiso de cámara denegado', 'error'); return; }
+          document.body.classList.add('barcode-scanner-active');
+          var result = await BS.startScan();
+          document.body.classList.remove('barcode-scanner-active');
+          if (result.hasContent && result.content) {
+            handleResultScanData(result.content.trim());
+          }
+          return;
+        } catch(e) { document.body.classList.remove('barcode-scanner-active'); }
+      }
+
+      // 浏览器 fallback: jsQR
+      var modal = document.getElementById('modal-result-scan');
+      var video = document.getElementById('result-scan-video');
+      var canvas = document.getElementById('result-scan-canvas');
+      if (!modal || !video || !canvas) return;
+      modal.classList.remove('hidden');
+      var ctx = canvas.getContext('2d');
+      try {
+        _resultScanStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+      } catch(e) {
+        try { _resultScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } }); }
+        catch(e2) { modal.classList.add('hidden'); showToast('No se pudo abrir la cámara', 'error'); return; }
+      }
+      video.srcObject = _resultScanStream;
+      video.play();
+      function tick() {
+        if (!_resultScanStream) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+          var vw = video.videoWidth, vh = video.videoHeight;
+          var cw = Math.round(vw * 0.7), ch = Math.round(vh * 0.7);
+          var cx = Math.round((vw - cw) / 2), cy = Math.round((vh - ch) / 2);
+          canvas.width = cw; canvas.height = ch;
+          ctx.drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
+          if (typeof jsQR !== 'undefined') {
+            var imgData = ctx.getImageData(0, 0, cw, ch);
+            var code = jsQR(imgData.data, cw, ch, { inversionAttempts: 'dontInvert' });
+            if (code && code.data) { stopResultScan(); handleResultScanData(code.data.trim()); return; }
+          }
+        }
+        _resultScanAnimId = requestAnimationFrame(tick);
+      }
+      video.onloadedmetadata = function() { requestAnimationFrame(tick); };
+    }
+
+    function stopResultScan() {
+      if (_resultScanStream) {
+        _resultScanStream.getTracks().forEach(function(t) { t.stop(); });
+        _resultScanStream = null;
+      }
+      if (_resultScanAnimId) { cancelAnimationFrame(_resultScanAnimId); _resultScanAnimId = null; }
+      var modal = document.getElementById('modal-result-scan');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function handleResultScanData(raw) {
+      // 尝试解析 JSON 格式的 QR 码
+      var orderNumber = '';
+      try {
+        var obj = JSON.parse(raw);
+        orderNumber = obj.orderNumber || obj.order_number || obj.on || '';
+      } catch(e) {
+        orderNumber = raw;
+      }
+      if (!orderNumber) { showToast('QR inválido', 'error'); return; }
+      openResultOrderDetail(orderNumber);
     }
 
     var _redeemExpanded = false;
