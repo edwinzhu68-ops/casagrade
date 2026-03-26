@@ -427,11 +427,12 @@
   <div id="modal-cashier-order" class="hidden fixed inset-0 bg-black/80 z-[55] flex items-start justify-center p-3 pt-2 sm:p-4 sm:pt-4 overflow-y-auto overscroll-contain" onclick="if(event.target===this)closeCashierOrderModal()">
     <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[min(92vh,calc(100dvh-0.75rem))] sm:max-h-[90vh] mt-1 sm:mt-4 mb-4 flex flex-col overflow-hidden border border-gray-600 shadow-2xl shrink-0" onclick="event.stopPropagation()">
       <div class="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pr-0.5">
-      <!-- 备注 -->
-      <div class="shrink-0">
+      <!-- 备注 + 彩种标签 -->
+      <div class="shrink-0 flex gap-2">
         <input type="text" id="cashier-note-input" maxlength="30"
-          class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:border-blue-500"
-          placeholder="备注（客人姓名 / 电话）">
+          class="flex-1 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          placeholder="Nota / 备注">
+        <span id="cashier-lottery-badge" class="shrink-0 flex items-center px-3 py-2 rounded-lg text-sm font-bold text-white bg-emerald-600">LOTERÍA</span>
       </div>
       <!-- Billete / Chance（单价与顾客端 localStorage 一致，标签由脚本刷新） -->
       <div class="flex gap-2 mb-0 shrink-0">
@@ -1811,6 +1812,15 @@
       if (k === 'NICA' && !(currentShop && currentShop.nica_enabled)) k = 'NACIONAL';
       return k;
     }
+    var _lotteryBadgeColors = { NACIONAL: 'bg-emerald-600', TICA: 'bg-blue-600', NICA: 'bg-purple-600' };
+    var _lotteryBadgeLabels = { NACIONAL: 'LOTERÍA', TICA: 'TICA', NICA: 'NICA' };
+    function updateCashierLotteryBadge() {
+      var badge = document.getElementById('cashier-lottery-badge');
+      if (!badge) return;
+      var k = getMerchantWorkbenchKind();
+      badge.textContent = _lotteryBadgeLabels[k] || 'LOTERÍA';
+      badge.className = 'shrink-0 flex items-center px-3 py-2 rounded-lg text-sm font-bold text-white ' + (_lotteryBadgeColors[k] || 'bg-emerald-600');
+    }
     function setMerchantWorkbenchKind(next) {
       var k = String(next || 'NACIONAL').toUpperCase();
       if (k !== 'NACIONAL' && k !== 'TICA' && k !== 'NICA') k = 'NACIONAL';
@@ -1819,6 +1829,7 @@
       renderMerchantWorkbenchNav();
       loadDashboard();
       updateCashierBilleteChanceButtonLabels();
+      updateCashierLotteryBadge();
     }
     function renderMerchantWorkbenchNav() {
       var nav = document.getElementById('merchant-workbench-nav');
@@ -1839,20 +1850,19 @@
       var k = getMerchantWorkbenchKind();
       merchantWorkbenchKind = k;
       var btns = [];
-      function pill(active) {
+      var kindColors = { NACIONAL: 'bg-emerald-600', TICA: 'bg-blue-600', NICA: 'bg-purple-600' };
+      function pill(kind, active) {
         return 'flex-1 min-w-[104px] max-w-[200px] py-2.5 rounded-xl font-bold text-sm transition ' +
-          (active ? 'bg-green-600 text-white shadow-lg' : 'bg-gray-800 text-gray-200 border border-gray-600 hover:bg-gray-700');
+          (active ? (kindColors[kind] || 'bg-emerald-600') + ' text-white shadow-lg' : 'bg-gray-800 text-gray-200 border border-gray-600 hover:bg-gray-700');
       }
-      if (k === 'NACIONAL') {
-        if (hasT) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'TICA\')">TICA</button>');
-        if (hasN) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NICA\')">NICA</button>');
-      } else if (k === 'TICA') {
-        btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NACIONAL\')">LOTERÍA</button>');
-        if (hasN) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NICA\')">NICA</button>');
-      } else if (k === 'NICA') {
-        btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'NACIONAL\')">LOTERÍA</button>');
-        if (hasT) btns.push('<button type="button" class="' + pill(false) + '" onclick="setMerchantWorkbenchKind(\'TICA\')">TICA</button>');
-      }
+      var kindLabels = { NACIONAL: 'LOTERÍA', TICA: 'TICA', NICA: 'NICA' };
+      var allKinds = ['NACIONAL'];
+      if (hasT) allKinds.push('TICA');
+      if (hasN) allKinds.push('NICA');
+      allKinds.forEach(function(kind) {
+        if (kind === k) return; // 当前彩种不显示按钮
+        btns.push('<button type="button" class="' + pill(kind, false) + '" onclick="setMerchantWorkbenchKind(\'' + kind + '\')">' + kindLabels[kind] + '</button>');
+      });
       inner.innerHTML = btns.join('');
     }
 
@@ -4155,6 +4165,7 @@
       if (modal) modal.classList.remove('hidden');
       try { applyMerchantLang(); } catch (eLang) {}
       updateCashierBilleteChanceButtonLabels();
+      updateCashierLotteryBadge();
       cashierUpdateShopBetUi();
       updateCashierPrinterBanner();
       cashierOpenKeyboard();
