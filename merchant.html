@@ -4888,9 +4888,22 @@
               var b = document.createElement('div');
               b.id = 'app-upgrade-banner';
               b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;font-size:14px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,.4);';
+              var dlUrl = data.downloadUrl;
               b.innerHTML = '<span>🆕 ' + (lang === 'zh' ? '有新版本，请重新下载安装' : 'Nueva versión, descargue e instale') + '</span>' +
-                '<button onclick="window.location.href=\'' + data.downloadUrl + '\'" style="background:#fff;color:#10b981;padding:6px 18px;border-radius:8px;font-weight:bold;border:none;cursor:pointer;font-size:14px;">' +
+                '<button id="app-upgrade-btn" style="background:#fff;color:#10b981;padding:6px 18px;border-radius:8px;font-weight:bold;border:none;cursor:pointer;font-size:14px;">' +
                 (lang === 'zh' ? '下载' : 'Descargar') + '</button>';
+              b.querySelector('#app-upgrade-btn').addEventListener('click', function() {
+                // 尝试多种方式打开下载链接
+                var a = document.createElement('a');
+                a.href = dlUrl;
+                a.target = '_blank';
+                a.rel = 'noopener';
+                a.click();
+                // fallback: intent打开系统浏览器
+                setTimeout(function() {
+                  window.location.href = 'intent://' + dlUrl.replace(/^https?:\/\//, '') + '#Intent;scheme=https;action=android.intent.action.VIEW;end';
+                }, 500);
+              });
               document.body.appendChild(b);
             }
           }).catch(function(){});
