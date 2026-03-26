@@ -2645,7 +2645,14 @@
       let orderHash = null;
       let qrShopId = null;
       try {
-        if (input.startsWith('{')) {
+        if (input.includes('|')) {
+          // 新格式: orderNumber|orderHash|shopId
+          var parts = input.split('|');
+          orderNumber = parts[0] || input;
+          orderHash = parts[1] || null;
+          if (parts[2]) qrShopId = Number(parts[2]);
+        } else if (input.startsWith('{')) {
+          // 旧格式: JSON
           const qr = JSON.parse(input);
           if (qr.orderNumber) orderNumber = qr.orderNumber;
           if (qr.orderHash) orderHash = qr.orderHash;
@@ -3887,22 +3894,16 @@
       var qrContainer = document.getElementById('et-qr');
       if (qrContainer) {
         qrContainer.innerHTML = '';
-        var lk = (order.lottery_kind || order.lotteryKind || order.game_type || order.gameType || '').toUpperCase();
-        if (lk !== 'TICA' && lk !== 'NICA') lk = 'NACIONAL';
-        var payload = {
-          type: 'lottery_order',
-          orderId: order.id || order.order_id || null,
-          orderNumber: order.order_number || order.orderNumber,
-          orderHash: order.order_hash || order.orderHash || null,
-          amount: order.amount,
-          shopId: currentShop ? currentShop.shop_id : null,
-          lotteryKind: lk
-        };
+        var on = order.order_number || order.orderNumber || '';
+        var oh = order.order_hash || order.orderHash || '';
+        var sid = currentShop ? currentShop.shop_id : '';
+        // 精简QR内容：只保留订单号、哈希、店铺ID，用|分隔，大幅减少数据量
+        var qrText = on + '|' + oh + '|' + sid;
         var QR = typeof QRCode !== 'undefined' ? QRCode : null;
         if (QR && typeof QR.toCanvas === 'function') {
           var canvas = document.createElement('canvas');
           qrContainer.appendChild(canvas);
-          QR.toCanvas(canvas, JSON.stringify(payload), { width: 180, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#000000', light: '#ffffff' } }, function () {});
+          QR.toCanvas(canvas, qrText, { width: 180, margin: 2, errorCorrectionLevel: 'Q', color: { dark: '#000000', light: '#ffffff' } }, function () {});
         }
       }
     }
@@ -3990,17 +3991,15 @@
       // QR
       if (qrEl) {
         qrEl.innerHTML = '';
-        var lk = (order.lottery_type || order.lotteryType || order.lottery_kind || order.lotteryKind || '').toUpperCase();
-        if (lk !== 'TICA' && lk !== 'NICA') lk = 'NACIONAL';
-        var payload = { type: 'lottery_order', orderId: order.id || order.order_id || null,
-          orderNumber: orderNum, orderHash: order.order_hash || order.orderHash || null,
-          amount: order.amount, shopId: currentShop ? currentShop.shop_id : null, lotteryKind: lk };
+        var oh = order.order_hash || order.orderHash || '';
+        var sid = currentShop ? currentShop.shop_id : '';
+        var qrText = orderNum + '|' + oh + '|' + sid;
         var QR = typeof QRCode !== 'undefined' ? QRCode : null;
         if (QR && typeof QR.toCanvas === 'function') {
           var qrCanvas = document.createElement('canvas');
           qrEl.appendChild(qrCanvas);
           await new Promise(function (resolve) {
-            QR.toCanvas(qrCanvas, JSON.stringify(payload), { width: 180, margin: 2, errorCorrectionLevel: 'H', color: { dark: '#000000', light: '#ffffff' } }, resolve);
+            QR.toCanvas(qrCanvas, qrText, { width: 180, margin: 2, errorCorrectionLevel: 'Q', color: { dark: '#000000', light: '#ffffff' } }, resolve);
           });
         }
       }

@@ -2527,20 +2527,8 @@
       if (!qrContainer) return;
       qrContainer.innerHTML = '';
 
-      var lk = info.lotteryKind != null ? String(info.lotteryKind).toUpperCase()
-        : (info.lottery_type != null ? String(info.lottery_type).toUpperCase() : '');
-      if (lk !== 'TICA' && lk !== 'NICA') lk = 'NACIONAL';
-
-      const payload = {
-        type: 'lottery_order',
-        orderId: info.orderId,
-        orderNumber: info.orderNumber,
-        orderHash: info.orderHash,
-        amount: info.amount,
-        shopId: info.shopId,
-        lotteryKind: lk
-      };
-      const text = JSON.stringify(payload);
+      // 精简QR内容：orderNumber|orderHash|shopId
+      const text = (info.orderNumber || '') + '|' + (info.orderHash || '') + '|' + (info.shopId || '');
 
       const placeholderSvg = '<svg width="220" height="220" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg" class="block"><rect width="220" height="220" fill="#fff"/><rect x="11" y="11" width="55" height="55" fill="#000"/><rect x="72" y="11" width="9" height="9" fill="#000"/><rect x="86" y="11" width="9" height="9" fill="#000"/><rect x="154" y="11" width="55" height="55" fill="#000"/><rect x="11" y="72" width="9" height="9" fill="#000"/><rect x="25" y="72" width="9" height="9" fill="#000"/><rect x="72" y="72" width="77" height="77" fill="#000" opacity="0.15"/><rect x="86" y="86" width="49" height="49" fill="#fff"/><rect x="94" y="94" width="9" height="9" fill="#000"/><rect x="108" y="94" width="9" height="9" fill="#000"/><rect x="94" y="108" width="9" height="9" fill="#000"/><rect x="108" y="108" width="9" height="9" fill="#000"/><rect x="11" y="154" width="55" height="55" fill="#000"/><rect x="154" y="72" width="9" height="9" fill="#000"/><rect x="168" y="72" width="9" height="9" fill="#000"/><rect x="154" y="154" width="55" height="55" fill="#000"/></svg>';
       var QR = typeof QRCode !== 'undefined' ? QRCode : (typeof qrcode !== 'undefined' ? qrcode : null);
