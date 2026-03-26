@@ -4007,20 +4007,22 @@
         }
       }
 
-      closeModal('modal-order');
       try {
         var body = document.getElementById('order-detail-eticket-body');
+        if (!body) { showToast('Error', 'error'); return; }
         var canvas = await html2canvas(body, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-        canvas.toBlob(async function (blob) {
+        canvas.toBlob(function (blob) {
+          if (!blob) { showToast('Error al generar imagen', 'error'); return; }
           var file = new File([blob], 'pedido_' + orderNum + '.png', { type: 'image/png' });
           if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            try { await navigator.share({ files: [file] }); } catch (e) {}
+            navigator.share({ files: [file] }).catch(function(e) {
+              if (e.name !== 'AbortError') showToast('Error: ' + e.message, 'error');
+            });
           } else {
-            var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = 'pedido_' + orderNum + '.png'; a.click();
+            showToast('Este dispositivo no soporta compartir archivos', 'warning');
           }
         }, 'image/png');
-      } catch (e) {}
+      } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
     }
 
     // ── 电子单弹窗结束 ─────────────────────────────────────────
