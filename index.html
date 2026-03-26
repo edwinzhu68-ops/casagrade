@@ -78,8 +78,8 @@
               class="flex flex-col items-center justify-center text-white/90 hover:text-white px-1 sm:px-1.5 py-0.5 rounded-lg hover:bg-white/10 active:bg-white/15">
               <span class="text-base sm:text-lg leading-none">📲</span>
               <span class="flex flex-col items-center text-[7px] sm:text-[8px] font-bold leading-tight mt-0.5 text-center max-w-[3.25rem]">
-                <span data-i18n="client_pwa_l1">Pantalla</span>
-                <span data-i18n="client_pwa_l2">principal</span>
+                <span data-i18n="client_pwa_l1">Descargar</span>
+                <span data-i18n="client_pwa_l2">APP</span>
               </span>
             </button>
             <button type="button" onclick="exitClientShop()" class="text-white/80 hover:text-white text-xs sm:text-sm font-medium px-1 py-1 whitespace-nowrap" data-i18n="menu_exit">Salir</button>
@@ -565,8 +565,8 @@
         btn_enter: 'Entrar',
         home_banker_link: 'Acceso Tienda',
         client_lottery_title: 'Tipo de lotería',
-        client_pwa_l1: 'Pantalla',
-        client_pwa_l2: 'principal',
+        client_pwa_l1: 'Descargar',
+        client_pwa_l2: 'APP',
         home_recent_label: 'Tus pedidos recientes (toca para ver)',
         header_account: 'Cuenta',
         header_badge_drawing: 'Sorteo en curso',
@@ -653,8 +653,8 @@
         btn_enter: '进入',
         home_banker_link: '商家入口',
         client_lottery_title: '彩票类型',
-        client_pwa_l1: '添加到',
-        client_pwa_l2: '桌面',
+        client_pwa_l1: '下载',
+        client_pwa_l2: 'APP',
         home_recent_label: '最近订单（点击查看）',
         header_account: '账户',
         header_badge_drawing: '开奖中',
@@ -3610,112 +3610,21 @@
     if (btnEntrar) btnEntrar.addEventListener('click', goToShop);
   </script>
 
-  <!-- PWA 添加到桌面提示（客户端） -->
+  <!-- 下载APP提示 -->
   <div id="modal-client-pwa" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
-    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 max-h-[85vh] overflow-y-auto">
-      <h3 class="text-base font-bold text-gray-800 mb-1">📲 Agregar a pantalla principal</h3>
-      <p class="text-sm text-gray-500 mb-3 leading-relaxed">Ábrela directo desde el ícono, sin escribir la dirección.<br><span class="text-gray-400">添加到桌面后，点图标直接打开，无需输入网址。</span></p>
+    <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
+      <h3 class="text-base font-bold text-gray-800 mb-1">📲 Descargar APP · 下载APP</h3>
+      <p class="text-sm text-gray-500 mb-3 leading-relaxed">Descargue la APP para una mejor experiencia.<br><span class="text-gray-400">下载APP获得更好的使用体验。</span></p>
 
-      <!-- 已安装 -->
-      <div id="client-pwa-installed" class="hidden mb-3 bg-green-50 rounded-xl p-3 text-xs text-green-700">
-        ✅ Ya está en tu pantalla principal · 已安装到桌面
-      </div>
-
-      <!-- 原生安装按钮（beforeinstallprompt 可用时显示） -->
-      <div id="client-pwa-native-wrap" class="hidden mb-3">
-        <button id="client-pwa-install-btn" onclick="doClientPwaInstall()"
-          class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold text-sm">
-          Agregar ahora · 立即添加
-        </button>
-      </div>
-
-      <!-- 手动指引：始终显示（便于所有品牌都能看到操作路径） -->
-      <div id="client-pwa-guides" class="space-y-2 mb-3">
-        <p class="text-xs font-bold text-gray-700">Elige tu navegador · 选择你的浏览器：</p>
-
-        <!-- iPhone / iPad  Safari -->
-        <details id="client-guide-ios" class="bg-gray-50 rounded-xl">
-          <summary class="px-3 py-2 text-xs font-bold text-gray-700 cursor-pointer">🍎 iPhone / iPad (Safari)</summary>
-          <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed">
-            1. Toca el botón <span class="font-bold text-gray-800">Compartir</span> <span class="text-gray-400">(cuadrado con flecha ↑)</span> en la parte inferior<br>
-            2. Desplázate hacia abajo y toca <span class="font-bold text-gray-800">Añadir a pantalla de inicio</span><br>
-            3. Toca <span class="font-bold text-gray-800">Añadir</span> en la esquina superior derecha<br>
-            <span class="text-gray-400 mt-1 block">1. 点底部中间的 <b>分享</b> 按钮（方框+箭头↑）<br>2. 向下滑，点 <b>添加到主屏幕</b><br>3. 点右上角 <b>添加</b></span>
-          </div>
-        </details>
-
-        <!-- Chrome (Android / PC) -->
-        <details id="client-guide-chrome" class="bg-gray-50 rounded-xl">
-          <summary class="px-3 py-2 text-xs font-bold text-gray-700 cursor-pointer">🌐 Chrome (Android / PC)</summary>
-          <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed">
-            1. Toca el menú <span class="font-bold text-gray-800">⋮</span> <span class="text-gray-400">(tres puntos, arriba a la derecha o abajo a la derecha)</span><br>
-            2. Toca <span class="font-bold text-gray-800">Añadir a pantalla de inicio</span> o <span class="font-bold text-gray-800">Instalar app</span><br>
-            3. Confirma tocando <span class="font-bold text-gray-800">Añadir</span><br>
-            <span class="text-gray-400 mt-1 block">1. 点 <b>⋮</b> 菜单（右上角或右下角的三个点）<br>2. 点 <b>添加到主屏幕</b> 或 <b>安装应用</b><br>3. 点 <b>添加</b> 确认</span>
-          </div>
-        </details>
-
-        <!-- Samsung Internet -->
-        <details id="client-guide-samsung" class="bg-gray-50 rounded-xl">
-          <summary class="px-3 py-2 text-xs font-bold text-gray-700 cursor-pointer">📱 Samsung Internet</summary>
-          <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed">
-            1. Toca el menú <span class="font-bold text-gray-800">☰</span> <span class="text-gray-400">(tres líneas, abajo a la derecha)</span><br>
-            2. Toca <span class="font-bold text-gray-800">Añadir página a</span> → <span class="font-bold text-gray-800">Pantalla de inicio</span><br>
-            3. Confirma tocando <span class="font-bold text-gray-800">Añadir</span><br>
-            <span class="text-gray-400 mt-1 block">1. 点右下角 <b>☰</b>（三条横线）<br>2. 点 <b>添加页面到</b> → <b>主屏幕</b><br>3. 点 <b>添加</b> 确认</span>
-          </div>
-        </details>
-
-        <!-- Huawei Browser -->
-        <details id="client-guide-huawei" class="bg-gray-50 rounded-xl">
-          <summary class="px-3 py-2 text-xs font-bold text-gray-700 cursor-pointer">📱 Huawei / 华为浏览器</summary>
-          <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed">
-            1. Toca <span class="font-bold text-gray-800">⋯⋯</span> <span class="text-gray-400">(cuatro puntos, abajo a la derecha)</span><br>
-            2. Toca <span class="font-bold text-gray-800">Añadir a escritorio</span><br>
-            3. Confirma en la ventana emergente<br>
-            <span class="text-gray-400 mt-1 block">1. 点右下角 <b>⋯⋯</b>（四个点）<br>2. 点 <b>添加至桌面</b><br>3. 弹窗中点确认</span>
-            <span class="text-gray-400 mt-1 block">💡 如果用华为 Chrome，按上面 Chrome 的步骤操作。</span>
-          </div>
-        </details>
-
-        <!-- Xiaomi Browser -->
-        <details id="client-guide-xiaomi" class="bg-gray-50 rounded-xl">
-          <summary class="px-3 py-2 text-xs font-bold text-gray-700 cursor-pointer">📱 Xiaomi / 小米浏览器</summary>
-          <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed">
-            1. Toca <span class="font-bold text-gray-800">☰</span> <span class="text-gray-400">(tres líneas, parte inferior)</span><br>
-            2. Toca <span class="font-bold text-gray-800">Caja de herramientas</span> → <span class="font-bold text-gray-800">Añadir acceso directo</span><br>
-            3. Elige <span class="font-bold text-gray-800">Escritorio del teléfono</span><br>
-            <span class="text-gray-400 mt-1 block">1. 点底部 <b>☰</b>（三条横线）<br>2. 点 <b>工具箱</b> → <b>添加快捷方式</b><br>3. 选 <b>手机桌面</b></span>
-          </div>
-        </details>
-
-        <!-- OPPO Browser -->
-        <details id="client-guide-oppo" class="bg-gray-50 rounded-xl">
-          <summary class="px-3 py-2 text-xs font-bold text-gray-700 cursor-pointer">📱 OPPO</summary>
-          <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed">
-            1. Toca <span class="font-bold text-gray-800">☰</span> <span class="text-gray-400">(abajo a la derecha)</span><br>
-            2. Toca <span class="font-bold text-gray-800">Caja de herramientas</span> → <span class="font-bold text-gray-800">Añadir acceso directo</span><br>
-            3. Elige <span class="font-bold text-gray-800">Escritorio del teléfono</span><br>
-            <span class="text-gray-400 mt-1 block">1. 点右下角 <b>☰</b><br>2. 点 <b>工具箱</b> → <b>添加快捷方式</b><br>3. 选 <b>手机桌面</b></span>
-          </div>
-        </details>
-
-        <!-- vivo Browser -->
-        <details id="client-guide-vivo" class="bg-gray-50 rounded-xl">
-          <summary class="px-3 py-2 text-xs font-bold text-gray-700 cursor-pointer">📱 vivo</summary>
-          <div class="px-3 pb-3 text-xs text-gray-600 leading-relaxed">
-            1. Toca <span class="font-bold text-gray-800">☰</span> <span class="text-gray-400">(tres líneas, parte inferior)</span><br>
-            2. Toca <span class="font-bold text-gray-800">Añadir marcador</span> → <span class="font-bold text-gray-800">Escritorio del teléfono</span><br>
-            3. Confirma en la ventana emergente<br>
-            <span class="text-gray-400 mt-1 block">1. 点底部 <b>☰</b>（三条横线）<br>2. 点 <b>添加书签</b> → <b>手机桌面</b><br>3. 弹窗中点确认</span>
-          </div>
-        </details>
-      </div>
+      <a href="/download/lottery-customer.apk" download
+        class="block w-full text-center bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold text-sm mb-3">
+        📲 Descargar APP · 下载APP
+      </a>
 
       <div class="flex gap-3">
         <button onclick="document.getElementById('modal-client-pwa').classList.add('hidden')"
           class="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 py-3 rounded-xl font-bold text-sm">
-          Entendido · 知道了
+          Cerrar · 关闭
         </button>
       </div>
     </div>
@@ -3760,36 +3669,9 @@
       btn.classList.remove('hidden');
     })();
 
-    // 点 📲 按钮的主入口：能直接安装就直接安装，不能就弹手动指引
-    async function triggerClientPwaInstall() {
-      // Android 浏览器：直接弹下载横幅
-      if (!_isCapApp && !/iP(hone|ad|od)/i.test(navigator.userAgent) && /Android/i.test(navigator.userAgent)) {
-        showClientDownloadBanner();
-        return;
-      }
-      if (isClientPwaInstalled()) {
-        showClientPwaPrompt(); // 已安装，弹窗提示"已在桌面"
-        return;
-      }
-      if (_clientPwaPrompt) {
-        // 浏览器支持一键安装 → 直接弹系统原生安装对话框
-        try {
-          _clientPwaPrompt.prompt();
-          var choice = await _clientPwaPrompt.userChoice;
-          _clientPwaPrompt = null;
-          if (choice && choice.outcome === 'accepted') {
-            var btn = document.getElementById('client-pwa-btn2');
-            if (btn) btn.classList.add('hidden');
-          }
-        } catch (e) {
-          // prompt() 失败（已用过等），退回手动指引
-          _clientPwaPrompt = null;
-          showClientPwaPrompt();
-        }
-        return;
-      }
-      // 浏览器不支持一键安装 → 显示各品牌手动操作步骤
-      showClientPwaPrompt();
+    // 点 📲 按钮：弹下载APP弹窗
+    function triggerClientPwaInstall() {
+      document.getElementById('modal-client-pwa').classList.remove('hidden');
     }
 
     function showClientPwaPrompt() {
