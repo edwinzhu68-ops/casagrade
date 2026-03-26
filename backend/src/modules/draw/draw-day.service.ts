@@ -147,14 +147,14 @@ export class DrawDayService implements OnModuleInit {
           .getOne();
         if (!lastCompleted) return;
 
-        // 确认今天 >= 已完成开奖日的次日（防止当天结算后立刻建下一期）
+        // 确认今天 >= 下一期开奖日（结算页保留到下期开奖日07:00才归档）
         const rawDate = String((lastCompleted as any).draw_date || '').slice(0, 10);
         if (!rawDate) return;
-        const dayAfterDate = new Date(rawDate + 'T12:00:00');
-        dayAfterDate.setDate(dayAfterDate.getDate() + 1);
-        const dayAfterISO = `${dayAfterDate.getFullYear()}-${String(dayAfterDate.getMonth() + 1).padStart(2, '0')}-${String(dayAfterDate.getDate()).padStart(2, '0')}`;
+        const completedBase = snapToStandardDrawDay(new Date(rawDate + 'T12:00:00'));
+        const nextDrawDate = getNextDrawDatePanama(completedBase);
+        const nextDrawISO = `${nextDrawDate.getFullYear()}-${String(nextDrawDate.getMonth() + 1).padStart(2, '0')}-${String(nextDrawDate.getDate()).padStart(2, '0')}`;
 
-        if (todayISO < dayAfterISO) return;
+        if (todayISO < nextDrawISO) return;
 
         // 全量归档所有未归档的已完成期
         await drawRepo
@@ -182,7 +182,7 @@ export class DrawDayService implements OnModuleInit {
         });
         await drawRepo.save(next);
         this.logger.log(
-          `次日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}`,
+          `下期开奖日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}`,
         );
       }
     } catch (e) {
