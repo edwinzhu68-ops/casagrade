@@ -499,7 +499,7 @@
       </div>
     </div>
   </div>
-  <input type="file" id="ocr-file-input" accept="image/*" style="position:fixed;left:-9999px;opacity:0;">
+  <input type="file" id="ocr-file-input" accept="image/*" style="position:fixed;left:-9999px;opacity:0;" onchange="handleOcrFile(this)">
 
   <!-- 代客下单底部键盘（与 index.html keyboard-modal 一致：号码格 / 九宫格 / 添加） -->
   <div id="cashier-keyboard-modal" class="hidden fixed inset-0 bg-black/50 z-[62] flex items-end"
@@ -3639,6 +3639,7 @@
     }
 
     async function handleOcrFile(input) {
+      alert('handleOcrFile called, files=' + (input.files ? input.files.length : 'null'));
       if (!input.files || !input.files[0]) return;
       var file = input.files[0];
       showToast(lang === 'zh' ? '正在处理图片...' : 'Procesando imagen...', 'info');
