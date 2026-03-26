@@ -4918,6 +4918,7 @@
           var r = await fetch('https://casagrade.com/app-version.json?t=' + Date.now());
           var data = await r.json();
           if (!data || !data.version) return;
+          console.log('[AppVersion] local=' + APP_VERSION + ' remote.min=' + data.minVersion);
           if (data.minVersion && APP_VERSION < data.minVersion) {
               if (document.getElementById('app-upgrade-banner')) return;
               var lang = getMerchantLang();
