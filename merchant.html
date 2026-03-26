@@ -441,6 +441,7 @@
           class="flex-1 bg-green-600 text-white py-2 rounded-xl font-bold text-sm">Billete ($1)</button>
         <button type="button" id="cashier-btn-chance" onclick="setMerchantCashierGameType('CHANCE')"
           class="flex-1 bg-gray-700 text-gray-200 py-2 rounded-xl font-bold text-sm border border-gray-600">Chance ($0.25)</button>
+        <button type="button" onclick="startAiOcr()" class="shrink-0 bg-violet-600 hover:bg-violet-500 text-white py-2 px-3 rounded-xl font-bold text-xs">📷 AI</button>
       </div>
 
       <!-- 号码 / 数量：点击弹出底部九宫格（与顾客端相同流程）；整体约缩小 1/3 省高 -->
@@ -509,7 +510,7 @@
           <button type="button" id="kb-btn-billete" onclick="setMerchantCashierGameType('BILLETE')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white">Billete</button>
           <button type="button" id="kb-btn-chance" onclick="setMerchantCashierGameType('CHANCE')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-600 text-gray-300">Chance</button>
         </div>
-        <button type="button" onclick="cashierCloseKeyboard()" class="shrink-0 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white text-2xl leading-none rounded-lg hover:bg-gray-700/80" aria-label="Close">&times;</button>
+        <button type="button" onclick="startAiOcr()" class="shrink-0 bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold">📷 AI</button>
       </div>
       <div class="bg-gray-900/60 rounded-xl py-4 mb-4 border border-gray-600">
         <div id="cashier-keyboard-display" class="flex justify-center gap-2"></div>
@@ -796,6 +797,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script>window.jsQR || document.write('<script src="libs/jsQR.min.js"><\/script>')</script>
+  <script src="libs/tesseract.min.js"></script>
   <script>
     function showToast(msg, type) {
       var colors = { error: 'bg-red-500', success: 'bg-green-500', warning: 'bg-yellow-400 text-gray-900', info: 'bg-gray-800' };
@@ -3601,6 +3603,238 @@
     function cashierCloseKeyboard() {
       var km = document.getElementById('cashier-keyboard-modal');
       if (km) km.classList.add('hidden');
+    }
+
+    // ── AI OCR 手写单识别 ─────────────────────────────
+    var _ocrWorker = null;
+    async function getOcrWorker() {
+      if (_ocrWorker) return _ocrWorker;
+      showToast(lang === 'zh' ? '正在加载识别引擎...' : 'Cargando motor de reconocimiento...', 'info');
+      _ocrWorker = await Tesseract.createWorker('eng', 1, {
+        workerPath: 'libs/tesseract.min.js',
+      });
+      await _ocrWorker.setParameters({
+        tessedit_char_whitelist: '0123456789xX×*. -',
+        tessedit_pageseg_mode: '6',
+      });
+      return _ocrWorker;
+    }
+
+    function startAiOcr() {
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment';
+      input.onchange = async function() {
+        if (!input.files || !input.files[0]) return;
+        var file = input.files[0];
+        try {
+          // 预处理图片
+          var processed = await preprocessImage(file);
+          // OCR识别
+          var worker = await getOcrWorker();
+          showToast(lang === 'zh' ? '正在识别...' : 'Reconociendo...', 'info');
+          var result = await worker.recognize(processed);
+          var text = result.data.text;
+          // 解析号码
+          var parsed = parseOcrNumbers(text);
+          if (parsed.length === 0) {
+            showToast(lang === 'zh' ? '未识别到号码，请重试' : 'No se reconocieron números, intente de nuevo', 'error');
+            return;
+          }
+          showOcrResultModal(parsed);
+        } catch(e) {
+          console.error('OCR error:', e);
+          showToast(lang === 'zh' ? '识别失败: ' + e.message : 'Error: ' + e.message, 'error');
+        }
+      };
+      input.click();
+    }
+
+    function preprocessImage(file) {
+      return new Promise(function(resolve) {
+        var img = new Image();
+        img.onload = function() {
+          var canvas = document.createElement('canvas');
+          var maxW = 1600;
+          var scale = img.width > maxW ? maxW / img.width : 1;
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // 灰度化 + 高对比度 + 二值化
+          var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          var d = imageData.data;
+          for (var i = 0; i < d.length; i += 4) {
+            var gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+            var bw = gray < 140 ? 0 : 255;
+            d[i] = d[i+1] = d[i+2] = bw;
+          }
+          ctx.putImageData(imageData, 0, 0);
+          canvas.toBlob(function(blob) { resolve(blob); }, 'image/png');
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    function parseOcrNumbers(text) {
+      // 清理OCR常见错误
+      text = text.replace(/[oO]/g, '0').replace(/[lI|]/g, '1');
+      // 提取所有数字
+      var allNums = text.match(/\d+/g);
+      if (!allNums || allNums.length === 0) return [];
+
+      // 只有1个数字：当号码，数量1
+      if (allNums.length === 1) {
+        var n = allNums[0];
+        return (n.length >= 2 && n.length <= 4) ? [{ n: n, q: 1 }] : [];
+      }
+
+      // 硬规则：4位数一定是号码，1位数一定是数量
+      // 如果能通过硬规则直接配对就不走通用逻辑
+      var has4digit = allNums.some(function(n) { return n.length === 4; });
+      var has1digit = allNums.some(function(n) { return n.length === 1; });
+      if (has4digit || has1digit) {
+        var hardResults = [];
+        var i = 0;
+        while (i < allNums.length) {
+          var cur = allNums[i];
+          var next = allNums[i + 1];
+          if (cur.length === 4 || cur.length === 2 || cur.length === 3) {
+            // 当前是号码（4位一定是，2-3位看下一个）
+            if (cur.length === 4 || (next && (next.length <= 2 && parseInt(next) <= 999))) {
+              hardResults.push({ n: cur, q: next ? Math.min(parseInt(next) || 1, 999) : 1 });
+              i += 2;
+            } else {
+              hardResults.push({ n: cur, q: 1 });
+              i++;
+            }
+          } else if (cur.length === 1 && next && next.length >= 2 && next.length <= 4) {
+            // 当前是数量，下一个是号码
+            hardResults.push({ n: next, q: Math.min(parseInt(cur) || 1, 999) });
+            i += 2;
+          } else {
+            i++;
+          }
+        }
+        if (hardResults.length > 0) {
+          return hardResults.filter(function(r) { return r.n.length >= 2 && r.n.length <= 4; });
+        }
+      }
+
+      // 检测是否全是号码（所有数字都是2-4位且全唯一，无数量）
+      var allAreNumbers = allNums.every(function(n) { return n.length >= 2 && n.length <= 4; });
+      var allUnique = new Set(allNums).size === allNums.length;
+      if (allAreNumbers && allUnique) {
+        return allNums.map(function(n) { return { n: n, q: 1 }; });
+      }
+
+      // 奇数个数字：最后一个单独当号码(数量1)
+      var tail = null;
+      var nums = allNums.slice();
+      if (nums.length % 2 !== 0) {
+        tail = nums.pop();
+      }
+
+      // 分成两组：奇数位(0,2,4...) 和 偶数位(1,3,5...)
+      var groupA = [], groupB = [];
+      for (var i = 0; i < nums.length; i += 2) {
+        groupA.push(nums[i]);
+        groupB.push(nums[i + 1]);
+      }
+
+      // 判断哪组是号码：唯一值多的是号码，重复多的是数量
+      var setA = new Set(groupA), setB = new Set(groupB);
+      var ratioA = setA.size / groupA.length;
+      var ratioB = setB.size / groupB.length;
+      var aIsNumber;
+      if (Math.abs(ratioA - ratioB) > 0.15) {
+        aIsNumber = ratioA > ratioB;
+      } else {
+        // 唯一率接近时，位数长的是号码
+        var avgLenA = groupA.reduce(function(s, v) { return s + v.length; }, 0) / groupA.length;
+        var avgLenB = groupB.reduce(function(s, v) { return s + v.length; }, 0) / groupB.length;
+        aIsNumber = avgLenA >= avgLenB;
+      }
+
+      var results = [];
+      for (var j = 0; j < groupA.length; j++) {
+        var num = aIsNumber ? groupA[j] : groupB[j];
+        var qty = aIsNumber ? parseInt(groupB[j]) || 1 : parseInt(groupA[j]) || 1;
+        qty = Math.min(Math.max(qty, 1), 999);
+        if (num.length >= 2 && num.length <= 4) {
+          results.push({ n: num, q: qty });
+        }
+      }
+      // 处理落单的数字
+      if (tail && tail.length >= 2 && tail.length <= 4) {
+        results.push({ n: tail, q: 1 });
+      }
+      return results;
+    }
+
+    function showOcrResultModal(parsed) {
+      // 移除旧弹窗
+      var old = document.getElementById('modal-ocr-result');
+      if (old) old.remove();
+
+      var html = '<div id="modal-ocr-result" class="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)this.remove()">' +
+        '<div class="bg-gray-800 rounded-2xl p-4 w-full max-w-sm max-h-[80vh] flex flex-col" onclick="event.stopPropagation()">' +
+        '<h3 class="font-bold text-lg mb-3">' + (lang === 'zh' ? '📷 AI识别结果' : '📷 Resultado AI') + '</h3>' +
+        '<div class="flex-1 overflow-y-auto space-y-2 mb-3" id="ocr-result-list">';
+
+      parsed.forEach(function(item, idx) {
+        html += '<div class="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-2">' +
+          '<input type="text" value="' + item.n + '" data-ocr-n="' + idx + '" class="w-20 bg-gray-600 border border-gray-500 text-white text-center font-mono font-bold rounded px-2 py-1 text-sm focus:border-blue-500 focus:outline-none" inputmode="numeric" maxlength="4">' +
+          '<span class="text-gray-400">×</span>' +
+          '<input type="number" value="' + item.q + '" data-ocr-q="' + idx + '" class="w-16 bg-gray-600 border border-gray-500 text-white text-center font-mono rounded px-2 py-1 text-sm focus:border-blue-500 focus:outline-none" min="1" max="999">' +
+          '<button type="button" onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300 text-lg px-1">✕</button>' +
+          '</div>';
+      });
+
+      html += '</div>' +
+        '<div class="flex gap-2">' +
+        '<button type="button" onclick="document.getElementById(\'modal-ocr-result\').remove()" class="flex-1 bg-gray-600 hover:bg-gray-500 py-2.5 rounded-xl font-bold text-sm">' + (lang === 'zh' ? '取消' : 'Cancelar') + '</button>' +
+        '<button type="button" onclick="confirmOcrResult()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl font-bold text-sm">' + (lang === 'zh' ? '确认添加' : 'Confirmar') + '</button>' +
+        '</div></div></div>';
+
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    function confirmOcrResult() {
+      var modal = document.getElementById('modal-ocr-result');
+      if (!modal) return;
+      var nInputs = modal.querySelectorAll('[data-ocr-n]');
+      var qInputs = modal.querySelectorAll('[data-ocr-q]');
+      var added = 0;
+      nInputs.forEach(function(nEl) {
+        var idx = nEl.getAttribute('data-ocr-n');
+        var qEl = modal.querySelector('[data-ocr-q="' + idx + '"]');
+        if (!qEl) return;
+        var num = nEl.value.replace(/\D/g, '');
+        var qty = parseInt(qEl.value) || 1;
+        if (num.length < 2 || num.length > 4) return;
+        qty = Math.min(Math.max(qty, 1), 999);
+        // 根据号码位数自动判断Billete/Chance并添加
+        var isBi = num.length >= 4;
+        var pr = getCashierUnitPrices();
+        var padded = isBi ? num.slice(-4).padStart(4, '0') : num.slice(-2).padStart(2, '0');
+        var unitPrice = isBi ? pr.billete : pr.chance;
+        var found = merchantCashierLines.find(function(x) { return x.n === padded; });
+        if (found) {
+          found.q += qty;
+        } else {
+          merchantCashierLines.unshift({ n: padded, q: qty, isBi: isBi, unitPrice: unitPrice });
+        }
+        added++;
+      });
+      modal.remove();
+      if (added > 0) {
+        cashierUpdateShopBetUi();
+        var kbSubmit = document.getElementById('kb-btn-submit');
+        if (kbSubmit) kbSubmit.disabled = false;
+        showToast((lang === 'zh' ? '已添加 ' : 'Agregados ') + added + (lang === 'zh' ? ' 个号码' : ' números'), 'success');
+      }
     }
 
     function cashierUpdateKeyboardDisplay() {
