@@ -3929,17 +3929,45 @@
         canvas.toBlob(async function (blob) {
           if (!blob) { showToast('Error al generar imagen', 'error'); return; }
           var fileName = 'pedido_' + orderNum + '.png';
-          var file = new File([blob], fileName, { type: 'image/png' });
-          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({ files: [file] }).catch(function(e) {
-              if (e.name !== 'AbortError') showToast('Error: ' + e.message, 'error');
-            });
-          } else {
-            showToast('Este dispositivo no soporta compartir archivos', 'warning');
-          }
+          shareImageToWhatsApp(blob, fileName);
         }, 'image/png');
       } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
     }
+
+    /** 通用：图片分享到 WhatsApp（优先 Capacitor 原生，fallback navigator.share） */
+    function shareImageToWhatsApp(blob, fileName) {
+      var file = new File([blob], fileName, { type: 'image/png' });
+      // 尝试 Capacitor Filesystem + Share（直接发到 WhatsApp）
+      if (_isCapApp && window.Capacitor && window.Capacitor.Plugins) {
+        var CapFs = window.Capacitor.Plugins.Filesystem;
+        var CapShare = window.Capacitor.Plugins.Share;
+        if (CapFs && CapShare) {
+          var reader = new FileReader();
+          reader.onloadend = function () {
+            var b64 = reader.result.split(',')[1];
+            CapFs.writeFile({ path: fileName, data: b64, directory: 'CACHE' }).then(function(saved) {
+              // 尝试直接打开 WhatsApp
+              CapShare.share({ files: [saved.uri], dialogTitle: 'WhatsApp' }).catch(function(e) {
+                showToast('Error: ' + (e.message || e), 'error');
+              });
+            }).catch(function(e) {
+              showToast('Error: ' + (e.message || e), 'error');
+            });
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+      // Fallback: navigator.share
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file] }).catch(function(e) {
+          if (e.name !== 'AbortError') showToast('Error: ' + e.message, 'error');
+        });
+      } else {
+        showToast('Este dispositivo no soporta compartir archivos', 'warning');
+      }
+    }
+
     // ── 订单详情 WhatsApp 分享 ─────────────────────────────────
     async function shareOrderDetailWhatsApp() {
       if (!currentOrder) return;
@@ -4013,14 +4041,7 @@
         var canvas = await html2canvas(body, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
         canvas.toBlob(function (blob) {
           if (!blob) { showToast('Error al generar imagen', 'error'); return; }
-          var file = new File([blob], 'pedido_' + orderNum + '.png', { type: 'image/png' });
-          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            navigator.share({ files: [file] }).catch(function(e) {
-              if (e.name !== 'AbortError') showToast('Error: ' + e.message, 'error');
-            });
-          } else {
-            showToast('Este dispositivo no soporta compartir archivos', 'warning');
-          }
+          shareImageToWhatsApp(blob, 'pedido_' + orderNum + '.png');
         }, 'image/png');
       } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
     }
