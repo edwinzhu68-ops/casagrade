@@ -3938,8 +3938,10 @@
                 var Filesystem = window.Capacitor.Plugins.Filesystem;
                 var Share = window.Capacitor.Plugins.Share;
                 if (Filesystem && Share) {
-                  var saved = await Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' });
-                  await Share.share({ url: saved.uri, dialogTitle: 'Pedido ' + orderNum });
+                  Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' }).then(function(saved) {
+                    Share.share({ url: saved.uri, dialogTitle: 'Pedido ' + orderNum }).catch(function(){});
+                  }).catch(function(){ showToast('Error al guardar imagen', 'error'); });
+                  return;
                 } else {
                   // 没有原生插件，用Web Share API
                   var file = new File([blob], fileName, { type: 'image/png' });
