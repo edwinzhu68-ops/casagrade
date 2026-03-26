@@ -3929,51 +3929,30 @@
         canvas.toBlob(async function (blob) {
           if (!blob) { showToast('Error al generar imagen', 'error'); return; }
           var fileName = 'pedido_' + orderNum + '.png';
-          // APP环境：用Capacitor原生分享（不会导致WebView重载）
+          var file = new File([blob], fileName, { type: 'image/png' });
+          // 尝试 Capacitor 原生分享
           if (_isCapApp && window.Capacitor && window.Capacitor.Plugins) {
-            try {
+            var CapFs = window.Capacitor.Plugins.Filesystem;
+            var CapShare = window.Capacitor.Plugins.Share;
+            if (CapFs && CapShare) {
               var reader = new FileReader();
-              reader.onloadend = async function () {
-                var base64Data = reader.result.split(',')[1];
-                var Filesystem = window.Capacitor.Plugins.Filesystem;
-                var Share = window.Capacitor.Plugins.Share;
-                if (Filesystem && Share) {
-                  Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' }).then(function(saved) {
-                    Share.share({ url: saved.uri, dialogTitle: 'Pedido ' + orderNum }).catch(function(){});
-                  }).catch(function(){ showToast('Error al guardar imagen', 'error'); });
-                  return;
-                } else {
-                  // 没有原生插件，用Web Share API
-                  var file = new File([blob], fileName, { type: 'image/png' });
-                  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({ files: [file] });
-                  } else {
-                    showToast('Por favor actualice la APP para compartir', 'warning');
-                  }
-                }
+              reader.onloadend = function () {
+                var b64 = reader.result.split(',')[1];
+                CapFs.writeFile({ path: fileName, data: b64, directory: 'CACHE' }).then(function(saved) {
+                  CapShare.share({ files: [saved.uri], dialogTitle: 'Pedido ' + orderNum }).catch(function(){});
+                }).catch(function(e) { showToast('Error: ' + (e.message || e), 'error'); });
               };
               reader.readAsDataURL(blob);
-            } catch (e2) {
-              showToast('Por favor actualice la APP para compartir', 'warning');
+              return;
             }
-            return;
           }
-          // 浏览器环境：用Web Share API
-          var file = new File([blob], fileName, { type: 'image/png' });
-          if (navigator.share) {
-            try {
-              if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({ files: [file] });
-              } else {
-                await navigator.share({ title: 'Pedido ' + orderNum, text: 'Ticket de lotería' });
-              }
-            } catch (e) {
-              if (e.name !== 'AbortError') {
-                var a2 = document.createElement('a'); a2.href = URL.createObjectURL(blob); a2.download = fileName; a2.click();
-              }
-            }
+          // Web Share API（浏览器或无插件的APP）
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file] }).catch(function(e) {
+              if (e.name !== 'AbortError') showToast('Error: ' + e.message, 'error');
+            });
           } else {
-            var a3 = document.createElement('a'); a3.href = URL.createObjectURL(blob); a3.download = fileName; a3.click();
+            var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName; a.click();
           }
         }, 'image/png');
       } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
