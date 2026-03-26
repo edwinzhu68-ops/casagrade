@@ -4370,7 +4370,11 @@
       var numbers = currentOrder.numbers || [];
       if (!numbers.length) { showToast(t('no_orders'), 'error'); return; }
       closeModal('modal-order');
-      // 刷新停售状态后打开代客下单弹窗
+      // 切换到订单对应的彩种
+      var orderLt = String(currentOrder.lottery_type || currentOrder.lotteryType || 'NACIONAL').toUpperCase();
+      if (orderLt === 'TICA' || orderLt === 'NICA') {
+        sessionStorage.setItem(MERCHANT_WORKBENCH_KEY, orderLt);
+      }
       mergeMerchantShopLocalFlags(currentShop);
       merchantWorkbenchKind = getMerchantWorkbenchKind();
       await refreshCashierBetSnap();
