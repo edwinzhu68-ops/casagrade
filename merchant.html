@@ -5842,12 +5842,14 @@
         }
       }
       row('#' + orderNum, placedStr);
-      // 开奖日期：优先订单里的draw信息，其次全局currentDrawDate
-      // 格式可能是 DD-MM-YYYY 或 YYYY-MM-DD，直接显示原始字符串
+      // 开奖日期：优先订单关联的draw_date，其次全局currentDrawDate
       var _drawDateStr = _ord.draw_date || _ord.drawDate || currentDrawDate || null;
       if (_drawDateStr) {
+        // YYYY-MM-DD → DD-MM-YYYY
+        var _ds = String(_drawDateStr);
+        if (/^\d{4}-\d{2}-\d{2}/.test(_ds)) _ds = _ds.slice(8,10) + '-' + _ds.slice(5,7) + '-' + _ds.slice(0,4);
         push(...CENTER);
-        txt('Sorteo: ' + String(_drawDateStr)); LF();
+        txt('Sorteo: ' + _ds); LF();
         push(...LEFT);
       }
       LF();
