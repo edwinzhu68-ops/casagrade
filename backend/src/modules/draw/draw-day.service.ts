@@ -126,16 +126,34 @@ export class DrawDayService implements OnModuleInit {
         .getOne();
 
       if (pending) {
-        // ── 有待开奖期：到点取消未付款订单（UPDATE 本身幂等，多次调用无害）──
+        // ── 有待开奖期 ──
         const parsed = parseDrawTime(pending);
         if (!parsed) return;
         const { dateStr, h, min } = parsed;
         const drawMins = h * 60 + min;
+
+        // 到点取消未付款订单
         if (dateStr === todayStr && nowMins >= drawMins) {
           await this.cancelUnpaidOrders(pending.draw_id);
         }
+
+        // 开奖日当天07:00归档旧数据（结算页数据保留到下个开奖日才归档）
+        const pendingDateISO = String((pending as any).draw_date || '').slice(0, 10);
+        if (pendingDateISO && todayISO >= pendingDateISO && nowMins >= 7 * 60) {
+          const archiveResult = await drawRepo
+            .createQueryBuilder()
+            .update(Draw)
+            .set({ archived_at: new Date() } as any)
+            .where('status = :s AND archived_at IS NULL AND draw_id != :pid', { s: 'completed', pid: pending.draw_id })
+            .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('(shop_id IS NULL)')
+            .execute();
+          if (archiveResult.affected && archiveResult.affected > 0) {
+            this.logger.log(`开奖日${pendingDateISO} 07:00: 归档${archiveResult.affected}个已完成期`);
+          }
+        }
       } else {
-        // ── 无待开奖期（结果已发）：次日 07:00 全量归档 + 创建下一期 ──
+        // ── 无待开奖期（结果已发）：次日 07:00 创建下一期 ──
         if (nowMins < 7 * 60) return;
 
         const lastCompleted = await drawRepo
@@ -147,26 +165,10 @@ export class DrawDayService implements OnModuleInit {
           .getOne();
         if (!lastCompleted) return;
 
-        // 确认今天 >= 下一期开奖日（结算页保留到下期开奖日07:00才归档）
+        // 从实际开奖日算下一个周三/周日
         const rawDate = String((lastCompleted as any).draw_date || '').slice(0, 10);
         if (!rawDate) return;
-        const completedBase = snapToStandardDrawDay(new Date(rawDate + 'T12:00:00'));
-        const nextDrawDate = getNextDrawDatePanama(completedBase);
-        const nextDrawISO = `${nextDrawDate.getFullYear()}-${String(nextDrawDate.getMonth() + 1).padStart(2, '0')}-${String(nextDrawDate.getDate()).padStart(2, '0')}`;
-
-        if (todayISO < nextDrawISO) return;
-
-        // 全量归档所有未归档的已完成期
-        await drawRepo
-          .createQueryBuilder()
-          .update(Draw)
-          .set({ archived_at: new Date() } as any)
-          .where('status = :s AND archived_at IS NULL', { s: 'completed' })
-          .execute();
-
-        // 创建下一期（按周三/周日规则，对齐避免重复创建相同自然日）
-        const completedDateBase = snapToStandardDrawDay(new Date(rawDate + 'T12:00:00'));
-        const nextDraw = getNextDrawDatePanama(completedDateBase);
+        const nextDraw = getNextDrawDatePanama(new Date(rawDate + 'T12:00:00'));
         const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
 
         const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
@@ -182,7 +184,7 @@ export class DrawDayService implements OnModuleInit {
         });
         await drawRepo.save(next);
         this.logger.log(
-          `下期开奖日07:00: 全量归档完成，创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}`,
+          `次日07:00: 创建下一期 draw_id=${next.draw_id} period_no=${periodNo}, draw_date=${nextDateStr}（归档将在${nextDateStr}开奖日进行）`,
         );
       }
     } catch (e) {
