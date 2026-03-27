@@ -425,15 +425,15 @@
 
   <!-- 代客下单：布局与交互对齐顾客端 index.html page-shop + keyboard-modal（深色主题） -->
   <div id="modal-cashier-order" class="hidden fixed inset-0 bg-black/80 z-[55] flex items-start justify-center p-3 pt-2 sm:p-4 sm:pt-4 overflow-y-auto overscroll-contain" onclick="if(event.target===this)closeCashierOrderModal()">
-    <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[min(92vh,calc(100dvh-0.75rem))] sm:max-h-[90vh] mt-1 sm:mt-4 mb-4 flex flex-col overflow-hidden border border-gray-600 shadow-2xl shrink-0" onclick="event.stopPropagation()">
+    <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-md max-h-[min(92vh,calc(100dvh-0.75rem))] sm:max-h-[90vh] mt-1 sm:mt-4 mb-4 flex flex-col overflow-hidden border border-gray-600 shadow-2xl shrink-0 relative" onclick="event.stopPropagation()">
+      <button type="button" onclick="closeCashierOrderModal()" class="absolute top-2 right-2 z-10 flex items-center justify-center w-8 h-8 bg-red-600 hover:bg-red-500 rounded-full text-white text-lg font-bold shadow-lg">&times;</button>
       <div class="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pr-0.5">
       <!-- 备注 + 彩种标签 -->
-      <div class="shrink-0 flex gap-2">
+      <div class="shrink-0 flex gap-2 pr-8">
         <input type="text" id="cashier-note-input" maxlength="30"
           class="flex-1 bg-gray-700 border border-gray-600 text-white text-sm rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:border-blue-500"
           placeholder="Nota / 备注">
         <span id="cashier-lottery-badge" class="shrink-0 flex items-center px-3 py-2 rounded-lg text-sm font-bold text-white bg-emerald-600">LOTERÍA</span>
-        <button type="button" onclick="closeCashierOrderModal()" class="shrink-0 flex items-center justify-center w-10 h-10 bg-red-600 hover:bg-red-500 rounded-lg text-white text-xl font-bold">&times;</button>
       </div>
       <!-- Billete / Chance（单价与顾客端 localStorage 一致，标签由脚本刷新） -->
       <div class="flex gap-2 mb-0 shrink-0">
