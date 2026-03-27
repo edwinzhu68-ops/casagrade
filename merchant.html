@@ -3911,7 +3911,7 @@
       if (shopEl) shopEl.textContent = currentShop ? ('Tienda #' + currentShop.shop_number) : '--';
       var etLtEl = document.getElementById('et-lottery-type');
       if (etLtEl) {
-        var lt = String(order.lottery_type || order.lotteryType || 'NACIONAL').toUpperCase();
+        var lt = String(order.lottery_type || order.lotteryType || merchantWorkbenchKind || 'NACIONAL').toUpperCase();
         etLtEl.textContent = lt === 'TICA' ? 'TICA' : lt === 'NICA' ? 'NICA' : 'LOTERÍA';
         etLtEl.style.color = lt === 'TICA' ? '#2563eb' : lt === 'NICA' ? '#7c3aed' : '#059669';
       }
@@ -4048,7 +4048,7 @@
       if (shopEl) shopEl.textContent = currentShop ? ('Tienda #' + currentShop.shop_number) : '--';
       var odetLtEl = document.getElementById('odet-lottery-type');
       if (odetLtEl) {
-        var lt = String(order.lottery_type || order.lotteryType || 'NACIONAL').toUpperCase();
+        var lt = String(order.lottery_type || order.lotteryType || merchantWorkbenchKind || 'NACIONAL').toUpperCase();
         odetLtEl.textContent = lt === 'TICA' ? 'TICA' : lt === 'NICA' ? 'NICA' : 'LOTERÍA';
         odetLtEl.style.color = lt === 'TICA' ? '#2563eb' : lt === 'NICA' ? '#7c3aed' : '#059669';
       }
@@ -5828,7 +5828,7 @@
       push(...CENTER,...BON,...BIG);
       txt(String(shopNumber)); LF();
       push(...NORM,...BOFF);
-      var _lt = String((_ord.lottery_type || _ord.lotteryType || 'NACIONAL')).toUpperCase();
+      var _lt = String((_ord.lottery_type || _ord.lotteryType || merchantWorkbenchKind || 'NACIONAL')).toUpperCase();
       var _ltLabel = _lt === 'TICA' ? 'TICA' : _lt === 'NICA' ? 'NICA' : 'LOTERIA';
       push(...CENTER,...BON);
       txt(_ltLabel); LF();
