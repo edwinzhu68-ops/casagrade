@@ -5861,7 +5861,15 @@
       }
       row('#' + orderNum, placedStr);
       // 开奖日期：优先订单关联的draw_date，其次全局currentDrawDate
-      if (_lt !== 'TICA' && _lt !== 'NICA') {
+      if (_lt === 'TICA' || _lt === 'NICA') {
+        var _ldLocal = _lt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
+        var _pNo = _ldLocal && (_ldLocal.period_no != null ? _ldLocal.period_no : _ldLocal.periodNo);
+        if (_pNo != null && String(_pNo).trim() !== '') {
+          push(...CENTER);
+          txt(_lt + ' #' + _pNo); LF();
+          push(...LEFT);
+        }
+      } else {
         var _drawDateStr = _ord.draw_date || _ord.drawDate || currentDrawDate || null;
         if (_drawDateStr) {
           // YYYY-MM-DD → DD-MM-YYYY
