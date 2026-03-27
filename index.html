@@ -324,6 +324,7 @@
             <p id="pay-draw-at-row"><span data-i18n="label_draw_at">Lotería Sorteo</span>: <span id="pay-draw-at">--</span></p>
           </div>
           <p class="text-center text-lg font-bold font-mono text-gray-800 mt-2"><span id="pay-shop-number">-</span></p>
+          <p class="text-center text-sm font-bold mt-1" id="pay-lottery-type" style="color:#059669;">LOTERÍA</p>
           <!-- 开奖号码：二维码下方显示头奖、二奖、三奖 -->
           <div id="pay-draw-numbers" class="mt-3 bg-gray-100 rounded-xl p-3 text-center hidden">
             <p class="text-xs text-gray-500 mb-2" data-i18n="draw_result">Resultado del sorteo</p>
@@ -1502,6 +1503,12 @@
       }, 'pay-qr');
       var payShopEl = document.getElementById('pay-shop-number');
       if (payShopEl) payShopEl.textContent = orderShopNumber;
+      var payLtEl = document.getElementById('pay-lottery-type');
+      if (payLtEl) {
+        var _plt = String(ltForBadge || 'NACIONAL').toUpperCase();
+        payLtEl.textContent = _plt === 'TICA' ? 'TICA' : _plt === 'NICA' ? 'NICA' : 'LOTERÍA';
+        payLtEl.style.color = _plt === 'TICA' ? '#2563eb' : _plt === 'NICA' ? '#7c3aed' : '#059669';
+      }
       try { updateClientOrderLotteryKindBadge(ltForBadge, 'pay'); } catch (eB) {}
       syncDrawAtSecondaryRowsVisibility(canonicalClientOrderLotteryType(ltForBadge));
       startStatusPolling(orderNumber);

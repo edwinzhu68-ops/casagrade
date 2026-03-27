@@ -573,6 +573,7 @@
         <div class="text-center pb-2 border-b border-gray-200">
           <p class="text-xs text-gray-400 mb-1">casagrade · Lotería</p>
           <p class="text-xl font-bold font-mono text-gray-900" id="et-shop">--</p>
+          <p class="text-sm font-bold mt-1" id="et-lottery-type" style="color:#059669;">LOTERÍA</p>
         </div>
         <!-- 二维码 -->
         <div class="flex justify-center">
@@ -625,6 +626,7 @@
     <div class="text-center pb-2 border-b border-gray-200">
       <p class="text-xs text-gray-400 mb-1">casagrade · Lotería</p>
       <p class="text-xl font-bold font-mono text-gray-900" id="odet-shop">--</p>
+      <p class="text-sm font-bold mt-1" id="odet-lottery-type" style="color:#059669;">LOTERÍA</p>
     </div>
     <div class="flex justify-center">
       <div id="odet-qr" class="bg-white p-2 rounded-xl shadow-inner inline-block border border-gray-100"></div>
@@ -3907,6 +3909,12 @@
       var linesEl = document.getElementById('et-lines');
       var amountEl = document.getElementById('et-amount');
       if (shopEl) shopEl.textContent = currentShop ? ('Tienda #' + currentShop.shop_number) : '--';
+      var etLtEl = document.getElementById('et-lottery-type');
+      if (etLtEl) {
+        var lt = String(order.lottery_type || order.lotteryType || 'NACIONAL').toUpperCase();
+        etLtEl.textContent = lt === 'TICA' ? 'TICA' : lt === 'NICA' ? 'NICA' : 'LOTERÍA';
+        etLtEl.style.color = lt === 'TICA' ? '#2563eb' : lt === 'NICA' ? '#7c3aed' : '#059669';
+      }
       if (orderIdEl) orderIdEl.textContent = order.order_number || order.orderNumber || '--';
       if (placedEl) {
         var d = order.created_at ? new Date(order.created_at) : new Date();
@@ -4038,6 +4046,12 @@
       var qrEl    = document.getElementById('odet-qr');
 
       if (shopEl) shopEl.textContent = currentShop ? ('Tienda #' + currentShop.shop_number) : '--';
+      var odetLtEl = document.getElementById('odet-lottery-type');
+      if (odetLtEl) {
+        var lt = String(order.lottery_type || order.lotteryType || 'NACIONAL').toUpperCase();
+        odetLtEl.textContent = lt === 'TICA' ? 'TICA' : lt === 'NICA' ? 'NICA' : 'LOTERÍA';
+        odetLtEl.style.color = lt === 'TICA' ? '#2563eb' : lt === 'NICA' ? '#7c3aed' : '#059669';
+      }
       if (idEl)   idEl.textContent = orderNum;
       if (dateEl) {
         var d = order.created_at ? new Date(order.created_at) : new Date();
@@ -5810,10 +5824,15 @@
       const orderNum = (_ord.order_number || _ord.orderNumber || '');
       const amount = Number(order.amount || 0).toFixed(2);
 
-      // ── 1. 店号（大字居中）──
+      // ── 1. 店号（大字居中）+ 彩种 ──
       push(...CENTER,...BON,...BIG);
       txt(String(shopNumber)); LF();
       push(...NORM,...BOFF);
+      var _lt = String((_ord.lottery_type || _ord.lotteryType || 'NACIONAL')).toUpperCase();
+      var _ltLabel = _lt === 'TICA' ? 'TICA' : _lt === 'NICA' ? 'NICA' : 'LOTERIA';
+      push(...CENTER,...BON);
+      txt(_ltLabel); LF();
+      push(...BOFF);
 
       // ── 2. QR 码（GS ( k 指令，打印机内部生成） ──
       if (orderNum) {
