@@ -587,6 +587,10 @@
           <span class="text-gray-500">Fecha</span>
           <span class="text-gray-700" id="et-placed-at">--</span>
         </div>
+        <div id="et-draw-info-row" class="flex justify-between text-sm hidden">
+          <span class="text-gray-500" id="et-draw-info-label">Lotería Sorteo</span>
+          <span class="text-gray-700 font-medium" id="et-draw-info-value">--</span>
+        </div>
         <div>
           <p class="text-xs text-gray-400 mb-1">Números y cantidades</p>
           <div id="et-lines" class="text-sm text-gray-700 space-y-0.5"></div>
@@ -638,6 +642,10 @@
     <div class="flex justify-between text-sm">
       <span class="text-gray-500">Fecha</span>
       <span class="text-gray-700" id="odet-placed-at">--</span>
+    </div>
+    <div id="odet-draw-info-row" class="flex justify-between text-sm hidden">
+      <span class="text-gray-500" id="odet-draw-info-label">Lotería Sorteo</span>
+      <span class="text-gray-700 font-medium" id="odet-draw-info-value">--</span>
     </div>
     <div>
       <p class="text-xs text-gray-400 mb-1">Números y cantidades</p>
@@ -3918,6 +3926,31 @@
         var d = order.created_at ? new Date(order.created_at) : new Date();
         placedEl.textContent = d.toLocaleString('es-PA', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
       }
+      // 开奖日期 / 期号
+      var etDrawRow = document.getElementById('et-draw-info-row');
+      var etDrawLabel = document.getElementById('et-draw-info-label');
+      var etDrawValue = document.getElementById('et-draw-info-value');
+      if (etDrawRow) {
+        var _etLt = String(order.lottery_type || order.lotteryType || merchantWorkbenchKind || 'NACIONAL').toUpperCase();
+        if (_etLt === 'TICA' || _etLt === 'NICA') {
+          var _etLd = _etLt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
+          var _etPNo = _etLd && (_etLd.period_no != null ? _etLd.period_no : _etLd.periodNo);
+          if (etDrawLabel) etDrawLabel.textContent = _etLt + ' Sorteo';
+          if (etDrawValue) etDrawValue.textContent = (_etPNo != null && String(_etPNo).trim() !== '') ? ('#' + _etPNo) : '--';
+          etDrawRow.classList.remove('hidden');
+        } else {
+          var _etDd = order.draw_date || order.drawDate || currentDrawDate || null;
+          if (etDrawLabel) etDrawLabel.textContent = 'Lotería Sorteo';
+          if (_etDd) {
+            var _etDs = String(_etDd);
+            if (/^\d{4}-\d{2}-\d{2}/.test(_etDs)) _etDs = _etDs.slice(8,10) + '-' + _etDs.slice(5,7) + '-' + _etDs.slice(0,4);
+            if (etDrawValue) etDrawValue.textContent = _etDs;
+            etDrawRow.classList.remove('hidden');
+          } else {
+            etDrawRow.classList.add('hidden');
+          }
+        }
+      }
       if (linesEl) {
         linesEl.innerHTML = '';
         var nums = order.numbers || [];
@@ -4061,6 +4094,31 @@
       if (dateEl) {
         var d = order.created_at ? new Date(order.created_at) : new Date();
         dateEl.textContent = d.toLocaleString('es-PA', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      }
+      // 开奖日期 / 期号
+      var odetDrawRow = document.getElementById('odet-draw-info-row');
+      var odetDrawLabel = document.getElementById('odet-draw-info-label');
+      var odetDrawValue = document.getElementById('odet-draw-info-value');
+      if (odetDrawRow) {
+        var _odetLt = String(order.lottery_type || order.lotteryType || merchantWorkbenchKind || 'NACIONAL').toUpperCase();
+        if (_odetLt === 'TICA' || _odetLt === 'NICA') {
+          var _odetLd = _odetLt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
+          var _odetPNo = _odetLd && (_odetLd.period_no != null ? _odetLd.period_no : _odetLd.periodNo);
+          if (odetDrawLabel) odetDrawLabel.textContent = _odetLt + ' Sorteo';
+          if (odetDrawValue) odetDrawValue.textContent = (_odetPNo != null && String(_odetPNo).trim() !== '') ? ('#' + _odetPNo) : '--';
+          odetDrawRow.classList.remove('hidden');
+        } else {
+          var _odetDd = order.draw_date || order.drawDate || currentDrawDate || null;
+          if (odetDrawLabel) odetDrawLabel.textContent = 'Lotería Sorteo';
+          if (_odetDd) {
+            var _odetDs = String(_odetDd);
+            if (/^\d{4}-\d{2}-\d{2}/.test(_odetDs)) _odetDs = _odetDs.slice(8,10) + '-' + _odetDs.slice(5,7) + '-' + _odetDs.slice(0,4);
+            if (odetDrawValue) odetDrawValue.textContent = _odetDs;
+            odetDrawRow.classList.remove('hidden');
+          } else {
+            odetDrawRow.classList.add('hidden');
+          }
+        }
       }
       if (linesEl) {
         linesEl.innerHTML = '';

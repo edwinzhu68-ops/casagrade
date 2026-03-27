@@ -1744,6 +1744,8 @@
 
     // 客户端当前彩种：NACIONAL=Lotería；TICA/NICA=他国彩票品种（需该店开通）
     var clientLotteryMode = 'NACIONAL';
+    var clientLocalPeriodTica = null; // { period_no, draw_id }
+    var clientLocalPeriodNica = null;
 
     function readClientLotteryModeForShop(shopId) {
       try {
@@ -1801,13 +1803,45 @@
       return m === 'TICA' || m === 'NICA';
     }
 
-    /** 付款页 / 确认页：本地彩种隐藏「开奖时间」整行 */
+    /** 获取 TICA/NICA 当前期号 */
+    async function fetchClientLocalPeriod(kind) {
+      if (!currentShop || !currentShop.shop_id) return null;
+      try {
+        var url = API_BASE + '/api/local-lottery/current?shopId=' + encodeURIComponent(currentShop.shop_id) + '&kind=' + encodeURIComponent(kind) + '&_=' + Date.now();
+        var res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) return null;
+        var data = await res.json();
+        if (!data || typeof data !== 'object') return null;
+        return data;
+      } catch (e) { return null; }
+    }
+
+    /** 付款页 / 确认页：TICA/NICA 显示期号，NACIONAL 显示开奖日期 */
     function syncDrawAtSecondaryRowsVisibility(mode) {
       var local = isClientLocalLotteryMode(mode);
       var payRow = document.getElementById('pay-draw-at-row');
       var confRow = document.getElementById('confirmed-draw-at-row');
-      if (payRow) payRow.classList.toggle('hidden', local);
-      if (confRow) confRow.classList.toggle('hidden', local);
+      if (payRow) payRow.classList.remove('hidden');
+      if (confRow) confRow.classList.remove('hidden');
+      // 更新标签和内容
+      var payLabel = payRow ? payRow.querySelector('[data-i18n="label_draw_at"]') : null;
+      var confLabel = confRow ? confRow.querySelector('[data-i18n="label_draw_at"]') : null;
+      var payVal = document.getElementById('pay-draw-at');
+      var confVal = document.getElementById('confirmed-draw-at');
+      if (local) {
+        var m = mode != null ? mode : clientLotteryMode;
+        var ld = m === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
+        var pNo = ld && (ld.period_no != null ? ld.period_no : ld.periodNo);
+        var label = m + ' Sorteo';
+        var val = (pNo != null && String(pNo).trim() !== '') ? ('#' + pNo) : '--';
+        if (payLabel) payLabel.textContent = label;
+        if (confLabel) confLabel.textContent = label;
+        if (payVal) payVal.textContent = val;
+        if (confVal) confVal.textContent = val;
+      } else {
+        if (payLabel) payLabel.textContent = 'Lotería Sorteo';
+        if (confLabel) confLabel.textContent = 'Lotería Sorteo';
+      }
     }
 
     /** 根据当前彩种为 body 应用淡背景色（NACIONAL=淡绿 / TICA=淡蓝 / NICA=淡紫） */
@@ -1913,9 +1947,16 @@
       var periodEl = document.getElementById('client-period-date');
       var drawBanner = document.getElementById('client-draw-window-banner');
       if (periodWrap && periodEl) {
-        // TICA/NICA：不显示「开奖日期」整块（含标签与占位文案）
         if (isClientLocalLotteryMode()) {
-          periodWrap.classList.add('hidden');
+          // TICA/NICA：显示期号
+          var _ld = clientLotteryMode === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
+          var _pNo = _ld && (_ld.period_no != null ? _ld.period_no : _ld.periodNo);
+          if (_pNo != null && String(_pNo).trim() !== '') {
+            periodEl.textContent = clientLotteryMode + ' #' + _pNo;
+            periodWrap.classList.remove('hidden');
+          } else {
+            periodWrap.classList.add('hidden');
+          }
         } else {
           if (lastBetStatus.currentPeriodDate) periodEl.textContent = lastBetStatus.currentPeriodDate;
           else periodEl.textContent = '--';
@@ -1990,6 +2031,13 @@
           stopSellAtTimestamp = d.stopSellAt;
         } else if (typeof d.minutesUntilDraw === 'number') {
           stopSellAtTimestamp = Date.now() + d.minutesUntilDraw * 60000;
+        }
+        // 获取 TICA/NICA 期号
+        if (currentShop.tica_enabled) {
+          fetchClientLocalPeriod('TICA').then(function(data) { clientLocalPeriodTica = data; updateBetStatusUI(); });
+        }
+        if (currentShop.nica_enabled) {
+          fetchClientLocalPeriod('NICA').then(function(data) { clientLocalPeriodNica = data; updateBetStatusUI(); });
         }
         updateBetStatusUI();
         // 临近停售（<=10分钟）或开奖窗口时加快轮询到 5 秒，平时 30 秒
@@ -2470,13 +2518,17 @@
             placedAtEl.textContent = d + '-' + m + '-' + y + ' ' + hh + ':' + mm2;
           }
           var drawAtEl = document.getElementById('pay-draw-at');
+          var payDrawLabel = document.getElementById('pay-draw-at-row') ? document.getElementById('pay-draw-at-row').querySelector('[data-i18n="label_draw_at"]') : null;
           if (drawAtEl) {
-            var dateStr = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
-            if (dateStr && dateStr !== '--') {
-              // client-period-date 已经是 DD-MM-YYYY
-              drawAtEl.textContent = dateStr;
+            if (isClientLocalLotteryMode()) {
+              var _ldPay = clientLotteryMode === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
+              var _pNoPay = _ldPay && (_ldPay.period_no != null ? _ldPay.period_no : _ldPay.periodNo);
+              if (payDrawLabel) payDrawLabel.textContent = clientLotteryMode + ' Sorteo';
+              drawAtEl.textContent = (_pNoPay != null && String(_pNoPay).trim() !== '') ? ('#' + _pNoPay) : '--';
             } else {
-              drawAtEl.textContent = '--';
+              if (payDrawLabel) payDrawLabel.textContent = 'Lotería Sorteo';
+              var dateStr = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
+              drawAtEl.textContent = (dateStr && dateStr !== '--') ? dateStr : '--';
             }
           }
         } catch (e) {}
@@ -3200,11 +3252,16 @@
             }
           }
           if (drawAtEl2) {
-            var periodDate = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
-            if (periodDate && periodDate !== '--') {
-              drawAtEl2.textContent = periodDate;
+            var confDrawLabel = document.getElementById('confirmed-draw-at-row') ? document.getElementById('confirmed-draw-at-row').querySelector('[data-i18n="label_draw_at"]') : null;
+            if (isClientLocalLotteryMode()) {
+              var _ldConf = clientLotteryMode === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
+              var _pNoConf = _ldConf && (_ldConf.period_no != null ? _ldConf.period_no : _ldConf.periodNo);
+              if (confDrawLabel) confDrawLabel.textContent = clientLotteryMode + ' Sorteo';
+              drawAtEl2.textContent = (_pNoConf != null && String(_pNoConf).trim() !== '') ? ('#' + _pNoConf) : '--';
             } else {
-              drawAtEl2.textContent = '--';
+              if (confDrawLabel) confDrawLabel.textContent = 'Lotería Sorteo';
+              var periodDate = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
+              drawAtEl2.textContent = (periodDate && periodDate !== '--') ? periodDate : '--';
             }
           }
         } catch (e) {}
