@@ -3974,6 +3974,7 @@
 
     /** 通用：图片分享到 WhatsApp（优先 Capacitor 原生，fallback navigator.share） */
     function shareImageToWhatsApp(blob, fileName) {
+      closeOrderDetailModal();
       var file = new File([blob], fileName, { type: 'image/png' });
       // 尝试 Capacitor Filesystem + Share（直接发到 WhatsApp）
       if (_isCapApp && window.Capacitor && window.Capacitor.Plugins) {
@@ -5976,6 +5977,7 @@
     }
     async function printCurrentOrder() {
       if (!currentOrder) return;
+      closeOrderDetailModal();
       if (!isPrinterConnected()) {
         await connectPrinter();
         if (!isPrinterConnected()) return;
