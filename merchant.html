@@ -5829,7 +5829,7 @@
       txt(String(shopNumber)); LF();
       push(...NORM,...BOFF);
       var _lt = String((_ord.lottery_type || _ord.lotteryType || merchantWorkbenchKind || 'NACIONAL')).toUpperCase();
-      var _ltLabel = _lt === 'TICA' ? 'TICA' : _lt === 'NICA' ? 'NICA' : 'LOTERIA';
+      var _ltLabel = _lt === 'TICA' ? 'TICA' : _lt === 'NICA' ? 'NICA' : 'Loteria';
       push(...CENTER,...BON);
       txt(_ltLabel); LF();
       push(...BOFF);
@@ -5869,7 +5869,7 @@
         var _ds = String(_drawDateStr);
         if (/^\d{4}-\d{2}-\d{2}/.test(_ds)) _ds = _ds.slice(8,10) + '-' + _ds.slice(5,7) + '-' + _ds.slice(0,4);
         push(...CENTER);
-        txt('Lotería Sorteo: ' + _ds); LF();
+        txt('Loteria Sorteo: ' + _ds); LF();
         push(...LEFT);
       }
       LF();

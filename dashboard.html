@@ -1474,23 +1474,11 @@
       }
     }
 
-    // 从 localStorage 读取系统记录；若为空则从 /api/draw/pending 兜底
+    // 始终从 API 获取当前 pending draw 显示
     async function refreshConfirmedDrawStatus() {
       const el = document.getElementById('confirmed-draw-status');
       if (!el) return;
-      // 优先读 localStorage
-      try {
-        const raw = localStorage.getItem(CONFIRMED_DRAW_RECORD_KEY);
-        if (raw) {
-          const { date, time, drawId } = JSON.parse(raw);
-          // drawId 存在才直接显示并返回；否则继续请求 API 补充期次
-          if (date && time && drawId) {
-            el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间） · 第 ${drawId} 期`;
-            return;
-          }
-        }
-      } catch (e) {}
-      // localStorage 无 drawId 或为空时，从 API 获取
+      // 直接从 API 获取
       try {
         const res = await fetch(API_BASE + '/api/draw/pending');
         const data = res.ok ? await res.json() : {};
