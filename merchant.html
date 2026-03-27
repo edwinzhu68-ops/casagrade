@@ -2947,8 +2947,8 @@
         // 从待开奖期拿开奖日期和时间，计算停售时间戳（开奖前 5 分钟）——仅全国 Lotería 工作台使用
         const pendingDrawDate = pendingData.draw && (pendingData.draw.drawDate || pendingData.draw.draw_date);
         const pendingDrawTime = pendingData.draw && (pendingData.draw.drawTime || pendingData.draw.draw_time);
+        if (pendingDrawDate) currentDrawDate = pendingDrawDate;
         if (merchantWorkbenchKind === 'NACIONAL') {
-          if (pendingDrawDate) currentDrawDate = pendingDrawDate;
           if (pendingDrawDate && pendingDrawTime) {
             const drawMs = new Date(`${pendingDrawDate}T${pendingDrawTime}`).getTime();
             if (!isNaN(drawMs)) merchantStopSellAt = drawMs - 5 * 60 * 1000;
