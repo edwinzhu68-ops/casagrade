@@ -5977,22 +5977,27 @@
     }
     async function printCurrentOrder() {
       if (!currentOrder) return;
-      closeOrderDetailModal();
+      // 先保存订单引用，防止关弹窗后丢失
+      var orderToPrint = JSON.parse(JSON.stringify(currentOrder));
+      var orderNumber = orderToPrint.order_number || orderToPrint.orderNumber;
+      var btn = document.getElementById('modal-btn-print');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
       if (!isPrinterConnected()) {
         await connectPrinter();
-        if (!isPrinterConnected()) return;
+        if (!isPrinterConnected()) {
+          if (btn) { btn.disabled = false; btn.textContent = '🖨️'; }
+          return;
+        }
       }
-      const btn = document.getElementById('modal-btn-print');
-      if (btn) btn.disabled = true;
-      const orderNumber = currentOrder.order_number || currentOrder.orderNumber;
       try {
-        const r = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`);
-        const freshOrder = await r.json();
+        var r = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(orderNumber));
+        var freshOrder = await r.json();
         await autoPrintOrder(freshOrder);
-      } catch {
-        await autoPrintOrder(currentOrder);
+      } catch (e) {
+        await autoPrintOrder(orderToPrint);
       }
-      if (btn) btn.disabled = false;
+      if (btn) { btn.disabled = false; btn.textContent = '🖨️'; }
+      closeOrderDetailModal();
     }
     // ── END 打印 ────────────────────────────────────────────
 
