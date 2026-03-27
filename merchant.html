@@ -5843,15 +5843,12 @@
       }
       row('#' + orderNum, placedStr);
       // 开奖日期：优先订单里的draw信息，其次全局currentDrawDate
+      // 格式可能是 DD-MM-YYYY 或 YYYY-MM-DD，直接显示原始字符串
       var _drawDateStr = _ord.draw_date || _ord.drawDate || currentDrawDate || null;
       if (_drawDateStr) {
-        var dd = new Date(_drawDateStr);
-        if (!isNaN(dd.getTime())) {
-          var drawStr = 'Sorteo: ' + String(dd.getDate()).padStart(2,'0') + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + dd.getFullYear();
-          push(...CENTER);
-          txt(drawStr); LF();
-          push(...LEFT);
-        }
+        push(...CENTER);
+        txt('Sorteo: ' + String(_drawDateStr)); LF();
+        push(...LEFT);
       }
       LF();
 
