@@ -5842,9 +5842,10 @@
         }
       }
       row('#' + orderNum, placedStr);
-      // 开奖日期
-      if (currentDrawDate) {
-        var dd = new Date(currentDrawDate);
+      // 开奖日期：优先订单里的draw信息，其次全局currentDrawDate
+      var _drawDateStr = _ord.draw_date || _ord.drawDate || currentDrawDate || null;
+      if (_drawDateStr) {
+        var dd = new Date(_drawDateStr);
         if (!isNaN(dd.getTime())) {
           var drawStr = 'Sorteo: ' + String(dd.getDate()).padStart(2,'0') + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + dd.getFullYear();
           push(...CENTER);
