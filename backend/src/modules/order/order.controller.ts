@@ -534,7 +534,7 @@ export class OrderController implements OnModuleInit {
   async getOrder(@Param('orderNumber') orderNumber: string) {
     const order = await this.dataSource.getRepository(Order).findOne({
       where: { order_number: orderNumber },
-      relations: ['shop'],
+      relations: ['shop', 'draw'],
     });
 
     if (!order) {
@@ -566,6 +566,7 @@ export class OrderController implements OnModuleInit {
       win_breakdown: (order as any).win_breakdown ?? null,
       redeemed_at: (order as any).redeemed_at ?? null,
       note: (order as any).note ?? null,
+      draw_date: order.draw?.draw_date ?? null,
       created_at: order.created_at,
       paid_at: order.paid_at,
     };

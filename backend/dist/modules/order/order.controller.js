@@ -484,7 +484,7 @@ let OrderController = OrderController_1 = class OrderController {
     async getOrder(orderNumber) {
         const order = await this.dataSource.getRepository(order_entity_1.Order).findOne({
             where: { order_number: orderNumber },
-            relations: ['shop'],
+            relations: ['shop', 'draw'],
         });
         if (!order) {
             throw new common_1.NotFoundException('订单不存在');
@@ -513,6 +513,7 @@ let OrderController = OrderController_1 = class OrderController {
             win_breakdown: order.win_breakdown ?? null,
             redeemed_at: order.redeemed_at ?? null,
             note: order.note ?? null,
+            draw_date: order.draw?.draw_date ?? null,
             created_at: order.created_at,
             paid_at: order.paid_at,
         };

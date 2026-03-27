@@ -85,6 +85,7 @@ export declare class OrderController implements OnModuleInit {
         win_breakdown: any;
         redeemed_at: any;
         note: any;
+        draw_date: Date;
         created_at: Date;
         paid_at: Date;
     }>;
