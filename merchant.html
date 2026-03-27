@@ -3969,7 +3969,14 @@
       try {
         var etBody = document.getElementById('cashier-eticket-body');
         if (!etBody) { showToast('Error: no se encontró el ticket', 'error'); return; }
-        var canvas = await html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        // 临时取消 overflow 限制，确保 html2canvas 截取完整内容
+        var origOverflow = etBody.style.overflow;
+        var origMaxH = etBody.style.maxHeight;
+        etBody.style.overflow = 'visible';
+        etBody.style.maxHeight = 'none';
+        var canvas = await html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0 });
+        etBody.style.overflow = origOverflow;
+        etBody.style.maxHeight = origMaxH;
         canvas.toBlob(async function (blob) {
           if (!blob) { showToast('Error al generar imagen', 'error'); return; }
           var fileName = 'pedido_' + orderNum + '.png';
