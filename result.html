@@ -604,6 +604,7 @@
         sales_short: '销售额',
         payout_short: '总赔付',
         profit_short: '利润',
+        unredeemed_amount: '待兑奖',
         draw_result_prev_title: '🎰 上期开奖结果',
         waiting_draw_no_prev: '暂无上一期（首期销售中）',
         local_settle_desc_v2: '下面输入的是「当前销售期」的三个开奖号码（各两位）。确认后：本店该期立即结算并记入历史，同时自动创建下一销售期；本页销售额/赔付/利润与订单列表展示的是「刚结算完的那一期」。',
@@ -694,6 +695,7 @@
         sales_short: 'Ventas',
         payout_short: 'Premios',
         profit_short: 'Beneficio',
+        unredeemed_amount: 'Sin cobrar',
         btn_confirm_redeem: 'Confirmar cobro',
         draw_result_prev_title: '🎰 Resultado del sorteo anterior',
         waiting_draw_no_prev: 'Sin sorteo anterior (primer período en venta)',
@@ -2827,12 +2829,21 @@
           return sameLocalDrawId(oid, drawId);
         });
         orders = orders.slice().sort((a, b) => {
+          // 未兑奖中奖订单优先
+          const aUr = isUnredeemedWinningOrder(a) ? 0 : 1;
+          const bUr = isUnredeemedWinningOrder(b) ? 0 : 1;
+          if (aUr !== bUr) return aUr - bUr;
           const na = String(a.order_number || a.orderNumber || '').slice(-4);
           const nb = String(b.order_number || b.orderNumber || '').slice(-4);
           return na.localeCompare(nb, undefined, { numeric: true });
         });
       }
       const profitColor = profitNum >= 0 ? 'text-emerald-400' : 'text-red-400';
+      // 统计未兑奖中奖金额
+      var unredeemedTotal = 0;
+      orders.forEach(function (o) {
+        if (isUnredeemedWinningOrder(o)) unredeemedTotal += getOrderWinAmount(o);
+      });
       lastPeriodOrders = orders;
       // 清空搜索框
       const filterInput = document.getElementById('period-detail-filter-input');
@@ -2841,6 +2852,9 @@
       if (pkDet === 'TICA' || pkDet === 'NICA') {
         periodTitle = (drawId !== '' && drawId != null) ? ('#' + drawId) : ('期 ' + (idx + 1));
       }
+      var unredeemedHtml = unredeemedTotal > 0
+        ? `<div class="bg-amber-900/40 rounded-lg p-2"><p class="text-xs text-gray-400">${t('unredeemed_amount')}</p><p class="text-amber-300 font-bold">$${unredeemedTotal.toFixed(2)}</p></div>`
+        : '';
       body.innerHTML = `
         <div class="space-y-4">
           <div class="text-gray-400 text-sm">${periodTitle}</div>
@@ -2849,6 +2863,7 @@
             <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">${t('payout_short')}</p><p class="text-red-400 font-bold">$${payoutNum.toFixed(2)}</p></div>
             <div class="bg-gray-700/50 rounded-lg p-2"><p class="text-xs text-gray-400">${t('profit_short')}</p><p class="${profitColor} font-bold">$${profitNum.toFixed(2)}</p></div>
           </div>
+          ${unredeemedHtml ? '<div class="text-center">' + unredeemedHtml + '</div>' : ''}
           <div>
             <h4 class="font-bold text-sm mb-2 text-gray-300">${t('orders_label')} (${orders.length})</h4>
             <div id="period-detail-orders-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
