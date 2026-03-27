@@ -3031,9 +3031,7 @@
           if (merchantWorkbenchKind === 'NACIONAL') {
             const labelDate = currentPeriodLabel;
             if (labelDate) {
-              var natPn = pendingData.draw && (pendingData.draw.periodNo != null ? pendingData.draw.periodNo : pendingData.draw.period_no);
-              var natPnStr = (natPn != null && String(natPn).trim() !== '') ? (' #' + natPn) : '';
-              statusBadge.textContent = `${t('fecha_sorteo')}${natPnStr} · ${labelDate}`;
+              statusBadge.textContent = `${t('fecha_sorteo')} · ${labelDate}`;
               statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
               statusBadge.classList.remove('hidden');
             } else {
