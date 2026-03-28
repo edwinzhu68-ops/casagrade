@@ -1451,13 +1451,8 @@ export class MerchantController implements OnModuleInit {
     const base = shop.subscription_expires_at && shop.subscription_expires_at > new Date()
       ? new Date(shop.subscription_expires_at)
       : new Date();
-    if (card.type === 'monthly') {
-      base.setMonth(base.getMonth() + 1);
-    } else if (card.type === 'half_yearly') {
-      base.setMonth(base.getMonth() + 6);
-    } else {
-      base.setFullYear(base.getFullYear() + 1);
-    }
+    const CARD_DAYS: Record<string, number> = { monthly: 30, half_yearly: 180, yearly: 365 };
+    base.setDate(base.getDate() + (CARD_DAYS[card.type] || 30));
 
     // 🔴 原子写入：条件 UPDATE，只有 used_at IS NULL 时才成功，防止并发双激活
     const lockResult = await cardRepo.createQueryBuilder()

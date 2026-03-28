@@ -302,6 +302,7 @@ export class AdminController {
         code = generateCardCode(type);
         attempts++;
       } while (attempts < 10 && await this.cardCodeRepo.findOne({ where: { code } }));
+      if (attempts >= 10) throw new BadRequestException('卡密生成碰撞过多，请重试');
       const card = this.cardCodeRepo.create({ code, type, used_by_shop_id: null, used_at: null });
       await this.cardCodeRepo.save(card);
       codes.push(code);
