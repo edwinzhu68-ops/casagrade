@@ -13,6 +13,7 @@ export declare class Shop {
     daily_bet_limit: number;
     limit_chance: number | null;
     limit_billete: number | null;
+    loteria_enabled: boolean;
     tica_enabled: boolean;
     nica_enabled: boolean;
     accepting_tica_orders: boolean;

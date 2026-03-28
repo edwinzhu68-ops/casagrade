@@ -206,6 +206,9 @@ let OrderController = OrderController_1 = class OrderController {
         if (expiresAt && new Date(expiresAt) < new Date()) {
             throw new common_1.BadRequestException('Su suscripción ha vencido. Contacte al administrador para renovar.');
         }
+        if (shop.loteria_enabled === false) {
+            throw new common_1.BadRequestException('Lotería 已关闭，无法下单');
+        }
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const currentDraw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         if (!currentDraw) {
@@ -793,11 +796,14 @@ let ShopController = ShopController_1 = class ShopController {
             shop.tica_enabled = !!body.ticaEnabled;
         if (body.nicaEnabled !== undefined)
             shop.nica_enabled = !!body.nicaEnabled;
+        if (body.loteriaEnabled !== undefined)
+            shop.loteria_enabled = !!body.loteriaEnabled;
         await shopRepo.save(shop);
         return {
             success: true,
             limit_chance: shop.limit_chance,
             limit_billete: shop.limit_billete,
+            loteria_enabled: shop.loteria_enabled,
             tica_enabled: shop.tica_enabled,
             nica_enabled: shop.nica_enabled,
         };
@@ -1135,12 +1141,14 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
         const shopRow = await this.dataSource.getRepository(shop_entity_1.Shop).findOne({ where: { shop_id: sid } });
         const localFlags = shopRow
             ? {
+                loteriaEnabled: shopRow.loteria_enabled !== false,
                 ticaEnabled: !!shopRow.tica_enabled,
                 nicaEnabled: !!shopRow.nica_enabled,
                 acceptingTicaOrders: shopRow.accepting_tica_orders !== false,
                 acceptingNicaOrders: shopRow.accepting_nica_orders !== false,
             }
             : {
+                loteriaEnabled: true,
                 ticaEnabled: false,
                 nicaEnabled: false,
                 acceptingTicaOrders: false,

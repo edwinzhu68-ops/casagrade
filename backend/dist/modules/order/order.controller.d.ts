@@ -154,10 +154,12 @@ export declare class ShopController {
         limitBillete?: number | null;
         ticaEnabled?: boolean;
         nicaEnabled?: boolean;
+        loteriaEnabled?: boolean;
     }, req: Request): Promise<{
         success: boolean;
         limit_chance: any;
         limit_billete: any;
+        loteria_enabled: any;
         tica_enabled: boolean;
         nica_enabled: boolean;
     }>;
@@ -276,6 +278,7 @@ export declare class BetStatusController {
             status: number;
             amount: number;
         }[];
+        loteriaEnabled: boolean;
         ticaEnabled: boolean;
         nicaEnabled: boolean;
         acceptingTicaOrders: boolean;
