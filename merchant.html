@@ -223,14 +223,15 @@
       <!-- 等待付款 + 等待兑奖（同尺寸，兑奖放最下） -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <h3 class="font-bold cursor-pointer select-none" id="pending-title" data-i18n="pending_title" onclick="togglePendingSection()">等待付款 <span id="pending-toggle-icon" class="text-gray-400 text-sm">▼</span></h3>
+          <h3 class="font-bold" id="pending-title" data-i18n="pending_title">等待付款</h3>
           <div class="flex items-center gap-2 flex-1 min-w-0 justify-end" id="pending-filter-wrap">
+            <button id="btn-pending-toggle" onclick="togglePendingSection()" class="text-blue-400 text-sm whitespace-nowrap" data-i18n="pending_view_all">查看全部 →</button>
             <input type="text" id="pending-filter-input" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
               class="w-24 sm:w-28 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-green-500 focus:outline-none"
-              oninput="filterPendingBySuffix(this.value)" title="输入订单号后4位筛选" />
+              oninput="filterPendingBySuffix(this.value)" title="输入订单号后4位筛选" style="display:none" />
           </div>
         </div>
-        <div id="pending-collapsible">
+        <div id="pending-collapsible" style="display:none">
         <p class="text-xs text-gray-400 mb-2" id="pending-hint" data-i18n="pending_hint">列表含 Lotería / TICA / NICA 未付款（与上方彩种切换无关）· 点单号确认收款 · 尾数筛选</p>
         <div id="pending-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
           <p class="text-gray-500 text-sm" data-i18n="no_pending">暂无未付款订单</p>
@@ -1044,6 +1045,8 @@
         close: '关闭',
         pending_confirm: '等待付款',
         pending_title: '等待付款',
+        pending_view_all: '查看全部 →',
+        pending_collapse: '收起 ↑',
         pending_hint: '列表含 Lotería / TICA / NICA 未付款（与上方彩种切换无关）· 点单号确认收款 · 尾数筛选',
         pending_filter_placeholder: '最后4位',
         period_order_filter_placeholder: '最后4位',
@@ -1360,6 +1363,8 @@
         close: 'Cerrar',
         pending_confirm: 'Esperando pago',
         pending_title: 'Esperando pago',
+        pending_view_all: 'Ver todo →',
+        pending_collapse: 'Ocultar ↑',
         pending_hint: 'Incluye Lotería / TICA / NICA sin pagar (independiente de la pestaña) · Toca para cobrar · Filtro por dígitos',
         pending_filter_placeholder: 'Últimos 4',
         period_order_filter_placeholder: 'Últimos 4',
@@ -3415,15 +3420,15 @@
       return false;
     }
 
-    var pendingSectionCollapsed = false;
+    var pendingSectionCollapsed = true;
     function togglePendingSection() {
       pendingSectionCollapsed = !pendingSectionCollapsed;
       var body = document.getElementById('pending-collapsible');
-      var icon = document.getElementById('pending-toggle-icon');
-      var filterWrap = document.getElementById('pending-filter-wrap');
+      var btn = document.getElementById('btn-pending-toggle');
+      var filterInput = document.getElementById('pending-filter-input');
       if (body) body.style.display = pendingSectionCollapsed ? 'none' : '';
-      if (icon) icon.textContent = pendingSectionCollapsed ? '▶' : '▼';
-      if (filterWrap) filterWrap.style.display = pendingSectionCollapsed ? 'none' : '';
+      if (filterInput) filterInput.style.display = pendingSectionCollapsed ? 'none' : '';
+      if (btn) btn.textContent = pendingSectionCollapsed ? (t('pending_view_all') || '查看全部 →') : (t('pending_collapse') || '收起 ↑');
     }
 
     function clearPendingSuffixFilter() {
