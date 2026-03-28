@@ -336,8 +336,7 @@
               </span>
             </label>
           </div>
-          <p class="text-xs text-gray-400" data-i18n="local_lottery_desc">TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。</p>
-          <button type="button" onclick="saveLocalLotteryShopSettings()" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm" data-i18n="btn_save_local_lottery">保存彩种设置</button>
+          <button type="button" onclick="saveLocalLotteryShopSettings()" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm" data-i18n="btn_save_local_lottery">保存设置</button>
         </div>
       </details>
 
@@ -1211,7 +1210,9 @@
         btn_next_order: '继续下一单',
         sales_amount: '销售额',
         local_lottery_desc: 'TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。',
-        btn_save_local_lottery: '保存彩种设置',
+        btn_save_local_lottery: '保存设置',
+        chip_on: '开',
+        chip_off: '关',
         eticket_toggle_label: '📋 电子单（下单后弹出）',
         printer_detecting: '检测中...',
         ble_picker_title: '选择打印机',
@@ -1530,7 +1531,9 @@
         btn_next_order: 'Siguiente pedido',
         sales_amount: 'Ventas',
         local_lottery_desc: 'TICA y NICA son loterías de otros países, diferentes a la Lotería de Panamá (oficial). Al activar y guardar, aparecerán en la página del cliente; si no se activan, no se mostrarán.',
-        btn_save_local_lottery: 'Guardar configuración de loterías',
+        btn_save_local_lottery: 'Guardar',
+        chip_on: 'On',
+        chip_off: 'Off',
         eticket_toggle_label: '📋 E-ticket (aparece al crear pedido)',
         printer_detecting: 'Detectando...',
         ble_picker_title: 'Seleccionar impresora',
@@ -1759,6 +1762,7 @@
       mergeMerchantShopLocalFlags(currentShop);
       var j = readMerchantShopLocalFlagsParsed();
       if (!j || Number(j.shop_id) !== Number(currentShop.shop_id)) j = {};
+      var lOnSaved = currentShop.loteria_enabled !== false;
       var tOnSaved = !!currentShop.tica_enabled;
       var nOnSaved = !!currentShop.nica_enabled;
       var tEver = !!(j.tica_client_ever_on || tOnSaved);
@@ -1795,11 +1799,12 @@
 
       if (chips) {
         var parts = [];
-        if (tOnSaved) parts.push('<span class="rounded-full bg-emerald-700/80 text-white px-1.5 py-0.5">' + t('local_lottery_summary_chip_on').replace(/\{name\}/g, 'TICA') + '</span>');
-        else if (tEver) parts.push('<span class="rounded-full bg-amber-700/80 text-amber-100 px-1.5 py-0.5">' + t('local_lottery_summary_chip_ever').replace(/\{name\}/g, 'TICA') + '</span>');
-        if (nOnSaved) parts.push('<span class="rounded-full bg-emerald-700/80 text-white px-1.5 py-0.5">' + t('local_lottery_summary_chip_on').replace(/\{name\}/g, 'NICA') + '</span>');
-        else if (nEver) parts.push('<span class="rounded-full bg-amber-700/80 text-amber-100 px-1.5 py-0.5">' + t('local_lottery_summary_chip_ever').replace(/\{name\}/g, 'NICA') + '</span>');
-        chips.innerHTML = parts.length ? ' ' + parts.join(' ') : '';
+        var onTpl = '<span class="rounded-full bg-emerald-700/80 text-white px-1.5 py-0.5">{name}·' + (t('chip_on') || '开') + '</span>';
+        var offTpl = '<span class="rounded-full bg-gray-600/80 text-gray-300 px-1.5 py-0.5">{name}·' + (t('chip_off') || '关') + '</span>';
+        parts.push((lOnSaved ? onTpl : offTpl).replace(/\{name\}/g, 'Lotería'));
+        parts.push((tOnSaved ? onTpl : offTpl).replace(/\{name\}/g, 'TICA'));
+        parts.push((nOnSaved ? onTpl : offTpl).replace(/\{name\}/g, 'NICA'));
+        chips.innerHTML = ' ' + parts.join(' ');
       }
     }
     /** 当前收银工作台彩种：NACIONAL | TICA | NICA */
