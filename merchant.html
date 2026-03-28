@@ -1952,8 +1952,12 @@
           shop_id: shop.shop_id,
           shop_number: shop.shop_number,
           shop_name: shop.shop_name || '',
+          loteria_enabled: shop.loteria_enabled !== false,
           tica_enabled: !!shop.tica_enabled,
           nica_enabled: !!shop.nica_enabled,
+          limit_chance: shop.limit_chance ?? null,
+          limit_billete: shop.limit_billete ?? null,
+          subscription_expires_at: shop.subscription_expires_at ?? null,
         }));
         localStorage.setItem('main_shop_cache_json', JSON.stringify({
           shop_id: shop.shop_id,
@@ -1974,6 +1978,12 @@
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-cashier').classList.remove('hidden');
         document.getElementById('shop-number').textContent = s.shop_number || t('shop_not_set');
+        showSubscriptionExpiry(s);
+        limits.chance = s.limit_chance != null ? Number(s.limit_chance) : null;
+        limits.billete = s.limit_billete != null ? Number(s.limit_billete) : null;
+        document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
+        document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
+        syncLocalLotteryFeatureCheckboxes();
         applyMerchantLang();
         loadDashboard();
         startCountdown();
@@ -2410,6 +2420,9 @@
         }
         limits.chance = newChance;
         limits.billete = newBillete;
+        currentShop.limit_chance = newChance;
+        currentShop.limit_billete = newBillete;
+        persistMerchantLastShop(currentShop);
         if (newChance != null) localStorage.setItem('limit_chance', newChance);
         else localStorage.removeItem('limit_chance');
         if (newBillete != null) localStorage.setItem('limit_billete', newBillete);
