@@ -1029,6 +1029,7 @@ export class ShopController {
         commission_rate: shop.commission_rate,
         limit_chance: (shop as any).limit_chance ?? null,
         limit_billete: (shop as any).limit_billete ?? null,
+        loteria_enabled: (shop as any).loteria_enabled !== false,
         tica_enabled: !!(shop as any).tica_enabled,
         nica_enabled: !!(shop as any).nica_enabled,
         accepting_tica_orders: (shop as any).accepting_tica_orders !== false,
