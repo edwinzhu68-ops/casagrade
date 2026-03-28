@@ -3507,11 +3507,11 @@
         return '<div class="bg-gray-700 rounded-xl p-3 flex justify-between items-center">' +
           '<div onclick="viewOrder(\'' + safeFull + '\')" class="flex-1 cursor-pointer">' +
           orderPendingLotteryBadgeHtml(order) +
-          '<span class="font-mono font-bold">单号 ' + orderLast4(fullNum) + '</span>' +
+          '<span class="font-mono font-bold text-sm">单号 ' + orderLast4(fullNum) + '</span>' +
           (_note ? '<span class="text-yellow-300 text-xs ml-1">（' + esc(_note) + '）</span>' : '') +
-          '<span class="text-gray-400 ml-2">' + numLen + '个号</span></div>' +
+          '<span class="text-gray-400 ml-2 text-xs">' + numLen + '个号</span></div>' +
           '<div class="text-right">' +
-          '<span class="text-xl font-bold text-orange-400">' + Number(order.amount || 0).toFixed(2) + '</span>' +
+          '<span class="text-base font-bold text-orange-400">' + Number(order.amount || 0).toFixed(2) + '</span>' +
           '<button onclick="quickConfirm(\'' + safeFull + '\')" class="ml-2 bg-orange-500 hover:bg-orange-600 px-4 py-1.5 rounded-lg text-sm font-bold">确认</button>' +
           '</div></div>';
       }
