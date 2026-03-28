@@ -1120,6 +1120,7 @@
             var s = data.shop;
             var prev = currentShop;
             currentShop = s;
+            currentShop.loteria_enabled = s.loteria_enabled !== undefined ? s.loteria_enabled !== false : (s.loteriaEnabled !== undefined ? s.loteriaEnabled !== false : true);
             var hasT = s.tica_enabled !== undefined || s.ticaEnabled !== undefined;
             var hasN = s.nica_enabled !== undefined || s.nicaEnabled !== undefined;
             currentShop.tica_enabled = hasT ? !!(s.tica_enabled || s.ticaEnabled) : !!(prev && prev.tica_enabled);
@@ -1776,6 +1777,7 @@
       isDrawWindow: false,
       currentPeriodDate: null,
       minutesUntilDraw: undefined,
+      loteriaEnabled: true,
       ticaEnabled: false,
       nicaEnabled: false,
       acceptingTicaOrders: true,
@@ -1786,6 +1788,7 @@
     function canClientSubmitBet() {
       if (!currentShop) return false;
       if (clientLotteryMode === 'NACIONAL') {
+        if (currentShop.loteria_enabled === false) return false;
         return !!(lastBetStatus.canBet && !lastBetStatus.isDrawWindow);
       }
       if (clientLotteryMode === 'TICA') {
@@ -1885,12 +1888,18 @@
           }
         }
       } catch (e) {}
-      var any = !!(currentShop.tica_enabled || currentShop.nica_enabled);
-      row.classList.toggle('hidden', !any);
+      var loteriaOn = currentShop.loteria_enabled !== false;
+      var any = !!(loteriaOn || currentShop.tica_enabled || currentShop.nica_enabled);
+      // 只有一种彩种时不显示切换栏
+      var kinds = (loteriaOn ? 1 : 0) + (currentShop.tica_enabled ? 1 : 0) + (currentShop.nica_enabled ? 1 : 0);
+      row.classList.toggle('hidden', kinds <= 1);
       var belowDiv = document.getElementById('client-lottery-below-divider');
-      if (belowDiv) belowDiv.classList.toggle('hidden', !any);
-      if (clientLotteryMode === 'TICA' && !currentShop.tica_enabled) clientLotteryMode = 'NACIONAL';
-      if (clientLotteryMode === 'NICA' && !currentShop.nica_enabled) clientLotteryMode = 'NACIONAL';
+      if (belowDiv) belowDiv.classList.toggle('hidden', kinds <= 1);
+      if (clientLotteryMode === 'NACIONAL' && !loteriaOn) {
+        clientLotteryMode = currentShop.tica_enabled ? 'TICA' : currentShop.nica_enabled ? 'NICA' : 'NACIONAL';
+      }
+      if (clientLotteryMode === 'TICA' && !currentShop.tica_enabled) clientLotteryMode = loteriaOn ? 'NACIONAL' : (currentShop.nica_enabled ? 'NICA' : 'NACIONAL');
+      if (clientLotteryMode === 'NICA' && !currentShop.nica_enabled) clientLotteryMode = loteriaOn ? 'NACIONAL' : (currentShop.tica_enabled ? 'TICA' : 'NACIONAL');
       try {
         if (currentShop.shop_id != null) persistClientLotteryModeForShop(currentShop.shop_id, clientLotteryMode);
       } catch (ePm) {}
@@ -1911,7 +1920,7 @@
         }
         btn.className = 'flex-1 py-2.5 text-xs font-bold ' + (on ? 'bg-green-600 text-white' : 'text-gray-600 bg-gray-100');
       }
-      apply(bL, true, clientLotteryMode === 'NACIONAL');
+      apply(bL, !!(currentShop && currentShop.loteria_enabled !== false), clientLotteryMode === 'NACIONAL');
       apply(bT, !!(currentShop && currentShop.tica_enabled), clientLotteryMode === 'TICA');
       apply(bN, !!(currentShop && currentShop.nica_enabled), clientLotteryMode === 'NICA');
       // 按钮状态和标签必须始终同步
@@ -1998,10 +2007,12 @@
         if (!r.ok) return;
         var d = await r.json();
         // 接口若未返回 tica/nica 字段，不能用 false 覆盖进店时 GET /api/shop 已拿到的开通状态
+        var loteriaFromApi = d.loteriaEnabled !== undefined ? d.loteriaEnabled !== false : (d.loteria_enabled !== undefined ? d.loteria_enabled !== false : undefined);
         var ticaFromApi = d.ticaEnabled !== undefined ? !!d.ticaEnabled : (d.tica_enabled !== undefined ? !!d.tica_enabled : undefined);
         var nicaFromApi = d.nicaEnabled !== undefined ? !!d.nicaEnabled : (d.nica_enabled !== undefined ? !!d.nica_enabled : undefined);
         var accTicaFromApi = d.acceptingTicaOrders !== undefined ? d.acceptingTicaOrders !== false : (d.accepting_tica_orders !== undefined ? d.accepting_tica_orders !== false : undefined);
         var accNicaFromApi = d.acceptingNicaOrders !== undefined ? d.acceptingNicaOrders !== false : (d.accepting_nica_orders !== undefined ? d.accepting_nica_orders !== false : undefined);
+        if (loteriaFromApi !== undefined) currentShop.loteria_enabled = loteriaFromApi;
         if (ticaFromApi !== undefined) currentShop.tica_enabled = ticaFromApi;
         if (nicaFromApi !== undefined) currentShop.nica_enabled = nicaFromApi;
         // bet-status 只反映 DB；收银台在本机写的 merchant_shop_local_flags 需再次合并，否则轮询会把 TICA/NICA 入口冲没
@@ -2020,6 +2031,7 @@
           isDrawWindow: !!d.isDrawWindow,
           currentPeriodDate: d.currentPeriodDate || null,
           minutesUntilDraw: typeof d.minutesUntilDraw === 'number' ? d.minutesUntilDraw : undefined,
+          loteriaEnabled: currentShop.loteria_enabled !== false,
           ticaEnabled: !!currentShop.tica_enabled,
           nicaEnabled: !!currentShop.nica_enabled,
           acceptingTicaOrders: accTicaFromApi !== undefined ? accTicaFromApi : true,

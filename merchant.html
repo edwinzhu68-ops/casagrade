@@ -309,12 +309,18 @@
       <!-- TICA / NICA：可折叠；顾客端开关（放在工作台最下方） -->
       <details id="local-lottery-settings-details" class="bg-gray-800 rounded-2xl border border-purple-900/40 group open:ring-1 open:ring-purple-500/30">
         <summary class="font-bold cursor-pointer list-none flex justify-between items-center gap-2 p-4 select-none">
-          <span class="flex flex-wrap items-center gap-x-1 gap-y-1"><span data-i18n="local_lottery_settings_title">TICA / NICA</span> <span class="text-gray-400 font-normal text-xs" data-i18n="local_lottery_settings_subtitle">（两套独立彩种 · 顾客端入口 · 点击展开）</span><span id="merchant-local-lottery-summary-chips" class="text-[10px] font-bold"></span></span>
+          <span class="flex flex-wrap items-center gap-x-1 gap-y-1"><span data-i18n="local_lottery_settings_title">彩种管理</span> <span class="text-gray-400 font-normal text-xs" data-i18n="local_lottery_settings_subtitle">（Lotería / TICA / NICA · 顾客端入口 · 点击展开）</span><span id="merchant-local-lottery-summary-chips" class="text-[10px] font-bold"></span></span>
           <span class="text-gray-400 text-sm transition-transform group-open:rotate-180">▼</span>
         </summary>
         <div class="px-4 pb-4 space-y-3 border-t border-gray-700/60 pt-3">
           <div id="merchant-local-lottery-status-banner" class="hidden rounded-xl border border-amber-500/50 bg-amber-950/40 px-3 py-2.5 text-xs leading-relaxed text-amber-100 space-y-2.5">
             <p class="text-[11px] font-bold text-amber-200/95" data-i18n="local_lottery_banner_title">顾客端开通状态（本机记录）</p>
+            <label class="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="shop-enable-loteria" checked onchange="updateMerchantLocalLotteryClientStatusLines()" class="mt-0.5 w-4 h-4 rounded border-amber-600/60 bg-gray-900/50 shrink-0 accent-emerald-500" />
+              <span class="min-w-0 flex-1">
+                <span id="merchant-loteria-client-line" class="block text-[13px] sm:text-sm text-gray-100" data-i18n="loteria_toggle_label">Lotería（官方）</span>
+              </span>
+            </label>
             <label class="flex items-start gap-2.5 cursor-pointer select-none">
               <input type="checkbox" id="shop-enable-tica" onchange="updateMerchantLocalLotteryClientStatusLines()" class="mt-0.5 w-4 h-4 rounded border-amber-600/60 bg-gray-900/50 shrink-0 accent-emerald-500" />
               <span class="min-w-0 flex-1">
@@ -331,7 +337,7 @@
             </label>
           </div>
           <p class="text-xs text-gray-400" data-i18n="local_lottery_desc">TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。</p>
-          <button type="button" onclick="saveLocalLotteryShopSettings()" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm" data-i18n="btn_save_local_lottery">保存 TICA / NICA 设置</button>
+          <button type="button" onclick="saveLocalLotteryShopSettings()" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm" data-i18n="btn_save_local_lottery">保存彩种设置</button>
         </div>
       </details>
 
@@ -971,9 +977,10 @@
         alert_need_cashier: '请先登录收银台，再进入开奖结算。',
         alert_no_shop_info: '当前没有可用的店铺信息，请重新登录收银台。',
         alert_limits_saved: '限额和单价已保存',
-        alert_local_lottery_saved: 'TICA / NICA 设置已保存',
-        local_lottery_settings_title: 'TICA / NICA',
-        local_lottery_settings_subtitle: '（两套独立彩种 · 顾客端入口 · 点击展开）',
+        alert_local_lottery_saved: '彩种设置已保存',
+        local_lottery_settings_title: '彩种管理',
+        local_lottery_settings_subtitle: '（Lotería / TICA / NICA · 顾客端入口 · 点击展开）',
+        loteria_toggle_label: 'Lotería（官方）',
         local_lottery_banner_title: '顾客端开通状态（本机记录）',
         local_lottery_client_on_prefix: '已向顾客显示',
         local_lottery_client_off_prefix: '已向顾客关闭',
@@ -1204,7 +1211,7 @@
         btn_next_order: '继续下一单',
         sales_amount: '销售额',
         local_lottery_desc: 'TICA、NICA 为其他国家/地区的彩票品种，与巴拿马 Lotería（官方）不同。勾选并保存后，顾客下单页才会出现对应入口；不勾选则完全不显示。',
-        btn_save_local_lottery: '保存 TICA / NICA 设置',
+        btn_save_local_lottery: '保存彩种设置',
         eticket_toggle_label: '📋 电子单（下单后弹出）',
         printer_detecting: '检测中...',
         ble_picker_title: '选择打印机',
@@ -1289,9 +1296,10 @@
         alert_need_cashier: 'Inicia sesión en la caja antes de ver el resultado.',
         alert_no_shop_info: 'No hay datos de tienda. Vuelve a iniciar sesión.',
         alert_limits_saved: 'Límites y precios guardados',
-        alert_local_lottery_saved: 'Configuración TICA / NICA guardada',
-        local_lottery_settings_title: 'TICA / NICA',
-        local_lottery_settings_subtitle: '(dos juegos independientes · entrada en app · toca para expandir)',
+        alert_local_lottery_saved: 'Configuración de loterías guardada',
+        local_lottery_settings_title: 'Gestión de loterías',
+        local_lottery_settings_subtitle: '(Lotería / TICA / NICA · entrada en app · toca para expandir)',
+        loteria_toggle_label: 'Lotería (oficial)',
         local_lottery_banner_title: 'Estado en app del cliente (registro local)',
         local_lottery_client_on_prefix: 'Visible para clientes',
         local_lottery_client_off_prefix: 'Cerrado para clientes',
@@ -1522,7 +1530,7 @@
         btn_next_order: 'Siguiente pedido',
         sales_amount: 'Ventas',
         local_lottery_desc: 'TICA y NICA son loterías de otros países, diferentes a la Lotería de Panamá (oficial). Al activar y guardar, aparecerán en la página del cliente; si no se activan, no se mostrarán.',
-        btn_save_local_lottery: 'Guardar config. TICA / NICA',
+        btn_save_local_lottery: 'Guardar configuración de loterías',
         eticket_toggle_label: '📋 E-ticket (aparece al crear pedido)',
         printer_detecting: 'Detectando...',
         ble_picker_title: 'Seleccionar impresora',
@@ -1699,6 +1707,7 @@
         var nicaEver = (sameShop && !!prev.nica_client_ever_on) || !!shop.nica_enabled;
         localStorage.setItem(MERCHANT_SHOP_LOCAL_FLAGS_KEY, JSON.stringify({
           shop_id: shop.shop_id,
+          loteria_enabled: shop.loteria_enabled !== false,
           tica_enabled: !!shop.tica_enabled,
           nica_enabled: !!shop.nica_enabled,
           tica_client_ever_on: !!ticaEver,
@@ -2405,10 +2414,12 @@
     }
 
     function syncLocalLotteryFeatureCheckboxes() {
+      var l = document.getElementById('shop-enable-loteria');
       var t = document.getElementById('shop-enable-tica');
       var n = document.getElementById('shop-enable-nica');
       if (!currentShop) return;
       mergeMerchantShopLocalFlags(currentShop);
+      if (l) l.checked = currentShop.loteria_enabled !== false;
       if (t) t.checked = !!currentShop.tica_enabled;
       if (n) n.checked = !!currentShop.nica_enabled;
       try { refreshMerchantLocalLotteryStatusBanner(); } catch (e) {}
@@ -2419,9 +2430,11 @@
         showToast(t('alert_no_shop_info'), 'error');
         return;
       }
+      var lEl = document.getElementById('shop-enable-loteria');
       var tEl = document.getElementById('shop-enable-tica');
       var nEl = document.getElementById('shop-enable-nica');
       mergeMerchantShopLocalFlags(currentShop);
+      var nextL = !!(lEl && lEl.checked);
       var nextT = !!(tEl && tEl.checked);
       var nextN = !!(nEl && nEl.checked);
       // 关闭顾客端入口不再弹确认框，说明见横幅「顾客端开通状态（本机记录）」文案
@@ -2436,12 +2449,15 @@
             'X-Session-Token': sessionToken,
           },
           body: JSON.stringify({
+            loteriaEnabled: !!(lEl && lEl.checked),
             ticaEnabled: !!(tEl && tEl.checked),
             nicaEnabled: !!(nEl && nEl.checked),
           }),
         });
         var data = await res.json().catch(function () { return {}; });
         if (!res.ok) throw new Error(pickApiBilingualMessage(data) || data.error || ('HTTP ' + res.status));
+        if (data.loteria_enabled !== undefined) currentShop.loteria_enabled = !!data.loteria_enabled;
+        else currentShop.loteria_enabled = !!(lEl && lEl.checked);
         if (data.tica_enabled !== undefined) currentShop.tica_enabled = !!data.tica_enabled;
         else currentShop.tica_enabled = !!(tEl && tEl.checked);
         if (data.nica_enabled !== undefined) currentShop.nica_enabled = !!data.nica_enabled;
