@@ -2488,6 +2488,7 @@
         if (data.nica_enabled !== undefined) currentShop.nica_enabled = !!data.nica_enabled;
         else currentShop.nica_enabled = !!(nEl && nEl.checked);
         persistMerchantShopLocalFlags(currentShop);
+        persistMerchantLastShop(currentShop);
         syncLocalLotteryFeatureCheckboxes();
         renderMerchantWorkbenchNav();
         showToast(t('alert_local_lottery_saved'), 'success');
