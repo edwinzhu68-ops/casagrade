@@ -223,16 +223,18 @@
       <!-- 等待付款 + 等待兑奖（同尺寸，兑奖放最下） -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <h3 class="font-bold" id="pending-title" data-i18n="pending_title">等待付款</h3>
-          <div class="flex items-center gap-2 flex-1 min-w-0 justify-end">
+          <h3 class="font-bold cursor-pointer select-none" id="pending-title" data-i18n="pending_title" onclick="togglePendingSection()">等待付款 <span id="pending-toggle-icon" class="text-gray-400 text-sm">▼</span></h3>
+          <div class="flex items-center gap-2 flex-1 min-w-0 justify-end" id="pending-filter-wrap">
             <input type="text" id="pending-filter-input" placeholder="后4位" maxlength="12" inputmode="numeric" pattern="[0-9]*"
               class="w-24 sm:w-28 text-center py-1.5 px-2 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-green-500 focus:outline-none"
               oninput="filterPendingBySuffix(this.value)" title="输入订单号后4位筛选" />
           </div>
         </div>
+        <div id="pending-collapsible">
         <p class="text-xs text-gray-400 mb-2" id="pending-hint" data-i18n="pending_hint">列表含 Lotería / TICA / NICA 未付款（与上方彩种切换无关）· 点单号确认收款 · 尾数筛选</p>
         <div id="pending-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
           <p class="text-gray-500 text-sm" data-i18n="no_pending">暂无未付款订单</p>
+        </div>
         </div>
       </div>
 
@@ -3411,6 +3413,17 @@
       if (s === 0 || s === '0') return true;
       if (typeof s === 'string' && s.toLowerCase() === 'pending') return true;
       return false;
+    }
+
+    var pendingSectionCollapsed = false;
+    function togglePendingSection() {
+      pendingSectionCollapsed = !pendingSectionCollapsed;
+      var body = document.getElementById('pending-collapsible');
+      var icon = document.getElementById('pending-toggle-icon');
+      var filterWrap = document.getElementById('pending-filter-wrap');
+      if (body) body.style.display = pendingSectionCollapsed ? 'none' : '';
+      if (icon) icon.textContent = pendingSectionCollapsed ? '▶' : '▼';
+      if (filterWrap) filterWrap.style.display = pendingSectionCollapsed ? 'none' : '';
     }
 
     function clearPendingSuffixFilter() {
