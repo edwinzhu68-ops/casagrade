@@ -99,7 +99,6 @@
 
     <!-- Lotería / TICA / NICA：店主开通后显示 -->
     <div id="client-lottery-mode-row" class="hidden max-w-md mx-auto px-3 pt-2">
-      <p class="text-center text-xs font-bold text-gray-800 mb-1" data-i18n="client_lottery_title">Tipo de lotería</p>
       <div class="flex rounded-xl overflow-hidden border-2 border-purple-200 bg-white shadow-md">
         <button type="button" id="btn-mode-nacional" onclick="setClientLotteryMode('NACIONAL')"
           class="flex-1 py-2.5 text-xs font-bold bg-green-600 text-white">Lotería</button>
@@ -1889,12 +1888,10 @@
         }
       } catch (e) {}
       var loteriaOn = currentShop.loteria_enabled !== false;
-      var any = !!(loteriaOn || currentShop.tica_enabled || currentShop.nica_enabled);
-      // 只有一种彩种时不显示切换栏
       var kinds = (loteriaOn ? 1 : 0) + (currentShop.tica_enabled ? 1 : 0) + (currentShop.nica_enabled ? 1 : 0);
-      row.classList.toggle('hidden', kinds <= 1);
+      row.classList.toggle('hidden', kinds < 1);
       var belowDiv = document.getElementById('client-lottery-below-divider');
-      if (belowDiv) belowDiv.classList.toggle('hidden', kinds <= 1);
+      if (belowDiv) belowDiv.classList.toggle('hidden', kinds < 1);
       if (clientLotteryMode === 'NACIONAL' && !loteriaOn) {
         clientLotteryMode = currentShop.tica_enabled ? 'TICA' : currentShop.nica_enabled ? 'NICA' : 'NACIONAL';
       }
@@ -1912,17 +1909,18 @@
       var bL = document.getElementById('btn-mode-nacional');
       var bT = document.getElementById('btn-mode-tica');
       var bN = document.getElementById('btn-mode-nica');
-      function apply(btn, visible, on) {
+      var colors = { NACIONAL: 'bg-green-600', TICA: 'bg-blue-600', NICA: 'bg-purple-600' };
+      function apply(btn, visible, on, color) {
         if (!btn) return;
         if (!visible) {
           btn.className = 'hidden flex-1 py-2.5 text-xs font-bold text-gray-600 bg-gray-100';
           return;
         }
-        btn.className = 'flex-1 py-2.5 text-xs font-bold ' + (on ? 'bg-green-600 text-white' : 'text-gray-600 bg-gray-100');
+        btn.className = 'flex-1 py-2.5 text-xs font-bold ' + (on ? color + ' text-white' : 'text-gray-600 bg-gray-100');
       }
-      apply(bL, !!(currentShop && currentShop.loteria_enabled !== false), clientLotteryMode === 'NACIONAL');
-      apply(bT, !!(currentShop && currentShop.tica_enabled), clientLotteryMode === 'TICA');
-      apply(bN, !!(currentShop && currentShop.nica_enabled), clientLotteryMode === 'NICA');
+      apply(bL, !!(currentShop && currentShop.loteria_enabled !== false), clientLotteryMode === 'NACIONAL', colors.NACIONAL);
+      apply(bT, !!(currentShop && currentShop.tica_enabled), clientLotteryMode === 'TICA', colors.TICA);
+      apply(bN, !!(currentShop && currentShop.nica_enabled), clientLotteryMode === 'NICA', colors.NICA);
       // 按钮状态和标签必须始终同步
       syncBilletePaletLabel();
     }

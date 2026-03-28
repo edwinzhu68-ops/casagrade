@@ -976,6 +976,7 @@
         alert_need_cashier: '请先登录收银台，再进入开奖结算。',
         alert_no_shop_info: '当前没有可用的店铺信息，请重新登录收银台。',
         alert_limits_saved: '限额和单价已保存',
+        alert_at_least_one_lottery: '至少保留一个彩种',
         alert_local_lottery_saved: '彩种设置已保存',
         local_lottery_settings_title: '彩种管理',
         local_lottery_settings_subtitle: '（Lotería / TICA / NICA · 顾客端入口 · 点击展开）',
@@ -1297,6 +1298,7 @@
         alert_need_cashier: 'Inicia sesión en la caja antes de ver el resultado.',
         alert_no_shop_info: 'No hay datos de tienda. Vuelve a iniciar sesión.',
         alert_limits_saved: 'Límites y precios guardados',
+        alert_at_least_one_lottery: 'Debe mantener al menos un tipo de lotería',
         alert_local_lottery_saved: 'Configuración de loterías guardada',
         local_lottery_settings_title: 'Gestión de loterías',
         local_lottery_settings_subtitle: '(Lotería / TICA / NICA · entrada en app · toca para expandir)',
@@ -2457,7 +2459,10 @@
       var nextL = !!(lEl && lEl.checked);
       var nextT = !!(tEl && tEl.checked);
       var nextN = !!(nEl && nEl.checked);
-      // 关闭顾客端入口不再弹确认框，说明见横幅「顾客端开通状态（本机记录）」文案
+      if (!nextL && !nextT && !nextN) {
+        showToast(t('alert_at_least_one_lottery') || '至少保留一个彩种', 'error');
+        return;
+      }
       try {
         var sessionToken = localStorage.getItem('lottery_session_token') || '';
         // 使用已有 PATCH /api/shop/:id/limits（扩展支持 tica/nica），避免线上未挂载 local-lottery 时出现 Cannot PATCH
