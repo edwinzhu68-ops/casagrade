@@ -1731,22 +1731,18 @@
 
     /** 主行文案：随勾选实时变化；「曾开通」小字仍读本地标记 */
     function updateMerchantLocalLotteryClientStatusLines() {
-      var tCb = document.getElementById('shop-enable-tica');
-      var nCb = document.getElementById('shop-enable-nica');
-      var tLine = document.getElementById('merchant-tica-client-line');
-      var nLine = document.getElementById('merchant-nica-client-line');
-      if (tLine && tCb) {
-        var on = !!tCb.checked;
-        tLine.innerHTML = on
-          ? ('<span class="text-emerald-300 font-bold">● ' + esc(t('local_lottery_client_on_prefix')) + '</span> · TICA')
-          : ('<span class="text-gray-400 font-bold">○ ' + esc(t('local_lottery_client_off_prefix')) + '</span> · TICA');
+      function setLine(cbId, lineId, name) {
+        var cb = document.getElementById(cbId);
+        var line = document.getElementById(lineId);
+        if (!line || !cb) return;
+        var on = !!cb.checked;
+        line.innerHTML = on
+          ? ('<span class="text-emerald-300 font-bold">● ' + esc(t('local_lottery_client_on_prefix')) + '</span> · ' + name)
+          : ('<span class="text-gray-400 font-bold">○ ' + esc(t('local_lottery_client_off_prefix')) + '</span> · ' + name);
       }
-      if (nLine && nCb) {
-        var on2 = !!nCb.checked;
-        nLine.innerHTML = on2
-          ? ('<span class="text-emerald-300 font-bold">● ' + esc(t('local_lottery_client_on_prefix')) + '</span> · NICA')
-          : ('<span class="text-gray-400 font-bold">○ ' + esc(t('local_lottery_client_off_prefix')) + '</span> · NICA');
-      }
+      setLine('shop-enable-loteria', 'merchant-loteria-client-line', 'Lotería');
+      setLine('shop-enable-tica', 'merchant-tica-client-line', 'TICA');
+      setLine('shop-enable-nica', 'merchant-nica-client-line', 'NICA');
     }
 
     /** 折叠标题角标 + 展开后横幅（勾选在横幅内，与主文案合一） */
@@ -1768,11 +1764,17 @@
       var tEver = !!(j.tica_client_ever_on || tOnSaved);
       var nEver = !!(j.nica_client_ever_on || nOnSaved);
 
+      // 先同步 checkbox 状态再更新文字
+      var lCb = document.getElementById('shop-enable-loteria');
+      var tCb = document.getElementById('shop-enable-tica');
+      var nCb = document.getElementById('shop-enable-nica');
+      if (lCb) lCb.checked = lOnSaved;
+      if (tCb) tCb.checked = tOnSaved;
+      if (nCb) nCb.checked = nOnSaved;
+
       banner.classList.remove('hidden');
       updateMerchantLocalLotteryClientStatusLines();
 
-      var tCb = document.getElementById('shop-enable-tica');
-      var nCb = document.getElementById('shop-enable-nica');
       var tChecked = tCb ? !!tCb.checked : tOnSaved;
       var nChecked = nCb ? !!nCb.checked : nOnSaved;
 
