@@ -189,6 +189,11 @@ export class OrderController implements OnModuleInit {
       throw new BadRequestException('Su suscripción ha vencido. Contacte al administrador para renovar.');
     }
 
+    // Lotería 关闭时禁止下单
+    if ((shop as any).loteria_enabled === false) {
+      throw new BadRequestException('Lotería 已关闭，无法下单');
+    }
+
     // 2. 获取当前全国待开奖期次（不含店内 TICA/NICA）
     const drawRepo = this.dataSource.getRepository(Draw);
     const currentDraw = await findNationalPendingDraw(drawRepo);
@@ -847,6 +852,7 @@ export class ShopController {
       /** 顾客端是否展示 TICA（与 local-lottery/shop-settings 同效，便于未挂载 LocalLottery 模块的环境） */
       ticaEnabled?: boolean;
       nicaEnabled?: boolean;
+      loteriaEnabled?: boolean;
     },
     @Req() req: Request,
   ) {
@@ -870,11 +876,13 @@ export class ShopController {
     if (body.limitBillete !== undefined) (shop as any).limit_billete = body.limitBillete || null;
     if (body.ticaEnabled !== undefined) shop.tica_enabled = !!body.ticaEnabled;
     if (body.nicaEnabled !== undefined) shop.nica_enabled = !!body.nicaEnabled;
+    if (body.loteriaEnabled !== undefined) (shop as any).loteria_enabled = !!body.loteriaEnabled;
     await shopRepo.save(shop);
     return {
       success: true,
       limit_chance: (shop as any).limit_chance,
       limit_billete: (shop as any).limit_billete,
+      loteria_enabled: (shop as any).loteria_enabled,
       tica_enabled: shop.tica_enabled,
       nica_enabled: shop.nica_enabled,
     };
@@ -1221,12 +1229,14 @@ export class BetStatusController {
     const shopRow = await this.dataSource.getRepository(Shop).findOne({ where: { shop_id: sid } });
     const localFlags = shopRow
       ? {
+          loteriaEnabled: (shopRow as any).loteria_enabled !== false,
           ticaEnabled: !!shopRow.tica_enabled,
           nicaEnabled: !!shopRow.nica_enabled,
           acceptingTicaOrders: shopRow.accepting_tica_orders !== false,
           acceptingNicaOrders: shopRow.accepting_nica_orders !== false,
         }
       : {
+          loteriaEnabled: true,
           ticaEnabled: false,
           nicaEnabled: false,
           acceptingTicaOrders: false,

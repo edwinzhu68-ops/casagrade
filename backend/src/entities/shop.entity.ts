@@ -49,6 +49,10 @@ export class Shop {
   @Column({ type: 'int', nullable: true })
   limit_billete: number | null;
 
+  /** 是否在顾客端展示 Lotería（官方彩；默认开启，店主可关闭） */
+  @Column({ type: 'boolean', default: true })
+  loteria_enabled: boolean;
+
   /**
    * 是否在顾客端展示 TICA（他国彩票品种之一；需店主开通）
    */
