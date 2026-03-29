@@ -79,9 +79,14 @@ export class LocalLotteryService {
 
   async getCurrent(shopId: number, kind: 'TICA' | 'NICA') {
     const draw = await this.ensureShopPendingDraw(shopId, kind);
+    const shop = await this.dataSource.getRepository(Shop).findOne({ where: { shop_id: shopId } });
+    const customPeriod = kind === 'TICA'
+      ? (shop as any)?.tica_custom_period ?? null
+      : (shop as any)?.nica_custom_period ?? null;
     return {
       draw_id: draw.draw_id,
       period_no: draw.period_no,
+      custom_period: customPeriod,
       shop_id: shopId,
       lottery_type: kind,
       status: draw.status,

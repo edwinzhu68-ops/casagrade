@@ -855,6 +855,10 @@ export class ShopController {
       /** NICA 独立限额 */
       nicaLimitChance?: number | null;
       nicaLimitPalet?: number | null;
+      /** TICA 自定义期号 */
+      ticaCustomPeriod?: string | null;
+      /** NICA 自定义期号 */
+      nicaCustomPeriod?: string | null;
       /** 顾客端是否展示 TICA（与 local-lottery/shop-settings 同效，便于未挂载 LocalLottery 模块的环境） */
       ticaEnabled?: boolean;
       nicaEnabled?: boolean;
@@ -884,6 +888,8 @@ export class ShopController {
     if (body.ticaLimitPalet !== undefined) (shop as any).tica_limit_palet = body.ticaLimitPalet || null;
     if (body.nicaLimitChance !== undefined) (shop as any).nica_limit_chance = body.nicaLimitChance || null;
     if (body.nicaLimitPalet !== undefined) (shop as any).nica_limit_palet = body.nicaLimitPalet || null;
+    if (body.ticaCustomPeriod !== undefined) (shop as any).tica_custom_period = body.ticaCustomPeriod || null;
+    if (body.nicaCustomPeriod !== undefined) (shop as any).nica_custom_period = body.nicaCustomPeriod || null;
     if (body.ticaEnabled !== undefined) shop.tica_enabled = !!body.ticaEnabled;
     if (body.nicaEnabled !== undefined) shop.nica_enabled = !!body.nicaEnabled;
     if (body.loteriaEnabled !== undefined) (shop as any).loteria_enabled = !!body.loteriaEnabled;
@@ -896,6 +902,8 @@ export class ShopController {
       tica_limit_palet: (shop as any).tica_limit_palet,
       nica_limit_chance: (shop as any).nica_limit_chance,
       nica_limit_palet: (shop as any).nica_limit_palet,
+      tica_custom_period: (shop as any).tica_custom_period,
+      nica_custom_period: (shop as any).nica_custom_period,
       loteria_enabled: (shop as any).loteria_enabled,
       tica_enabled: shop.tica_enabled,
       nica_enabled: shop.nica_enabled,
@@ -1047,6 +1055,8 @@ export class ShopController {
         tica_limit_palet: (shop as any).tica_limit_palet ?? null,
         nica_limit_chance: (shop as any).nica_limit_chance ?? null,
         nica_limit_palet: (shop as any).nica_limit_palet ?? null,
+        tica_custom_period: (shop as any).tica_custom_period ?? null,
+        nica_custom_period: (shop as any).nica_custom_period ?? null,
         loteria_enabled: (shop as any).loteria_enabled !== false,
         tica_enabled: !!(shop as any).tica_enabled,
         nica_enabled: !!(shop as any).nica_enabled,

@@ -65,6 +65,14 @@ export class Shop {
   @Column({ type: 'int', nullable: true })
   nica_limit_palet: number | null;
 
+  /** TICA 自定义期号（老板输入，优先于自动递增的 period_no 显示） */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  tica_custom_period: string | null;
+
+  /** NICA 自定义期号 */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  nica_custom_period: string | null;
+
   /** 是否在顾客端展示 Lotería（官方彩；默认开启，店主可关闭） */
   @Column({ type: 'boolean', default: true })
   loteria_enabled: boolean;
