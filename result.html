@@ -2199,10 +2199,8 @@
       if (!el || !currentShop) return;
       var kind = getResultPageKind();
       var customVal = kind === 'TICA' ? currentShop.tica_custom_period : (kind === 'NICA' ? currentShop.nica_custom_period : null);
-      el.value = customVal || '';
-      // placeholder 用当前自动期号
       var pNo = _resultLocalKindBadgeState && _resultLocalKindBadgeState.periodNo;
-      el.placeholder = pNo != null ? String(pNo) : '';
+      el.value = customVal || (pNo != null ? String(pNo) : '');
     }
 
     async function submitLocalLotterySettle() {
