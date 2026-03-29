@@ -2195,8 +2195,14 @@
           if (kind === 'TICA') currentShop.tica_custom_period = val;
           else currentShop.nica_custom_period = val;
           showToast(t('custom_period_saved') || '期号已保存', 'success');
+        } else {
+          var errData = {};
+          try { errData = await res.json(); } catch (e2) {}
+          showToast('保存失败: ' + (errData.message || errData.error || 'HTTP ' + res.status), 'error');
         }
-      } catch (e) {}
+      } catch (e) {
+        showToast('保存失败: ' + e.message, 'error');
+      }
     }
 
     var _customPeriodInitDone = false;
