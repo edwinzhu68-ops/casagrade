@@ -1827,8 +1827,9 @@
         var m = mode != null ? mode : clientLotteryMode;
         var ld = m === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
         var pNo = ld && (ld.period_no != null ? ld.period_no : ld.periodNo);
+        var customP = ld && ld.custom_period ? ld.custom_period : (currentShop && (m === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period));
         var label = m + ' Sorteo';
-        var val = (pNo != null && String(pNo).trim() !== '') ? ('#' + pNo) : '--';
+        var val = customP || ((pNo != null && String(pNo).trim() !== '') ? ('#' + pNo) : '--');
         if (payLabel) payLabel.textContent = label;
         if (confLabel) confLabel.textContent = label;
         if (payVal) payVal.textContent = val;
@@ -1951,8 +1952,10 @@
           // TICA/NICA：显示期号
           var _ld = clientLotteryMode === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
           var _pNo = _ld && (_ld.period_no != null ? _ld.period_no : _ld.periodNo);
-          if (_pNo != null && String(_pNo).trim() !== '') {
-            periodEl.textContent = clientLotteryMode + ' #' + _pNo;
+          var _cpMain = _ld && _ld.custom_period ? _ld.custom_period : (currentShop && (clientLotteryMode === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period));
+          var _periodDisplay = _cpMain || ((_pNo != null && String(_pNo).trim() !== '') ? ('#' + _pNo) : null);
+          if (_periodDisplay) {
+            periodEl.textContent = clientLotteryMode + ' ' + _periodDisplay;
             periodWrap.classList.remove('hidden');
           } else {
             periodWrap.classList.add('hidden');
@@ -2526,8 +2529,9 @@
             if (isClientLocalLotteryMode()) {
               var _ldPay = clientLotteryMode === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
               var _pNoPay = _ldPay && (_ldPay.period_no != null ? _ldPay.period_no : _ldPay.periodNo);
+              var _payCustomP = _ldPay && _ldPay.custom_period ? _ldPay.custom_period : (currentShop && (clientLotteryMode === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period));
               if (payDrawLabel) payDrawLabel.textContent = clientLotteryMode + ' Sorteo';
-              drawAtEl.textContent = (_pNoPay != null && String(_pNoPay).trim() !== '') ? ('#' + _pNoPay) : '--';
+              drawAtEl.textContent = _payCustomP || ((_pNoPay != null && String(_pNoPay).trim() !== '') ? ('#' + _pNoPay) : '--');
             } else {
               if (payDrawLabel) payDrawLabel.textContent = 'Lotería Sorteo';
               var dateStr = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
@@ -3260,8 +3264,9 @@
             if (orderLt === 'TICA' || orderLt === 'NICA') {
               var _ldConf = orderLt === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
               var _pNoConf = _ldConf && (_ldConf.period_no != null ? _ldConf.period_no : _ldConf.periodNo);
+              var _confCustomP = _ldConf && _ldConf.custom_period ? _ldConf.custom_period : (currentShop && (orderLt === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period));
               if (confDrawLabel) confDrawLabel.textContent = orderLt + ' Sorteo';
-              drawAtEl2.textContent = (_pNoConf != null && String(_pNoConf).trim() !== '') ? ('#' + _pNoConf) : '--';
+              drawAtEl2.textContent = _confCustomP || ((_pNoConf != null && String(_pNoConf).trim() !== '') ? ('#' + _pNoConf) : '--');
             } else {
               if (confDrawLabel) confDrawLabel.textContent = 'Lotería Sorteo';
               var periodDate = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
