@@ -764,7 +764,8 @@
         var dId = (currentDrawId != null && String(currentDrawId).trim() !== '') ? Number(currentDrawId) : NaN;
         displayNo = (isFinite(dId) && dId > 0) ? dId : null;
       }
-      var mid = displayNo ? ('#' + displayNo) : t('badge_in_progress');
+      var customP = currentShop && (k === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period);
+      var mid = customP || (displayNo ? ('#' + displayNo) : t('badge_in_progress'));
       pill.textContent = k + ' · ' + mid;
       if (k === 'TICA') {
         pill.className = 'text-xs px-2 py-0.5 rounded-full font-medium bg-blue-900/50 text-blue-300';
