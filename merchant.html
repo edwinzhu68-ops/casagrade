@@ -312,6 +312,12 @@
               </div>
             </div>
           </div>
+          <div class="mt-2">
+            <label class="text-xs text-gray-400">自定义期号 (留空=自动)</label>
+            <input type="text" id="tica-custom-period" maxlength="20" placeholder="如: 123 或 A1"
+              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm mt-1"
+              onchange="saveCustomPeriod('TICA')" />
+          </div>
         </div>
         <div id="nica-limits-section" class="hidden mt-3 pt-3 border-t border-gray-700">
           <p class="text-xs text-purple-400 font-bold mb-2">NICA 独立限额</p>
@@ -330,6 +336,12 @@
                 <span class="ml-1 text-gray-400">张</span>
               </div>
             </div>
+          </div>
+          <div class="mt-2">
+            <label class="text-xs text-gray-400">自定义期号 (留空=自动)</label>
+            <input type="text" id="nica-custom-period" maxlength="20" placeholder="如: 123 或 A1"
+              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm mt-1"
+              onchange="saveCustomPeriod('NICA')" />
           </div>
         </div>
         <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
@@ -2001,6 +2013,8 @@
           tica_limit_palet: shop.tica_limit_palet ?? null,
           nica_limit_chance: shop.nica_limit_chance ?? null,
           nica_limit_palet: shop.nica_limit_palet ?? null,
+          tica_custom_period: shop.tica_custom_period ?? null,
+          nica_custom_period: shop.nica_custom_period ?? null,
           subscription_expires_at: shop.subscription_expires_at ?? null,
         }));
         localStorage.setItem('main_shop_cache_json', JSON.stringify({
@@ -2520,6 +2534,33 @@
       if (n) n.checked = !!currentShop.nica_enabled;
       try { refreshMerchantLocalLotteryStatusBanner(); } catch (e) {}
       syncTicaNicaLimitsSectionVisibility();
+      // 回填自定义期号
+      var tcpEl = document.getElementById('tica-custom-period');
+      var ncpEl = document.getElementById('nica-custom-period');
+      if (tcpEl && currentShop) tcpEl.value = currentShop.tica_custom_period || '';
+      if (ncpEl && currentShop) ncpEl.value = currentShop.nica_custom_period || '';
+    }
+
+    async function saveCustomPeriod(kind) {
+      if (!currentShop || !authToken) return;
+      var inputId = kind === 'TICA' ? 'tica-custom-period' : 'nica-custom-period';
+      var val = (document.getElementById(inputId).value || '').trim() || null;
+      var body = {};
+      if (kind === 'TICA') body.ticaCustomPeriod = val;
+      else body.nicaCustomPeriod = val;
+      try {
+        await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/limits', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify(body)
+        });
+        if (kind === 'TICA') currentShop.tica_custom_period = val;
+        else currentShop.nica_custom_period = val;
+        persistMerchantLastShop(currentShop);
+        showToast('期号已保存', 'success');
+      } catch (e) {
+        showToast('保存失败', 'error');
+      }
     }
 
     async function saveLocalLotteryShopSettings() {
@@ -3189,7 +3230,8 @@
             var dId = ldLocal && (ldLocal.draw_id != null ? ldLocal.draw_id : ldLocal.drawId);
             var pNoLocal = ldLocal && (ldLocal.period_no != null ? ldLocal.period_no : ldLocal.periodNo);
             var hasId = dId != null && String(dId).trim() !== '';
-            var mid = hasId ? ('#' + (pNoLocal != null && String(pNoLocal).trim() !== '' ? pNoLocal : dId)) : t('badge_in_progress');
+            var customPLocal = merchantWorkbenchKind === 'TICA' ? (currentShop && currentShop.tica_custom_period) : (currentShop && currentShop.nica_custom_period);
+            var mid = customPLocal ? customPLocal : (hasId ? ('#' + (pNoLocal != null && String(pNoLocal).trim() !== '' ? pNoLocal : dId)) : t('badge_in_progress'));
             statusBadge.textContent = merchantWorkbenchKind + ' · ' + mid;
             if (merchantWorkbenchKind === 'TICA') {
               statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300';
@@ -4107,8 +4149,9 @@
         if (_etLt === 'TICA' || _etLt === 'NICA') {
           var _etLd = _etLt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
           var _etPNo = _etLd && (_etLd.period_no != null ? _etLd.period_no : _etLd.periodNo);
+          var _etCustomP = _etLt === 'TICA' ? (currentShop && currentShop.tica_custom_period) : (currentShop && currentShop.nica_custom_period);
           if (etDrawLabel) etDrawLabel.textContent = _etLt + ' Sorteo';
-          if (etDrawValue) etDrawValue.textContent = (_etPNo != null && String(_etPNo).trim() !== '') ? ('#' + _etPNo) : '--';
+          if (etDrawValue) etDrawValue.textContent = _etCustomP ? _etCustomP : ((_etPNo != null && String(_etPNo).trim() !== '') ? ('#' + _etPNo) : '--');
           etDrawRow.classList.remove('hidden');
         } else {
           var _etDd = order.draw_date || order.drawDate || currentDrawDate || null;
@@ -4284,8 +4327,9 @@
         if (_odetLt === 'TICA' || _odetLt === 'NICA') {
           var _odetLd = _odetLt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
           var _odetPNo = _odetLd && (_odetLd.period_no != null ? _odetLd.period_no : _odetLd.periodNo);
+          var _odetCustomP = _odetLt === 'TICA' ? (currentShop && currentShop.tica_custom_period) : (currentShop && currentShop.nica_custom_period);
           if (odetDrawLabel) odetDrawLabel.textContent = _odetLt + ' Sorteo';
-          if (odetDrawValue) odetDrawValue.textContent = (_odetPNo != null && String(_odetPNo).trim() !== '') ? ('#' + _odetPNo) : '--';
+          if (odetDrawValue) odetDrawValue.textContent = _odetCustomP ? _odetCustomP : ((_odetPNo != null && String(_odetPNo).trim() !== '') ? ('#' + _odetPNo) : '--');
           odetDrawRow.classList.remove('hidden');
         } else {
           var _odetDd = order.draw_date || order.drawDate || currentDrawDate || null;
@@ -6109,7 +6153,12 @@
       if (_lt === 'TICA' || _lt === 'NICA') {
         var _ldLocal = _lt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
         var _pNo = _ldLocal && (_ldLocal.period_no != null ? _ldLocal.period_no : _ldLocal.periodNo);
-        if (_pNo != null && String(_pNo).trim() !== '') {
+        var _printCustomP = _lt === 'TICA' ? (currentShop && currentShop.tica_custom_period) : (currentShop && currentShop.nica_custom_period);
+        if (_printCustomP) {
+          push(...CENTER);
+          txt(_lt + ' ' + _printCustomP); LF();
+          push(...LEFT);
+        } else if (_pNo != null && String(_pNo).trim() !== '') {
           push(...CENTER);
           txt(_lt + ' #' + _pNo); LF();
           push(...LEFT);
