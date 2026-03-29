@@ -80,10 +80,12 @@ function calcBilletePrizeForOneDraw(
   if (b === w) return exactRates[prizeIndex] * qty;
   if (b.substring(0, 3) === w.substring(0, 3)) return BILLETE_RATE_DEFAULT.first3[prizeIndex] * qty;
   if (b.substring(1, 4) === w.substring(1, 4)) return BILLETE_RATE_DEFAULT.last3[prizeIndex] * qty;
-  if (b.substring(0, 2) === w.substring(0, 2)) return BILLETE_RATE_DEFAULT.first2[prizeIndex] * qty;
-  if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
-  if (b.substring(3, 4) === w.substring(3, 4)) return BILLETE_RATE_DEFAULT.last1[prizeIndex] * qty;
-  return 0;
+  // 前两位和最后一位可叠加（如83xx中前两位3x + xxx4中最后一位1x = 4x）
+  let sum = 0;
+  if (b.substring(0, 2) === w.substring(0, 2)) sum += BILLETE_RATE_DEFAULT.first2[prizeIndex];
+  if (b.substring(2, 4) === w.substring(2, 4)) return (sum + BILLETE_RATE_DEFAULT.last2[prizeIndex]) * qty;
+  if (b.substring(3, 4) === w.substring(3, 4)) sum += BILLETE_RATE_DEFAULT.last1[prizeIndex];
+  return sum * qty;
 }
 
 /**

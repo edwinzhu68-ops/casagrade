@@ -466,7 +466,7 @@ export class SettlementService {
     const matches: string[] = [];
     let totalPayout = 0;
 
-    // 头奖：只取最高一档
+    // 头奖：四位/前三/后三互斥取最高；前两位和最后一位可叠加
     if (primerNorm) {
       if (paddedNum === primerNorm) {
         matches.push(`头奖四位 ${paddedNum} x${exactRates[0]}`);
@@ -477,15 +477,18 @@ export class SettlementService {
       } else if (paddedNum.slice(1, 4) === primerNorm.slice(1, 4)) {
         matches.push(`头奖后三位 x50`);
         totalPayout += 50 * qty;
-      } else if (paddedNum.slice(0, 2) === primerNorm.slice(0, 2)) {
-        matches.push(`头奖前两位 x3`);
-        totalPayout += 3 * qty;
-      } else if (paddedNum.slice(2, 4) === primerNorm.slice(2, 4)) {
-        matches.push(`头奖后两位 x3`);
-        totalPayout += 3 * qty;
-      } else if (paddedNum.slice(-1) === primerNorm.slice(-1)) {
-        matches.push(`头奖最后一位 x1`);
-        totalPayout += 1 * qty;
+      } else {
+        if (paddedNum.slice(0, 2) === primerNorm.slice(0, 2)) {
+          matches.push(`头奖前两位 x3`);
+          totalPayout += 3 * qty;
+        }
+        if (paddedNum.slice(2, 4) === primerNorm.slice(2, 4)) {
+          matches.push(`头奖后两位 x3`);
+          totalPayout += 3 * qty;
+        } else if (paddedNum.slice(-1) === primerNorm.slice(-1)) {
+          matches.push(`头奖最后一位 x1`);
+          totalPayout += 1 * qty;
+        }
       }
     } else {
       // 头奖号不足4位（如GORDITO 2位）：只比后两位
