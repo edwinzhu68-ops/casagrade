@@ -619,10 +619,12 @@ export class DrawController {
         status: 'completed',
         draw_time: dto.drawTime || (draw as any).draw_time,
       };
-      // ISO 格式 drawTime（如 2026-03-16T15:00:00）时同步更新 draw_date
+      // ISO 格式 drawTime（如 2026-03-16T15:00:00）：仅在 pending 期没有 draw_date 时才同步日期，避免覆盖已手动修改的开奖日期
       if (dto.drawTime && typeof dto.drawTime === 'string' && dto.drawTime.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(dto.drawTime)) {
-        const parsed = parseYYYYMMDD(dto.drawTime.slice(0, 10));
-        if (parsed) updateFields.draw_date = parsed;
+        if (!(draw as any).draw_date) {
+          const parsed = parseYYYYMMDD(dto.drawTime.slice(0, 10));
+          if (parsed) updateFields.draw_date = parsed;
+        }
       }
       await drawRepo.update((draw as any).draw_id, updateFields);
       if (updateFields.draw_date) (draw as any).draw_date = updateFields.draw_date;
