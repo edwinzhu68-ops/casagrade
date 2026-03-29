@@ -792,6 +792,18 @@ let ShopController = ShopController_1 = class ShopController {
             shop.limit_chance = body.limitChance || null;
         if (body.limitBillete !== undefined)
             shop.limit_billete = body.limitBillete || null;
+        if (body.ticaLimitChance !== undefined)
+            shop.tica_limit_chance = body.ticaLimitChance || null;
+        if (body.ticaLimitPalet !== undefined)
+            shop.tica_limit_palet = body.ticaLimitPalet || null;
+        if (body.nicaLimitChance !== undefined)
+            shop.nica_limit_chance = body.nicaLimitChance || null;
+        if (body.nicaLimitPalet !== undefined)
+            shop.nica_limit_palet = body.nicaLimitPalet || null;
+        if (body.ticaCustomPeriod !== undefined)
+            shop.tica_custom_period = body.ticaCustomPeriod || null;
+        if (body.nicaCustomPeriod !== undefined)
+            shop.nica_custom_period = body.nicaCustomPeriod || null;
         if (body.ticaEnabled !== undefined)
             shop.tica_enabled = !!body.ticaEnabled;
         if (body.nicaEnabled !== undefined)
@@ -803,6 +815,12 @@ let ShopController = ShopController_1 = class ShopController {
             success: true,
             limit_chance: shop.limit_chance,
             limit_billete: shop.limit_billete,
+            tica_limit_chance: shop.tica_limit_chance,
+            tica_limit_palet: shop.tica_limit_palet,
+            nica_limit_chance: shop.nica_limit_chance,
+            nica_limit_palet: shop.nica_limit_palet,
+            tica_custom_period: shop.tica_custom_period,
+            nica_custom_period: shop.nica_custom_period,
             loteria_enabled: shop.loteria_enabled,
             tica_enabled: shop.tica_enabled,
             nica_enabled: shop.nica_enabled,
@@ -916,6 +934,13 @@ let ShopController = ShopController_1 = class ShopController {
                 commission_rate: shop.commission_rate,
                 limit_chance: shop.limit_chance ?? null,
                 limit_billete: shop.limit_billete ?? null,
+                tica_limit_chance: shop.tica_limit_chance ?? null,
+                tica_limit_palet: shop.tica_limit_palet ?? null,
+                nica_limit_chance: shop.nica_limit_chance ?? null,
+                nica_limit_palet: shop.nica_limit_palet ?? null,
+                tica_custom_period: shop.tica_custom_period ?? null,
+                nica_custom_period: shop.nica_custom_period ?? null,
+                loteria_enabled: shop.loteria_enabled !== false,
                 tica_enabled: !!shop.tica_enabled,
                 nica_enabled: !!shop.nica_enabled,
                 accepting_tica_orders: shop.accepting_tica_orders !== false,

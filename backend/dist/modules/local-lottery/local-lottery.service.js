@@ -99,9 +99,14 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
     }
     async getCurrent(shopId, kind) {
         const draw = await this.ensureShopPendingDraw(shopId, kind);
+        const shop = await this.dataSource.getRepository(shop_entity_1.Shop).findOne({ where: { shop_id: shopId } });
+        const customPeriod = kind === 'TICA'
+            ? shop?.tica_custom_period ?? null
+            : shop?.nica_custom_period ?? null;
         return {
             draw_id: draw.draw_id,
             period_no: draw.period_no,
+            custom_period: customPeriod,
             shop_id: shopId,
             lottery_type: kind,
             status: draw.status,
@@ -195,8 +200,16 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
             throw (0, api_bilingual_1.badBilingual)('NICA: la tienda no acepta pedidos en este momento.', 'NICA 接单已关闭');
         }
         const currentDraw = await this.ensureShopPendingDraw(Number(shopId), kind, true);
-        const limitChance = shop.limit_chance;
-        const limitBillete = shop.limit_billete;
+        const limitChance = (kind === 'TICA'
+            ? (shop.tica_limit_chance ?? shop.limit_chance)
+            : kind === 'NICA'
+                ? (shop.nica_limit_chance ?? shop.limit_chance)
+                : shop.limit_chance);
+        const limitBillete = (kind === 'TICA'
+            ? (shop.tica_limit_palet ?? shop.limit_billete)
+            : kind === 'NICA'
+                ? (shop.nica_limit_palet ?? shop.limit_billete)
+                : shop.limit_billete);
         return (0, shop_order_lock_1.withShopLock)(Number(shopId), async () => {
             if (limitChance != null || limitBillete != null) {
                 const dbType = this.dataSource.options.type;
@@ -359,8 +372,16 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
             if (order.draw_id == null) {
                 throw (0, api_bilingual_1.badBilingual)('Pedido sin sorteo asignado.', '订单缺少期次，无法修改');
             }
-            const limitChance = shopRow.limit_chance;
-            const limitBillete = shopRow.limit_billete;
+            const limitChance = (kind === 'TICA'
+                ? (shopRow.tica_limit_chance ?? shopRow.limit_chance)
+                : kind === 'NICA'
+                    ? (shopRow.nica_limit_chance ?? shopRow.limit_chance)
+                    : shopRow.limit_chance);
+            const limitBillete = (kind === 'TICA'
+                ? (shopRow.tica_limit_palet ?? shopRow.limit_billete)
+                : kind === 'NICA'
+                    ? (shopRow.nica_limit_palet ?? shopRow.limit_billete)
+                    : shopRow.limit_billete);
             if (limitChance != null || limitBillete != null) {
                 const dbType = this.dataSource.options.type;
                 let soldRows = [];

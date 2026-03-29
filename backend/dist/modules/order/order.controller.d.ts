@@ -152,6 +152,12 @@ export declare class ShopController {
     updateShopLimits(shopId: string, body: {
         limitChance?: number | null;
         limitBillete?: number | null;
+        ticaLimitChance?: number | null;
+        ticaLimitPalet?: number | null;
+        nicaLimitChance?: number | null;
+        nicaLimitPalet?: number | null;
+        ticaCustomPeriod?: string | null;
+        nicaCustomPeriod?: string | null;
         ticaEnabled?: boolean;
         nicaEnabled?: boolean;
         loteriaEnabled?: boolean;
@@ -159,6 +165,12 @@ export declare class ShopController {
         success: boolean;
         limit_chance: any;
         limit_billete: any;
+        tica_limit_chance: any;
+        tica_limit_palet: any;
+        nica_limit_chance: any;
+        nica_limit_palet: any;
+        tica_custom_period: any;
+        nica_custom_period: any;
         loteria_enabled: any;
         tica_enabled: boolean;
         nica_enabled: boolean;
@@ -246,6 +258,13 @@ export declare class ShopController {
             commission_rate: number;
             limit_chance: any;
             limit_billete: any;
+            tica_limit_chance: any;
+            tica_limit_palet: any;
+            nica_limit_chance: any;
+            nica_limit_palet: any;
+            tica_custom_period: any;
+            nica_custom_period: any;
+            loteria_enabled: boolean;
             tica_enabled: boolean;
             nica_enabled: boolean;
             accepting_tica_orders: boolean;
