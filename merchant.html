@@ -312,12 +312,6 @@
               </div>
             </div>
           </div>
-          <div class="mt-2">
-            <label class="text-xs text-gray-400">自定义期号 (留空=自动)</label>
-            <input type="text" id="tica-custom-period" maxlength="20" placeholder="如: 123 或 A1"
-              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm mt-1"
-              onchange="saveCustomPeriod('TICA')" />
-          </div>
         </div>
         <div id="nica-limits-section" class="hidden mt-3 pt-3 border-t border-gray-700">
           <p class="text-xs text-purple-400 font-bold mb-2">NICA 独立限额</p>
@@ -336,12 +330,6 @@
                 <span class="ml-1 text-gray-400">张</span>
               </div>
             </div>
-          </div>
-          <div class="mt-2">
-            <label class="text-xs text-gray-400">自定义期号 (留空=自动)</label>
-            <input type="text" id="nica-custom-period" maxlength="20" placeholder="如: 123 或 A1"
-              class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm mt-1"
-              onchange="saveCustomPeriod('NICA')" />
           </div>
         </div>
         <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>

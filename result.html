@@ -156,6 +156,12 @@
         <!-- 停售/销售状态提示 -->
         <div id="local-sale-status-banner" class="mt-2 rounded-lg px-3 py-2 text-center text-sm font-bold hidden"></div>
         <p id="local-settle-hint" class="text-xs text-gray-500 mt-2"></p>
+        <div class="mt-3 pt-3 border-t border-gray-700/50">
+          <label class="text-xs text-gray-400" data-i18n="custom_period_label">自定义期号（留空=自动递增）</label>
+          <input type="text" id="local-custom-period" maxlength="20"
+            class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm mt-1"
+            onchange="saveLocalCustomPeriod()" />
+        </div>
       </div>
 
       <!-- 等待兑奖 -->
@@ -624,6 +630,8 @@
         local_history_collapse: '收起',
         local_settle_title_kind: '📊 {kind} · 开奖结算',
         local_settle_btn: '确认开奖并结算',
+        custom_period_label: '自定义期号（留空=自动递增）',
+        custom_period_saved: '期号已保存',
         local_stop_sale: '停售',
         local_start_sale: '开售',
         local_sale_on: '正在销售中',
@@ -716,6 +724,8 @@
         local_history_collapse: 'Contraer',
         local_settle_title_kind: '📊 {kind} · Liquidación',
         local_settle_btn: 'Confirmar sorteo y liquidar',
+        custom_period_label: 'Período personalizado (vacío=auto)',
+        custom_period_saved: 'Período guardado',
         local_stop_sale: 'Parar',
         local_start_sale: 'Abrir',
         local_sale_on: 'Ventas abiertas',
@@ -935,6 +945,7 @@
               mergeResultShopLocalFlags(currentShop);
               document.getElementById('shop-number').textContent = match.shop_number || '';
               renderResultWorkbenchNav();
+              syncLocalCustomPeriodInput();
             }
           }
         }).catch(() => {});
@@ -1834,6 +1845,7 @@
       document.querySelectorAll('.national-only').forEach(function (el) { el.classList.add('hidden'); });
       var settleCard = document.getElementById('local-lottery-settle-card');
       if (settleCard) settleCard.classList.remove('hidden');
+      syncLocalCustomPeriodInput();
       fetchLocalSaleStatus();
       var title = document.getElementById('local-settle-title');
       if (title) {
@@ -2158,6 +2170,39 @@
       } catch (e) {
         alert('Network error');
       }
+    }
+
+    async function saveLocalCustomPeriod() {
+      if (!currentShop || !authToken) return;
+      var kind = getResultPageKind();
+      if (kind !== 'TICA' && kind !== 'NICA') return;
+      var val = (document.getElementById('local-custom-period').value || '').trim() || null;
+      var body = {};
+      if (kind === 'TICA') body.ticaCustomPeriod = val;
+      else body.nicaCustomPeriod = val;
+      try {
+        var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/limits', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          if (kind === 'TICA') currentShop.tica_custom_period = val;
+          else currentShop.nica_custom_period = val;
+          showToast(t('custom_period_saved') || '期号已保存', 'success');
+        }
+      } catch (e) {}
+    }
+
+    function syncLocalCustomPeriodInput() {
+      var el = document.getElementById('local-custom-period');
+      if (!el || !currentShop) return;
+      var kind = getResultPageKind();
+      var customVal = kind === 'TICA' ? currentShop.tica_custom_period : (kind === 'NICA' ? currentShop.nica_custom_period : null);
+      el.value = customVal || '';
+      // placeholder 用当前自动期号
+      var pNo = _resultLocalKindBadgeState && _resultLocalKindBadgeState.periodNo;
+      el.placeholder = pNo != null ? String(pNo) : '';
     }
 
     async function submitLocalLotterySettle() {
