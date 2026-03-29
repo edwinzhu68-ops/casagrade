@@ -264,7 +264,7 @@
       <!-- Billete 号码（开奖后清空） -->
       <div class="bg-gray-800 rounded-2xl p-4 relative z-10">
         <div class="flex justify-between items-center mb-2">
-          <h3 class="font-bold">Billete <span class="text-gray-400 text-sm font-normal" data-i18n="sales_amount">销售额</span> <span class="text-amber-400 text-sm font-normal" id="merchant-billete-sales">$0.00</span></h3>
+          <h3 class="font-bold"><span id="billete-sales-label">Billete</span> <span class="text-gray-400 text-sm font-normal" data-i18n="sales_amount">销售额</span> <span class="text-amber-400 text-sm font-normal" id="merchant-billete-sales">$0.00</span></h3>
           <button type="button" id="btn-billete-viewall" onclick="showBilleteDetail()" class="text-blue-400 text-sm font-medium cursor-pointer hover:text-blue-300 hover:underline relative z-10 py-1 px-2 -m-2" data-i18n="view_all">查看全部 →</button>
         </div>
         <div id="billete-top10" class="grid grid-cols-4 gap-2 text-xs">
@@ -294,6 +294,44 @@
           </div>
         </div>
         <p class="text-xs text-gray-500 mt-2" data-i18n="limit_hint">0 = sin límite</p>
+        <div id="tica-limits-section" class="hidden mt-3 pt-3 border-t border-gray-700">
+          <p class="text-xs text-purple-400 font-bold mb-2">TICA 独立限额</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="tica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="tica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="nica-limits-section" class="hidden mt-3 pt-3 border-t border-gray-700">
+          <p class="text-xs text-purple-400 font-bold mb-2">NICA 独立限额</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="nica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="nica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+          </div>
+        </div>
         <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
       </div>
 
@@ -1959,6 +1997,10 @@
           nica_enabled: !!shop.nica_enabled,
           limit_chance: shop.limit_chance ?? null,
           limit_billete: shop.limit_billete ?? null,
+          tica_limit_chance: shop.tica_limit_chance ?? null,
+          tica_limit_palet: shop.tica_limit_palet ?? null,
+          nica_limit_chance: shop.nica_limit_chance ?? null,
+          nica_limit_palet: shop.nica_limit_palet ?? null,
           subscription_expires_at: shop.subscription_expires_at ?? null,
         }));
         localStorage.setItem('main_shop_cache_json', JSON.stringify({
@@ -1985,6 +2027,10 @@
         limits.billete = s.limit_billete != null ? Number(s.limit_billete) : null;
         document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
         document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
+        document.getElementById('tica-limit-chance').value = s.tica_limit_chance != null ? s.tica_limit_chance : '';
+        document.getElementById('tica-limit-palet').value = s.tica_limit_palet != null ? s.tica_limit_palet : '';
+        document.getElementById('nica-limit-chance').value = s.nica_limit_chance != null ? s.nica_limit_chance : '';
+        document.getElementById('nica-limit-palet').value = s.nica_limit_palet != null ? s.nica_limit_palet : '';
         syncLocalLotteryFeatureCheckboxes();
         applyMerchantLang();
         loadDashboard();
@@ -2045,6 +2091,10 @@
             limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
             document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
             document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
+            document.getElementById('tica-limit-chance').value = currentShop.tica_limit_chance != null ? currentShop.tica_limit_chance : '';
+            document.getElementById('tica-limit-palet').value = currentShop.tica_limit_palet != null ? currentShop.tica_limit_palet : '';
+            document.getElementById('nica-limit-chance').value = currentShop.nica_limit_chance != null ? currentShop.nica_limit_chance : '';
+            document.getElementById('nica-limit-palet').value = currentShop.nica_limit_palet != null ? currentShop.nica_limit_palet : '';
             syncLocalLotteryFeatureCheckboxes();
             document.getElementById('page-login').classList.add('hidden');
             document.getElementById('page-cashier').classList.remove('hidden');
@@ -2409,11 +2459,24 @@
       const billeteVal = document.getElementById('limit-billete').value.trim();
       const newChance = chanceVal === '' ? null : (parseInt(chanceVal) > 0 ? parseInt(chanceVal) : null);
       const newBillete = billeteVal === '' ? null : (parseInt(billeteVal) > 0 ? parseInt(billeteVal) : null);
+      // TICA/NICA 独立限额
+      const ticaChanceVal = document.getElementById('tica-limit-chance').value.trim();
+      const ticaPaletVal = document.getElementById('tica-limit-palet').value.trim();
+      const nicaChanceVal = document.getElementById('nica-limit-chance').value.trim();
+      const nicaPaletVal = document.getElementById('nica-limit-palet').value.trim();
+      const ticaChance = ticaChanceVal === '' ? null : (parseInt(ticaChanceVal) > 0 ? parseInt(ticaChanceVal) : null);
+      const ticaPalet = ticaPaletVal === '' ? null : (parseInt(ticaPaletVal) > 0 ? parseInt(ticaPaletVal) : null);
+      const nicaChance = nicaChanceVal === '' ? null : (parseInt(nicaChanceVal) > 0 ? parseInt(nicaChanceVal) : null);
+      const nicaPalet = nicaPaletVal === '' ? null : (parseInt(nicaPaletVal) > 0 ? parseInt(nicaPaletVal) : null);
       try {
         const res = await fetch(`${API_BASE}/api/shop/${currentShop.shop_id}/limits`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-          body: JSON.stringify({ limitChance: newChance, limitBillete: newBillete })
+          body: JSON.stringify({
+            limitChance: newChance, limitBillete: newBillete,
+            ticaLimitChance: ticaChance, ticaLimitPalet: ticaPalet,
+            nicaLimitChance: nicaChance, nicaLimitPalet: nicaPalet,
+          })
         });
         if (!res.ok) {
           let errMsg = '保存失败 (HTTP ' + res.status + ')';
@@ -2424,6 +2487,10 @@
         limits.billete = newBillete;
         currentShop.limit_chance = newChance;
         currentShop.limit_billete = newBillete;
+        currentShop.tica_limit_chance = ticaChance;
+        currentShop.tica_limit_palet = ticaPalet;
+        currentShop.nica_limit_chance = nicaChance;
+        currentShop.nica_limit_palet = nicaPalet;
         persistMerchantLastShop(currentShop);
         if (newChance != null) localStorage.setItem('limit_chance', newChance);
         else localStorage.removeItem('limit_chance');
@@ -2433,6 +2500,13 @@
       } catch (err) {
         showToast(err.message || t('alert_save_limits_fail'), 'error');
       }
+    }
+
+    function syncTicaNicaLimitsSectionVisibility() {
+      var ticaSec = document.getElementById('tica-limits-section');
+      var nicaSec = document.getElementById('nica-limits-section');
+      if (ticaSec) ticaSec.classList.toggle('hidden', !(currentShop && currentShop.tica_enabled));
+      if (nicaSec) nicaSec.classList.toggle('hidden', !(currentShop && currentShop.nica_enabled));
     }
 
     function syncLocalLotteryFeatureCheckboxes() {
@@ -2445,6 +2519,7 @@
       if (t) t.checked = !!currentShop.tica_enabled;
       if (n) n.checked = !!currentShop.nica_enabled;
       try { refreshMerchantLocalLotteryStatusBanner(); } catch (e) {}
+      syncTicaNicaLimitsSectionVisibility();
     }
 
     async function saveLocalLotteryShopSettings() {
@@ -3666,6 +3741,9 @@
       var isPalet = (merchantWorkbenchKind === 'TICA' || merchantWorkbenchKind === 'NICA');
       if (bBtn) bBtn.textContent = (isPalet ? 'Palet' : 'Billete') + ' ($' + pr.billete.toFixed(2) + ')';
       if (cBtn) cBtn.textContent = 'Chance ($' + pr.chance.toFixed(2) + ')';
+      // 统计区标题：TICA/NICA 时显示 Palet，否则 Billete
+      var salesLabel = document.getElementById('billete-sales-label');
+      if (salesLabel) salesLabel.textContent = isPalet ? 'Palet' : 'Billete';
     }
 
     async function refreshCashierBetSnap() {
