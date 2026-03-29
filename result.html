@@ -2200,7 +2200,7 @@
       var kind = getResultPageKind();
       var customVal = kind === 'TICA' ? currentShop.tica_custom_period : (kind === 'NICA' ? currentShop.nica_custom_period : null);
       var pNo = _resultLocalKindBadgeState && _resultLocalKindBadgeState.periodNo;
-      el.value = customVal || (pNo != null ? String(pNo) : '');
+      el.value = customVal || (pNo != null ? '#' + pNo : '');
     }
 
     async function submitLocalLotterySettle() {
