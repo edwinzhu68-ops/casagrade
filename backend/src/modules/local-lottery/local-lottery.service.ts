@@ -194,8 +194,17 @@ export class LocalLotteryService {
     }
 
     const currentDraw = await this.ensureShopPendingDraw(Number(shopId), kind, true);
-    const limitChance = (shop as any).limit_chance as number | null;
-    const limitBillete = (shop as any).limit_billete as number | null;
+    // TICA/NICA 独立限额，null 时 fallback 到通用限额
+    const limitChance = (kind === 'TICA'
+      ? ((shop as any).tica_limit_chance ?? (shop as any).limit_chance)
+      : kind === 'NICA'
+        ? ((shop as any).nica_limit_chance ?? (shop as any).limit_chance)
+        : (shop as any).limit_chance) as number | null;
+    const limitBillete = (kind === 'TICA'
+      ? ((shop as any).tica_limit_palet ?? (shop as any).limit_billete)
+      : kind === 'NICA'
+        ? ((shop as any).nica_limit_palet ?? (shop as any).limit_billete)
+        : (shop as any).limit_billete) as number | null;
 
     return withShopLock(Number(shopId), async () => {
       if (limitChance != null || limitBillete != null) {
@@ -411,8 +420,17 @@ export class LocalLotteryService {
         throw badBilingual('Pedido sin sorteo asignado.', '订单缺少期次，无法修改');
       }
 
-      const limitChance = (shopRow as any).limit_chance as number | null;
-      const limitBillete = (shopRow as any).limit_billete as number | null;
+      // TICA/NICA 独立限额，null 时 fallback 到通用限额
+      const limitChance = (kind === 'TICA'
+        ? ((shopRow as any).tica_limit_chance ?? (shopRow as any).limit_chance)
+        : kind === 'NICA'
+          ? ((shopRow as any).nica_limit_chance ?? (shopRow as any).limit_chance)
+          : (shopRow as any).limit_chance) as number | null;
+      const limitBillete = (kind === 'TICA'
+        ? ((shopRow as any).tica_limit_palet ?? (shopRow as any).limit_billete)
+        : kind === 'NICA'
+          ? ((shopRow as any).nica_limit_palet ?? (shopRow as any).limit_billete)
+          : (shopRow as any).limit_billete) as number | null;
 
       if (limitChance != null || limitBillete != null) {
         const dbType = (this.dataSource.options as any).type as string;

@@ -849,6 +849,12 @@ export class ShopController {
     body: {
       limitChance?: number | null;
       limitBillete?: number | null;
+      /** TICA 独立限额 */
+      ticaLimitChance?: number | null;
+      ticaLimitPalet?: number | null;
+      /** NICA 独立限额 */
+      nicaLimitChance?: number | null;
+      nicaLimitPalet?: number | null;
       /** 顾客端是否展示 TICA（与 local-lottery/shop-settings 同效，便于未挂载 LocalLottery 模块的环境） */
       ticaEnabled?: boolean;
       nicaEnabled?: boolean;
@@ -874,6 +880,10 @@ export class ShopController {
     }
     if (body.limitChance !== undefined) (shop as any).limit_chance = body.limitChance || null;
     if (body.limitBillete !== undefined) (shop as any).limit_billete = body.limitBillete || null;
+    if (body.ticaLimitChance !== undefined) (shop as any).tica_limit_chance = body.ticaLimitChance || null;
+    if (body.ticaLimitPalet !== undefined) (shop as any).tica_limit_palet = body.ticaLimitPalet || null;
+    if (body.nicaLimitChance !== undefined) (shop as any).nica_limit_chance = body.nicaLimitChance || null;
+    if (body.nicaLimitPalet !== undefined) (shop as any).nica_limit_palet = body.nicaLimitPalet || null;
     if (body.ticaEnabled !== undefined) shop.tica_enabled = !!body.ticaEnabled;
     if (body.nicaEnabled !== undefined) shop.nica_enabled = !!body.nicaEnabled;
     if (body.loteriaEnabled !== undefined) (shop as any).loteria_enabled = !!body.loteriaEnabled;
@@ -882,6 +892,10 @@ export class ShopController {
       success: true,
       limit_chance: (shop as any).limit_chance,
       limit_billete: (shop as any).limit_billete,
+      tica_limit_chance: (shop as any).tica_limit_chance,
+      tica_limit_palet: (shop as any).tica_limit_palet,
+      nica_limit_chance: (shop as any).nica_limit_chance,
+      nica_limit_palet: (shop as any).nica_limit_palet,
       loteria_enabled: (shop as any).loteria_enabled,
       tica_enabled: shop.tica_enabled,
       nica_enabled: shop.nica_enabled,
@@ -1029,6 +1043,10 @@ export class ShopController {
         commission_rate: shop.commission_rate,
         limit_chance: (shop as any).limit_chance ?? null,
         limit_billete: (shop as any).limit_billete ?? null,
+        tica_limit_chance: (shop as any).tica_limit_chance ?? null,
+        tica_limit_palet: (shop as any).tica_limit_palet ?? null,
+        nica_limit_chance: (shop as any).nica_limit_chance ?? null,
+        nica_limit_palet: (shop as any).nica_limit_palet ?? null,
         loteria_enabled: (shop as any).loteria_enabled !== false,
         tica_enabled: !!(shop as any).tica_enabled,
         nica_enabled: !!(shop as any).nica_enabled,

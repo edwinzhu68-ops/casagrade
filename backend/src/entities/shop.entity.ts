@@ -49,6 +49,22 @@ export class Shop {
   @Column({ type: 'int', nullable: true })
   limit_billete: number | null;
 
+  /** TICA 每期每号 Chance 最多卖出张数（null = fallback 到 limit_chance） */
+  @Column({ type: 'int', nullable: true })
+  tica_limit_chance: number | null;
+
+  /** TICA 每期每号 Palet 最多卖出张数（null = fallback 到 limit_billete） */
+  @Column({ type: 'int', nullable: true })
+  tica_limit_palet: number | null;
+
+  /** NICA 每期每号 Chance 最多卖出张数（null = fallback 到 limit_chance） */
+  @Column({ type: 'int', nullable: true })
+  nica_limit_chance: number | null;
+
+  /** NICA 每期每号 Palet 最多卖出张数（null = fallback 到 limit_billete） */
+  @Column({ type: 'int', nullable: true })
+  nica_limit_palet: number | null;
+
   /** 是否在顾客端展示 Lotería（官方彩；默认开启，店主可关闭） */
   @Column({ type: 'boolean', default: true })
   loteria_enabled: boolean;
