@@ -2523,6 +2523,21 @@
       if (nicaSec) nicaSec.classList.toggle('hidden', !(currentShop && currentShop.nica_enabled));
     }
 
+    function syncCustomPeriodInputs() {
+      var tcpEl = document.getElementById('tica-custom-period');
+      var ncpEl = document.getElementById('nica-custom-period');
+      if (tcpEl) {
+        var ticaPNo = merchantLocalDrawTica && (merchantLocalDrawTica.period_no != null ? merchantLocalDrawTica.period_no : merchantLocalDrawTica.periodNo);
+        tcpEl.value = (currentShop && currentShop.tica_custom_period) || '';
+        tcpEl.placeholder = ticaPNo != null ? String(ticaPNo) : '如: 123';
+      }
+      if (ncpEl) {
+        var nicaPNo = merchantLocalDrawNica && (merchantLocalDrawNica.period_no != null ? merchantLocalDrawNica.period_no : merchantLocalDrawNica.periodNo);
+        ncpEl.value = (currentShop && currentShop.nica_custom_period) || '';
+        ncpEl.placeholder = nicaPNo != null ? String(nicaPNo) : '如: 123';
+      }
+    }
+
     function syncLocalLotteryFeatureCheckboxes() {
       var l = document.getElementById('shop-enable-loteria');
       var t = document.getElementById('shop-enable-tica');
@@ -2534,11 +2549,8 @@
       if (n) n.checked = !!currentShop.nica_enabled;
       try { refreshMerchantLocalLotteryStatusBanner(); } catch (e) {}
       syncTicaNicaLimitsSectionVisibility();
-      // 回填自定义期号
-      var tcpEl = document.getElementById('tica-custom-period');
-      var ncpEl = document.getElementById('nica-custom-period');
-      if (tcpEl && currentShop) tcpEl.value = currentShop.tica_custom_period || '';
-      if (ncpEl && currentShop) ncpEl.value = currentShop.nica_custom_period || '';
+      // 回填自定义期号（有自定义值填value，否则用当前自动期号做placeholder）
+      syncCustomPeriodInputs();
     }
 
     async function saveCustomPeriod(kind) {
@@ -3127,6 +3139,7 @@
         }
         merchantLocalDrawTica = currentShop.tica_enabled ? nextLocalTica : null;
         merchantLocalDrawNica = currentShop.nica_enabled ? nextLocalNica : null;
+        syncCustomPeriodInputs();
         if (dashGen !== merchantDashboardLoadGeneration) return;
 
         const pendingDrawId = pendingData.draw && (pendingData.draw.drawId != null || pendingData.draw.draw_id != null)
