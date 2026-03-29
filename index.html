@@ -1828,7 +1828,7 @@
         var ld = m === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
         var pNo = ld && (ld.period_no != null ? ld.period_no : ld.periodNo);
         var customP = ld && ld.custom_period ? ld.custom_period : (currentShop && (m === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period));
-        var label = m + ' Sorteo';
+        var label = m;
         var val = customP || ((pNo != null && String(pNo).trim() !== '') ? ('#' + pNo) : '--');
         if (payLabel) payLabel.textContent = label;
         if (confLabel) confLabel.textContent = label;
@@ -2530,7 +2530,7 @@
               var _ldPay = clientLotteryMode === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
               var _pNoPay = _ldPay && (_ldPay.period_no != null ? _ldPay.period_no : _ldPay.periodNo);
               var _payCustomP = _ldPay && _ldPay.custom_period ? _ldPay.custom_period : (currentShop && (clientLotteryMode === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period));
-              if (payDrawLabel) payDrawLabel.textContent = clientLotteryMode + ' Sorteo';
+              if (payDrawLabel) payDrawLabel.textContent = clientLotteryMode;
               drawAtEl.textContent = _payCustomP || ((_pNoPay != null && String(_pNoPay).trim() !== '') ? ('#' + _pNoPay) : '--');
             } else {
               if (payDrawLabel) payDrawLabel.textContent = 'Lotería Sorteo';
@@ -3265,7 +3265,7 @@
               var _ldConf = orderLt === 'TICA' ? clientLocalPeriodTica : clientLocalPeriodNica;
               var _pNoConf = _ldConf && (_ldConf.period_no != null ? _ldConf.period_no : _ldConf.periodNo);
               var _confCustomP = _ldConf && _ldConf.custom_period ? _ldConf.custom_period : (currentShop && (orderLt === 'TICA' ? currentShop.tica_custom_period : currentShop.nica_custom_period));
-              if (confDrawLabel) confDrawLabel.textContent = orderLt + ' Sorteo';
+              if (confDrawLabel) confDrawLabel.textContent = orderLt;
               drawAtEl2.textContent = _confCustomP || ((_pNoConf != null && String(_pNoConf).trim() !== '') ? ('#' + _pNoConf) : '--');
             } else {
               if (confDrawLabel) confDrawLabel.textContent = 'Lotería Sorteo';

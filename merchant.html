@@ -4151,7 +4151,7 @@
           var _etLd = _etLt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
           var _etPNo = _etLd && (_etLd.period_no != null ? _etLd.period_no : _etLd.periodNo);
           var _etCustomP = _etLt === 'TICA' ? (currentShop && currentShop.tica_custom_period) : (currentShop && currentShop.nica_custom_period);
-          if (etDrawLabel) etDrawLabel.textContent = _etLt + ' Sorteo';
+          if (etDrawLabel) etDrawLabel.textContent = _etLt;
           if (etDrawValue) etDrawValue.textContent = _etCustomP ? _etCustomP : ((_etPNo != null && String(_etPNo).trim() !== '') ? ('#' + _etPNo) : '--');
           etDrawRow.classList.remove('hidden');
         } else {
@@ -4329,7 +4329,7 @@
           var _odetLd = _odetLt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
           var _odetPNo = _odetLd && (_odetLd.period_no != null ? _odetLd.period_no : _odetLd.periodNo);
           var _odetCustomP = _odetLt === 'TICA' ? (currentShop && currentShop.tica_custom_period) : (currentShop && currentShop.nica_custom_period);
-          if (odetDrawLabel) odetDrawLabel.textContent = _odetLt + ' Sorteo';
+          if (odetDrawLabel) odetDrawLabel.textContent = _odetLt;
           if (odetDrawValue) odetDrawValue.textContent = _odetCustomP ? _odetCustomP : ((_odetPNo != null && String(_odetPNo).trim() !== '') ? ('#' + _odetPNo) : '--');
           odetDrawRow.classList.remove('hidden');
         } else {
