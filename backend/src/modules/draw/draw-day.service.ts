@@ -153,7 +153,7 @@ export class DrawDayService implements OnModuleInit {
           }
         }
       } else {
-        // ── 无待开奖期（结果已发）：次日 07:00 创建下一期 ──
+        // ── 无待开奖期（结果已发）：开奖日次日 07:00 创建下一期 ──
         if (nowMins < 7 * 60) return;
 
         const lastCompleted = await drawRepo
@@ -167,6 +167,8 @@ export class DrawDayService implements OnModuleInit {
 
         // 从实际开奖日算下一个周三/周日
         const rawDate = String((lastCompleted as any).draw_date || '').slice(0, 10);
+        // 开奖当天不创建新期，等到次日07:00再创建（确保开奖后到次日07:00之间停售）
+        if (rawDate === todayISO) return;
         if (!rawDate) return;
         const nextDraw = getNextDrawDatePanama(new Date(rawDate + 'T12:00:00'));
         const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
