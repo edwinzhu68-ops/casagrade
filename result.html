@@ -2195,13 +2195,17 @@
       } catch (e) {}
     }
 
+    var _customPeriodInitDone = false;
     function syncLocalCustomPeriodInput() {
       var el = document.getElementById('local-custom-period');
       if (!el || !currentShop) return;
+      // 只在首次加载时填入，避免轮询覆盖用户正在输入的内容
+      if (_customPeriodInitDone && document.activeElement === el) return;
       var kind = getResultPageKind();
       var customVal = kind === 'TICA' ? currentShop.tica_custom_period : (kind === 'NICA' ? currentShop.nica_custom_period : null);
       var pNo = _resultLocalKindBadgeState && _resultLocalKindBadgeState.periodNo;
       el.value = customVal || (pNo != null ? '#' + pNo : '');
+      _customPeriodInitDone = true;
     }
 
     async function submitLocalLotterySettle() {
