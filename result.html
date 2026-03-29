@@ -158,9 +158,12 @@
         <p id="local-settle-hint" class="text-xs text-gray-500 mt-2"></p>
         <div class="mt-3 pt-3 border-t border-gray-700/50">
           <label class="text-xs text-gray-400" data-i18n="custom_period_label">自定义期号（留空=自动递增）</label>
-          <input type="text" id="local-custom-period" maxlength="20"
-            class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm mt-1"
-            onchange="saveLocalCustomPeriod()" />
+          <div class="flex gap-2 mt-1">
+            <input type="text" id="local-custom-period" maxlength="20"
+              class="flex-1 text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+            <button type="button" onclick="saveLocalCustomPeriod()"
+              class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-bold" data-i18n="btn_save_period">保存</button>
+          </div>
         </div>
       </div>
 
