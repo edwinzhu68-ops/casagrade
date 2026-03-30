@@ -284,65 +284,7 @@
         </div>
       </div>
 
-      <!-- 按店铺号查看销售明细（和老板端样式一致） -->
-      <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
-        <div class="flex items-center gap-2 mb-1">
-          <h2 class="font-bold text-sm">店铺销售明细</h2>
-          <span class="text-xs text-gray-400">输入店号，查看该店 Chance / Billete 销量</span>
-        </div>
-        <div class="flex gap-2">
-          <input id="admin-shop-number" type="text" placeholder="输入店号（3-9 位），如 1 或 88888"
-            class="flex-1 text-center py-2 bg-gray-700 rounded-lg font-mono text-sm" />
-          <button onclick="loadShopSales()" class="px-4 py-2 bg-blue-600 rounded-lg text-sm font-bold">
-            查询
-          </button>
-        </div>
-        <div class="grid grid-cols-2 gap-3 mt-2">
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <h3 class="font-bold text-sm">Chance 销售明细</h3>
-            </div>
-            <div id="admin-chance-grid" class="grid grid-cols-10 gap-1 text-[11px]">
-              <p class="text-gray-500 text-xs col-span-10 text-center">请输入店号并点击查询</p>
-            </div>
-          </div>
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <h3 class="font-bold text-sm">Billete 销售明细</h3>
-            </div>
-            <div id="admin-billete-grid" class="grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto">
-              <p class="text-gray-500 text-xs col-span-4 text-center">请输入店号并点击查询</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 全部店铺总销售数据 -->
-      <div class="bg-gray-800 rounded-2xl p-4 space-y-2">
-        <div class="flex items-center gap-2 mb-1">
-          <h2 class="font-bold text-sm">全部店铺总销售数据</h2>
-          <span class="text-xs text-gray-400">基于所有店铺已付款订单</span>
-        </div>
-        <div class="grid grid-cols-2 gap-3 mt-1">
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <h3 class="font-bold text-sm">Chance 总销售（00-99）</h3>
-            </div>
-            <div id="admin-chance-total" class="grid grid-cols-10 gap-1 text-[11px]">
-              <p class="text-gray-500 text-xs col-span-10 text-center">加载中...</p>
-            </div>
-          </div>
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <h3 class="font-bold text-sm">Billete 总销售</h3>
-              <span class="text-[10px] text-gray-400">按销量从高到低排列</span>
-            </div>
-            <div id="admin-billete-total" class="grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto">
-              <p class="text-gray-500 text-xs col-span-4 text-center">加载中...</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- 店铺销售明细和全部店铺总销售已移除 -->
 
       <!-- 系统运行状态 -->
       <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
