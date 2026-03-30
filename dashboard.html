@@ -1110,9 +1110,11 @@
 
     function applyFirebaseToUI(d, fillForm) {
       lastFirebaseDraw = d;
-      document.getElementById('fb-date').textContent = d.drawDate || '—';
-      document.getElementById('fb-hora').textContent = d.drawHora || '—';
-      // 若头奖≥4位、二奖≤2位、三奖已出现 → 自动识别为 GORDITO（与 isFirebaseDrawComplete 兜底逻辑一致）
+      function _set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+      function _show(id) { var el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
+      function _hide(id) { var el = document.getElementById(id); if (el) el.classList.add('hidden'); }
+      _set('fb-date', d.drawDate || '—');
+      _set('fb-hora', d.drawHora || '—');
       const _s = String(d.segundo || '').replace(/\D/g, '');
       const _p = String(d.primer  || '').replace(/\D/g, '');
       const _t = String(d.tercero || '').replace(/\D/g, '');
@@ -1120,14 +1122,13 @@
       const displayType = detectedGordito && !(d.drawType || '').toUpperCase().includes('GORDITO')
         ? (d.drawType ? d.drawType + ' (GORDITO检测)' : 'GORDITO检测')
         : (d.drawType || '—');
-      document.getElementById('fb-type').textContent = displayType;
-      document.getElementById('fb-primer').textContent = d.primer !== '' && d.primer != null ? String(d.primer) : '----';
-      document.getElementById('fb-segundo').textContent = d.segundo !== '' && d.segundo != null ? String(d.segundo) : '----';
-      document.getElementById('fb-tercero').textContent = d.tercero !== '' && d.tercero != null ? String(d.tercero) : '----';
-      document.getElementById('fb-letras').textContent = (d.letras || '—').toString();
-      document.getElementById('firebase-draw-result').classList.remove('hidden');
+      _set('fb-type', displayType);
+      _set('fb-primer', d.primer !== '' && d.primer != null ? String(d.primer) : '----');
+      _set('fb-segundo', d.segundo !== '' && d.segundo != null ? String(d.segundo) : '----');
+      _set('fb-tercero', d.tercero !== '' && d.tercero != null ? String(d.tercero) : '----');
+      _set('fb-letras', (d.letras || '—').toString());
+      _show('firebase-draw-result');
 
-      // 准备开奖提示：Firebase 日期 = 今天（巴拿马时间）且号码未出
       const preparingEl = document.getElementById('fb-preparing');
       const fbYMD = fbDateToYMD(d.drawDate);
       const panamaTodayYMD = (function() {
@@ -1143,13 +1144,12 @@
         const digitHint = type === 'GORDITO'         ? `1奖${exp.p||4}位 · 2奖${exp.s||2}位 · 3奖${exp.t||2}位` :
                           type === 'EXTRAORDINARIA'  ? `三奖各${exp.p||5}位` :
                                                        `三奖各${exp.p||4}位`;
-        preparingEl.textContent = `🕐 今日开奖 · ${d.drawType || type} · 预计 ${digitHint} · 号码未出`;
-        preparingEl.classList.remove('hidden');
+        if (preparingEl) { preparingEl.textContent = `🕐 今日开奖 · ${d.drawType || type} · 预计 ${digitHint} · 号码未出`; preparingEl.classList.remove('hidden'); }
       } else {
-        preparingEl.classList.add('hidden');
+        if (preparingEl) preparingEl.classList.add('hidden');
       }
-      if (complete) document.getElementById('btn-confirm-firebase').classList.remove('hidden');
-      else document.getElementById('btn-confirm-firebase').classList.add('hidden');
+      if (complete) _show('btn-confirm-firebase');
+      else _hide('btn-confirm-firebase');
 
       // 开奖就绪逻辑：号码完整且有待开奖期 → 自动填入 + 显示横幅
       const banner = document.getElementById('draw-ready-banner');
