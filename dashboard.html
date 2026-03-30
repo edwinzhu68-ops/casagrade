@@ -1161,21 +1161,25 @@
         saveNextDrawDefault();
         // 显示横幅
         const type = (d.drawType || '').toUpperCase();
-        document.getElementById('draw-ready-numbers').textContent =
-          `${type}  1️⃣ ${d.primer}  2️⃣ ${d.segundo}  3️⃣ ${d.tercero}`;
-        banner.classList.remove('hidden');
+        var readyNumsEl = document.getElementById('draw-ready-numbers');
+        if (readyNumsEl) readyNumsEl.textContent = `${type}  1️⃣ ${d.primer}  2️⃣ ${d.segundo}  3️⃣ ${d.tercero}`;
+        if (banner) banner.classList.remove('hidden');
         // 停止轮询（号码已到，无需继续）
         if (firebasePollTimer) stopFirebasePoll();
         // 弹窗提醒发送开奖结果
-        document.getElementById('alert-draw-1st').textContent = rawDigits(d.primer) || d.primer;
-        document.getElementById('alert-draw-2nd').textContent = rawDigits(d.segundo) || d.segundo;
-        document.getElementById('alert-draw-3rd').textContent = rawDigits(d.tercero) || d.tercero;
-        document.getElementById('modal-draw-complete-alert').classList.remove('hidden');
+        var alert1 = document.getElementById('alert-draw-1st');
+        var alert2 = document.getElementById('alert-draw-2nd');
+        var alert3 = document.getElementById('alert-draw-3rd');
+        if (alert1) alert1.textContent = rawDigits(d.primer) || d.primer;
+        if (alert2) alert2.textContent = rawDigits(d.segundo) || d.segundo;
+        if (alert3) alert3.textContent = rawDigits(d.tercero) || d.tercero;
+        var alertModal = document.getElementById('modal-draw-complete-alert');
+        if (alertModal) alertModal.classList.remove('hidden');
         // 滚动到横幅位置提醒用户
-        banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       } else {
-        banner.classList.add('hidden');
+        if (banner) banner.classList.add('hidden');
       }
 
       // 拉取一次后只填入号码，不填日期（日期在手动开奖处用 YYYY-MM-DD 单独填）
