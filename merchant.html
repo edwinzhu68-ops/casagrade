@@ -6174,6 +6174,7 @@
       let nums = order.numbers || order.bet_numbers || [];
       if (typeof nums === 'string') { try { nums = JSON.parse(nums); } catch(e) { nums = []; } }
       if (!Array.isArray(nums)) nums = [];
+      nums = nums.slice().reverse();
       push(...MED);  // 号码和金额加高一倍
       nums.forEach(n => {
         const numStr = String(n.n != null ? n.n : (n.number != null ? n.number : '')).replace(/\D/g,'');
