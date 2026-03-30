@@ -4351,12 +4351,8 @@
         (order.numbers || []).forEach(function (item) {
           var numStr = String(item.n != null ? item.n : (item.number != null ? item.number : ''));
           var qty = Number(item.q != null ? item.q : (item.quantity != null ? item.quantity : 1)) || 1;
-          // 优先用订单 game_type，次选 item.isBi，最后才按位数判断
-          var isBillete = orderGameType === 'BILLETE' || orderGameType === 'NACIONAL'
-            ? true
-            : orderGameType === 'CHANCE'
-              ? false
-              : (item.isBi != null ? !!item.isBi : numStr.replace(/\D/g, '').length >= 4);
+          // 按号码位数区分：>=4位是Billete/Palet($1)，<4位是Chance($0.25)
+          var isBillete = numStr.replace(/\D/g, '').length >= 4;
           var unitPrice = isBillete ? 1 : 0.25;
           var row = document.createElement('div');
           row.className = 'flex justify-between';
