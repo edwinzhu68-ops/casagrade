@@ -4164,7 +4164,7 @@
       }
       if (linesEl) {
         linesEl.innerHTML = '';
-        var nums = order.numbers || [];
+        var nums = (order.numbers || []).slice().reverse();
         nums.forEach(function (item) {
           var row = document.createElement('div');
           row.className = 'flex justify-between';
