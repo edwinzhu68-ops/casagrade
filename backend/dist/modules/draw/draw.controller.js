@@ -66,13 +66,14 @@ function calcBilletePrizeForOneDraw(betNum, winRaw, qty, prizeIndex, exactRates 
         return BILLETE_RATE_DEFAULT.first3[prizeIndex] * qty;
     if (b.substring(1, 4) === w.substring(1, 4))
         return BILLETE_RATE_DEFAULT.last3[prizeIndex] * qty;
+    let sum = 0;
     if (b.substring(0, 2) === w.substring(0, 2))
-        return BILLETE_RATE_DEFAULT.first2[prizeIndex] * qty;
+        sum += BILLETE_RATE_DEFAULT.first2[prizeIndex];
     if (b.substring(2, 4) === w.substring(2, 4))
-        return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
+        return (sum + BILLETE_RATE_DEFAULT.last2[prizeIndex]) * qty;
     if (b.substring(3, 4) === w.substring(3, 4))
-        return BILLETE_RATE_DEFAULT.last1[prizeIndex] * qty;
-    return 0;
+        sum += BILLETE_RATE_DEFAULT.last1[prizeIndex];
+    return sum * qty;
 }
 async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero) {
     const win1 = String(primer ?? '').replace(/\D/g, '');
@@ -495,9 +496,11 @@ let DrawController = DrawController_1 = class DrawController {
                 draw_time: dto.drawTime || draw.draw_time,
             };
             if (dto.drawTime && typeof dto.drawTime === 'string' && dto.drawTime.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(dto.drawTime)) {
-                const parsed = parseYYYYMMDD(dto.drawTime.slice(0, 10));
-                if (parsed)
-                    updateFields.draw_date = parsed;
+                if (!draw.draw_date) {
+                    const parsed = parseYYYYMMDD(dto.drawTime.slice(0, 10));
+                    if (parsed)
+                        updateFields.draw_date = parsed;
+                }
             }
             await drawRepo.update(draw.draw_id, updateFields);
             if (updateFields.draw_date)

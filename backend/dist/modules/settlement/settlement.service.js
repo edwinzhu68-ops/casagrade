@@ -339,17 +339,19 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 matches.push(`头奖后三位 x50`);
                 totalPayout += 50 * qty;
             }
-            else if (paddedNum.slice(0, 2) === primerNorm.slice(0, 2)) {
-                matches.push(`头奖前两位 x3`);
-                totalPayout += 3 * qty;
-            }
-            else if (paddedNum.slice(2, 4) === primerNorm.slice(2, 4)) {
-                matches.push(`头奖后两位 x3`);
-                totalPayout += 3 * qty;
-            }
-            else if (paddedNum.slice(-1) === primerNorm.slice(-1)) {
-                matches.push(`头奖最后一位 x1`);
-                totalPayout += 1 * qty;
+            else {
+                if (paddedNum.slice(0, 2) === primerNorm.slice(0, 2)) {
+                    matches.push(`头奖前两位 x3`);
+                    totalPayout += 3 * qty;
+                }
+                if (paddedNum.slice(2, 4) === primerNorm.slice(2, 4)) {
+                    matches.push(`头奖后两位 x3`);
+                    totalPayout += 3 * qty;
+                }
+                else if (paddedNum.slice(-1) === primerNorm.slice(-1)) {
+                    matches.push(`头奖最后一位 x1`);
+                    totalPayout += 1 * qty;
+                }
             }
         }
         else {

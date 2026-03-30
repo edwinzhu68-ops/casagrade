@@ -159,6 +159,8 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
                 if (!lastCompleted)
                     return;
                 const rawDate = String(lastCompleted.draw_date || '').slice(0, 10);
+                if (rawDate === todayISO)
+                    return;
                 if (!rawDate)
                     return;
                 const nextDraw = getNextDrawDatePanama(new Date(rawDate + 'T12:00:00'));

@@ -30,6 +30,7 @@ export declare class MerchantController implements OnModuleInit {
         message: string;
         accountNumber: string;
         shopNumber: string;
+        trialExpiresAt: string;
     }>;
     forgotPassword(body: {
         email: string;
