@@ -232,22 +232,26 @@ export class MerchantController implements OnModuleInit {
       throw new BadRequestException('暂无可用的随机店号，请稍后再试或联系管理员分配');
     }
 
+    const trialExpires = new Date();
+    trialExpires.setDate(trialExpires.getDate() + 30);
     const newShop = shopRepo.create({
       shop_number: shopNumber,
       owner_id: user.user_id,
       shop_name: shopName || `店铺${shopNumber}`,
       status: 'active',
       commission_rate: 0.1,
+      subscription_expires_at: trialExpires,
     });
     await shopRepo.save(newShop);
 
-    this.logger.log(`注册: 账号=${account}, 店号=${shopNumber}`);
+    this.logger.log(`注册: 账号=${account}, 店号=${shopNumber}, 试用到期=${trialExpires.toISOString().slice(0,10)}`);
 
     return {
       success: true,
-      message: '注册成功。可用账号或店号登录，密码相同。',
+      message: '注册成功，免费试用30天。可用账号或店号登录，密码相同。',
       accountNumber: account,
       shopNumber,
+      trialExpiresAt: trialExpires.toISOString().slice(0, 10),
     };
   }
 
