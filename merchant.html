@@ -416,10 +416,10 @@
 
   <!-- Billete详情弹窗 -->
   <div id="modal-billete" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeModal('modal-billete')">
-    <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-      <div class="flex justify-between items-center mb-3">
+    <div class="bg-gray-800 rounded-2xl p-3 w-full max-w-lg max-h-[95vh] overflow-y-auto" onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-2">
         <div>
-          <h2 class="text-xl font-bold" data-i18n="billete_detail_title">Billete 销售明细</h2>
+          <h2 class="text-base font-bold" data-i18n="billete_detail_title">Billete 销售明细</h2>
           <div class="mt-1 flex gap-1 text-[11px]">
             <button id="billete-sort-number" onclick="showBilleteDetail('number')" class="px-2 py-0.5 rounded-full bg-blue-600 text-white" data-i18n="sort_by_number">按号码</button>
             <button id="billete-sort-qty" onclick="showBilleteDetail('qty')" class="px-2 py-0.5 rounded-full bg-gray-700 text-gray-200" data-i18n="sort_by_qty">按销量</button>
@@ -427,13 +427,13 @@
         </div>
         <button onclick="closeModal('modal-billete')" class="text-gray-400">✕</button>
       </div>
-      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+      <div class="mb-1 px-1 flex items-center justify-between text-xs">
         <span class="text-gray-400">Billete <span data-i18n="billete_modal_sales_label">销售额</span></span>
-        <span id="billete-modal-sales" class="text-amber-400 font-bold text-lg">$0.00</span>
+        <span id="billete-modal-sales" class="text-amber-400 font-bold text-sm">$0.00</span>
       </div>
-      <div class="mb-3 px-1 flex items-center justify-between text-sm">
+      <div class="mb-2 px-1 flex items-center justify-between text-xs">
         <span class="text-gray-400" data-i18n="total_sales_label">总销售额</span>
-        <span id="billete-modal-total-sales" class="text-green-400 font-bold text-lg">$0.00</span>
+        <span id="billete-modal-total-sales" class="text-green-400 font-bold text-sm">$0.00</span>
       </div>
 
       <div id="billete-list" class="space-y-1 max-h-96 overflow-y-auto">
@@ -3514,10 +3514,10 @@
       }
 
       const container = document.getElementById('billete-list');
-      container.className = 'grid grid-cols-4 gap-1 text-xs max-h-96 overflow-y-auto';
+      container.className = 'grid grid-cols-5 gap-0.5 text-xs overflow-y-auto';
 
       if (!sorted || sorted.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4 col-span-4">' + t('no_sales_data') + '</p>';
+        container.innerHTML = '<p class="text-gray-500 text-sm text-center py-4 col-span-5">' + t('no_sales_data') + '</p>';
         document.getElementById('modal-billete').classList.remove('hidden');
         return;
       }
@@ -3545,9 +3545,9 @@
         if (percent >= 1) qtyColorClass = 'text-red-400';
 
         return `
-          <div class="text-center py-2 rounded font-mono cursor-pointer bg-gray-700/40">
-            <div class="font-bold text-sm">${num}</div>
-            <div class="text-[11px] ${qtyColorClass}">${qty}</div>
+          <div class="text-center py-1 rounded font-mono cursor-pointer bg-gray-700/40">
+            <div class="font-bold text-xs">${num}</div>
+            <div class="text-[10px] ${qtyColorClass}">${qty}</div>
           </div>
         `;
       }).join('');
