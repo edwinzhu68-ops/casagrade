@@ -3893,12 +3893,12 @@
         var fi = merchantCashierLines.indexOf(found);
         if (fi > 0) {
           merchantCashierLines.splice(fi, 1);
-          merchantCashierLines.push(found);
+          merchantCashierLines.unshift(found);
         }
       } else {
-        merchantCashierLines.push({ n: n, q: qty, isBi: isBi, unitPrice: unitPrice });
+        merchantCashierLines.unshift({ n: n, q: qty, isBi: isBi, unitPrice: unitPrice });
       }
-      merchantCashierHighlightLineIndex = merchantCashierLines.length - 1;
+      merchantCashierHighlightLineIndex = 0;
       merchantCashierScrollToLastAfterRender = true;
       cashierKbInput = '';
       cashierUpdateKeyboardDisplay();
