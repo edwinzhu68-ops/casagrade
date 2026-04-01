@@ -4099,19 +4099,22 @@
         return;
       }
       showPaymentSuccessToast();
-      fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)))
-        .then(function (r) { return r.json(); })
-        .then(function (order) {
-          var etToggle = document.getElementById('cashier-eticket-toggle');
-          var isEtEnabled = etToggle && etToggle.checked;
-          // 互斥模式：电子单开→只出电子单；电子单关→只出纸单
-          if (!isEtEnabled) autoPrintOrder(order);
-          if (isEtEnabled) {
-            fillCashierEticket(order);
-            showCashierEticket();
-          }
-        })
-        .catch(function () {});
+      // 先拿最新订单数据，再决定打印/电子单（必须 await，否则后续 DOM 操作会干扰打印）
+      try {
+        var freshRes = await fetch(API_BASE + '/api/orders/' + encodeURIComponent(String(orderNumber)));
+        var freshOrder = await freshRes.json();
+        var etToggle = document.getElementById('cashier-eticket-toggle');
+        var isEtEnabled = etToggle && etToggle.checked;
+        // 互斥模式：电子单开→只出电子单；电子单关→只出纸单
+        if (!isEtEnabled) {
+          await autoPrintOrder(freshOrder);
+        } else {
+          fillCashierEticket(freshOrder);
+          showCashierEticket();
+        }
+      } catch (ePrint) {
+        console.warn('[CASHIER] 获取订单/打印失败:', ePrint.message || ePrint);
+      }
       // 下单成功后重置弹窗状态，继续接待下一个客人（不关闭弹窗）
       void openCashierOrderModal();
       await loadDashboard();
@@ -6293,25 +6296,34 @@
 
     // ── 发送打印（APP/Web 统一逻辑）──────────────────────────
     async function sendToPrinter(data) {
-      if (!_printerChar) return;
+      if (!_printerChar) throw new Error('打印机未连接');
       console.log('[PRINT] sendToPrinter, length=' + data.length);
       const canWrite   = _printerChar.properties && _printerChar.properties.write;
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
       const CHUNK = 20;
+      async function _writeChunk(chunk) {
+        if (canWrite && _printerChar.writeValueWithResponse) {
+          await _printerChar.writeValueWithResponse(chunk);
+        } else if (canWithout && _printerChar.writeValueWithoutResponse) {
+          await _printerChar.writeValueWithoutResponse(chunk);
+        } else if (_printerChar.writeValue) {
+          await _printerChar.writeValue(chunk);
+        }
+      }
       for (let i = 0; i < data.length; i += CHUNK) {
         const chunk = data.slice(i, i + CHUNK);
-        try {
-          if (canWrite && _printerChar.writeValueWithResponse) {
-            await _printerChar.writeValueWithResponse(chunk);
-          } else if (canWithout && _printerChar.writeValueWithoutResponse) {
-            await _printerChar.writeValueWithoutResponse(chunk);
-          } else if (_printerChar.writeValue) {
-            await _printerChar.writeValue(chunk);
+        let ok = false;
+        for (let retry = 0; retry < 3; retry++) {
+          try {
+            await _writeChunk(chunk);
+            ok = true;
+            break;
+          } catch(e) {
+            console.warn('[PRINT] write error at chunk ' + i + ' (retry ' + retry + '):', e.message || e);
+            if (retry < 2) await new Promise(function(r) { setTimeout(r, 80 * (retry + 1)); });
           }
-        } catch(e) {
-          console.warn('[PRINT] write error at chunk ' + i + ':', e.message || e);
-          return;
         }
+        if (!ok) throw new Error('打印数据发送失败（chunk ' + i + '）');
       }
     }
 
@@ -6321,8 +6333,12 @@
       var isEtOff = !etToggle || !etToggle.checked;
       // 电子单开时不打印（走电子单流程），电子单关时直接打
       if (!isPrinterConnected()) {
-        // 尝试自动重连
-        if (_printerDevice) {
+        // 尝试自动重连（APP 和 Web 两种路径）
+        if (_isCapApp && _CapBle) {
+          var savedId = localStorage.getItem('lottery_cap_printer_device_id') || '';
+          var savedName = localStorage.getItem('lottery_printer_name') || '';
+          if (savedId) { try { await _doConnectCap(savedId, savedName, false); } catch {} }
+        } else if (_printerDevice) {
           try { await _doConnect(_printerDevice, false); } catch {}
         }
         if (!isPrinterConnected()) {
@@ -6340,11 +6356,32 @@
         showPrinterWarning('🖨️ 构建小票失败：' + e.message);
         return;
       }
+      // 首次打印，失败后重连再试一次
       try {
         await sendToPrinter(receipt);
       } catch (e) {
-        console.warn('打印失败:', e.message);
-        showPrinterWarning('🖨️ 打印失败：' + e.message);
+        console.warn('打印失败，尝试重连重试:', e.message);
+        // 重连
+        try {
+          if (_isCapApp && _CapBle) {
+            var _sid = localStorage.getItem('lottery_cap_printer_device_id') || '';
+            var _sn = localStorage.getItem('lottery_printer_name') || '';
+            if (_sid) await _doConnectCap(_sid, _sn, false);
+          } else if (_printerDevice) {
+            await _doConnect(_printerDevice, false);
+          }
+        } catch {}
+        if (!isPrinterConnected()) {
+          showPrinterWarning('🖨️ 打印失败：' + e.message);
+          return;
+        }
+        // 重试一次
+        try {
+          await sendToPrinter(receipt);
+        } catch (e2) {
+          console.warn('重试打印仍失败:', e2.message);
+          showPrinterWarning('🖨️ 打印失败：' + e2.message);
+        }
       }
     }
     async function printCurrentOrder() {
