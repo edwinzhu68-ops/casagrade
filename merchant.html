@@ -167,8 +167,9 @@
         <div id="printer-warning" class="hidden bg-red-900/60 border border-red-500 rounded-lg p-2 flex items-center justify-between mt-1">
           <span id="printer-warning-text" class="text-xs text-red-300" data-i18n="printer_warning_disconnected">🖨️ 打印机未连接</span>
           <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+            <button id="printer-warning-retry" onclick="retryLastFailedPrint()" class="hidden bg-green-600 hover:bg-green-500 text-white text-xs px-2.5 py-1 rounded-lg font-bold">🖨️ 重新打印</button>
             <button onclick="connectPrinter()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded-lg font-bold" data-i18n="btn_reconnect">重连</button>
-            <button onclick="document.getElementById('printer-warning').classList.add('hidden')" class="text-red-400 hover:text-white text-lg leading-none">×</button>
+            <button onclick="document.getElementById('printer-warning').classList.add('hidden');_lastFailedPrintOrder=null;" class="text-red-400 hover:text-white text-lg leading-none">×</button>
           </div>
         </div>
 
@@ -4114,6 +4115,7 @@
         }
       } catch (ePrint) {
         console.warn('[CASHIER] 获取订单/打印失败:', ePrint.message || ePrint);
+        showToast('🖨️ 打印失败，可在横幅点重新打印', 'warning');
       }
       // 下单成功后重置弹窗状态，继续接待下一个客人（不关闭弹窗）
       void openCashierOrderModal();
@@ -5766,11 +5768,26 @@
       return null;
     }
 
-    function showPrinterWarning(msg) {
+    var _lastFailedPrintOrder = null;  // 最近一次打印失败的订单数据
+
+    function showPrinterWarning(msg, failedOrder) {
       const el = document.getElementById('printer-warning');
       const txt = document.getElementById('printer-warning-text');
       if (txt) txt.textContent = msg;
+      if (failedOrder) _lastFailedPrintOrder = failedOrder;
+      // 显示/隐藏重试按钮
+      var retryBtn = document.getElementById('printer-warning-retry');
+      if (retryBtn) retryBtn.classList.toggle('hidden', !_lastFailedPrintOrder);
       el?.classList.remove('hidden');
+    }
+
+    async function retryLastFailedPrint() {
+      if (!_lastFailedPrintOrder) return;
+      var order = _lastFailedPrintOrder;
+      _lastFailedPrintOrder = null;
+      var el = document.getElementById('printer-warning');
+      if (el) el.classList.add('hidden');
+      await autoPrintOrder(order);
     }
 
     /**
@@ -6342,7 +6359,7 @@
           try { await _doConnect(_printerDevice, false); } catch {}
         }
         if (!isPrinterConnected()) {
-          showPrinterWarning(t('printer_warning_disconnected'));
+          showPrinterWarning(t('printer_warning_disconnected'), order);
           return;
         }
       }
@@ -6353,12 +6370,13 @@
         console.log('[PRINT] receipt built, length=' + receipt.length);
       } catch (e) {
         console.warn('buildReceipt 失败:', e.message);
-        showPrinterWarning('🖨️ 构建小票失败：' + e.message);
+        showPrinterWarning('🖨️ 构建小票失败：' + e.message, order);
         return;
       }
       // 首次打印，失败后重连再试一次
       try {
         await sendToPrinter(receipt);
+        _lastFailedPrintOrder = null;  // 打印成功，清除失败记录
       } catch (e) {
         console.warn('打印失败，尝试重连重试:', e.message);
         // 重连
@@ -6372,15 +6390,16 @@
           }
         } catch {}
         if (!isPrinterConnected()) {
-          showPrinterWarning('🖨️ 打印失败：' + e.message);
+          showPrinterWarning('🖨️ 打印失败：' + e.message, order);
           return;
         }
         // 重试一次
         try {
           await sendToPrinter(receipt);
+          _lastFailedPrintOrder = null;
         } catch (e2) {
           console.warn('重试打印仍失败:', e2.message);
-          showPrinterWarning('🖨️ 打印失败：' + e2.message);
+          showPrinterWarning('🖨️ 打印失败：' + e2.message, order);
         }
       }
     }
