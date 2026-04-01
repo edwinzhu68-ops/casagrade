@@ -6141,10 +6141,10 @@
       const LEFT   = [0x1B,0x61,0x00];
       const BON    = [0x1B,0x45,0x01];
       const BOFF   = [0x1B,0x45,0x00];
-      const BIG    = [0x1D,0x21,0x01];  // 宽1倍高2倍（原2x2太大）
-      const MED    = [0x1D,0x21,0x00];  // 正常大小（原高2倍太占空间）
+      const BIG    = [0x1D,0x21,0x11];
+      const MED    = [0x1D,0x21,0x01];  // 宽1倍高2倍，视觉约1.5倍
       const NORM   = [0x1D,0x21,0x00];
-      const CUT    = [0x1B,0x64,0x03, 0x1D,0x56,0x42,0x00];  // 走纸3行（原5行）
+      const CUT    = [0x1B,0x64,0x05, 0x1D,0x56,0x42,0x00];
       const DIV    = '--------------------------------';
 
       push(...INIT);
@@ -6173,15 +6173,14 @@
         const pL = (qrBytes.length + 3) & 0xFF;
         const pH = ((qrBytes.length + 3) >> 8) & 0xFF;
         push(0x1D,0x28,0x6B,0x04,0x00,0x31,0x41,0x32,0x00); // Model 2
-        push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x43,0x05);       // 模块大小5（原8太大）
-        push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x45,0x31);       // 纠错M级(15%恢复)，够用且更紧凑
+        push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x43,0x06);       // 模块大小6
+        push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x45,0x33);       // 纠错H级(30%恢复)
         push(0x1D,0x28,0x6B,pL,pH,0x31,0x50,0x30,...qrBytes); // 存储数据
         push(0x1D,0x28,0x6B,0x03,0x00,0x31,0x51,0x30);       // 打印
         LF();
       }
 
-      // ── 3. 订单号 + 日期（紧跟QR码，不加空行）──
-      push(...LEFT);
+      // ── 3. 订单号 + 日期 ──
       let placedStr = '--';
       const createdAt = order.created_at || order.createdAt || null;
       const paidAt = order.paid_at || order.paidAt || null;
@@ -6217,6 +6216,7 @@
           push(...LEFT);
         }
       }
+      LF();
 
       // ── 4. 号码列表 ──
       push(...LEFT);
@@ -6225,6 +6225,7 @@
       if (typeof nums === 'string') { try { nums = JSON.parse(nums); } catch(e) { nums = []; } }
       if (!Array.isArray(nums)) nums = [];
       nums = nums.slice().reverse();
+      push(...MED);  // 号码和金额加高一倍
       nums.forEach(n => {
         const numStr = String(n.n != null ? n.n : (n.number != null ? n.number : '')).replace(/\D/g,'');
         const qty = Number(n.q != null ? n.q : (n.quantity != null ? n.quantity : 1)) || 1;
@@ -6232,24 +6233,29 @@
         const isBil = numStr.length >= 4;
         row(numStr + ' x' + qty, '$' + (qty * (isBil ? 1 : 0.25)).toFixed(2));
       });
+      push(...NORM);
       txt(DIV); LF();
 
       // ── 5. 总金额 ──
-      push(...BON,...BIG);
+      push(...BON,...MED);
       row('Total', '$' + amount);
       push(...NORM,...BOFF);
+      LF();
 
       // ── 5.5 备注 ──
       var _receiptNote = getOrderNote(orderNum, _ord);
       if (_receiptNote) {
         push(...LEFT);
         txt('Nota: ' + _receiptNote); LF();
+        LF();
       }
 
       // ── 6. 提示 ──
       push(...CENTER);
       txt('Verifique sus numeros.'); LF();
-      txt('No reclamos tras sorteo.'); LF();
+      txt('No se aceptan reclamos'); LF();
+      txt('despues del sorteo.'); LF();
+      LF();
       push(...CUT);
       return new Uint8Array(buf);
     }
