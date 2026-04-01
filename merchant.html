@@ -4204,37 +4204,82 @@
       }
     }
 
+    var _cachedEticketBlob = null;
+    var _eticketPregenInProgress = false;
+
     function showCashierEticket() {
       var m = document.getElementById('modal-cashier-eticket');
       if (m) m.classList.remove('hidden');
+      // 弹窗显示后立即后台预截图
+      _pregenEticketBlob();
     }
 
     function closeCashierEticket() {
       var m = document.getElementById('modal-cashier-eticket');
       if (m) m.classList.add('hidden');
+      _cachedEticketBlob = null;
+    }
+
+    function _pregenEticketBlob() {
+      _cachedEticketBlob = null;
+      _eticketPregenInProgress = true;
+      var etBody = document.getElementById('cashier-eticket-body');
+      if (!etBody) { _eticketPregenInProgress = false; return; }
+      var origOverflow = etBody.style.overflow;
+      var origMaxH = etBody.style.maxHeight;
+      etBody.style.overflow = 'visible';
+      etBody.style.maxHeight = 'none';
+      html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0 }).then(function (canvas) {
+        etBody.style.overflow = origOverflow;
+        etBody.style.maxHeight = origMaxH;
+        canvas.toBlob(function (blob) {
+          _cachedEticketBlob = blob;
+          _eticketPregenInProgress = false;
+        }, 'image/png');
+      }).catch(function () {
+        etBody.style.overflow = origOverflow;
+        etBody.style.maxHeight = origMaxH;
+        _eticketPregenInProgress = false;
+      });
     }
 
     async function cashierShareEticketWhatsApp() {
       var btn = document.getElementById('btn-et-whatsapp');
       var orderNum = (document.getElementById('et-order-id') || {}).textContent || 'pedido';
-      var whatsappIconHtml = '<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.121.555 4.112 1.526 5.837L0 24l6.318-1.508A11.934 11.934 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.886 0-3.655-.49-5.187-1.345L2 22l1.368-4.729A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg> 转发到 WhatsApp';
+      var origBtnHtml = btn ? btn.innerHTML : '';
+      // 立即显示 loading
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg> Generando imagen…';
+      }
       try {
-        var etBody = document.getElementById('cashier-eticket-body');
-        if (!etBody) { showToast('Error: no se encontró el ticket', 'error'); return; }
-        // 临时取消 overflow 限制，确保 html2canvas 截取完整内容
-        var origOverflow = etBody.style.overflow;
-        var origMaxH = etBody.style.maxHeight;
-        etBody.style.overflow = 'visible';
-        etBody.style.maxHeight = 'none';
-        var canvas = await html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0 });
-        etBody.style.overflow = origOverflow;
-        etBody.style.maxHeight = origMaxH;
-        canvas.toBlob(async function (blob) {
-          if (!blob) { showToast('Error al generar imagen', 'error'); return; }
-          var fileName = 'pedido_' + orderNum + '.png';
-          shareImageToWhatsApp(blob, fileName);
-        }, 'image/png');
+        var blob = _cachedEticketBlob;
+        // 如果预缓存还在进行中，等它完成（最多3秒）
+        if (!blob && _eticketPregenInProgress) {
+          for (var _w = 0; _w < 30 && _eticketPregenInProgress; _w++) {
+            await new Promise(function (r) { setTimeout(r, 100); });
+          }
+          blob = _cachedEticketBlob;
+        }
+        // 缓存没命中，现场截图
+        if (!blob) {
+          var etBody = document.getElementById('cashier-eticket-body');
+          if (!etBody) { showToast('Error: no se encontró el ticket', 'error'); return; }
+          var origOverflow = etBody.style.overflow;
+          var origMaxH = etBody.style.maxHeight;
+          etBody.style.overflow = 'visible';
+          etBody.style.maxHeight = 'none';
+          var canvas = await html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0 });
+          etBody.style.overflow = origOverflow;
+          etBody.style.maxHeight = origMaxH;
+          blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+        }
+        if (!blob) { showToast('Error al generar imagen', 'error'); return; }
+        shareImageToWhatsApp(blob, 'pedido_' + orderNum + '.png');
       } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
+      finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = origBtnHtml; }
+      }
     }
 
     /** 通用：图片分享到 WhatsApp（优先 Capacitor 原生，fallback navigator.share） */
@@ -4291,6 +4336,11 @@
       var origHtml = btn ? btn.innerHTML : '';
       var order = currentOrder;
       var orderNum = String(order.order_number || order.orderNumber || '--');
+      // 立即显示 loading
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg> Generando imagen…';
+      }
 
       // 填充截图区
       var shopEl  = document.getElementById('odet-shop');
@@ -4383,11 +4433,11 @@
         var body = document.getElementById('order-detail-eticket-body');
         if (!body) { showToast('Error', 'error'); return; }
         var canvas = await html2canvas(body, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
-        canvas.toBlob(function (blob) {
-          if (!blob) { showToast('Error al generar imagen', 'error'); return; }
-          shareImageToWhatsApp(blob, 'pedido_' + orderNum + '.png');
-        }, 'image/png');
+        var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+        if (!blob) { showToast('Error al generar imagen', 'error'); return; }
+        shareImageToWhatsApp(blob, 'pedido_' + orderNum + '.png');
       } catch (e) { showToast('Error: ' + (e.message || e), 'error'); }
+      finally { if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } }
     }
 
     // ── 电子单弹窗结束 ─────────────────────────────────────────
