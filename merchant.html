@@ -2671,12 +2671,14 @@
         startQrScan();
         return;
       }
+      // 先打开弹窗并显示摄像头区域，再启动相机流
       document.getElementById('modal-scan').classList.remove('hidden');
       document.getElementById('scan-input').value = '';
       document.getElementById('scan-form-area').classList.add('hidden');
       document.getElementById('scan-camera-area').classList.remove('hidden');
       stopQrScan();
-      startQrScan();
+      // 延迟一帧让 DOM 渲染完（video 元素可见后）再启动摄像头，避免部分手机黑屏
+      requestAnimationFrame(function() { startQrScan(); });
     }
 
     function closeScan() {
@@ -2717,10 +2719,10 @@
       if (!video || !canvas || !ctx) return;
       if (typeof jsQR === 'undefined') {
         showToast(t('alert_no_camera'), 'error');
+        document.getElementById('scan-form-area').classList.remove('hidden');
+        document.getElementById('scan-camera-area').classList.add('hidden');
         return;
       }
-      document.getElementById('scan-form-area').classList.add('hidden');
-      document.getElementById('scan-camera-area').classList.remove('hidden');
 
       // APP 环境：先通过 Capacitor 申请原生相机权限
       if (_isCapApp) {
@@ -2735,6 +2737,8 @@
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showToast(t('alert_no_camera'), 'error');
+        document.getElementById('scan-form-area').classList.remove('hidden');
+        document.getElementById('scan-camera-area').classList.add('hidden');
         return;
       }
 
