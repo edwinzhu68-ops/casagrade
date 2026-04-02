@@ -1185,6 +1185,33 @@
       renderClientPendingOrders();
     }
 
+    async function cancelPendingOrderInline(orderNumber) {
+      if (!orderNumber) return;
+      try {
+        var r = await fetch(API_BASE + '/api/orders-cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderNumber: orderNumber })
+        });
+        if (r.ok) {
+          removePendingOrderByNumber(orderNumber);
+          renderClientPendingOrders();
+          showToast(getLang() === 'zh' ? '已取消' : 'Cancelado', 'success');
+        } else {
+          var data = await r.json().catch(function () { return {}; });
+          var msg = pickApiBilingualMessage(data) || data.error || 'Error';
+          // 如果后端说不是 pending 或不存在，也从本地列表移除
+          if (r.status === 400 || r.status === 404) {
+            removePendingOrderByNumber(orderNumber);
+            renderClientPendingOrders();
+          }
+          showToast(msg, 'error');
+        }
+      } catch (e) {
+        showToast('Error de red', 'error');
+      }
+    }
+
     function removePendingOrderByNumber(orderNumber) {
       try {
         var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
@@ -1262,7 +1289,7 @@
             : lt === 'NICA'
               ? '<span class="text-[10px] px-1 rounded bg-purple-100 text-purple-800 mr-1 font-bold">NICA</span>'
               : '<span class="text-[10px] px-1 rounded bg-green-100 text-green-800 mr-1 font-bold">Lotería</span>';
-          return '<button type="button" class="client-pending-item w-full flex justify-between items-center py-1.5 px-2 bg-white rounded-lg text-sm text-left border border-orange-200 hover:bg-orange-50 cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono flex items-center flex-wrap gap-0.5">' + tag + shop + ' · #' + shortNum + '</span><span class="font-bold text-orange-600">$' + amt + '</span></button>';
+          return '<div class="flex items-center gap-1"><button type="button" class="client-pending-item flex-1 flex justify-between items-center py-1.5 px-2 bg-white rounded-lg text-sm text-left border border-orange-200 hover:bg-orange-50 cursor-pointer" data-order-number="' + safeNum + '"><span class="font-mono flex items-center flex-wrap gap-0.5">' + tag + shop + ' · #' + shortNum + '</span><span class="font-bold text-orange-600">$' + amt + '</span></button><button type="button" onclick="cancelPendingOrderInline(\'' + safeNum + '\')" class="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-red-100 hover:bg-red-200 text-red-500 text-sm font-bold" title="Cancelar">×</button></div>';
         }).join('');
       } catch (e) {
         wrap.classList.add('hidden');
@@ -2419,7 +2446,9 @@
         pendingList = pendingList.filter(function (o) { return o && o.clientId === clientId; });
       } catch (e) {}
       if (pendingList.length >= MAX_PENDING_ORDERS) {
-        showToast('Ya tienes 3 pedidos pendientes de pago. Por favor paga primero antes de hacer más pedidos.', 'warning');
+        showToast(getLang() === 'zh'
+          ? '已有3张未付款订单，请先付款或点 × 取消后再下单'
+          : 'Ya tienes 3 pedidos pendientes. Paga o cancela (×) antes de hacer más.', 'warning');
         _isSubmittingBet = false; if (submitBtn) submitBtn.disabled = false;
         return;
       }
