@@ -1168,6 +1168,10 @@
         if (r.ok) {
           removePendingOrderByNumber(orderNumber);
         } else {
+          // 400（已付款/已取消）或 404（不存在）：订单不是 pending 了，从本地列表清除
+          if (r.status === 400 || r.status === 404) {
+            removePendingOrderByNumber(orderNumber);
+          }
           var errMsg = '取消失败';
           try {
             var data = await r.json();
