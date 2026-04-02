@@ -21,6 +21,38 @@
     body.lottery-bg-nacional { background-color: #f0fdf4 !important; transition: background-color 0.3s ease; }
     body.lottery-bg-tica     { background-color: #eff6ff !important; transition: background-color 0.3s ease; }
     body.lottery-bg-nica     { background-color: #faf5ff !important; transition: background-color 0.3s ease; }
+
+    /* ── 全局流畅度 ── */
+    /* 页面切换淡入 */
+    [id^="page-"]:not(.hidden) {
+      animation: page-fade-in 0.15s ease-out both;
+    }
+    @keyframes page-fade-in {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+    /* 弹窗入场 */
+    [id^="modal-"]:not(.hidden) {
+      animation: modal-bg-in 0.18s ease-out both;
+    }
+    [id^="modal-"]:not(.hidden) > div:first-child {
+      animation: modal-content-in 0.2s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+    }
+    @keyframes modal-bg-in {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+    @keyframes modal-content-in {
+      from { opacity: 0; transform: scale(0.92) translateY(12px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    /* 按钮点击反馈 */
+    button, [role="button"] {
+      transition: transform 0.1s ease, opacity 0.1s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active, [role="button"]:active {
+      transform: scale(0.96);
+      opacity: 0.85;
+    }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen" style="visibility:hidden">

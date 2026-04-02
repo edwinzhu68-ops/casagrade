@@ -10,6 +10,12 @@
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     body { font-family: 'DM Sans', system-ui, sans-serif; }
     .hidden { display: none !important; }
+    [id^="modal-"]:not(.hidden) { animation: _m-bg .18s ease-out both; }
+    [id^="modal-"]:not(.hidden) > div:first-child { animation: _m-in .2s cubic-bezier(.34,1.4,.64,1) both; }
+    @keyframes _m-bg { from{opacity:0}to{opacity:1} }
+    @keyframes _m-in { from{opacity:0;transform:scale(.92) translateY(12px)}to{opacity:1;transform:none} }
+    button,[role="button"]{transition:transform .1s,opacity .1s;-webkit-tap-highlight-color:transparent}
+    button:active,[role="button"]:active{transform:scale(.96);opacity:.85}
     .card-result { background: linear-gradient(145deg, rgba(31,41,55,0.95) 0%, rgba(17,24,39,0.98) 100%); border: 1px solid rgba(75,85,99,0.4); }
     .card-result:hover { border-color: rgba(75,85,99,0.6); }
     .order-row-won { background: linear-gradient(90deg, rgba(234,179,8,0.25) 0%, rgba(202,138,4,0.15) 100%); border-left: 4px solid rgb(234,179,8); }
