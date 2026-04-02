@@ -465,11 +465,7 @@
           <canvas id="scan-canvas" class="absolute inset-0 w-full h-full" style="display:none;"></canvas>
           <div class="absolute inset-0 border-4 border-green-500 rounded-lg pointer-events-none" style="margin:15%;box-sizing:border-box;"></div>
         </div>
-        <div class="flex gap-2">
-          <button type="button" onclick="document.getElementById('scan-photo-input').click()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2" data-i18n="btn_scan_album">🖼️ 相册识别</button>
-          <button type="button" onclick="stopQrScan(); document.getElementById('scan-form-area').classList.remove('hidden'); document.getElementById('scan-camera-area').classList.add('hidden');" class="flex-1 bg-gray-600 text-white py-3 rounded-xl font-bold" data-i18n="scan_close_camera">关闭摄像头</button>
-        </div>
-        <input type="file" id="scan-photo-input" accept="image/*" class="hidden" onchange="scanQrFromPhoto(this)">
+        <button type="button" onclick="stopQrScan(); document.getElementById('scan-form-area').classList.remove('hidden'); document.getElementById('scan-camera-area').classList.add('hidden');" class="w-full bg-gray-600 text-white py-3 rounded-xl font-bold" data-i18n="scan_close_camera">关闭摄像头</button>
       </div>
 
       <div class="flex gap-3">
@@ -2615,45 +2611,6 @@
 
     let scanStreamRef = null;
     let scanAnimationId = null;
-
-    // 从相册图片识别二维码
-    function scanQrFromPhoto(input) {
-      if (!input.files || !input.files[0]) return;
-      var file = input.files[0];
-      input.value = '';  // 重置，允许再次选同一张
-      if (typeof jsQR === 'undefined') {
-        showToast(t('alert_no_camera'), 'error');
-        return;
-      }
-      var img = new Image();
-      img.onload = function () {
-        var canvas = document.createElement('canvas');
-        var maxSize = 1024;
-        var w = img.width, h = img.height;
-        if (w > maxSize || h > maxSize) {
-          var scale = maxSize / Math.max(w, h);
-          w = Math.round(w * scale);
-          h = Math.round(h * scale);
-        }
-        canvas.width = w;
-        canvas.height = h;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        var imageData = ctx.getImageData(0, 0, w, h);
-        var code = jsQR(imageData.data, w, h);
-        if (code && code.data) {
-          document.getElementById('scan-input').value = code.data.trim();
-          playBeep();
-          scanOrder();
-        } else {
-          showToast(getMerchantLang() === 'zh' ? '未识别到二维码，请换张清晰的图片' : 'No se detectó QR. Intenta con otra imagen.', 'warning');
-        }
-      };
-      img.onerror = function () {
-        showToast(getMerchantLang() === 'zh' ? '图片读取失败' : 'Error al leer la imagen', 'error');
-      };
-      img.src = URL.createObjectURL(file);
-    }
 
     // 打开输入/扫码弹窗（仅弹窗，可手动输入或再点「扫码」）
     function openScanner() {
