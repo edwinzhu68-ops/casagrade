@@ -1200,7 +1200,7 @@ export class BetStatusController {
 
       const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
       const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
-      const stopSaleStart = confirmedDrawMins - 5; // 开奖前 5 分钟停售
+      const stopSaleStart = confirmedDrawMins; // 开奖时停售
       const RESUME_MINS = 7 * 60; // 次日 07:00 恢复
 
       // 次日日期（YYYY-MM-DD）

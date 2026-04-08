@@ -1117,7 +1117,7 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
             const totalMins = panama.h * 60 + panama.min;
             const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
             const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
-            const stopSaleStart = confirmedDrawMins - 5;
+            const stopSaleStart = confirmedDrawMins;
             const RESUME_MINS = 7 * 60;
             const drawDateObj = new Date(`${drawDateISO}T12:00:00`);
             drawDateObj.setDate(drawDateObj.getDate() + 1);
