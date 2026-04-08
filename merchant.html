@@ -306,7 +306,8 @@
       <!-- 销售限额设置 -->
       <div class="bg-gray-800 rounded-2xl p-4">
         <h3 class="font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额</h3>
-        <div class="grid grid-cols-2 gap-4">
+        <!-- Loteria 限额 -->
+        <div id="loteria-limits-section" class="grid grid-cols-2 gap-4">
           <div>
             <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
             <div class="flex items-center">
@@ -324,45 +325,41 @@
             </div>
           </div>
         </div>
+        <!-- TICA 限额 -->
+        <div id="tica-limits-section" class="hidden grid grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+            <div class="flex items-center">
+              <input type="number" id="tica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+              <span class="ml-1 text-gray-400">张</span>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+            <div class="flex items-center">
+              <input type="number" id="tica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+              <span class="ml-1 text-gray-400">张</span>
+            </div>
+          </div>
+        </div>
+        <!-- NICA 限额 -->
+        <div id="nica-limits-section" class="hidden grid grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+            <div class="flex items-center">
+              <input type="number" id="nica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+              <span class="ml-1 text-gray-400">张</span>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+            <div class="flex items-center">
+              <input type="number" id="nica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+              <span class="ml-1 text-gray-400">张</span>
+            </div>
+          </div>
+        </div>
         <p class="text-xs text-gray-500 mt-2" data-i18n="limit_hint">0 = sin límite</p>
-        <div id="tica-limits-section" class="hidden mt-3 pt-3 border-t border-gray-700">
-          <p class="text-xs text-purple-400 font-bold mb-2">TICA 独立限额</p>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="tica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="tica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div id="nica-limits-section" class="hidden mt-3 pt-3 border-t border-gray-700">
-          <p class="text-xs text-purple-400 font-bold mb-2">NICA 独立限额</p>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="nica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="nica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-          </div>
-        </div>
         <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
       </div>
 
@@ -1960,6 +1957,7 @@
       loadDashboard();
       updateCashierBilleteChanceButtonLabels();
       updateCashierLotteryBadge();
+      syncTicaNicaLimitsSectionVisibility();
     }
     function renderMerchantWorkbenchNav() {
       var nav = document.getElementById('merchant-workbench-nav');
@@ -2530,10 +2528,13 @@
     }
 
     function syncTicaNicaLimitsSectionVisibility() {
+      var kind = merchantWorkbenchKind || 'NACIONAL';
+      var lotSec = document.getElementById('loteria-limits-section');
       var ticaSec = document.getElementById('tica-limits-section');
       var nicaSec = document.getElementById('nica-limits-section');
-      if (ticaSec) ticaSec.classList.toggle('hidden', !(currentShop && currentShop.tica_enabled));
-      if (nicaSec) nicaSec.classList.toggle('hidden', !(currentShop && currentShop.nica_enabled));
+      if (lotSec) lotSec.classList.toggle('hidden', kind !== 'NACIONAL');
+      if (ticaSec) ticaSec.classList.toggle('hidden', kind !== 'TICA');
+      if (nicaSec) nicaSec.classList.toggle('hidden', kind !== 'NICA');
     }
 
     function syncCustomPeriodInputs() {
@@ -3321,6 +3322,9 @@
         renderChanceTop10();
         renderBilleteTop10();
 
+        // 应用销售额遮罩
+        applySalesMask();
+
         // 未付款订单（存一份供尾数筛选）
         lastUnpaidOrders = unpaidOrders;
         var filterVal = (document.getElementById('pending-filter-input') && document.getElementById('pending-filter-input').value) ? document.getElementById('pending-filter-input').value.trim() : '';
@@ -3517,11 +3521,11 @@
       }
 
       var chSalesEl = document.getElementById('chance-modal-sales');
-      if (chSalesEl) chSalesEl.textContent = '$' + chanceSalesAmount.toFixed(2);
+      if (chSalesEl) chSalesEl.textContent = isSalesHidden() ? '***' : '$' + chanceSalesAmount.toFixed(2);
       var chTotalEl = document.getElementById('chance-modal-total-sales');
       if (chTotalEl) {
         var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
-        chTotalEl.textContent = '$' + total.toFixed(2);
+        chTotalEl.textContent = isSalesHidden() ? '***' : '$' + total.toFixed(2);
       }
 
       document.getElementById('modal-chance').classList.remove('hidden');
@@ -3595,11 +3599,11 @@
       }
 
       var biSalesEl = document.getElementById('billete-modal-sales');
-      if (biSalesEl) biSalesEl.textContent = '$' + billeteSalesAmount.toFixed(2);
+      if (biSalesEl) biSalesEl.textContent = isSalesHidden() ? '***' : '$' + billeteSalesAmount.toFixed(2);
       var biTotalEl = document.getElementById('billete-modal-total-sales');
       if (biTotalEl) {
         var total = (ordersForCurrentDraw || []).reduce(function (s, o) { return s + Number(o.amount || 0); }, 0);
-        biTotalEl.textContent = '$' + total.toFixed(2);
+        biTotalEl.textContent = isSalesHidden() ? '***' : '$' + total.toFixed(2);
       }
 
       document.getElementById('modal-billete').classList.remove('hidden');
@@ -6218,9 +6222,7 @@
 
       // ── 2. QR 码（GS ( k 指令，打印机内部生成） ──
       if (orderNum) {
-        var oh = order.order_hash || order.orderHash || '';
-        var sid = order.shop_id || order.shopId || '';
-        var qrContent = orderNum + '|' + oh + '|' + sid;
+        var qrContent = orderNum;
         push(...CENTER);
         const qrBytes = encLatin1(qrContent);
         const pL = (qrBytes.length + 3) & 0xFF;
@@ -6492,10 +6494,45 @@
       localStorage.setItem('lottery_poster_shown', '1');
     }
 
+    function onHideSalesToggle(checked) {
+      localStorage.setItem('lottery_hide_sales', checked ? '1' : '0');
+      applySalesMask();
+    }
+
+    function isSalesHidden() {
+      return localStorage.getItem('lottery_hide_sales') === '1';
+    }
+
+    function applySalesMask() {
+      var hidden = isSalesHidden();
+      var mask = '***';
+      // 主面板销售额
+      var incomeEl = document.getElementById('today-income');
+      if (incomeEl) {
+        if (hidden) { incomeEl.setAttribute('data-real', incomeEl.textContent); incomeEl.textContent = mask; }
+        else if (incomeEl.getAttribute('data-real')) { incomeEl.textContent = incomeEl.getAttribute('data-real'); }
+      }
+      // 中奖金额
+      var winsEl = document.getElementById('today-wins');
+      if (winsEl) {
+        if (hidden) { winsEl.setAttribute('data-real', winsEl.textContent); winsEl.textContent = mask; }
+        else if (winsEl.getAttribute('data-real')) { winsEl.textContent = winsEl.getAttribute('data-real'); }
+      }
+      // Chance / Billete 销售额
+      ['merchant-chance-sales', 'merchant-billete-sales'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (hidden) { el.setAttribute('data-real', el.textContent); el.textContent = mask; }
+        else if (el.getAttribute('data-real')) { el.textContent = el.getAttribute('data-real'); }
+      });
+    }
+
     function openSettings() {
       document.getElementById('modal-settings').classList.remove('hidden');
       // 展示订阅到期日
       showSubscriptionExpiry(currentShop || null);
+      // 恢复隐藏销售额开关状态
+      document.getElementById('hide-sales-toggle').checked = isSalesHidden();
       // 恢复打印开关状态
       const enabled = localStorage.getItem('lottery_print_enabled') === '1';
       document.getElementById('print-toggle').checked = enabled;
@@ -6735,7 +6772,19 @@
           </button>
         </div>
 
-        <!-- 3. 打印设置（日常操作） -->
+        <!-- 3. 隐藏销售额 -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-bold">🙈 隐藏销售额</p>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="hide-sales-toggle" class="sr-only peer" onchange="onHideSalesToggle(this.checked)">
+              <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">开启后所有销售额显示为 ***</p>
+        </div>
+
+        <!-- 4. 打印设置（日常操作） -->
         <div class="border border-gray-600 rounded-xl p-3">
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm font-bold" data-i18n="print_section_title">🖨️ 蓝牙热敏打印</p>
