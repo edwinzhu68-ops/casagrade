@@ -223,7 +223,7 @@
         </button>
       </div>
 
-      <!-- 本期概览（本期 = 16:00 开售～下次 14:55 停售）；本期订单数可点开看列表 -->
+      <!-- 本期概览（本期 = 16:00 开售～下次 15:00 停售）；本期订单数可点开看列表 -->
       <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
         <div class="flex items-center justify-between">
           <div>
@@ -826,7 +826,7 @@
         <h3 class="text-lg font-bold" data-i18n="period_orders_list">本期订单</h3>
         <button type="button" onclick="closeModal('modal-period-orders')" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
       </div>
-      <p class="text-xs text-gray-400 mb-2" data-i18n="period_orders_hint">16:00 开售～下次 14:55 停售 · 点击单号查看详情</p>
+      <p class="text-xs text-gray-400 mb-2" data-i18n="period_orders_hint">16:00 开售～下次 15:00 停售 · 点击单号查看详情</p>
       <input id="period-order-filter" type="text" maxlength="10" placeholder="最后4位" oninput="filterPeriodOrders(this.value)"
         class="w-full mb-2 px-3 py-2 bg-gray-700 rounded-lg text-sm font-mono border border-gray-600 focus:border-blue-500 focus:outline-none" />
       <div id="period-order-list" class="flex-1 overflow-y-auto space-y-1 text-sm font-mono">
@@ -1112,7 +1112,7 @@
         period_sales: '本期销售额',
         period_orders: '本期订单',
         period_orders_list: '本期订单',
-        period_orders_hint: '16:00 开售～下次 14:55 停售',
+        period_orders_hint: '16:00 开售～下次 15:00 停售',
         today_sales: '今日销售额',
         paid_label: '已付款',
         unpaid_label: '未付款',
@@ -1435,7 +1435,7 @@
         period_sales: 'Ventas del periodo',
         period_orders: 'Pedidos del periodo',
         period_orders_list: 'Pedidos del periodo',
-        period_orders_hint: 'Venta 16:00 hasta 14:55 cierre',
+        period_orders_hint: 'Venta 16:00 hasta 15:00 cierre',
         today_sales: 'Ventas de hoy',
         paid_label: 'Pagados',
         unpaid_label: 'Sin pagar',

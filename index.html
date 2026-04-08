@@ -2380,7 +2380,7 @@
             : 'Sorteo en curso · Ventas suspendidas hasta las 7:00 am del día siguiente';
         } else if (clientLotteryMode === 'NACIONAL' && !lastBetStatus.canBet) {
           hint.classList.remove('hidden');
-          hint.textContent = 'Ventas suspendidas hasta el próximo sorteo (cierre 14:55).';
+          hint.textContent = 'Ventas suspendidas hasta el próximo sorteo (cierre 15:00).';
         } else if (clientLotteryMode === 'TICA' && lastBetStatus.acceptingTicaOrders === false) {
           hint.classList.remove('hidden');
           hint.textContent = getClientLang() === 'zh' ? 'TICA 接单已关闭' : 'TICA: la tienda no acepta pedidos ahora.';

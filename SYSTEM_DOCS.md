@@ -28,7 +28,7 @@ type: project
 2. 选游戏类型（Billete/Chance）+ 输入号码和数量
 3. 下单 `POST /api/orders`
    - 后端重算金额防篡改（Billete $1/张，Chance $0.25/张）
-   - 检查 pending 期、停售窗口（14:55~次日07:00 巴拿马时区）
+   - 检查 pending 期、停售窗口（15:00~次日07:00 巴拿马时区）
    - 检查每号限额（若配置）、per-shop mutex 防超卖
    - 生成订单号（时间戳36进制+随机4位）和核销码（5位）
 4. 支付页轮询 `GET /api/orders/:orderNumber` 直到 status=1
