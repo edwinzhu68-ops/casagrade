@@ -6398,9 +6398,14 @@
       console.log('[PRINT] sendToPrinter, length=' + data.length);
       const canWrite   = _printerChar.properties && _printerChar.properties.write;
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
-      const CHUNK = 20;
+      // MTU 协商：BLE 默认 MTU=23，payload=20；大部分热敏打印机支持更大 MTU
+      // 用 100 字节 chunk 减少包数（50→10），降低打印机缓冲区溢出风险
+      const CHUNK = canWithout ? 100 : 100;
+      // writeWithoutResponse 无回执，需要间隔让打印机消化
+      const PACE_MS = canWithout ? 25 : 0;
       async function _writeChunk(chunk) {
         var writePromise;
+        // 优先用有回执的 write（自带流控），其次无回执
         if (canWrite && _printerChar.writeValueWithResponse) {
           writePromise = _printerChar.writeValueWithResponse(chunk);
         } else if (canWithout && _printerChar.writeValueWithoutResponse) {
@@ -6426,11 +6431,15 @@
               ok = true;
               break;
             } catch(e) {
-              console.warn('[PRINT] write error at chunk ' + i + ' (retry ' + retry + '):', e.message || e);
-              if (retry < 2) await new Promise(function(r) { setTimeout(r, 80 * (retry + 1)); });
+              console.warn('[PRINT] write error at chunk ' + i + '/' + data.length + ' (retry ' + retry + '):', e.message || e);
+              if (retry < 2) await new Promise(function(r) { setTimeout(r, 150 * (retry + 1)); });
             }
           }
-          if (!ok) throw new Error('打印数据发送失败（chunk ' + i + '）');
+          if (!ok) throw new Error('打印数据发送失败（chunk ' + i + '/' + data.length + '）');
+          // 无回执模式需要主动节流，防止打印机缓冲区溢出导致打印一半中断
+          if (PACE_MS > 0 && i + CHUNK < data.length) {
+            await new Promise(function(r) { setTimeout(r, PACE_MS); });
+          }
         }
       } finally {
         _printingNow = false;  // 无论成功失败都释放锁
