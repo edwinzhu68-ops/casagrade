@@ -1078,7 +1078,7 @@
       if (w === 0) {
         var breakdown = order && order.win_breakdown;
         if (Array.isArray(breakdown) && breakdown.length > 0) {
-          return breakdown.reduce(function (sum, item) { return sum + (Number(item.win) || 0); }, 0);
+          return breakdown.reduce(function (sum, item) { return sum + (Number(item.win || item.payout) || 0); }, 0);
         }
       }
       return w;
@@ -2983,11 +2983,19 @@
         const numbersEl = document.getElementById('result-detail-numbers');
         if (data.numbers && data.numbers.length) {
           const breakdown = (data.win_breakdown || []).length ? (data.win_breakdown || []) : null;
+          // 构建号码→中奖金额映射（兼容两种 win_breakdown 格式）
+          const _wbMap = {};
+          if (breakdown) breakdown.forEach(b => {
+            const k = String(b.n != null ? b.n : (b.number != null ? b.number : ''));
+            const w = Number(b.win || b.payout || 0);
+            if (k && w > 0) _wbMap[k] = (_wbMap[k] || 0) + w;
+          });
           numbersEl.innerHTML = data.numbers.map((n, i) => {
             const nn = (n.n != null ? n.n : '').toString();
             const qq = Number(n.q) || 0;
-            const win = breakdown && breakdown[i] ? Number(breakdown[i].win) || 0 : 0;
-            return `<div class="flex justify-between"><span class="font-mono">${esc(nn)} × ${qq}</span>${win > 0 ? '<span class="text-amber-400">+$' + win.toFixed(2) + '</span>' : ''}</div>`;
+            const win = _wbMap[nn] || 0;
+            const matchText = breakdown && breakdown[i] ? (breakdown[i].match || (Array.isArray(breakdown[i].matches) ? breakdown[i].matches.join(', ') : '')) : '';
+            return `<div class="flex justify-between"><span class="font-mono">${esc(nn)} × ${qq}${matchText ? ' <span class="text-xs text-amber-400/70">(' + esc(matchText) + ')</span>' : ''}</span>${win > 0 ? '<span class="text-amber-400">+$' + win.toFixed(2) + '</span>' : ''}</div>`;
           }).join('');
         } else {
           numbersEl.innerHTML = '<p class="text-gray-500">—</p>';
@@ -3039,9 +3047,9 @@
         if (!Array.isArray(breakdown) || breakdown.length === 0) return;
         // 按号码位数区分：4位是Billete，2位是Chance（不再按game_type字段区分）
         breakdown.forEach((item) => {
-          const win = Number(item.win) || 0;
+          const win = Number(item.win || item.payout || 0);
           if (win <= 0) return;
-          const n = String(item.n != null ? item.n : '');
+          const n = String(item.n != null ? item.n : (item.number != null ? item.number : ''));
           const q = Number(item.q) || 0;
           const numLen = n.replace(/\D/g, '').length;
           let key, map;

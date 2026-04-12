@@ -2000,7 +2000,7 @@
       if (w === 0) {
         var b = order && order.win_breakdown;
         if (Array.isArray(b) && b.length > 0) {
-          return b.reduce(function (s, i) { return s + (Number(i.win) || 0); }, 0);
+          return b.reduce(function (s, i) { return s + (Number(i.win || i.payout) || 0); }, 0);
         }
       }
       return w;
@@ -4145,14 +4145,22 @@
         var isEtEnabled = etToggle && etToggle.checked;
         // 互斥模式：电子单开→只出电子单；电子单关→只出纸单
         if (!isEtEnabled) {
-          await autoPrintOrder(freshOrder);
+          // 打印加 8 秒超时，防止 BLE 写入卡死导致 cashierOrderBusy 永远为 true
+          await Promise.race([
+            autoPrintOrder(freshOrder),
+            new Promise(function (_, reject) { setTimeout(function () { reject(new Error('print_timeout')); }, 8000); })
+          ]);
         } else {
           fillCashierEticket(freshOrder);
           showCashierEticket();
         }
       } catch (ePrint) {
         console.warn('[CASHIER] 获取订单/打印失败:', ePrint.message || ePrint);
-        showToast('🖨️ 打印失败，可在横幅点重新打印', 'warning');
+        if (ePrint.message === 'print_timeout') {
+          showToast('🖨️ 打印超时，可在横幅点重新打印', 'warning');
+        } else {
+          showToast('🖨️ 打印失败，可在横幅点重新打印', 'warning');
+        }
       }
       // 下单成功后重置弹窗状态，继续接待下一个客人（不关闭弹窗）
       void openCashierOrderModal();
@@ -4657,7 +4665,10 @@
             try {
               var freshRes = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`);
               var freshOrder = await freshRes.json();
-              await autoPrintOrder(freshOrder);
+              await Promise.race([
+                autoPrintOrder(freshOrder),
+                new Promise(function (_, reject) { setTimeout(function () { reject(new Error('print_timeout')); }, 8000); })
+              ]);
             } catch (pe) {
               console.warn('[PRINT] quickConfirm print error:', pe);
             }
@@ -4708,7 +4719,14 @@
 
       var breakdown = order.win_breakdown || [];
       var winMap = {};
-      breakdown.forEach(function (b) { if (b.n != null) winMap[String(b.n)] = Number(b.win) || 0; });
+      // 兼容两种 win_breakdown 格式：
+      // draw.controller 路径: { n, q, win, match }
+      // settlement.service 路径: { number, matches[], payout }
+      breakdown.forEach(function (b) {
+        var key = b.n != null ? String(b.n) : (b.number != null ? String(b.number) : null);
+        var amt = Number(b.win || b.payout || 0);
+        if (key != null && amt > 0) winMap[key] = (winMap[key] || 0) + amt;
+      });
       var priceBillete = 1, priceChance = 0.25;
       try { var _pb = parseFloat(localStorage.getItem('price_billete')); if (!isNaN(_pb) && _pb > 0) priceBillete = _pb; } catch(e) {}
       try { var _pc = parseFloat(localStorage.getItem('price_chance')); if (!isNaN(_pc) && _pc > 0) priceChance = _pc; } catch(e) {}
@@ -4743,11 +4761,13 @@
         var winAmt = getOrderWinAmount(order);
         document.getElementById('detail-win-amount').textContent = winAmt.toFixed(2);
         var breakdown = order.win_breakdown || [];
-        var breakdownHtml = breakdown.filter(function (b) { return Number(b.win || 0) > 0; }).map(function (b) {
-          var num = b.n != null ? String(b.n) : '';
+        var breakdownHtml = breakdown.filter(function (b) { return Number(b.win || b.payout || 0) > 0; }).map(function (b) {
+          var num = b.n != null ? String(b.n) : (b.number != null ? String(b.number) : '');
           var qty = Number(b.q) || 0;
-          var win = Number(b.win || 0).toFixed(2);
-          return '<div class="flex justify-between"><span class="font-mono">' + esc(num) + ' × ' + qty + '</span><span class="text-emerald-300">+$' + win + '</span></div>';
+          var win = Number(b.win || b.payout || 0).toFixed(2);
+          // 匹配说明：优先 match (draw路径)，其次 matches[] (settlement路径)
+          var matchText = b.match || (Array.isArray(b.matches) ? b.matches.join(', ') : '') || '';
+          return '<div class="flex justify-between gap-2"><span class="font-mono">' + esc(num) + (qty > 0 ? ' × ' + qty : '') + (matchText ? ' <span class="text-xs text-emerald-400/70">(' + esc(matchText) + ')</span>' : '') + '</span><span class="text-emerald-300 whitespace-nowrap">+$' + win + '</span></div>';
         }).join('');
         document.getElementById('detail-win-breakdown').innerHTML = breakdownHtml || '<span class="text-gray-500">—</span>';
       } else {
@@ -5685,18 +5705,43 @@
     }
     let currentDrawDate = null;   // 当期开奖日期，加载数据时更新，用于打印小票
 
+    /** 打印中标记：心跳必须让路，防止 GATT 写入竞争 */
+    var _printingNow = false;
+
     /** 每 25 秒发一次 ESC @ 心跳，保持 BLE 连接不断（APP/Web 统一逻辑） */
+    var _keepAliveFailCount = 0;
     function startPrinterKeepAlive() {
       if (_keepAliveTimer) clearInterval(_keepAliveTimer);
+      _keepAliveFailCount = 0;
       _keepAliveTimer = setInterval(async () => {
         if (!isPrinterConnected()) return;
+        if (_printingNow) return;  // 打印中跳过心跳，避免 GATT 竞争
         try {
           const ping = new Uint8Array([0x1B, 0x40]);
           const canWithout = _printerChar.properties?.writeWithoutResponse;
-          if (canWithout) await _printerChar.writeValueWithoutResponse(ping);
-          else if (_printerChar.writeValueWithResponse) await _printerChar.writeValueWithResponse(ping);
-          else await _printerChar.writeValue(ping);
-        } catch {}
+          var writeP;
+          if (canWithout) writeP = _printerChar.writeValueWithoutResponse(ping);
+          else if (_printerChar.writeValueWithResponse) writeP = _printerChar.writeValueWithResponse(ping);
+          else writeP = _printerChar.writeValue(ping);
+          // 心跳也加超时，防止卡住 GATT 队列
+          await Promise.race([
+            writeP,
+            new Promise(function (_, reject) { setTimeout(function () { reject(new Error('keepalive_timeout')); }, 3000); })
+          ]);
+          _keepAliveFailCount = 0;
+        } catch (eKa) {
+          _keepAliveFailCount++;
+          console.warn('[PRINT] keepAlive 失败 (' + _keepAliveFailCount + '):', eKa.message || eKa);
+          // 连续2次失败视为断连，触发重连
+          if (_keepAliveFailCount >= 2) {
+            console.warn('[PRINT] keepAlive 连续失败，标记断连并重连');
+            _printerChar = null;
+            stopPrinterKeepAlive();
+            updatePrinterStatusUI();
+            if (_reconnectTimer) clearTimeout(_reconnectTimer);
+            _reconnectTimer = setTimeout(function () { autoReconnectPrinter(); }, 500);
+          }
+        }
       }, 25000);
     }
 
@@ -6349,33 +6394,46 @@
     // ── 发送打印（APP/Web 统一逻辑）──────────────────────────
     async function sendToPrinter(data) {
       if (!_printerChar) throw new Error('打印机未连接');
+      _printingNow = true;  // 阻止心跳干扰
       console.log('[PRINT] sendToPrinter, length=' + data.length);
       const canWrite   = _printerChar.properties && _printerChar.properties.write;
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
       const CHUNK = 20;
       async function _writeChunk(chunk) {
+        var writePromise;
         if (canWrite && _printerChar.writeValueWithResponse) {
-          await _printerChar.writeValueWithResponse(chunk);
+          writePromise = _printerChar.writeValueWithResponse(chunk);
         } else if (canWithout && _printerChar.writeValueWithoutResponse) {
-          await _printerChar.writeValueWithoutResponse(chunk);
+          writePromise = _printerChar.writeValueWithoutResponse(chunk);
         } else if (_printerChar.writeValue) {
-          await _printerChar.writeValue(chunk);
+          writePromise = _printerChar.writeValue(chunk);
+        } else {
+          return;
         }
+        // 单次 BLE 写入 3 秒超时，防止蓝牙断连时 promise 永远不 resolve
+        await Promise.race([
+          writePromise,
+          new Promise(function (_, reject) { setTimeout(function () { reject(new Error('ble_write_timeout')); }, 3000); })
+        ]);
       }
-      for (let i = 0; i < data.length; i += CHUNK) {
-        const chunk = data.slice(i, i + CHUNK);
-        let ok = false;
-        for (let retry = 0; retry < 3; retry++) {
-          try {
-            await _writeChunk(chunk);
-            ok = true;
-            break;
-          } catch(e) {
-            console.warn('[PRINT] write error at chunk ' + i + ' (retry ' + retry + '):', e.message || e);
-            if (retry < 2) await new Promise(function(r) { setTimeout(r, 80 * (retry + 1)); });
+      try {
+        for (let i = 0; i < data.length; i += CHUNK) {
+          const chunk = data.slice(i, i + CHUNK);
+          let ok = false;
+          for (let retry = 0; retry < 3; retry++) {
+            try {
+              await _writeChunk(chunk);
+              ok = true;
+              break;
+            } catch(e) {
+              console.warn('[PRINT] write error at chunk ' + i + ' (retry ' + retry + '):', e.message || e);
+              if (retry < 2) await new Promise(function(r) { setTimeout(r, 80 * (retry + 1)); });
+            }
           }
+          if (!ok) throw new Error('打印数据发送失败（chunk ' + i + '）');
         }
-        if (!ok) throw new Error('打印数据发送失败（chunk ' + i + '）');
+      } finally {
+        _printingNow = false;  // 无论成功失败都释放锁
       }
     }
 
