@@ -3822,15 +3822,26 @@
       if (salesLabel) salesLabel.textContent = isPalet ? 'Palet' : 'Billete';
     }
 
+    var _cashierBetSnapPollTimer = null;
     async function refreshCashierBetSnap() {
       if (!currentShop || currentShop.shop_id == null) return;
       try {
         var r = await fetch(API_BASE + '/api/bet-status?shopId=' + encodeURIComponent(currentShop.shop_id), { cache: 'no-store' });
         if (r.ok) {
           var j = await r.json().catch(function () { return null; });
-          if (j && typeof j === 'object') cashierLastBetSnap = j;
+          if (j && typeof j === 'object') {
+            cashierLastBetSnap = j;
+            cashierUpdateShopBetUi(); // 实时更新按钮状态
+          }
         }
       } catch (eR) {}
+    }
+    function startCashierBetSnapPoll() {
+      stopCashierBetSnapPoll();
+      _cashierBetSnapPollTimer = setInterval(function () { refreshCashierBetSnap(); }, 30000);
+    }
+    function stopCashierBetSnapPoll() {
+      if (_cashierBetSnapPollTimer) { clearInterval(_cashierBetSnapPollTimer); _cashierBetSnapPollTimer = null; }
     }
 
     function cashierCanSubmitLikeClient() {
@@ -4591,9 +4602,11 @@
       cashierUpdateShopBetUi();
       updateCashierPrinterBanner();
       cashierOpenKeyboard();
+      startCashierBetSnapPoll(); // 弹窗打开后每30秒刷新bet-status，实时更新按钮状态
     }
 
     function closeCashierOrderModal() {
+      stopCashierBetSnapPoll();
       cashierCloseKeyboard();
       var modal = document.getElementById('modal-cashier-order');
       if (modal) modal.classList.add('hidden');
