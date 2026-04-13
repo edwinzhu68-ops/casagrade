@@ -203,7 +203,7 @@ export class OrderController implements OnModuleInit {
       throw new BadRequestException('当前处于停售期，暂停下单');
     }
 
-    // 2a. 服务端停售窗口验证（开奖前5分钟 到 次日07:00，拒绝下单）
+    // 2a. 服务端停售窗口验证（开奖时刻 到 次日07:00，拒绝下单）
     if (currentDraw) {
       const timeStr = String(currentDraw.draw_time || '').trim();
       let drawHour = -1, drawMin = 0;
@@ -235,7 +235,7 @@ export class OrderController implements OnModuleInit {
         const todayISO2 = `${panama.y}-${String(panama.m).padStart(2,'0')}-${String(panama.d).padStart(2,'0')}`;
         const totalMins = panama.h * 60 + panama.min;
         const drawMins = drawHour * 60 + drawMin;
-        const stopStart = drawMins - 5;
+        const stopStart = drawMins; // 开奖时停售（与 bet-status 一致）
         const RESUME = 7 * 60;
 
         const drawDateObj2 = new Date(`${drawDateISO2}T12:00:00`);
@@ -1189,7 +1189,7 @@ export class BetStatusController {
         }
       }
 
-      // 根据实际 draw_time 判断停售窗口：draw_time-5分钟 到 draw_time+60分钟
+      // 根据实际 draw_time 判断停售窗口：draw_time 到 次日07:00
       // 同时将「系统认定的开奖日与时间」暴露给前端显示
       const confirmedDrawMins = drawHour * 60 + drawMin;
       confirmedDrawDay = `${String(dd).padStart(2, '0')}-${String(dm).padStart(2, '0')}-${dy}`;
@@ -1208,7 +1208,7 @@ export class BetStatusController {
       drawDateObj.setDate(drawDateObj.getDate() + 1);
       const dayAfterISO = `${drawDateObj.getFullYear()}-${String(drawDateObj.getMonth() + 1).padStart(2, '0')}-${String(drawDateObj.getDate()).padStart(2, '0')}`;
 
-      // 停售窗口：开奖日 draw_time-5min 起，到次日 07:00 止
+      // 停售窗口：开奖日 draw_time 起，到次日 07:00 止
       const inStopWindow =
         (drawDateISO === todayISO && totalMins >= stopSaleStart) ||
         (dayAfterISO === todayISO && totalMins < RESUME_MINS);
