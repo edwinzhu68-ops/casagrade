@@ -253,7 +253,7 @@ let OrderController = OrderController_1 = class OrderController {
                 const todayISO2 = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
                 const totalMins = panama.h * 60 + panama.min;
                 const drawMins = drawHour * 60 + drawMin;
-                const stopStart = drawMins - 5;
+                const stopStart = drawMins;
                 const RESUME = 7 * 60;
                 const drawDateObj2 = new Date(`${drawDateISO2}T12:00:00`);
                 drawDateObj2.setDate(drawDateObj2.getDate() + 1);
