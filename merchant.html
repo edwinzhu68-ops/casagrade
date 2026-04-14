@@ -1883,16 +1883,11 @@
     let merchantLatestNationalDrawId = null;
 
     /**
-     * 与结算页一致：current 表示「正在销售」期号 N 时，待兑奖/中奖金额统计用上一期 N-1（已开奖、可能仍有未兑奖）。
-     * 无 pending 期时（开奖日到次日07:00之间），直接用最近 completed 期的 drawId。
+     * 待兑奖/中奖金额统计用：最近一个 completed draw 的 drawId。
+     * 不能用 pending - 1，因为 draw_id 不连续（中间有 TICA/NICA 占用）。
      */
     function merchantRedeemWinsDrawIdForStats() {
       if (merchantWorkbenchKind === 'NACIONAL') {
-        if (merchantPendingNationalDrawId != null && merchantPendingNationalDrawId !== '') {
-          var n = Number(merchantPendingNationalDrawId);
-          if (isFinite(n) && n > 1) return n - 1;
-        }
-        // 无 pending 期（开奖后到次日07:00）：直接用最近 completed 期
         if (merchantLatestNationalDrawId != null) return Number(merchantLatestNationalDrawId);
         return null;
       }
