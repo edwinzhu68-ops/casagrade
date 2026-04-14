@@ -1528,20 +1528,19 @@
       if (k === 'TICA' && !hasT) k = 'NACIONAL';
       if (k === 'NICA' && !hasN) k = 'NACIONAL';
 
-      function pillCls() {
-        return 'flex-1 min-w-[104px] max-w-[200px] py-2.5 rounded-xl font-bold text-sm transition bg-gray-800 text-gray-200 border border-gray-600 hover:bg-gray-700';
+      var kindColors = { NACIONAL: 'bg-emerald-600', TICA: 'bg-blue-600', NICA: 'bg-purple-600' };
+      function pillCls(kind, active) {
+        return 'flex-1 min-w-[104px] max-w-[200px] py-2.5 rounded-xl font-bold text-sm transition ' +
+          (active ? (kindColors[kind] || 'bg-emerald-600') + ' text-white shadow-lg' : 'bg-gray-800 text-gray-200 border border-gray-600 hover:bg-gray-700');
       }
-      var btns = [];
-      if (k === 'NACIONAL') {
-        if (hasT) btns.push('<button type="button" class="' + pillCls() + '" onclick="navigateResultWorkbench(\'TICA\')">TICA</button>');
-        if (hasN) btns.push('<button type="button" class="' + pillCls() + '" onclick="navigateResultWorkbench(\'NICA\')">NICA</button>');
-      } else if (k === 'TICA') {
-        btns.push('<button type="button" class="' + pillCls() + '" onclick="navigateResultWorkbench(\'NACIONAL\')">LOTERÍA</button>');
-        if (hasN) btns.push('<button type="button" class="' + pillCls() + '" onclick="navigateResultWorkbench(\'NICA\')">NICA</button>');
-      } else {
-        btns.push('<button type="button" class="' + pillCls() + '" onclick="navigateResultWorkbench(\'NACIONAL\')">LOTERÍA</button>');
-        if (hasT) btns.push('<button type="button" class="' + pillCls() + '" onclick="navigateResultWorkbench(\'TICA\')">TICA</button>');
-      }
+      var kindLabels = { NACIONAL: 'LOTERÍA', TICA: 'TICA', NICA: 'NICA' };
+      var allKinds = ['NACIONAL'];
+      if (hasT) allKinds.push('TICA');
+      if (hasN) allKinds.push('NICA');
+      var btns = allKinds.map(function (kind) {
+        var active = kind === k;
+        return '<button type="button" class="' + pillCls(kind, active) + '" onclick="navigateResultWorkbench(\'' + kind + '\')">' + kindLabels[kind] + '</button>';
+      });
       inner.innerHTML = btns.join('');
     }
 
