@@ -4867,13 +4867,7 @@
       if (!currentOrder) return;
       var numbers = currentOrder.numbers || [];
       if (!numbers.length) { showToast(t('no_orders'), 'error'); return; }
-      // 切换到订单对应的彩种
-      var orderLt = String(currentOrder.lottery_type || currentOrder.lotteryType || 'NACIONAL').toUpperCase();
-      if (orderLt === 'TICA' || orderLt === 'NICA' || orderLt === 'NACIONAL') {
-        merchantWorkbenchKind = orderLt;
-        sessionStorage.setItem(MERCHANT_WORKBENCH_KEY, orderLt);
-        renderMerchantWorkbenchNav();
-      }
+      // 不切换工作台，在当前彩种下重新下单
       closeModal('modal-order');
       // 打开代客下单弹窗（会自动刷新bet状态）
       await openCashierOrderModal();
