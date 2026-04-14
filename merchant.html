@@ -1877,33 +1877,32 @@
     let merchantDashboardLoadGeneration = 0;
     let merchantLocalDrawTica = null;
     let merchantLocalDrawNica = null;
-    /** 全国台：/api/draw/pending 的当前销售期 drawId（供「上期待兑奖」用 N-1） */
+    /** 全国台：/api/draw/pending 的当前销售期 drawId */
     let merchantPendingNationalDrawId = null;
+    /** 全国台：/api/draw/pending 返回的上一期 drawId（按 period_no 查，跳过 TICA/NICA） */
+    let merchantPreviousNationalDrawId = null;
     /** 全国台：/api/draw/latest 的最近已完成期 drawId（pending 为空时 fallback） */
     let merchantLatestNationalDrawId = null;
 
     /**
-     * 待兑奖/中奖金额统计用：最近一个 completed draw 的 drawId。
-     * 不能用 pending - 1，因为 draw_id 不连续（中间有 TICA/NICA 占用）。
+     * 待兑奖/中奖金额统计用：上一期 completed draw 的 drawId。
+     * 优先用 pending API 返回的 previousDrawId（按 period_no 查），无 pending 时 fallback 到 latest。
      */
     function merchantRedeemWinsDrawIdForStats() {
       if (merchantWorkbenchKind === 'NACIONAL') {
+        if (merchantPreviousNationalDrawId != null) return Number(merchantPreviousNationalDrawId);
         if (merchantLatestNationalDrawId != null) return Number(merchantLatestNationalDrawId);
         return null;
       }
       if (merchantWorkbenchKind === 'TICA') {
-        var ld = merchantLocalDrawTica && (merchantLocalDrawTica.draw_id != null ? merchantLocalDrawTica.draw_id : merchantLocalDrawTica.drawId);
-        if (ld == null || ld === '') return null;
-        var nt = Number(ld);
-        if (!isFinite(nt) || nt <= 1) return null;
-        return nt - 1;
+        var prev = merchantLocalDrawTica && merchantLocalDrawTica.previousDrawId;
+        if (prev != null) return Number(prev);
+        return null;
       }
       if (merchantWorkbenchKind === 'NICA') {
-        var ld2 = merchantLocalDrawNica && (merchantLocalDrawNica.draw_id != null ? merchantLocalDrawNica.draw_id : merchantLocalDrawNica.drawId);
-        if (ld2 == null || ld2 === '') return null;
-        var nn = Number(ld2);
-        if (!isFinite(nn) || nn <= 1) return null;
-        return nn - 1;
+        var prev2 = merchantLocalDrawNica && merchantLocalDrawNica.previousDrawId;
+        if (prev2 != null) return Number(prev2);
+        return null;
       }
       return null;
     }
@@ -3165,6 +3164,9 @@
           ? (pendingData.draw.drawId != null ? pendingData.draw.drawId : pendingData.draw.draw_id)
           : null;
         merchantPendingNationalDrawId = pendingDrawId;
+        merchantPreviousNationalDrawId = pendingData.draw && pendingData.draw.previousDrawId != null
+          ? pendingData.draw.previousDrawId
+          : null;
         // 从待开奖期拿开奖日期和时间，计算停售时间戳（开奖时停售）——仅全国 Lotería 工作台使用
         const pendingDrawDate = pendingData.draw && (pendingData.draw.drawDate || pendingData.draw.draw_date);
         const pendingDrawTime = pendingData.draw && (pendingData.draw.drawTime || pendingData.draw.draw_time);
