@@ -536,6 +536,36 @@ let DrawController = DrawController_1 = class DrawController {
             .set({ status: 'canceled' })
             .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
             .execute();
+        let nextDraw = null;
+        try {
+            const rawDate = String(draw.draw_date || '').slice(0, 10);
+            const fromDate = rawDate ? new Date(rawDate + 'T12:00:00') : undefined;
+            const nextDrawDate = getNextDrawDatePanama(fromDate);
+            const nextDateStr = `${nextDrawDate.getFullYear()}-${String(nextDrawDate.getMonth() + 1).padStart(2, '0')}-${String(nextDrawDate.getDate()).padStart(2, '0')}`;
+            const existing = await drawRepo.createQueryBuilder('d')
+                .where('d.status = :s', { s: 'pending' })
+                .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                .andWhere('(d.shop_id IS NULL)')
+                .getOne();
+            if (!existing) {
+                const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
+                nextDraw = drawRepo.create({
+                    draw_date: nextDateStr,
+                    draw_time: '15:00:00',
+                    status: 'pending',
+                    winning_numbers: '',
+                    is_manual_override: false,
+                    lottery_type: 'NACIONAL',
+                    shop_id: null,
+                    period_no: periodNo,
+                });
+                await drawRepo.save(nextDraw);
+                this.logger.log(`开奖后自动创建下一期: draw_id=${nextDraw.draw_id}, draw_date=${nextDateStr}`);
+            }
+        }
+        catch (eNext) {
+            this.logger.warn('创建下一期失败: ' + (eNext instanceof Error ? eNext.message : String(eNext)));
+        }
         return {
             success: true,
             drawId: draw.draw_id,
