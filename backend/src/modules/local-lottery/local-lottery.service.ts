@@ -83,9 +83,25 @@ export class LocalLotteryService {
     const customPeriod = kind === 'TICA'
       ? (shop as any)?.tica_custom_period ?? null
       : (shop as any)?.nica_custom_period ?? null;
+    // 上一期 draw_id（按 period_no 找，避免 draw_id 跨彩种穿插不连续）
+    let previousDrawId: number | null = null;
+    if (draw.period_no != null) {
+      const prevRow = await this.dataSource.getRepository(Draw)
+        .createQueryBuilder('d')
+        .select('d.draw_id', 'draw_id')
+        .where('d.shop_id = :sid', { sid: shopId })
+        .andWhere('d.lottery_type = :lt', { lt: kind })
+        .andWhere('d.period_no < :pn', { pn: Number(draw.period_no) })
+        .andWhere('d.status = :st', { st: 'completed' })
+        .orderBy('d.period_no', 'DESC')
+        .limit(1)
+        .getRawOne();
+      previousDrawId = prevRow?.draw_id != null ? Number(prevRow.draw_id) : null;
+    }
     return {
       draw_id: draw.draw_id,
       period_no: draw.period_no,
+      previousDrawId,
       custom_period: customPeriod,
       shop_id: shopId,
       lottery_type: kind,

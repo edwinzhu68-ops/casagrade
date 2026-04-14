@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Inject, Logger, UseGuards, NotFoundException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
@@ -418,6 +418,32 @@ export class DrawController {
   }
 
   /**
+   * 查同 lottery_type + shop_id 范围内 period_no 比当前小的最近一期 draw_id。
+   * 解决 draw_id 跨彩种穿插不连续的问题（NACIONAL pending=64 时上一期实际是 60 而非 63）。
+   */
+  private async findPreviousDrawIdByPeriod(
+    drawRepo: Repository<Draw>,
+    currentPeriodNo: number | null | undefined,
+    lotteryType: string,
+    shopId: number | null,
+  ): Promise<number | null> {
+    if (currentPeriodNo == null || !isFinite(Number(currentPeriodNo))) return null;
+    const lt = String(lotteryType || 'NACIONAL').toUpperCase();
+    const qb = drawRepo.createQueryBuilder('d')
+      .select('d.draw_id', 'draw_id')
+      .where('d.period_no < :pn', { pn: Number(currentPeriodNo) })
+      .andWhere('d.status = :st', { st: 'completed' });
+    if (shopId == null) {
+      qb.andWhere('d.shop_id IS NULL').andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' });
+    } else {
+      qb.andWhere('d.shop_id = :sid', { sid: shopId }).andWhere('d.lottery_type = :lt', { lt });
+    }
+    qb.orderBy('d.period_no', 'DESC').limit(1);
+    const row = await qb.getRawOne();
+    return row?.draw_id != null ? Number(row.draw_id) : null;
+  }
+
+  /**
    * GET /api/draw/latest - 获取最近开奖（未归档的最近一期；归档后结算页显示等待开奖）
    */
   @Get('latest')
@@ -456,10 +482,14 @@ export class DrawController {
       }
     }
 
+    const previousDrawId = await this.findPreviousDrawIdByPeriod(
+      drawRepo, (draw as any).period_no, 'NACIONAL', null,
+    );
     return {
       draw: {
         drawId: draw.draw_id,
         periodNo: (draw as any).period_no ?? null,
+        previousDrawId,
         primer: winning.primer || winning.primeras || '',
         segundo: winning.segundo || winning.segundas || '',
         tercero: winning.tercero || winning.terceras || winning.ultimas || '',
@@ -476,15 +506,20 @@ export class DrawController {
    */
   @Get('pending')
   async getPendingDraw() {
-    const draw = await findNationalPendingDraw(this.dataSource.getRepository(Draw));
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const draw = await findNationalPendingDraw(drawRepo);
     if (!draw) {
       return { draw: null, message: '暂无待开奖期' };
     }
     const drawDateStr = drawDateToDisplayString(draw.draw_date);
+    const previousDrawId = await this.findPreviousDrawIdByPeriod(
+      drawRepo, (draw as any).period_no, 'NACIONAL', null,
+    );
     return {
       draw: {
         drawId: draw.draw_id,
         periodNo: (draw as any).period_no ?? null,
+        previousDrawId,
         drawTime: draw.draw_time,
         drawDate: drawDateStr,
         status: draw.status,
