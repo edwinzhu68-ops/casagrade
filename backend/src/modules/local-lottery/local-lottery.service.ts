@@ -198,10 +198,10 @@ export class LocalLotteryService {
     }
 
     const expiresAt = (shop as any).subscription_expires_at;
-    if (expiresAt && new Date(expiresAt) < new Date()) {
+    if (!expiresAt || new Date(expiresAt) < new Date()) {
       throw badBilingual(
-        'Su suscripción ha vencido. Contacte al administrador para renovar.',
-        '订阅已过期，请联系管理员续费。',
+        'Su suscripción ha vencido o no está activa. Contacte al administrador para renovar.',
+        '订阅已过期或未充值，请联系管理员。',
       );
     }
 

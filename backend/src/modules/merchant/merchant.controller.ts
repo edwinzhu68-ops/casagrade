@@ -1448,52 +1448,63 @@ export class MerchantController implements OnModuleInit {
       throw new BadRequestException(`尝试次数过多，请 ${mins} 分钟后再试`);
     }
 
-    const shopRepo = this.dataSource.getRepository(Shop);
-    const cardRepo = this.dataSource.getRepository(CardCode);
+    const CARD_DAYS: Record<string, number> = { monthly: 30, half_yearly: 180, yearly: 365 };
 
+    // 预读一次做友好错误提示（store 不存在直接返回，不走事务）
+    const shopRepo = this.dataSource.getRepository(Shop);
     const shop = await shopRepo.findOne({ where: { shop_id: Number(shopId) } });
     if (!shop) throw new NotFoundException('店铺不存在');
 
-    const card = await cardRepo.findOne({ where: { code: normalizedCode } });
+    let resultBase: Date;
+    let cardType: string;
+    try {
+      // 全流程包在事务里：SQLite 事务序列化写入，避免并发激活两张卡只加一张的天数
+      resultBase = await this.dataSource.transaction(async (manager) => {
+        // 1) 锁卡：条件 UPDATE，只有 used_at IS NULL 时才成功
+        const card = await manager.findOne(CardCode, { where: { code: normalizedCode } });
+        if (!card) {
+          throw new BadRequestException('__CARD_NOT_FOUND__');
+        }
+        cardType = card.type;
+        const claim = await manager.createQueryBuilder()
+          .update(CardCode)
+          .set({ used_by_shop_id: shop.shop_id, used_at: new Date() })
+          .where('id = :id AND used_at IS NULL', { id: card.id })
+          .execute();
+        if (!claim.affected) {
+          throw new BadRequestException('__CARD_USED__');
+        }
 
-    // 卡密不存在或已使用：累加失败计数
-    if (!card || card.used_at) {
-      const entry = cardFailMap.get(ip) || { count: 0, until: 0 };
-      entry.count += 1;
-      if (entry.count >= CARD_MAX_FAIL) entry.until = Date.now() + CARD_LOCKOUT_MS;
-      cardFailMap.set(ip, entry);
-      throw new BadRequestException(!card ? '卡密不存在' : '该卡密已被使用');
+        // 2) 在同一事务里读 shop 的最新到期日并累加（避免脏读）
+        const freshShop = await manager.findOne(Shop, { where: { shop_id: shop.shop_id } });
+        const now = new Date();
+        const base = (freshShop as any)?.subscription_expires_at && (freshShop as any).subscription_expires_at > now
+          ? new Date((freshShop as any).subscription_expires_at)
+          : now;
+        base.setDate(base.getDate() + (CARD_DAYS[card.type] || 30));
+        await manager.update(Shop, shop.shop_id, { subscription_expires_at: base });
+        return base;
+      });
+    } catch (err: any) {
+      // 失败计数 + 友好提示
+      const msg = String(err?.message || '');
+      if (msg === '__CARD_NOT_FOUND__' || msg === '__CARD_USED__') {
+        const entry = cardFailMap.get(ip) || { count: 0, until: 0 };
+        entry.count += 1;
+        if (entry.count >= CARD_MAX_FAIL) entry.until = Date.now() + CARD_LOCKOUT_MS;
+        cardFailMap.set(ip, entry);
+        throw new BadRequestException(msg === '__CARD_NOT_FOUND__' ? '卡密不存在' : '该卡密已被使用');
+      }
+      throw err;
     }
 
-    // 计算新到期日：从当前到期日或今天起累加
-    const base = shop.subscription_expires_at && shop.subscription_expires_at > new Date()
-      ? new Date(shop.subscription_expires_at)
-      : new Date();
-    const CARD_DAYS: Record<string, number> = { monthly: 30, half_yearly: 180, yearly: 365 };
-    base.setDate(base.getDate() + (CARD_DAYS[card.type] || 30));
-
-    // 🔴 原子写入：条件 UPDATE，只有 used_at IS NULL 时才成功，防止并发双激活
-    const lockResult = await cardRepo.createQueryBuilder()
-      .update(CardCode)
-      .set({ used_by_shop_id: shop.shop_id, used_at: new Date() })
-      .where('id = :id AND used_at IS NULL', { id: card.id })
-      .execute();
-
-    if (!lockResult.affected || lockResult.affected === 0) {
-      throw new BadRequestException('该卡密已被使用');
-    }
-
-    await shopRepo.update(shop.shop_id, { subscription_expires_at: base });
-
-    // 激活成功：清除该IP的失败记录
     cardFailMap.delete(ip);
-
-    this.logger.log(`卡密激活成功：code=${normalizedCode} shop=${shop.shop_number} expires=${base.toISOString().slice(0, 10)}`);
+    this.logger.log(`卡密激活成功：code=${normalizedCode} shop=${shop.shop_number} expires=${resultBase.toISOString().slice(0, 10)}`);
     return {
       success: true,
-      type: card.type,
-      subscription_expires_at: base,
-      message: `激活成功，到期日：${base.toISOString().slice(0, 10)}`,
+      type: cardType!,
+      subscription_expires_at: resultBase,
+      message: `激活成功，到期日：${resultBase.toISOString().slice(0, 10)}`,
     };
   }
 

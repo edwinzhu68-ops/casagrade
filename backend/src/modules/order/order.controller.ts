@@ -183,10 +183,10 @@ export class OrderController implements OnModuleInit {
       throw new BadRequestException('店铺已停业');
     }
 
-    // 订阅到期拦截
+    // 订阅到期拦截：null 视为未充值，同样拒绝下单
     const expiresAt = (shop as any).subscription_expires_at;
-    if (expiresAt && new Date(expiresAt) < new Date()) {
-      throw new BadRequestException('Su suscripción ha vencido. Contacte al administrador para renovar.');
+    if (!expiresAt || new Date(expiresAt) < new Date()) {
+      throw new BadRequestException('Su suscripción ha vencido o no está activa. Contacte al administrador para renovar.');
     }
 
     // Lotería 关闭时禁止下单
