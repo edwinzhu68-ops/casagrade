@@ -1879,16 +1879,22 @@
     let merchantLocalDrawNica = null;
     /** 全国台：/api/draw/pending 的当前销售期 drawId（供「上期待兑奖」用 N-1） */
     let merchantPendingNationalDrawId = null;
+    /** 全国台：/api/draw/latest 的最近已完成期 drawId（pending 为空时 fallback） */
+    let merchantLatestNationalDrawId = null;
 
     /**
      * 与结算页一致：current 表示「正在销售」期号 N 时，待兑奖/中奖金额统计用上一期 N-1（已开奖、可能仍有未兑奖）。
+     * 无 pending 期时（开奖日到次日07:00之间），直接用最近 completed 期的 drawId。
      */
     function merchantRedeemWinsDrawIdForStats() {
       if (merchantWorkbenchKind === 'NACIONAL') {
-        if (merchantPendingNationalDrawId == null || merchantPendingNationalDrawId === '') return null;
-        var n = Number(merchantPendingNationalDrawId);
-        if (!isFinite(n) || n <= 1) return null;
-        return n - 1;
+        if (merchantPendingNationalDrawId != null && merchantPendingNationalDrawId !== '') {
+          var n = Number(merchantPendingNationalDrawId);
+          if (isFinite(n) && n > 1) return n - 1;
+        }
+        // 无 pending 期（开奖后到次日07:00）：直接用最近 completed 期
+        if (merchantLatestNationalDrawId != null) return Number(merchantLatestNationalDrawId);
+        return null;
       }
       if (merchantWorkbenchKind === 'TICA') {
         var ld = merchantLocalDrawTica && (merchantLocalDrawTica.draw_id != null ? merchantLocalDrawTica.draw_id : merchantLocalDrawTica.drawId);
@@ -3175,6 +3181,7 @@
           }
         }
         const latestDrawId = latestData.draw && latestData.draw.drawId != null ? latestData.draw.drawId : null;
+        merchantLatestNationalDrawId = latestDrawId;
         const currentPeriodLabel = statusData && statusData.currentPeriodDate
           ? statusData.currentPeriodDate
           : (pendingDrawDate || '');
@@ -3288,8 +3295,8 @@
           var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
           if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
           if (redeemStatsDrawId == null) {
-            // draw_id 获取失败时 fallback：显示该彩种所有未兑奖中奖单
-            return merchantWorkbenchKind !== 'NACIONAL';
+            // draw_id 获取失败时 fallback：显示所有未兑奖中奖单
+            return true;
           }
           var oDraw = o.draw_id != null ? o.draw_id : o.drawId;
           return Number(oDraw) === Number(redeemStatsDrawId);
@@ -3667,7 +3674,7 @@
         var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
         if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
         if (!orderMatchesMerchantWorkbench(o, merchantWorkbenchKind)) return false;
-        if (redeemDrawId == null) return false;
+        if (redeemDrawId == null) return true; // fallback：显示所有未兑奖中奖单
         var oDraw = o.draw_id != null ? o.draw_id : o.drawId;
         return Number(oDraw) === Number(redeemDrawId);
       });
