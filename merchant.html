@@ -418,22 +418,27 @@
   <!-- Chance详情弹窗 -->
   <div id="modal-chance" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeModal('modal-chance')">
     <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-      <div class="flex justify-between items-center mb-3">
-        <div>
+      <div class="flex justify-between items-start mb-3 gap-2">
+        <div class="min-w-0">
           <h2 class="text-xl font-bold" data-i18n="chance_detail_title">Chance 销售明细</h2>
           <div class="mt-1 flex gap-1 text-[11px]">
             <button id="chance-sort-number" onclick="showChanceDetail('number')" class="px-2 py-0.5 rounded-full bg-blue-600 text-white" data-i18n="sort_by_number">按号码</button>
             <button id="chance-sort-qty" onclick="showChanceDetail('qty')" class="px-2 py-0.5 rounded-full bg-gray-700 text-gray-200" data-i18n="sort_by_qty">按销量</button>
           </div>
         </div>
-        <button onclick="closeModal('modal-chance')" class="text-gray-400">✕</button>
+        <div class="flex gap-2 shrink-0">
+          <button type="button" onclick="screenshotSalesDetail('chance-screenshot-area', 'Chance')" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-3 py-2 rounded-lg" data-i18n="btn_screenshot">📸 截图</button>
+          <button type="button" onclick="closeModal('modal-chance')" class="bg-red-600 hover:bg-red-500 text-white text-sm font-bold px-3 py-2 rounded-lg" data-i18n="btn_close">关闭</button>
+        </div>
       </div>
-      <div class="mb-2 px-1 flex items-center justify-between text-xs">
-        <span><span class="text-gray-400">Chance</span> <span id="chance-modal-sales" class="text-blue-400 font-bold">$0.00</span></span>
-        <span><span class="text-gray-400" data-i18n="total_sales_label">总销售额</span> <span id="chance-modal-total-sales" class="text-green-400 font-bold">$0.00</span></span>
-      </div>
+      <div id="chance-screenshot-area">
+        <div class="mb-2 px-1 flex items-center justify-between text-xs">
+          <span><span class="text-gray-400">Chance</span> <span id="chance-modal-sales" class="text-blue-400 font-bold">$0.00</span></span>
+          <span><span class="text-gray-400" data-i18n="total_sales_label">总销售额</span> <span id="chance-modal-total-sales" class="text-green-400 font-bold">$0.00</span></span>
+        </div>
 
-      <div id="chance-grid" class="grid grid-cols-10 gap-1 text-xs">
+        <div id="chance-grid" class="grid grid-cols-10 gap-1 text-xs">
+        </div>
       </div>
     </div>
   </div>
@@ -441,22 +446,27 @@
   <!-- Billete详情弹窗 -->
   <div id="modal-billete" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeModal('modal-billete')">
     <div class="bg-gray-800 rounded-2xl p-3 w-full max-w-lg max-h-[95vh] overflow-y-auto" onclick="event.stopPropagation()">
-      <div class="flex justify-between items-center mb-2">
-        <div>
+      <div class="flex justify-between items-start mb-2 gap-2">
+        <div class="min-w-0">
           <h2 class="text-base font-bold" data-i18n="billete_detail_title">Billete 销售明细</h2>
           <div class="mt-1 flex gap-1 text-[11px]">
             <button id="billete-sort-number" onclick="showBilleteDetail('number')" class="px-2 py-0.5 rounded-full bg-blue-600 text-white" data-i18n="sort_by_number">按号码</button>
             <button id="billete-sort-qty" onclick="showBilleteDetail('qty')" class="px-2 py-0.5 rounded-full bg-gray-700 text-gray-200" data-i18n="sort_by_qty">按销量</button>
           </div>
         </div>
-        <button onclick="closeModal('modal-billete')" class="text-gray-400">✕</button>
+        <div class="flex gap-2 shrink-0">
+          <button type="button" onclick="screenshotSalesDetail('billete-screenshot-area', 'Billete')" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-3 py-2 rounded-lg" data-i18n="btn_screenshot">📸 截图</button>
+          <button type="button" onclick="closeModal('modal-billete')" class="bg-red-600 hover:bg-red-500 text-white text-sm font-bold px-3 py-2 rounded-lg" data-i18n="btn_close">关闭</button>
+        </div>
       </div>
-      <div class="mb-2 px-1 flex items-center justify-between text-xs">
-        <span><span class="text-gray-400">Billete</span> <span id="billete-modal-sales" class="text-amber-400 font-bold">$0.00</span></span>
-        <span><span class="text-gray-400" data-i18n="total_sales_label">总销售额</span> <span id="billete-modal-total-sales" class="text-green-400 font-bold">$0.00</span></span>
-      </div>
+      <div id="billete-screenshot-area">
+        <div class="mb-2 px-1 flex items-center justify-between text-xs">
+          <span><span class="text-gray-400">Billete</span> <span id="billete-modal-sales" class="text-amber-400 font-bold">$0.00</span></span>
+          <span><span class="text-gray-400" data-i18n="total_sales_label">总销售额</span> <span id="billete-modal-total-sales" class="text-green-400 font-bold">$0.00</span></span>
+        </div>
 
-      <div id="billete-list" class="space-y-1 max-h-96 overflow-y-auto">
+        <div id="billete-list" class="space-y-1 max-h-96 overflow-y-auto">
+        </div>
       </div>
     </div>
   </div>
@@ -1078,6 +1088,8 @@
         label_quantity: '数量',
         selected_numbers: '已选号码',
         total_amount_label: '下注总金额',
+        btn_screenshot: '📸 截图',
+        btn_close: '关闭',
         no_numbers_yet: '还没有号码',
         total_label: '共',
         total_bets_suffix: '注',
@@ -1402,6 +1414,8 @@
         label_quantity: 'Cantidad',
         selected_numbers: 'Números seleccionados',
         total_amount_label: 'Total apostado',
+        btn_screenshot: '📸 Captura',
+        btn_close: 'Cerrar',
         no_numbers_yet: 'Sin números aún',
         total_label: 'Total',
         total_bets_suffix: 'apuestas',
@@ -5001,6 +5015,57 @@
       if (!orderNumber) return;
       viewOrder(orderNumber);
     });
+
+    /** 截图销售明细区域并下载/分享 */
+    async function screenshotSalesDetail(areaId, label) {
+      var area = document.getElementById(areaId);
+      if (!area) return;
+      if (typeof html2canvas !== 'function') {
+        showToast('截图库未加载', 'error');
+        return;
+      }
+      try {
+        var shopNum = currentShop ? String(currentShop.shop_number || '') : '';
+        var ts = new Date();
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        var dateStr = ts.getFullYear() + pad(ts.getMonth() + 1) + pad(ts.getDate()) + '_' + pad(ts.getHours()) + pad(ts.getMinutes());
+        var canvas = await html2canvas(area, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#1f2937',
+          logging: false,
+          scrollY: -window.scrollY,
+        });
+        canvas.toBlob(function (blob) {
+          if (!blob) { showToast('截图失败', 'error'); return; }
+          var filename = label + '_销售明细_' + (shopNum ? '店' + shopNum + '_' : '') + dateStr + '.png';
+          // 移动端优先用 Web Share API（系统分享菜单可保存到相册）
+          var canShareFile = navigator.share && navigator.canShare;
+          if (canShareFile) {
+            var file = new File([blob], filename, { type: 'image/png' });
+            if (navigator.canShare({ files: [file] })) {
+              navigator.share({ files: [file], title: filename }).catch(function () {
+                // 用户取消分享 → 不做事
+              });
+              return;
+            }
+          }
+          // 桌面/无分享 API：下载
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+          showToast('已保存截图', 'success');
+        }, 'image/png');
+      } catch (e) {
+        console.warn('截图失败:', e);
+        showToast('截图失败：' + (e.message || e), 'error');
+      }
+    }
 
     function closeModal(id) {
       document.getElementById(id).classList.add('hidden');
