@@ -674,7 +674,37 @@ export class DrawController {
       .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
       .execute();
 
-    // 下一期由 DrawDayService 在次日 07:00 自动创建，同时全量归档
+    // 立刻创建下一期（以当前开奖日为基准算下一个周三/周日）
+    let nextDraw: Draw | null = null;
+    try {
+      const rawDate = String((draw as any).draw_date || '').slice(0, 10);
+      const fromDate = rawDate ? new Date(rawDate + 'T12:00:00') : undefined;
+      const nextDrawDate = getNextDrawDatePanama(fromDate);
+      const nextDateStr = `${nextDrawDate.getFullYear()}-${String(nextDrawDate.getMonth() + 1).padStart(2, '0')}-${String(nextDrawDate.getDate()).padStart(2, '0')}`;
+      // 检查是否已存在同日期的 pending 期（防止重复创建）
+      const existing = await drawRepo.createQueryBuilder('d')
+        .where('d.status = :s', { s: 'pending' })
+        .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+        .andWhere('(d.shop_id IS NULL)')
+        .getOne();
+      if (!existing) {
+        const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
+        nextDraw = drawRepo.create({
+          draw_date: nextDateStr as any,
+          draw_time: '15:00:00',
+          status: 'pending',
+          winning_numbers: '',
+          is_manual_override: false,
+          lottery_type: 'NACIONAL',
+          shop_id: null,
+          period_no: periodNo,
+        });
+        await drawRepo.save(nextDraw);
+        this.logger.log(`开奖后自动创建下一期: draw_id=${nextDraw.draw_id}, draw_date=${nextDateStr}`);
+      }
+    } catch (eNext) {
+      this.logger.warn('创建下一期失败: ' + (eNext instanceof Error ? eNext.message : String(eNext)));
+    }
 
     return {
       success: true,
