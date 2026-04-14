@@ -1988,8 +1988,8 @@
       if (hasT) allKinds.push('TICA');
       if (hasN) allKinds.push('NICA');
       allKinds.forEach(function(kind) {
-        if (kind === k) return; // 当前彩种不显示按钮
-        btns.push('<button type="button" class="' + pill(kind, false) + '" onclick="setMerchantWorkbenchKind(\'' + kind + '\')">' + kindLabels[kind] + '</button>');
+        var active = kind === k;
+        btns.push('<button type="button" class="' + pill(kind, active) + '" onclick="setMerchantWorkbenchKind(\'' + kind + '\')">' + kindLabels[kind] + '</button>');
       });
       inner.innerHTML = btns.join('');
     }
