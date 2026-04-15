@@ -1087,18 +1087,21 @@
           }
           if (!res.ok) continue;
           var data = await res.json();
+          // 只有 pending(0) 才留在未付款列表；其他所有状态都清理（防止 stale 占满 MAX_PENDING_ORDERS）
+          var isPending = data.status === 0 || data.status === 'pending';
           var isPaid = data.status === 1 || data.status === 'paid';
-          var isCancelled = data.status === -1 || data.status === 'cancelled';
-          if (isCancelled) {
-            removePendingOrderByNumber(orderNumber);
-            changed = true;
-            continue;
-          }
-          if (!isPaid) {
+          if (isPending) {
             if (syncUnpaidOrderFromServer(orderNumber, data)) changed = true;
             continue;
           }
+          // 非 pending：从未付款列表移除（含 paid/settled/won/canceled 等任何非 0 状态）
           removePendingOrderByNumber(orderNumber);
+          changed = true;
+          if (!isPaid) {
+            // settled/won/canceled 等：不进 paid 列表，直接结束
+            continue;
+          }
+          // paid：继续走原有逻辑加入 paid 列表
           var paidInfo = {
             clientId: clientId,
             orderNumber: orderNumber,
@@ -2475,12 +2478,22 @@
         return;
       }
       var pendingList = [];
-      try {
-        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
-        if (raw) pendingList = JSON.parse(raw);
-        if (!Array.isArray(pendingList)) pendingList = [];
-        pendingList = pendingList.filter(function (o) { return o && o.clientId === clientId; });
-      } catch (e) {}
+      var readPendingList = function () {
+        var list = [];
+        try {
+          var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+          if (raw) list = JSON.parse(raw);
+          if (!Array.isArray(list)) list = [];
+          list = list.filter(function (o) { return o && o.clientId === clientId; });
+        } catch (e) {}
+        return list;
+      };
+      pendingList = readPendingList();
+      // 如果本地缓存满了3条，先强制同步一次（清理掉服务端已 paid/canceled/settled 的 stale 订单）
+      if (pendingList.length >= MAX_PENDING_ORDERS) {
+        try { await pollPendingOrdersStatus(); } catch (eP) {}
+        pendingList = readPendingList();
+      }
       if (pendingList.length >= MAX_PENDING_ORDERS) {
         showToast(getLang() === 'zh'
           ? '已有3张未付款订单，请先付款或点 × 取消后再下单'
