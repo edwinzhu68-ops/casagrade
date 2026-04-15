@@ -680,11 +680,15 @@ export class SettlementService {
         .take(takeN)
         .getMany();
     } else {
-      draws = await this.drawRepo.find({
-        where: [{ status: 'completed' }, { status: 'COMPLETED' }],
-        order: { draw_id: 'DESC' },
-        take: takeN,
-      });
+      // 旧客户端未传 lotteryKind 时默认仅返回 NACIONAL，不再混排（防止跨彩种泄漏）
+      draws = await this.drawRepo
+        .createQueryBuilder('d')
+        .where('d.status IN (:...st)', { st })
+        .andWhere('d.shop_id IS NULL')
+        .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+        .orderBy('d.draw_id', 'DESC')
+        .take(takeN)
+        .getMany();
     }
 
     const result: {

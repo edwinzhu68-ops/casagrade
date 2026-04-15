@@ -932,12 +932,14 @@ export class AdminController {
   @Post('clear-settlement')
   async clearSettlement() {
     const drawRepo = this.dataSource.getRepository(Draw);
-    // 一次性归档所有未归档的 completed draws，防止旧期次一直轮流显示
+    // 仅归档全国 NACIONAL completed draws，不要影响店内 TICA/NICA 历史
     const result = await drawRepo
       .createQueryBuilder()
       .update(Draw)
       .set({ archived_at: new Date() } as any)
       .where('status IN (:...statuses) AND archived_at IS NULL', { statuses: ['COMPLETED', 'completed'] })
+      .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('shop_id IS NULL')
       .execute();
     if (!result.affected || result.affected === 0) {
       throw new NotFoundException('暂无已开奖期，无需清空');
