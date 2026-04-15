@@ -203,8 +203,8 @@ let OrderController = OrderController_1 = class OrderController {
             throw new common_1.BadRequestException('店铺已停业');
         }
         const expiresAt = shop.subscription_expires_at;
-        if (expiresAt && new Date(expiresAt) < new Date()) {
-            throw new common_1.BadRequestException('Su suscripción ha vencido. Contacte al administrador para renovar.');
+        if (!expiresAt || new Date(expiresAt) < new Date()) {
+            throw new common_1.BadRequestException('Su suscripción ha vencido o no está activa. Contacte al administrador para renovar.');
         }
         if (shop.loteria_enabled === false) {
             throw new common_1.BadRequestException('Lotería 已关闭，无法下单');

@@ -334,6 +334,24 @@ let DrawController = DrawController_1 = class DrawController {
             return { success: false, error: String(e?.message || e) };
         }
     }
+    async findPreviousDrawIdByPeriod(drawRepo, currentPeriodNo, lotteryType, shopId) {
+        if (currentPeriodNo == null || !isFinite(Number(currentPeriodNo)))
+            return null;
+        const lt = String(lotteryType || 'NACIONAL').toUpperCase();
+        const qb = drawRepo.createQueryBuilder('d')
+            .select('d.draw_id', 'draw_id')
+            .where('d.period_no < :pn', { pn: Number(currentPeriodNo) })
+            .andWhere('d.status = :st', { st: 'completed' });
+        if (shopId == null) {
+            qb.andWhere('d.shop_id IS NULL').andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' });
+        }
+        else {
+            qb.andWhere('d.shop_id = :sid', { sid: shopId }).andWhere('d.lottery_type = :lt', { lt });
+        }
+        qb.orderBy('d.period_no', 'DESC').limit(1);
+        const row = await qb.getRawOne();
+        return row?.draw_id != null ? Number(row.draw_id) : null;
+    }
     async getLatestDraw() {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const draw = await (0, draw_queries_1.findNationalLatestCompletedUnarchivedDraw)(drawRepo);
@@ -364,10 +382,12 @@ let DrawController = DrawController_1 = class DrawController {
                 drawDate = `${y}-${m}-${dd}`;
             }
         }
+        const previousDrawId = await this.findPreviousDrawIdByPeriod(drawRepo, draw.period_no, 'NACIONAL', null);
         return {
             draw: {
                 drawId: draw.draw_id,
                 periodNo: draw.period_no ?? null,
+                previousDrawId,
                 primer: winning.primer || winning.primeras || '',
                 segundo: winning.segundo || winning.segundas || '',
                 tercero: winning.tercero || winning.terceras || winning.ultimas || '',
@@ -378,15 +398,18 @@ let DrawController = DrawController_1 = class DrawController {
         };
     }
     async getPendingDraw() {
-        const draw = await (0, draw_queries_1.findNationalPendingDraw)(this.dataSource.getRepository(draw_entity_1.Draw));
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const draw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         if (!draw) {
             return { draw: null, message: '暂无待开奖期' };
         }
         const drawDateStr = drawDateToDisplayString(draw.draw_date);
+        const previousDrawId = await this.findPreviousDrawIdByPeriod(drawRepo, draw.period_no, 'NACIONAL', null);
         return {
             draw: {
                 drawId: draw.draw_id,
                 periodNo: draw.period_no ?? null,
+                previousDrawId,
                 drawTime: draw.draw_time,
                 drawDate: drawDateStr,
                 status: draw.status,

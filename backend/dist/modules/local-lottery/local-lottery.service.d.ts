@@ -28,6 +28,7 @@ export declare class LocalLotteryService {
     getCurrent(shopId: number, kind: 'TICA' | 'NICA'): Promise<{
         draw_id: number;
         period_no: number;
+        previousDrawId: number;
         custom_period: any;
         shop_id: number;
         lottery_type: "TICA" | "NICA";

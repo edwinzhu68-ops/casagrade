@@ -47,6 +47,7 @@ export declare class DrawController {
         };
         error?: undefined;
     }>;
+    private findPreviousDrawIdByPeriod;
     getLatestDraw(): Promise<{
         draw: any;
         message: string;
@@ -54,6 +55,7 @@ export declare class DrawController {
         draw: {
             drawId: number;
             periodNo: any;
+            previousDrawId: number;
             primer: any;
             segundo: any;
             tercero: any;
@@ -70,6 +72,7 @@ export declare class DrawController {
         draw: {
             drawId: number;
             periodNo: any;
+            previousDrawId: number;
             drawTime: string;
             drawDate: string;
             status: string;

@@ -103,9 +103,24 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
         const customPeriod = kind === 'TICA'
             ? shop?.tica_custom_period ?? null
             : shop?.nica_custom_period ?? null;
+        let previousDrawId = null;
+        if (draw.period_no != null) {
+            const prevRow = await this.dataSource.getRepository(draw_entity_1.Draw)
+                .createQueryBuilder('d')
+                .select('d.draw_id', 'draw_id')
+                .where('d.shop_id = :sid', { sid: shopId })
+                .andWhere('d.lottery_type = :lt', { lt: kind })
+                .andWhere('d.period_no < :pn', { pn: Number(draw.period_no) })
+                .andWhere('d.status = :st', { st: 'completed' })
+                .orderBy('d.period_no', 'DESC')
+                .limit(1)
+                .getRawOne();
+            previousDrawId = prevRow?.draw_id != null ? Number(prevRow.draw_id) : null;
+        }
         return {
             draw_id: draw.draw_id,
             period_no: draw.period_no,
+            previousDrawId,
             custom_period: customPeriod,
             shop_id: shopId,
             lottery_type: kind,
@@ -189,8 +204,8 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
             throw (0, api_bilingual_1.badBilingual)('La tienda no está activa.', '店铺已停业');
         }
         const expiresAt = shop.subscription_expires_at;
-        if (expiresAt && new Date(expiresAt) < new Date()) {
-            throw (0, api_bilingual_1.badBilingual)('Su suscripción ha vencido. Contacte al administrador para renovar.', '订阅已过期，请联系管理员续费。');
+        if (!expiresAt || new Date(expiresAt) < new Date()) {
+            throw (0, api_bilingual_1.badBilingual)('Su suscripción ha vencido o no está activa. Contacte al administrador para renovar.', '订阅已过期或未充值，请联系管理员。');
         }
         this.assertLocalFeatureForKind(shop, kind);
         if (kind === 'TICA' && shop.accepting_tica_orders === false) {

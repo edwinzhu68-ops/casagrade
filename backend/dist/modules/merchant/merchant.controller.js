@@ -1189,41 +1189,57 @@ let MerchantController = MerchantController_1 = class MerchantController {
             const mins = Math.ceil((cardFail.until - Date.now()) / 60000);
             throw new common_1.BadRequestException(`尝试次数过多，请 ${mins} 分钟后再试`);
         }
+        const CARD_DAYS = { monthly: 30, half_yearly: 180, yearly: 365 };
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
-        const cardRepo = this.dataSource.getRepository(card_code_entity_1.CardCode);
         const shop = await shopRepo.findOne({ where: { shop_id: Number(shopId) } });
         if (!shop)
             throw new common_1.NotFoundException('店铺不存在');
-        const card = await cardRepo.findOne({ where: { code: normalizedCode } });
-        if (!card || card.used_at) {
-            const entry = cardFailMap.get(ip) || { count: 0, until: 0 };
-            entry.count += 1;
-            if (entry.count >= CARD_MAX_FAIL)
-                entry.until = Date.now() + CARD_LOCKOUT_MS;
-            cardFailMap.set(ip, entry);
-            throw new common_1.BadRequestException(!card ? '卡密不存在' : '该卡密已被使用');
+        let resultBase;
+        let cardType;
+        try {
+            resultBase = await this.dataSource.transaction(async (manager) => {
+                const card = await manager.findOne(card_code_entity_1.CardCode, { where: { code: normalizedCode } });
+                if (!card) {
+                    throw new common_1.BadRequestException('__CARD_NOT_FOUND__');
+                }
+                cardType = card.type;
+                const claim = await manager.createQueryBuilder()
+                    .update(card_code_entity_1.CardCode)
+                    .set({ used_by_shop_id: shop.shop_id, used_at: new Date() })
+                    .where('id = :id AND used_at IS NULL', { id: card.id })
+                    .execute();
+                if (!claim.affected) {
+                    throw new common_1.BadRequestException('__CARD_USED__');
+                }
+                const freshShop = await manager.findOne(shop_entity_1.Shop, { where: { shop_id: shop.shop_id } });
+                const now = new Date();
+                const base = freshShop?.subscription_expires_at && freshShop.subscription_expires_at > now
+                    ? new Date(freshShop.subscription_expires_at)
+                    : now;
+                base.setDate(base.getDate() + (CARD_DAYS[card.type] || 30));
+                await manager.update(shop_entity_1.Shop, shop.shop_id, { subscription_expires_at: base });
+                return base;
+            });
         }
-        const base = shop.subscription_expires_at && shop.subscription_expires_at > new Date()
-            ? new Date(shop.subscription_expires_at)
-            : new Date();
-        const CARD_DAYS = { monthly: 30, half_yearly: 180, yearly: 365 };
-        base.setDate(base.getDate() + (CARD_DAYS[card.type] || 30));
-        const lockResult = await cardRepo.createQueryBuilder()
-            .update(card_code_entity_1.CardCode)
-            .set({ used_by_shop_id: shop.shop_id, used_at: new Date() })
-            .where('id = :id AND used_at IS NULL', { id: card.id })
-            .execute();
-        if (!lockResult.affected || lockResult.affected === 0) {
-            throw new common_1.BadRequestException('该卡密已被使用');
+        catch (err) {
+            const msg = String(err?.message || '');
+            if (msg === '__CARD_NOT_FOUND__' || msg === '__CARD_USED__') {
+                const entry = cardFailMap.get(ip) || { count: 0, until: 0 };
+                entry.count += 1;
+                if (entry.count >= CARD_MAX_FAIL)
+                    entry.until = Date.now() + CARD_LOCKOUT_MS;
+                cardFailMap.set(ip, entry);
+                throw new common_1.BadRequestException(msg === '__CARD_NOT_FOUND__' ? '卡密不存在' : '该卡密已被使用');
+            }
+            throw err;
         }
-        await shopRepo.update(shop.shop_id, { subscription_expires_at: base });
         cardFailMap.delete(ip);
-        this.logger.log(`卡密激活成功：code=${normalizedCode} shop=${shop.shop_number} expires=${base.toISOString().slice(0, 10)}`);
+        this.logger.log(`卡密激活成功：code=${normalizedCode} shop=${shop.shop_number} expires=${resultBase.toISOString().slice(0, 10)}`);
         return {
             success: true,
-            type: card.type,
-            subscription_expires_at: base,
-            message: `激活成功，到期日：${base.toISOString().slice(0, 10)}`,
+            type: cardType,
+            subscription_expires_at: resultBase,
+            message: `激活成功，到期日：${resultBase.toISOString().slice(0, 10)}`,
         };
     }
     parseTokenUserId(req) {

@@ -6,6 +6,7 @@ export declare class LocalLotteryController {
     current(shopId: string, kind: string): Promise<{
         draw_id: number;
         period_no: number;
+        previousDrawId: number;
         custom_period: any;
         shop_id: number;
         lottery_type: "TICA" | "NICA";
