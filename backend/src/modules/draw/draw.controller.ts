@@ -701,12 +701,14 @@ export class DrawController {
       winningNumbers.tercero,
     );
 
-    // 清理孤立 pending（draw_id 小于本次开奖的旧 pending）
+    // 清理孤立 pending：仅清理全国 NACIONAL 期，不要误伤店内 TICA/NICA！
     await drawRepo
       .createQueryBuilder()
       .update(Draw)
       .set({ status: 'canceled' } as any)
       .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
+      .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('shop_id IS NULL')
       .execute();
 
     // 立刻创建下一期（以当前开奖日为基准算下一个周三/周日）
