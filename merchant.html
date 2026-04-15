@@ -3930,13 +3930,23 @@
       var maxLen = cashierKbMaxDigits + 3;
       if (cashierKbInput.length < maxLen) cashierKbInput += num;
       cashierUpdateKeyboardDisplay();
-      cashierUpdateShopBetUi();
+      cashierUpdateInputDisplayOnly(); // 仅更新键盘上方号码/数量显示，不重渲染列表
     }
 
     function cashierKeyBackspace() {
       cashierKbInput = cashierKbInput.slice(0, -1);
       cashierUpdateKeyboardDisplay();
-      cashierUpdateShopBetUi();
+      cashierUpdateInputDisplayOnly();
+    }
+
+    /** 仅刷新键盘上方「待确认号码 + 数量」显示，不触发号码列表/合计/按钮状态重渲染 */
+    function cashierUpdateInputDisplayOnly() {
+      var numPart = cashierKbInput.slice(0, cashierKbMaxDigits);
+      var qtyPart = cashierKbInput.slice(cashierKbMaxDigits);
+      var dn = document.getElementById('cashier-display-number-text');
+      if (dn) dn.textContent = numPart.padEnd(cashierKbMaxDigits, '_');
+      var dq = document.getElementById('cashier-display-qty-text');
+      if (dq) dq.textContent = qtyPart || String(cashierKbDefaultQuantity);
     }
 
     function cashierAddToList() {
