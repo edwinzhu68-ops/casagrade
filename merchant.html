@@ -5048,19 +5048,29 @@
         });
         canvas.toBlob(function (blob) {
           if (!blob) { showToast('截图失败', 'error'); return; }
-          var filename = label + '_销售明细_' + (shopNum ? '店' + shopNum + '_' : '') + dateStr + '.png';
-          // 移动端优先用 Web Share API（系统分享菜单可保存到相册）
-          var canShareFile = navigator.share && navigator.canShare;
-          if (canShareFile) {
-            var file = new File([blob], filename, { type: 'image/png' });
-            if (navigator.canShare({ files: [file] })) {
-              navigator.share({ files: [file], title: filename }).catch(function () {
-                // 用户取消分享 → 不做事
-              });
-              return;
-            }
+          var filename = label + '_' + (shopNum ? shopNum + '_' : '') + dateStr + '.png';
+          // APP 环境（Capacitor）：直接写入手机存储
+          if (_isCapApp && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+            var CapFs = window.Capacitor.Plugins.Filesystem;
+            var reader = new FileReader();
+            reader.onloadend = function () {
+              var b64 = reader.result.split(',')[1];
+              // 优先存到 Documents（用户可见），fallback 到 ExternalStorage
+              CapFs.writeFile({ path: 'LotteryScreenshots/' + filename, data: b64, directory: 'DOCUMENTS', recursive: true })
+                .then(function (saved) {
+                  showToast(getMerchantLang() === 'zh' ? '已保存到手机' : 'Guardado en el teléfono', 'success');
+                })
+                .catch(function () {
+                  // DOCUMENTS 不可用时 fallback ExternalStorage
+                  CapFs.writeFile({ path: 'LotteryScreenshots/' + filename, data: b64, directory: 'EXTERNAL_STORAGE', recursive: true })
+                    .then(function () { showToast(getMerchantLang() === 'zh' ? '已保存到手机' : 'Guardado en el teléfono', 'success'); })
+                    .catch(function (e2) { showToast('保存失败: ' + (e2.message || e2), 'error'); });
+                });
+            };
+            reader.readAsDataURL(blob);
+            return;
           }
-          // 桌面/无分享 API：下载
+          // 浏览器：直接下载
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a');
           a.href = url;
@@ -5069,7 +5079,7 @@
           a.click();
           document.body.removeChild(a);
           setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-          showToast('已保存截图', 'success');
+          showToast(getMerchantLang() === 'zh' ? '已保存截图' : 'Captura guardada', 'success');
         }, 'image/png');
       } catch (e) {
         console.warn('截图失败:', e);
