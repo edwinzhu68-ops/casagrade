@@ -510,11 +510,14 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 .getMany();
         }
         else {
-            draws = await this.drawRepo.find({
-                where: [{ status: 'completed' }, { status: 'COMPLETED' }],
-                order: { draw_id: 'DESC' },
-                take: takeN,
-            });
+            draws = await this.drawRepo
+                .createQueryBuilder('d')
+                .where('d.status IN (:...st)', { st })
+                .andWhere('d.shop_id IS NULL')
+                .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                .orderBy('d.draw_id', 'DESC')
+                .take(takeN)
+                .getMany();
         }
         const result = [];
         for (const draw of draws) {

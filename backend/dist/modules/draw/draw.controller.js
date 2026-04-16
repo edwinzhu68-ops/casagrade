@@ -558,6 +558,8 @@ let DrawController = DrawController_1 = class DrawController {
             .update(draw_entity_1.Draw)
             .set({ status: 'canceled' })
             .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
+            .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('shop_id IS NULL')
             .execute();
         let nextDraw = null;
         try {
@@ -798,6 +800,8 @@ let AdminController = AdminController_1 = class AdminController {
             .update(draw_entity_1.Draw)
             .set({ archived_at: new Date() })
             .where('status IN (:...statuses) AND archived_at IS NULL', { statuses: ['COMPLETED', 'completed'] })
+            .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('shop_id IS NULL')
             .execute();
         if (!result.affected || result.affected === 0) {
             throw new common_1.NotFoundException('暂无已开奖期，无需清空');
