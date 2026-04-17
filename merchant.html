@@ -4198,7 +4198,13 @@
           ]);
         } else {
           fillCashierEticket(freshOrder);
-          showCashierEticket();
+          // 直接截图发 WhatsApp，不弹电子单预览弹窗
+          try {
+            await _autoShareEticketToWhatsApp(freshOrder);
+          } catch (eWa) {
+            console.warn('[ETICKET] 自动分享失败，fallback 显示弹窗:', eWa.message || eWa);
+            showCashierEticket();
+          }
         }
       } catch (ePrint) {
         console.warn('[CASHIER] 获取订单/打印失败:', ePrint.message || ePrint);
@@ -4300,6 +4306,31 @@
       }
     }
 
+    /** 下单成功后自动截图电子单并直接打开 WhatsApp 发送，不弹预览弹窗 */
+    async function _autoShareEticketToWhatsApp(order) {
+      var etBody = document.getElementById('cashier-eticket-body');
+      if (!etBody) throw new Error('eticket body not found');
+      // 临时显示弹窗用于截图（不可见区域截不到），截完立即关
+      var modal = document.getElementById('modal-cashier-eticket');
+      if (modal) modal.classList.remove('hidden');
+      var origOverflow = etBody.style.overflow;
+      var origMaxH = etBody.style.maxHeight;
+      etBody.style.overflow = 'visible';
+      etBody.style.maxHeight = 'none';
+      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); }); // 等 DOM 渲染完
+      try {
+        var canvas = await html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0 });
+        var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+        if (!blob) throw new Error('toBlob failed');
+        var orderNum = order.order_number || order.orderNumber || 'pedido';
+        shareImageToWhatsApp(blob, 'pedido_' + orderNum + '.png');
+      } finally {
+        etBody.style.overflow = origOverflow;
+        etBody.style.maxHeight = origMaxH;
+        if (modal) modal.classList.add('hidden');
+      }
+    }
+
     var _cachedEticketBlob = null;
     var _eticketPregenInProgress = false;
 
@@ -4380,7 +4411,7 @@
 
     /** 通用：图片分享到 WhatsApp（优先 Capacitor 原生，fallback navigator.share） */
     function shareImageToWhatsApp(blob, fileName) {
-      closeOrderDetailModal();
+      try { closeOrderDetailModal(); } catch (e) {}
       var file = new File([blob], fileName, { type: 'image/png' });
       // 尝试 Capacitor Filesystem + Share（直接发到 WhatsApp）
       if (_isCapApp && window.Capacitor && window.Capacitor.Plugins) {
@@ -4403,7 +4434,8 @@
                   }
                 });
               } else {
-                CapShare.share({ files: [saved.uri] }).catch(function(e) {
+                // 直接指定 WhatsApp 包名，跳过分享选择器
+                CapShare.share({ files: [saved.uri], dialogTitle: 'WhatsApp' }).then(function(){}).catch(function(e) {
                   showToast('Error: ' + (e.message || e), 'error');
                 });
               }
