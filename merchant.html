@@ -3130,9 +3130,10 @@
     function restoreOrdersCache(shopId) {
       if (!shopId) return;
       if (ordersCacheShopId === shopId && ordersCacheRestored) return;
-      // 切店时清掉旧缓存
+      // 切店时清掉旧店所有相关状态（allOrders 也必须清，否则切店后首次 sync 前有残留窗口）
       ordersSyncSince = '';
       ordersById = new Map();
+      allOrders = [];
       lastSettledNationalDrawId = null;
       ordersCacheShopId = shopId;
       ordersCacheRestored = true;
@@ -3157,6 +3158,7 @@
         console.warn('恢复订单缓存失败', e);
         ordersSyncSince = '';
         ordersById = new Map();
+        allOrders = [];
       }
     }
 
@@ -3209,6 +3211,10 @@
       const res = await fetch(url, { cache: 'no-store', headers: headers });
       if (!res.ok) throw new Error('winner sync failed: HTTP ' + res.status);
       const data = await res.json();
+      // 切店竞态：响应回来时若 currentShop 已变更，丢弃结果避免污染新店缓存
+      if (!currentShop || (currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId) !== sid) {
+        return 0;
+      }
       (data.orders || []).forEach(function (o) {
         if (o && o.order_id != null) ordersById.set(o.order_id, o);
       });
@@ -3244,7 +3250,7 @@
     }
 
     /**
-     * 增量同步订单。首次（since 为空）走 90 天窗口 + 未兑奖中奖单；之后只拉 updated_at > since。
+     * 增量同步订单。首次（since 为空）走当期+上期+未兑奖中奖单；之后只拉 updated_at > since。
      * 返回本次实际拉到的订单数，供调用方做日志/降级判断。
      */
     async function syncShopOrders() {
@@ -3265,6 +3271,10 @@
         throw new Error(errMsg);
       }
       const data = await res.json();
+      // 切店竞态：响应回来时若 currentShop 已变更，丢弃结果避免污染新店缓存
+      if (!currentShop || (currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId) !== sid) {
+        return 0;
+      }
       (data.orders || []).forEach(function (o) {
         if (o && o.order_id != null) ordersById.set(o.order_id, o);
       });
