@@ -3048,10 +3048,17 @@
           var redeemedNum = currentRedeemOrder.order_number;
           var redeemedAmt = currentRedeemOrder.win_amount || 0;
           var nowTs = new Date().toISOString();
+          // 同步更新 allOrders、periodOrders、ordersById（避免 persistOrdersCache 把旧状态写回 localStorage）
           [allOrders, periodOrders].forEach(function(arr) {
             arr.forEach(function(o) {
               if ((o.order_number || o.orderNumber) === redeemedNum) o.redeemed_at = nowTs;
             });
+          });
+          ordersById.forEach(function (o) {
+            if ((o.order_number || o.orderNumber) === redeemedNum) {
+              o.redeemed_at = nowTs;
+              o.updated_at = nowTs;
+            }
           });
           document.getElementById('modal-redeem').classList.add('hidden');
           showToast('✅ ' + t('status_redeemed') + ' #' + redeemedNum.slice(-5) + ' — $' + redeemedAmt.toFixed(2), 'success', 4000);
@@ -3154,8 +3161,10 @@
     }
 
     /**
-     * 本地乐观结算：把本店当期 NACIONAL status=paid 的订单标为 settled。
-     * 幂等——已 settled/won 的单跳过。不触碰中奖判定，中奖金额完全由后端返回。
+     * 本地乐观结算：把本店当期 NACIONAL
+     *   - status=paid 标为 settled（等 winner sync 覆盖中奖单）
+     *   - status=pending 标为 canceled（后端开奖时会自动 cancel 未付款）
+     * 幂等——已 settled/won/canceled 的单跳过。不触碰中奖判定，金额完全由后端返回。
      */
     function localSettleDrawNational(drawId) {
       if (!drawId || !currentShop) return 0;
@@ -3171,6 +3180,11 @@
           o.settled_at = nowIso;
           o.updated_at = nowIso;
           changed++;
+        } else if (s === 'pending' || s === 0) {
+          o.status = 'canceled';
+          o.canceled_at = nowIso;
+          o.updated_at = nowIso;
+          changed++;
         }
       });
       if (changed > 0) {
@@ -3178,9 +3192,12 @@
           return o.status !== 'canceled' && o.status !== -1;
         });
       }
-      if (DEBUG) console.log('本地乐观结算 NACIONAL draw', drawId, '标记', changed, '单为 settled');
+      if (DEBUG) console.log('本地乐观结算 NACIONAL draw', drawId, '标记', changed, '单');
       return changed;
     }
+
+    /** 开奖后 winner sync 并发守卫，避免 3 秒轮询里重复发同一请求 */
+    let winnerSyncInFlight = false;
 
     /** 开奖后只拉中奖单（status=3），把下行从几 MB 降到几百 KB */
     async function syncShopOrdersWinnerOnly(drawId) {
@@ -3219,12 +3236,10 @@
         const payload = { since: ordersSyncSince, orders: trimmed, savedAt: Date.now() };
         localStorage.setItem(ORDERS_CACHE_PREFIX + shopId, JSON.stringify(payload));
       } catch (e) {
-        // localStorage 满：丢最老的一半再试一次
-        try {
-          const keys = Array.from(ordersById.keys()).slice(0, Math.floor(ordersById.size / 2));
-          keys.forEach(function (k) { ordersById.delete(k); });
-          localStorage.setItem(ORDERS_CACHE_PREFIX + shopId, JSON.stringify({ since: ordersSyncSince, orders: Array.from(ordersById.values()), savedAt: Date.now() }));
-        } catch (e2) { console.warn('持久化订单缓存失败', e2); }
+        // localStorage 满：清缓存并重置 since，下次走首次加载兜底，避免静默丢订单
+        console.warn('localStorage 写入失败，清缓存并回退首次加载', e);
+        try { localStorage.removeItem(ORDERS_CACHE_PREFIX + shopId); } catch (e2) {}
+        ordersSyncSince = '';
       }
     }
 
@@ -3345,9 +3360,11 @@
 
         // 开奖感知：latestDrawId 变化（或首次出现）→ 本地乐观标 loser 为 settled + 异步拉中奖单
         // 这样几万单开奖瞬间前端 <1s UI 刷新，下行从几 MB 降到几百 KB（只拉中奖单）。
-        if (latestDrawId != null && Number(latestDrawId) !== Number(lastSettledNationalDrawId)) {
+        // winnerSyncInFlight 防止 3 秒轮询重复触发并发请求
+        if (latestDrawId != null && !winnerSyncInFlight && Number(latestDrawId) !== Number(lastSettledNationalDrawId)) {
           const settledDrawId = latestDrawId;
-          const changed = localSettleDrawNational(settledDrawId);
+          winnerSyncInFlight = true;
+          localSettleDrawNational(settledDrawId);
           persistOrdersCache(sid);
           syncShopOrdersWinnerOnly(settledDrawId).then(function (winnerCount) {
             lastSettledNationalDrawId = Number(settledDrawId);
@@ -3358,6 +3375,8 @@
           }).catch(function (e) {
             console.warn('winner-only sync failed, 下次 loadDashboard 重试', e);
             // 不写 lastSettledNationalDrawId，下次 loadDashboard 会再试一次
+          }).finally(function () {
+            winnerSyncInFlight = false;
           });
         }
 
