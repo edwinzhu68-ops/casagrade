@@ -18,7 +18,7 @@ async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Pro
 import { Draw } from '../../entities/draw.entity';
 import { DrawDayService } from '../draw/draw-day.service';
 import { LocalLotteryService } from '../local-lottery/local-lottery.service';
-import { findNationalLastCompletedDraw, findNationalPendingDraw } from '../../utils/draw-queries';
+import { findNationalLastCompletedDraw, findNationalPendingDraw, findShopPendingLocalDraw } from '../../utils/draw-queries';
 import { withShopLock } from '../../utils/shop-order-lock';
 import * as crypto from 'crypto';
 import { UnauthorizedException } from '@nestjs/common';
@@ -804,9 +804,40 @@ export class ShopController {
 
     let orders = await query.getMany();
 
-    // 额外补充：所有未兑奖中奖单全量返回（不受 limit 截断，确保老板能看到历史期的中奖记录）
+    // 额外补充（不受 limit 截断）：
+    // 1. 当前 pending draw 的所有订单（保证本期销售明细/号码统计完整）
+    // 2. 所有未兑奖中奖单（保证历史期中奖记录可见）
     if (!suffix && !status) {
       const existingIds = new Set(orders.map(o => o.order_id));
+
+      // 1. 当前 pending draw 全量补充
+      const drawRepo = this.dataSource.getRepository(Draw);
+      let pendingDrawIds: number[] = [];
+      // NACIONAL pending
+      const nacPending = await findNationalPendingDraw(drawRepo);
+      if (nacPending) pendingDrawIds.push(nacPending.draw_id);
+      // 最近一期 completed NACIONAL（开奖后老板还需要看本期数据）
+      const nacCompleted = await findNationalLastCompletedDraw(drawRepo);
+      if (nacCompleted) pendingDrawIds.push(nacCompleted.draw_id);
+      // TICA/NICA pending（按店）
+      for (const localKind of ['TICA', 'NICA'] as const) {
+        const localPending = await findShopPendingLocalDraw(drawRepo, shop.shop_id, localKind);
+        if (localPending) pendingDrawIds.push(localPending.draw_id);
+      }
+      if (pendingDrawIds.length > 0) {
+        const extraPeriod = await orderRepo.createQueryBuilder('o')
+          .where('o.shop_id = :sid', { sid: shop.shop_id })
+          .andWhere('o.draw_id IN (:...dids)', { dids: pendingDrawIds })
+          .getMany();
+        for (const o of extraPeriod) {
+          if (!existingIds.has(o.order_id)) {
+            orders.push(o);
+            existingIds.add(o.order_id);
+          }
+        }
+      }
+
+      // 2. 所有未兑奖中奖单全量补充
       const unredeemedWinsQuery = orderRepo.createQueryBuilder('o')
         .where('o.shop_id = :sid', { sid: shop.shop_id })
         .andWhere('o.status = 3')
