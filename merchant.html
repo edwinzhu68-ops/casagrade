@@ -3302,17 +3302,10 @@
 
         // 待付款：本店全部未付（含全国+TICA+NICA）。勿用 scopedOrders，否则停留在 Lotería 台时收不到 TICA/NICA 单
         const unpaidOrders = (allOrders || []).filter(isMerchantOrderUnpaid);
-        // 中奖金额：与结算页一致 —— 正在销售 N 期时，只统计「上期 N-1」未兑奖中奖单（勿累加历史期）
-        var redeemStatsDrawId = merchantRedeemWinsDrawIdForStats();
+        // 中奖金额：显示所有未兑奖中奖单（不限期次，老板可以兑任何期的奖）
         const redeemPendingOrders = scopedOrders.filter(function (o) {
           var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
-          if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
-          if (redeemStatsDrawId == null) {
-            // draw_id 获取失败时 fallback：显示所有未兑奖中奖单
-            return true;
-          }
-          var oDraw = o.draw_id != null ? o.draw_id : o.drawId;
-          return Number(oDraw) === Number(redeemStatsDrawId);
+          return (o.status === 3 || o.status === 'won') && !redeemed;
         });
         // 中奖金额：只统计正数，显示为整数金额（不带小数）
         const totalWinsPending = redeemPendingOrders.reduce(function (sum, o) {
@@ -3682,14 +3675,11 @@
         });
       }
       var redeemOrdersSrc = (allOrdersForRedeem && allOrdersForRedeem.length) ? allOrdersForRedeem : (orders || []);
-      var redeemDrawId = merchantRedeemWinsDrawIdForStats();
       var redeemPending = redeemOrdersSrc.filter(function (o) {
         var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
         if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
         if (!orderMatchesMerchantWorkbench(o, merchantWorkbenchKind)) return false;
-        if (redeemDrawId == null) return true; // fallback：显示所有未兑奖中奖单
-        var oDraw = o.draw_id != null ? o.draw_id : o.drawId;
-        return Number(oDraw) === Number(redeemDrawId);
+        return true;
       });
 
       var unpaidCountEl = document.getElementById('unpaid-count');
