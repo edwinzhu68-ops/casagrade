@@ -658,8 +658,11 @@
   <!-- 代客下单电子单弹窗 z-[65] -->
   <div id="modal-cashier-eticket" class="hidden fixed inset-0 bg-black/80 z-[65] flex items-center justify-center p-4" onclick="if(event.target===this)closeCashierEticket()">
     <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl flex flex-col relative" style="max-height:88vh" onclick="event.stopPropagation()">
-      <!-- 右上角红色关闭按钮 -->
-      <button type="button" onclick="closeCashierEticket()" class="absolute top-3 right-3 z-10 bg-red-600 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-lg">关闭</button>
+      <!-- 右上角：保存+关闭 -->
+      <div class="absolute top-3 right-3 z-10 flex gap-2">
+        <button type="button" onclick="saveEticketToPhone()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-3 py-2 rounded-lg shadow-lg">📸 保存</button>
+        <button type="button" onclick="closeCashierEticket()" class="bg-red-600 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-lg">关闭</button>
+      </div>
       <!-- 收据主体（用于截图） -->
       <div id="cashier-eticket-body" class="p-5 space-y-3 overflow-y-auto flex-1">
         <div class="text-center pb-2 border-b border-gray-200">
@@ -4331,6 +4334,52 @@
       if (m) m.classList.remove('hidden');
       // 弹窗显示后立即后台预截图
       _pregenEticketBlob();
+    }
+
+    async function saveEticketToPhone() {
+      var etBody = document.getElementById('cashier-eticket-body');
+      if (!etBody) return;
+      try {
+        var origOverflow = etBody.style.overflow;
+        var origMaxH = etBody.style.maxHeight;
+        etBody.style.overflow = 'visible';
+        etBody.style.maxHeight = 'none';
+        var canvas = await html2canvas(etBody, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollY: 0 });
+        etBody.style.overflow = origOverflow;
+        etBody.style.maxHeight = origMaxH;
+        var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+        if (!blob) { showToast('截图失败', 'error'); return; }
+        var orderNum = (document.getElementById('et-order-id') || {}).textContent || 'pedido';
+        var ts = new Date();
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        var filename = 'ticket_' + orderNum + '_' + ts.getFullYear() + pad(ts.getMonth() + 1) + pad(ts.getDate()) + '_' + pad(ts.getHours()) + pad(ts.getMinutes()) + '.png';
+        // APP: 直接存手机
+        if (_isCapApp && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+          var CapFs = window.Capacitor.Plugins.Filesystem;
+          var reader = new FileReader();
+          reader.onloadend = function () {
+            var b64 = reader.result.split(',')[1];
+            CapFs.writeFile({ path: 'LotteryScreenshots/' + filename, data: b64, directory: 'DOCUMENTS', recursive: true })
+              .then(function () { showToast(getMerchantLang() === 'zh' ? '已保存到手机' : 'Guardado', 'success'); })
+              .catch(function () {
+                CapFs.writeFile({ path: 'LotteryScreenshots/' + filename, data: b64, directory: 'EXTERNAL_STORAGE', recursive: true })
+                  .then(function () { showToast(getMerchantLang() === 'zh' ? '已保存到手机' : 'Guardado', 'success'); })
+                  .catch(function (e) { showToast('Error: ' + (e.message || e), 'error'); });
+              });
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+        // 浏览器: 下载
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        showToast(getMerchantLang() === 'zh' ? '已保存' : 'Guardado', 'success');
+      } catch (e) {
+        showToast('Error: ' + (e.message || e), 'error');
+      }
     }
 
     function closeCashierEticket() {
