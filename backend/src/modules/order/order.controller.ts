@@ -802,7 +802,28 @@ export class ShopController {
       query.andWhere('order.redeemed_at IS NULL');
     }
 
-    const orders = await query.getMany();
+    let orders = await query.getMany();
+
+    // 额外补充：所有未兑奖中奖单全量返回（不受 limit 截断，确保老板能看到历史期的中奖记录）
+    if (!suffix && !status) {
+      const existingIds = new Set(orders.map(o => o.order_id));
+      const unredeemedWinsQuery = orderRepo.createQueryBuilder('o')
+        .where('o.shop_id = :sid', { sid: shop.shop_id })
+        .andWhere('o.status = 3')
+        .andWhere('o.redeemed_at IS NULL');
+      if (lk === 'TICA' || lk === 'NICA') {
+        unredeemedWinsQuery.andWhere('o.lottery_type = :lt', { lt: lk });
+      } else if (lk === 'NACIONAL') {
+        unredeemedWinsQuery.andWhere('(o.lottery_type = :nac OR o.lottery_type IS NULL)', { nac: 'NACIONAL' });
+      }
+      const extraWins = await unredeemedWinsQuery.getMany();
+      for (const w of extraWins) {
+        if (!existingIds.has(w.order_id)) {
+          orders.push(w);
+          existingIds.add(w.order_id);
+        }
+      }
+    }
 
     const statusMap: { [key: number]: string } = {
       0: 'pending',
