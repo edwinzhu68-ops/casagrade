@@ -766,11 +766,9 @@ export class ShopController {
       throw new NotFoundException('店铺不存在');
     }
 
-    const limitNum = Math.min(parseInt(limit, 10) || 100, 500);
     const query = orderRepo.createQueryBuilder('order')
       .where('order.shop_id = :shopId', { shopId: shop.shop_id })
-      .orderBy('order.created_at', 'DESC')
-      .take(limitNum);
+      .orderBy('order.created_at', 'DESC');
 
     if (drawId && Number(drawId) > 0) {
       query.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
@@ -804,57 +802,6 @@ export class ShopController {
 
     let orders = await query.getMany();
 
-    // 额外补充（不受 limit 截断）：
-    // 1. 当前 pending draw 的所有订单（保证本期销售明细/号码统计完整）
-    // 2. 所有未兑奖中奖单（保证历史期中奖记录可见）
-    if (!suffix && !status) {
-      const existingIds = new Set(orders.map(o => o.order_id));
-
-      // 1. 当前 pending draw 全量补充
-      const drawRepo = this.dataSource.getRepository(Draw);
-      let pendingDrawIds: number[] = [];
-      // NACIONAL pending
-      const nacPending = await findNationalPendingDraw(drawRepo);
-      if (nacPending) pendingDrawIds.push(nacPending.draw_id);
-      // 最近一期 completed NACIONAL（开奖后老板还需要看本期数据）
-      const nacCompleted = await findNationalLastCompletedDraw(drawRepo);
-      if (nacCompleted) pendingDrawIds.push(nacCompleted.draw_id);
-      // TICA/NICA pending（按店）
-      for (const localKind of ['TICA', 'NICA'] as const) {
-        const localPending = await findShopPendingLocalDraw(drawRepo, shop.shop_id, localKind);
-        if (localPending) pendingDrawIds.push(localPending.draw_id);
-      }
-      if (pendingDrawIds.length > 0) {
-        const extraPeriod = await orderRepo.createQueryBuilder('o')
-          .where('o.shop_id = :sid', { sid: shop.shop_id })
-          .andWhere('o.draw_id IN (:...dids)', { dids: pendingDrawIds })
-          .getMany();
-        for (const o of extraPeriod) {
-          if (!existingIds.has(o.order_id)) {
-            orders.push(o);
-            existingIds.add(o.order_id);
-          }
-        }
-      }
-
-      // 2. 所有未兑奖中奖单全量补充
-      const unredeemedWinsQuery = orderRepo.createQueryBuilder('o')
-        .where('o.shop_id = :sid', { sid: shop.shop_id })
-        .andWhere('o.status = 3')
-        .andWhere('o.redeemed_at IS NULL');
-      if (lk === 'TICA' || lk === 'NICA') {
-        unredeemedWinsQuery.andWhere('o.lottery_type = :lt', { lt: lk });
-      } else if (lk === 'NACIONAL') {
-        unredeemedWinsQuery.andWhere('(o.lottery_type = :nac OR o.lottery_type IS NULL)', { nac: 'NACIONAL' });
-      }
-      const extraWins = await unredeemedWinsQuery.getMany();
-      for (const w of extraWins) {
-        if (!existingIds.has(w.order_id)) {
-          orders.push(w);
-          existingIds.add(w.order_id);
-        }
-      }
-    }
 
     const statusMap: { [key: number]: string } = {
       0: 'pending',
