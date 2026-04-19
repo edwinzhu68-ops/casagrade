@@ -1731,6 +1731,15 @@
     let countdownInterval = null;
     let merchantStopSellAt = null; // 后端配置的停售时间戳（ms）
     let allOrders = [];
+    /**
+     * 订单增量同步缓存：order_id → order。localStorage 持久化避免反复全量拉取。
+     * ordersSyncSince 是上一次同步的 serverTime（ISO），下次只拉 updated_at > since。
+     */
+    const ORDERS_CACHE_PREFIX = 'merchant_orders_cache_v1_';
+    let ordersSyncSince = '';
+    let ordersById = new Map();
+    let ordersCacheRestored = false; // 每个 currentShop 只从 localStorage 恢复一次
+    let ordersCacheShopId = null;    // 跟踪当前缓存属于哪个 shop
     /** 当期（最近一期开奖）订单，与开奖结算页一致 */
     let ordersForCurrentDraw = [];
     /** 是否已开奖（开奖后清空已售号码展示） */
@@ -3107,6 +3116,90 @@
       return data;
     }
 
+    /** 从 localStorage 恢复订单缓存（切店或首次登录时调用一次） */
+    function restoreOrdersCache(shopId) {
+      if (!shopId) return;
+      if (ordersCacheShopId === shopId && ordersCacheRestored) return;
+      // 切店时清掉旧缓存
+      ordersSyncSince = '';
+      ordersById = new Map();
+      ordersCacheShopId = shopId;
+      ordersCacheRestored = true;
+      try {
+        const raw = localStorage.getItem(ORDERS_CACHE_PREFIX + shopId);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        ordersSyncSince = data.since || '';
+        (data.orders || []).forEach(function (o) {
+          if (o && o.order_id != null) ordersById.set(o.order_id, o);
+        });
+        allOrders = Array.from(ordersById.values()).filter(function (o) {
+          return o.status !== 'canceled' && o.status !== -1;
+        });
+      } catch (e) {
+        console.warn('恢复订单缓存失败', e);
+        ordersSyncSince = '';
+        ordersById = new Map();
+      }
+    }
+
+    /** 持久化订单缓存。保留最近 30 天 OR 未兑奖中奖单，防止 localStorage 爆。 */
+    function persistOrdersCache(shopId) {
+      if (!shopId) return;
+      try {
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const trimmed = [];
+        ordersById.forEach(function (o) {
+          const stamp = o.updated_at || o.created_at;
+          const ms = stamp ? new Date(stamp).getTime() : Date.now();
+          const isUnredeemedWin = (o.status === 'won' || o.status === 3) && !o.redeemed_at;
+          if (ms > cutoff || isUnredeemedWin) trimmed.push(o);
+        });
+        const payload = { since: ordersSyncSince, orders: trimmed, savedAt: Date.now() };
+        localStorage.setItem(ORDERS_CACHE_PREFIX + shopId, JSON.stringify(payload));
+      } catch (e) {
+        // localStorage 满：丢最老的一半再试一次
+        try {
+          const keys = Array.from(ordersById.keys()).slice(0, Math.floor(ordersById.size / 2));
+          keys.forEach(function (k) { ordersById.delete(k); });
+          localStorage.setItem(ORDERS_CACHE_PREFIX + shopId, JSON.stringify({ since: ordersSyncSince, orders: Array.from(ordersById.values()), savedAt: Date.now() }));
+        } catch (e2) { console.warn('持久化订单缓存失败', e2); }
+      }
+    }
+
+    /**
+     * 增量同步订单。首次（since 为空）走 90 天窗口 + 未兑奖中奖单；之后只拉 updated_at > since。
+     * 返回本次实际拉到的订单数，供调用方做日志/降级判断。
+     */
+    async function syncShopOrders() {
+      if (!currentShop) return 0;
+      const sid = currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId;
+      if (!sid) return 0;
+      restoreOrdersCache(sid);
+      let url = `${API_BASE}/api/shop/orders-sync?shopId=${encodeURIComponent(sid)}`;
+      if (ordersSyncSince) url += '&since=' + encodeURIComponent(ordersSyncSince);
+      const headers = { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' };
+      try {
+        if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+      } catch (eH) {}
+      const res = await fetch(url, { cache: 'no-store', headers: headers });
+      if (!res.ok) {
+        let errMsg = 'HTTP ' + res.status;
+        try { const ej = await res.json(); errMsg = ej.message || ej.error || errMsg; } catch (e) {}
+        throw new Error(errMsg);
+      }
+      const data = await res.json();
+      (data.orders || []).forEach(function (o) {
+        if (o && o.order_id != null) ordersById.set(o.order_id, o);
+      });
+      ordersSyncSince = data.serverTime || ordersSyncSince;
+      allOrders = Array.from(ordersById.values()).filter(function (o) {
+        return o.status !== 'canceled' && o.status !== -1;
+      });
+      persistOrdersCache(sid);
+      return (data.orders || []).length;
+    }
+
     // 加载仪表盘（本期 = 待开奖期；开奖日期展示与客户端 /api/bet-status 保持一致）
     async function loadDashboard() {
       if (!currentShop) return;
@@ -3122,22 +3215,15 @@
       var dashGen = ++merchantDashboardLoadGeneration;
 
       try {
-        // 订单列表单独拉取并校验：避免 draw/pending 等任一失败导致整页不更新；并明确提示 API 地址错误
-        const ordersUrl = `${API_BASE}/api/shop/orders?shopId=${encodeURIComponent(sid)}&limit=500`;
-        const ordersRes = await fetch(ordersUrl);
-        var ordersPayload = {};
+        // 订单：增量同步（首次 90 天窗口 + 未兑奖中奖单；之后只拉 updated_at > since）
+        // 不受任何 limit 截断，单店几万单也能稳定工作。
         try {
-          ordersPayload = await ordersRes.json();
+          await syncShopOrders();
         } catch (e) {
-          ordersPayload = {};
-        }
-        if (!ordersRes.ok) {
-          var errTxt = (ordersPayload && (ordersPayload.message || ordersPayload.error)) ? (ordersPayload.message || ordersPayload.error) : ('HTTP ' + ordersRes.status);
-          showToast((getMerchantLang() === 'zh' ? '拉取订单失败: ' : 'Error al cargar pedidos: ') + errTxt + ' · ' + API_BASE, 'error');
-          console.error('GET shop orders failed', ordersUrl, ordersRes.status, ordersPayload);
+          showToast((getMerchantLang() === 'zh' ? '拉取订单失败: ' : 'Error al cargar pedidos: ') + (e.message || e) + ' · ' + API_BASE, 'error');
+          console.error('syncShopOrders failed', e);
           return;
         }
-        allOrders = ordersPayload.orders || [];
         if (dashGen !== merchantDashboardLoadGeneration) return;
 
         const [pendingRes, latestRes, statusRes] = await Promise.all([
@@ -4998,7 +5084,12 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || t('alert_delete_fail'));
         closeModal('modal-order');
-        // 本地同步移除
+        // 本地同步移除：allOrders、periodOrders、增量缓存
+        var removedId = null;
+        ordersById.forEach(function (o, id) {
+          if ((o.order_number || o.orderNumber) === num) removedId = id;
+        });
+        if (removedId != null) ordersById.delete(removedId);
         allOrders = allOrders.filter(function(o) {
           return (o.order_number || o.orderNumber) !== num;
         });

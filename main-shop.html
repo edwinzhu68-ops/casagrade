@@ -769,7 +769,9 @@ async function loadNumberSummary(subShops, drawId, lotteryKind) {
           if (pd == null || Number(pd) <= 0) return;
           drawParam = '&drawId=' + encodeURIComponent(pd);
         }
-        const r = await fetch(`${API}/shop/${shopId}/orders?limit=500${drawParam}${lkParam}`, {
+        // 按 drawId 天然收窄一期范围，不再传 limit（后端已去掉 500 截断）
+        const params = (drawParam + lkParam).replace(/^&/, '');
+        const r = await fetch(`${API}/shop/${shopId}/orders?${params}`, {
           headers: getMainHeaders(),
         });
         if (!r.ok) return;
