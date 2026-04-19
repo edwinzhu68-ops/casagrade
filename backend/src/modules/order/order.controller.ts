@@ -766,51 +766,82 @@ export class ShopController {
       throw new NotFoundException('店铺不存在');
     }
 
-    const query = orderRepo.createQueryBuilder('order')
-      .where('order.shop_id = :shopId', { shopId: shop.shop_id })
-      .orderBy('order.created_at', 'DESC');
-
-    if (drawId && Number(drawId) > 0) {
-      query.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
-    }
-
     const lk = (lotteryKind || '').toString().toUpperCase();
-    if (lk === 'TICA' || lk === 'NICA') {
-      query.andWhere('order.lottery_type = :lotteryTypeFilter', { lotteryTypeFilter: lk });
-    } else if (lk === 'NACIONAL') {
-      query.andWhere('(order.lottery_type = :nac OR order.lottery_type IS NULL)', { nac: 'NACIONAL' });
-    }
 
-    if (status) {
-      const statusMap: { [key: string]: number } = {
-        'pending': 0,
-        'paid': 1,
-        'settled': 2,
-        'won': 3,
-      };
-      if (statusMap[status] !== undefined) {
-        query.andWhere('order.status = :status', { status: statusMap[status] });
-      }
-    }
-
+    // 尾数搜索（兑奖用）：直接按条件查
     if (suffix && suffix.trim()) {
       const safe = String(suffix.trim()).replace(/%/g, '\\%').replace(/_/g, '\\_');
-      query.andWhere('order.order_number LIKE :suffixPattern', { suffixPattern: '%' + safe });
-      query.andWhere('order.status = 3');
-      query.andWhere('order.redeemed_at IS NULL');
+      const suffixQuery = orderRepo.createQueryBuilder('order')
+        .where('order.shop_id = :shopId', { shopId: shop.shop_id })
+        .andWhere('order.order_number LIKE :suffixPattern', { suffixPattern: '%' + safe })
+        .andWhere('order.status = 3')
+        .andWhere('order.redeemed_at IS NULL')
+        .orderBy('order.created_at', 'DESC');
+      if (lk === 'TICA' || lk === 'NICA') {
+        suffixQuery.andWhere('order.lottery_type = :lt', { lt: lk });
+      } else if (lk === 'NACIONAL') {
+        suffixQuery.andWhere('(order.lottery_type = :nac OR order.lottery_type IS NULL)', { nac: 'NACIONAL' });
+      }
+      const orders = await suffixQuery.getMany();
+      return this.formatShopOrdersResponse(shop, orders);
     }
 
-    let orders = await query.getMany();
+    // 指定 drawId：直接按 drawId 查全量
+    if (drawId && Number(drawId) > 0) {
+      const drawQuery = orderRepo.createQueryBuilder('order')
+        .where('order.shop_id = :shopId', { shopId: shop.shop_id })
+        .andWhere('order.draw_id = :drawId', { drawId: Number(drawId) })
+        .orderBy('order.created_at', 'DESC');
+      if (status) {
+        const sm: Record<string, number> = { pending: 0, paid: 1, settled: 2, won: 3 };
+        if (sm[status] !== undefined) drawQuery.andWhere('order.status = :st', { st: sm[status] });
+      }
+      const orders = await drawQuery.getMany();
+      return this.formatShopOrdersResponse(shop, orders);
+    }
+
+    // 工作台主查询：只查当期相关订单（不拉历史归档数据）
+    // 收集当期 + 上期的 draw_id
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const relevantDrawIds: number[] = [];
+    // NACIONAL
+    const nacPending = await findNationalPendingDraw(drawRepo);
+    if (nacPending) relevantDrawIds.push(nacPending.draw_id);
+    const nacCompleted = await findNationalLastCompletedDraw(drawRepo);
+    if (nacCompleted) relevantDrawIds.push(nacCompleted.draw_id);
+    // TICA/NICA（按店）
+    for (const kind of ['TICA', 'NICA'] as const) {
+      try {
+        const localPending = await findShopPendingLocalDraw(drawRepo, shop.shop_id, kind);
+        if (localPending) relevantDrawIds.push(localPending.draw_id);
+      } catch {}
+    }
+
+    // 当期订单（全量）+ 未付款 + 未兑奖中奖，一条 SQL 用 OR
+    const conditions: string[] = [];
+    const params: Record<string, any> = { shopId: shop.shop_id };
+    if (relevantDrawIds.length > 0) {
+      conditions.push('order.draw_id IN (:...drawIds)');
+      params.drawIds = relevantDrawIds;
+    }
+    conditions.push('order.status = 0');                              // 未付款
+    conditions.push('(order.status = 3 AND order.redeemed_at IS NULL)'); // 未兑奖中奖
+
+    let orders = await orderRepo.createQueryBuilder('order')
+      .where('order.shop_id = :shopId', params)
+      .andWhere(`(${conditions.join(' OR ')})`)
+      .orderBy('order.created_at', 'DESC')
+      .setParameters(params)
+      .getMany();
 
 
+    return this.formatShopOrdersResponse(shop, orders);
+  }
+
+  private formatShopOrdersResponse(shop: Shop, orders: Order[]) {
     const statusMap: { [key: number]: string } = {
-      0: 'pending',
-      1: 'paid',
-      2: 'settled',
-      3: 'won',
-      [-1]: 'canceled',
+      0: 'pending', 1: 'paid', 2: 'settled', 3: 'won', [-1]: 'canceled',
     };
-
     return {
       shop_id: shop.shop_id,
       shopId: shop.shop_id,
