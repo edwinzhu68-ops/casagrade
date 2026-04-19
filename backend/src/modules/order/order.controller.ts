@@ -759,6 +759,7 @@ export class ShopController {
     @Query('since') since: string = '',
     @Query('drawId') drawId?: string,
     @Query('lotteryKind') lotteryKind?: string,
+    @Query('winnerOnly') winnerOnly?: string,
   ) {
     const id = parseInt(String(shopId || '').trim(), 10);
     if (!shopId || isNaN(id) || id <= 0) {
@@ -778,6 +779,10 @@ export class ShopController {
 
     const serverTime = new Date();
 
+    // winnerOnly=1：只拉中奖单（status=3），用于开奖瞬间前端"本地标 loser + 拉 winner"策略
+    // 一次开奖大店可能有几万 loser 变化，此参数让前端跳过这一大波，只拉几百条中奖单
+    const isWinnerOnly = winnerOnly === '1' || winnerOnly === 'true';
+
     // since 有值 → 纯增量；since 为空 → 首次加载
     const isInitialLoad = !(since && since.trim());
     let sinceDate: Date = new Date(0);
@@ -791,7 +796,16 @@ export class ShopController {
       .where('order.shop_id = :shopId', { shopId: shop.shop_id })
       .orderBy('order.updated_at', 'ASC');
 
-    if (isInitialLoad) {
+    if (isWinnerOnly) {
+      // 只拉中奖单。配合 drawId 精确到某期；不传 drawId 则拉全部中奖单（与首次加载的未兑奖中奖兜底一致）
+      q.andWhere('order.status = 3');
+      if (drawId && Number(drawId) > 0) {
+        q.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
+      }
+      if (!isInitialLoad) {
+        q.andWhere('order.updated_at > :since', { since: sinceDate });
+      }
+    } else if (isInitialLoad) {
       // 首次加载：只取「当期 + 上期 + 未兑奖中奖单」
       // - 当期 pending：NACIONAL 共享 + 本店 TICA + 本店 NICA
       // - 上期 completed：NACIONAL + 本店 TICA + 本店 NICA（用于结算展示）
