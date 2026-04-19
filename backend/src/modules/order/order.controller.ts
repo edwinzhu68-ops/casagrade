@@ -745,6 +745,115 @@ export class ShopController {
     return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
   }
 
+  /**
+   * GET /api/shop/orders-sync?shopId=&since=<ISO>&drawId=<optional>
+   *   — 增量同步：返回 updated_at > since 的订单（含取消），支持超大订单量
+   *   - 无 limit / 无截断（按 updated_at 水位线天然收窄）
+   *   - 首次调用传 since='' 或 '1970-01-01'，返回 drawId 内全量 + 跨期未兑奖中奖单
+   *   - 后续轮询传上一次返回的 serverTime
+   *   - 返回 canceled 订单（status=-1），前端据此从缓存移除
+   */
+  @Get('orders-sync')
+  async syncShopOrders(
+    @Query('shopId') shopId: string,
+    @Query('since') since: string = '',
+    @Query('drawId') drawId?: string,
+    @Query('lotteryKind') lotteryKind?: string,
+  ) {
+    const id = parseInt(String(shopId || '').trim(), 10);
+    if (!shopId || isNaN(id) || id <= 0) {
+      throw new BadRequestException('缺少或无效的 shopId');
+    }
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const orderRepo = this.dataSource.getRepository(Order);
+
+    let shop = await shopRepo.findOne({ where: { shop_id: id } });
+    if (!shop) {
+      shop = await shopRepo.findOne({ where: { shop_number: String(id) } as any });
+    }
+    if (!shop) {
+      throw new NotFoundException('店铺不存在');
+    }
+
+    const serverTime = new Date();
+
+    // since 有值 → 纯增量；since 为空 → 首次加载（回退最近 90 天 OR 未兑奖中奖单，避免首包过大）
+    const isInitialLoad = !(since && since.trim());
+    let sinceDate: Date;
+    if (!isInitialLoad) {
+      const parsed = new Date(since);
+      sinceDate = isNaN(parsed.getTime()) ? new Date(0) : parsed;
+    } else {
+      sinceDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // 90 天前
+    }
+
+    // 基础查询：本店
+    const q = orderRepo.createQueryBuilder('order')
+      .where('order.shop_id = :shopId', { shopId: shop.shop_id })
+      .orderBy('order.updated_at', 'ASC');
+
+    if (isInitialLoad) {
+      // 首次：最近 90 天 OR 未兑奖中奖单（跨期保留，老板随时可兑）
+      q.andWhere(
+        '(order.updated_at > :since OR (order.status = 3 AND order.redeemed_at IS NULL))',
+        { since: sinceDate },
+      );
+    } else {
+      // 增量：严格 updated_at > since
+      q.andWhere('order.updated_at > :since', { since: sinceDate });
+    }
+
+    if (drawId && Number(drawId) > 0) {
+      // drawId 过滤：只同步当期 + 未关联 draw_id 的最近待付款（可能还没分配 draw）
+      q.andWhere('(order.draw_id = :drawId OR order.draw_id IS NULL)', { drawId: Number(drawId) });
+    }
+
+    const lk = (lotteryKind || '').toString().toUpperCase();
+    if (lk === 'TICA' || lk === 'NICA') {
+      q.andWhere('order.lottery_type = :lk', { lk });
+    } else if (lk === 'NACIONAL') {
+      q.andWhere('(order.lottery_type = :nac OR order.lottery_type IS NULL)', { nac: 'NACIONAL' });
+    }
+
+    const orders = await q.getMany();
+
+    const statusMap: { [key: number]: string } = {
+      0: 'pending', 1: 'paid', 2: 'settled', 3: 'won', [-1]: 'canceled',
+    };
+
+    return {
+      shop_id: shop.shop_id,
+      shopId: shop.shop_id,
+      shopNumber: shop.shop_number,
+      shopName: shop.shop_name,
+      serverTime: serverTime.toISOString(),
+      since: sinceDate.toISOString(),
+      count: orders.length,
+      orders: orders.map(order => ({
+        order_id: order.order_id,
+        shop_id: order.shop_id,
+        order_number: order.order_number,
+        order_hash: order.order_hash,
+        numbers: order.numbers,
+        amount: order.amount,
+        game_type: order.game_type,
+        lottery_type: (order as any).lottery_type ?? 'NACIONAL',
+        status: statusMap[order.status] || 'pending',
+        draw_id: order.draw_id ?? null,
+        win_amount: order.win_amount,
+        win_breakdown: (order as any).win_breakdown ?? null,
+        redeemed_at: (order as any).redeemed_at ?? null,
+        canceled_at: (order as any).canceled_at ?? null,
+        note: (order as any).note ?? null,
+        verification_code: order.verification_code,
+        created_at: order.created_at,
+        updated_at: (order as any).updated_at ?? null,
+        paid_at: order.paid_at,
+      })),
+    };
+  }
+
   /** 内部：按店铺数字 ID 查订单列表（与 GET :shopId/orders 同逻辑） */
   private async buildShopOrdersList(
     shopIdNum: number,

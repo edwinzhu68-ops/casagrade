@@ -6,6 +6,7 @@ import { Draw } from './draw.entity';
 @Index(['draw_id', 'status'])    // 开奖结算：WHERE draw_id=? AND status=1
 @Index(['shop_id', 'draw_id'])   // 老板端按期查订单
 @Index(['shop_id', 'status'])    // 结算统计
+@Index(['shop_id', 'updated_at']) // 增量同步：WHERE shop_id=? AND updated_at>?
 export class Order {
   @PrimaryGeneratedColumn()
   order_id: number;
