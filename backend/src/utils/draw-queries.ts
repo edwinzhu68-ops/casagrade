@@ -55,3 +55,18 @@ export async function findShopPendingLocalDraw(
     order: { draw_id: 'DESC' },
   });
 }
+
+/** 店内 TICA / NICA 最近一期已完成（用于上期结算查询） */
+export async function findShopLastCompletedLocalDraw(
+  drawRepo: Repository<Draw>,
+  shopId: number,
+  lotteryType: 'TICA' | 'NICA',
+): Promise<Draw | null> {
+  return drawRepo
+    .createQueryBuilder('d')
+    .where('d.status IN (:...st)', { st: ['completed', 'COMPLETED'] })
+    .andWhere('d.shop_id = :sid', { sid: shopId })
+    .andWhere('d.lottery_type = :lt', { lt: lotteryType })
+    .orderBy('d.draw_id', 'DESC')
+    .getOne();
+}

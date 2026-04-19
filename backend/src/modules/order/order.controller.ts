@@ -18,7 +18,7 @@ async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Pro
 import { Draw } from '../../entities/draw.entity';
 import { DrawDayService } from '../draw/draw-day.service';
 import { LocalLotteryService } from '../local-lottery/local-lottery.service';
-import { findNationalLastCompletedDraw, findNationalPendingDraw, findShopPendingLocalDraw } from '../../utils/draw-queries';
+import { findNationalLastCompletedDraw, findNationalPendingDraw, findShopPendingLocalDraw, findShopLastCompletedLocalDraw } from '../../utils/draw-queries';
 import { withShopLock } from '../../utils/shop-order-lock';
 import * as crypto from 'crypto';
 import { UnauthorizedException } from '@nestjs/common';
@@ -778,14 +778,12 @@ export class ShopController {
 
     const serverTime = new Date();
 
-    // since 有值 → 纯增量；since 为空 → 首次加载（回退最近 90 天 OR 未兑奖中奖单，避免首包过大）
+    // since 有值 → 纯增量；since 为空 → 首次加载
     const isInitialLoad = !(since && since.trim());
-    let sinceDate: Date;
+    let sinceDate: Date = new Date(0);
     if (!isInitialLoad) {
       const parsed = new Date(since);
       sinceDate = isNaN(parsed.getTime()) ? new Date(0) : parsed;
-    } else {
-      sinceDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // 90 天前
     }
 
     // 基础查询：本店
@@ -794,11 +792,33 @@ export class ShopController {
       .orderBy('order.updated_at', 'ASC');
 
     if (isInitialLoad) {
-      // 首次：最近 90 天 OR 未兑奖中奖单（跨期保留，老板随时可兑）
-      q.andWhere(
-        '(order.updated_at > :since OR (order.status = 3 AND order.redeemed_at IS NULL))',
-        { since: sinceDate },
-      );
+      // 首次加载：只取「当期 + 上期 + 未兑奖中奖单」
+      // - 当期 pending：NACIONAL 共享 + 本店 TICA + 本店 NICA
+      // - 上期 completed：NACIONAL + 本店 TICA + 本店 NICA（用于结算展示）
+      // - 未兑奖中奖单：status=3 AND redeemed_at IS NULL（跨期保留，老板随时兑）
+      const drawRepo = this.dataSource.getRepository(Draw);
+      const drawIds: number[] = [];
+      const [nacPending, nacCompleted, ticaPending, ticaCompleted, nicaPending, nicaCompleted] = await Promise.all([
+        findNationalPendingDraw(drawRepo),
+        findNationalLastCompletedDraw(drawRepo),
+        findShopPendingLocalDraw(drawRepo, shop.shop_id, 'TICA'),
+        findShopLastCompletedLocalDraw(drawRepo, shop.shop_id, 'TICA'),
+        findShopPendingLocalDraw(drawRepo, shop.shop_id, 'NICA'),
+        findShopLastCompletedLocalDraw(drawRepo, shop.shop_id, 'NICA'),
+      ]);
+      for (const d of [nacPending, nacCompleted, ticaPending, ticaCompleted, nicaPending, nicaCompleted]) {
+        if (d && d.draw_id != null) drawIds.push(d.draw_id);
+      }
+
+      if (drawIds.length > 0) {
+        q.andWhere(
+          '(order.draw_id IN (:...drawIds) OR (order.status = 3 AND order.redeemed_at IS NULL))',
+          { drawIds },
+        );
+      } else {
+        // 没有任何 pending/completed draw（极端：全归档后），只拉未兑奖中奖单
+        q.andWhere('(order.status = 3 AND order.redeemed_at IS NULL)');
+      }
     } else {
       // 增量：严格 updated_at > since
       q.andWhere('order.updated_at > :since', { since: sinceDate });
