@@ -1736,10 +1736,13 @@
      * ordersSyncSince 是上一次同步的 serverTime（ISO），下次只拉 updated_at > since。
      */
     const ORDERS_CACHE_PREFIX = 'merchant_orders_cache_v1_';
+    const LOCAL_SETTLED_KEY = 'merchant_local_settled_nacional_v1_';
     let ordersSyncSince = '';
     let ordersById = new Map();
     let ordersCacheRestored = false; // 每个 currentShop 只从 localStorage 恢复一次
     let ordersCacheShopId = null;    // 跟踪当前缓存属于哪个 shop
+    /** 本地已乐观结算过的 NACIONAL drawId（开奖瞬间本地标 loser + 拉 winner，避免几万条 loser 下行） */
+    let lastSettledNationalDrawId = null;
     /** 当期（最近一期开奖）订单，与开奖结算页一致 */
     let ordersForCurrentDraw = [];
     /** 是否已开奖（开奖后清空已售号码展示） */
@@ -3123,24 +3126,82 @@
       // 切店时清掉旧缓存
       ordersSyncSince = '';
       ordersById = new Map();
+      lastSettledNationalDrawId = null;
       ordersCacheShopId = shopId;
       ordersCacheRestored = true;
       try {
         const raw = localStorage.getItem(ORDERS_CACHE_PREFIX + shopId);
-        if (!raw) return;
-        const data = JSON.parse(raw);
-        ordersSyncSince = data.since || '';
-        (data.orders || []).forEach(function (o) {
-          if (o && o.order_id != null) ordersById.set(o.order_id, o);
-        });
-        allOrders = Array.from(ordersById.values()).filter(function (o) {
-          return o.status !== 'canceled' && o.status !== -1;
-        });
+        if (raw) {
+          const data = JSON.parse(raw);
+          ordersSyncSince = data.since || '';
+          (data.orders || []).forEach(function (o) {
+            if (o && o.order_id != null) ordersById.set(o.order_id, o);
+          });
+          allOrders = Array.from(ordersById.values()).filter(function (o) {
+            return o.status !== 'canceled' && o.status !== -1;
+          });
+        }
+        // 恢复上次本地结算过的 drawId，避免刷新后重复乐观标
+        try {
+          const raw2 = localStorage.getItem(LOCAL_SETTLED_KEY + shopId);
+          lastSettledNationalDrawId = raw2 ? (Number(raw2) || null) : null;
+        } catch (eLS) { lastSettledNationalDrawId = null; }
       } catch (e) {
         console.warn('恢复订单缓存失败', e);
         ordersSyncSince = '';
         ordersById = new Map();
       }
+    }
+
+    /**
+     * 本地乐观结算：把本店当期 NACIONAL status=paid 的订单标为 settled。
+     * 幂等——已 settled/won 的单跳过。不触碰中奖判定，中奖金额完全由后端返回。
+     */
+    function localSettleDrawNational(drawId) {
+      if (!drawId || !currentShop) return 0;
+      const nowIso = new Date().toISOString();
+      let changed = 0;
+      ordersById.forEach(function (o) {
+        var olt = String(o.lottery_type || 'NACIONAL').toUpperCase();
+        if (olt !== 'NACIONAL') return;
+        if (o.draw_id != drawId) return;
+        var s = o.status;
+        if (s === 'paid' || s === 1) {
+          o.status = 'settled';
+          o.settled_at = nowIso;
+          o.updated_at = nowIso;
+          changed++;
+        }
+      });
+      if (changed > 0) {
+        allOrders = Array.from(ordersById.values()).filter(function (o) {
+          return o.status !== 'canceled' && o.status !== -1;
+        });
+      }
+      if (DEBUG) console.log('本地乐观结算 NACIONAL draw', drawId, '标记', changed, '单为 settled');
+      return changed;
+    }
+
+    /** 开奖后只拉中奖单（status=3），把下行从几 MB 降到几百 KB */
+    async function syncShopOrdersWinnerOnly(drawId) {
+      if (!currentShop || !drawId) return 0;
+      const sid = currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId;
+      let url = `${API_BASE}/api/shop/orders-sync?shopId=${encodeURIComponent(sid)}&drawId=${encodeURIComponent(drawId)}&winnerOnly=1`;
+      const headers = { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' };
+      try { if (authToken) headers['Authorization'] = 'Bearer ' + authToken; } catch (eH) {}
+      const res = await fetch(url, { cache: 'no-store', headers: headers });
+      if (!res.ok) throw new Error('winner sync failed: HTTP ' + res.status);
+      const data = await res.json();
+      (data.orders || []).forEach(function (o) {
+        if (o && o.order_id != null) ordersById.set(o.order_id, o);
+      });
+      allOrders = Array.from(ordersById.values()).filter(function (o) {
+        return o.status !== 'canceled' && o.status !== -1;
+      });
+      // 推进 since 水位线到 winner sync 的 serverTime，避免下次普通增量拉回几万 loser updated_at 变化
+      if (data.serverTime) ordersSyncSince = data.serverTime;
+      persistOrdersCache(sid);
+      return (data.orders || []).length;
     }
 
     /** 持久化订单缓存。保留最近 30 天 OR 未兑奖中奖单，防止 localStorage 爆。 */
@@ -3281,6 +3342,25 @@
         }
         const latestDrawId = latestData.draw && latestData.draw.drawId != null ? latestData.draw.drawId : null;
         merchantLatestNationalDrawId = latestDrawId;
+
+        // 开奖感知：latestDrawId 变化（或首次出现）→ 本地乐观标 loser 为 settled + 异步拉中奖单
+        // 这样几万单开奖瞬间前端 <1s UI 刷新，下行从几 MB 降到几百 KB（只拉中奖单）。
+        if (latestDrawId != null && Number(latestDrawId) !== Number(lastSettledNationalDrawId)) {
+          const settledDrawId = latestDrawId;
+          const changed = localSettleDrawNational(settledDrawId);
+          persistOrdersCache(sid);
+          syncShopOrdersWinnerOnly(settledDrawId).then(function (winnerCount) {
+            lastSettledNationalDrawId = Number(settledDrawId);
+            try { localStorage.setItem(LOCAL_SETTLED_KEY + sid, String(settledDrawId)); } catch (eLS) {}
+            if (DEBUG) console.log('winner-only sync merged', winnerCount, 'winners for draw', settledDrawId);
+            // 中奖单拉回后触发派生数据重算（避免再等 3 秒轮询）
+            try { loadDashboard(); } catch (eR) {}
+          }).catch(function (e) {
+            console.warn('winner-only sync failed, 下次 loadDashboard 重试', e);
+            // 不写 lastSettledNationalDrawId，下次 loadDashboard 会再试一次
+          });
+        }
+
         const currentPeriodLabel = statusData && statusData.currentPeriodDate
           ? statusData.currentPeriodDate
           : (pendingDrawDate || '');
