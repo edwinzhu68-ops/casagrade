@@ -28,10 +28,14 @@
       <div class="text-center mb-8">
         <div class="text-5xl mb-3">🎫</div>
         <h1 class="text-xl font-bold">卡密管理</h1>
-        <p class="text-gray-400 text-sm mt-1">输入管理员密钥登录</p>
+        <p class="text-gray-400 text-sm mt-1">用管理员账号登录</p>
       </div>
-      <input type="password" id="login-token" placeholder="管理员密钥（ADMIN_TOKEN）"
+      <input type="text" id="login-account" placeholder="账号"
+        class="w-full text-center py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-purple-500 focus:outline-none mb-3"
+        autocomplete="username" />
+      <input type="password" id="login-password" placeholder="密码"
         class="w-full text-center py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-purple-500 focus:outline-none mb-4"
+        autocomplete="current-password"
         onkeydown="if(event.key==='Enter') login()" />
       <button onclick="login()" class="w-full bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl font-bold text-lg">
         登录
@@ -216,30 +220,44 @@
       return 'https://api.casagrade.com';
     })();
 
-    let _token = '';
+    const BEARER_KEY = 'cards_admin_bearer';
+    let _bearer = '';
 
     function getHeaders() {
-      return { 'Content-Type': 'application/json', 'X-Admin-Token': _token };
+      return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _bearer };
     }
 
-    function login() {
-      const t = document.getElementById('login-token').value.trim();
-      if (!t) { showLoginError('请输入管理员密钥'); return; }
-      _token = t;
-      // 用生成一张 monthly 试探权限（count=0 会被校验拒绝，直接调 cards 列表）
-      fetch(`${API_BASE}/api/admin/cards`, { headers: { 'X-Admin-Token': t } })
-        .then(r => r.json())
-        .then(data => {
-          if (Array.isArray(data.cards)) {
-            localStorage.setItem('cards_admin_token', t);
-            document.getElementById('page-login').classList.add('hidden');
-            document.getElementById('page-main').classList.remove('hidden');
-            renderCards(data.cards);
-          } else {
-            showLoginError('密钥错误或无权限');
-          }
-        })
-        .catch(() => showLoginError('连接失败，请检查网络'));
+    async function login() {
+      const account = (document.getElementById('login-account').value || '').trim();
+      const password = document.getElementById('login-password').value;
+      if (!account || !password) { showLoginError('请输入账号和密码'); return; }
+      try {
+        const res = await fetch(`${API_BASE}/api/merchant/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountNumber: account, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.token) {
+          showLoginError(data.message || data.error || '账号或密码错误');
+          return;
+        }
+        _bearer = data.token;
+        // 试探是否有 admin 权限
+        const testRes = await fetch(`${API_BASE}/api/admin/cards`, { headers: getHeaders() });
+        const testData = await testRes.json().catch(() => ({}));
+        if (!testRes.ok || !Array.isArray(testData.cards)) {
+          showLoginError('该账号没有管理员权限');
+          _bearer = '';
+          return;
+        }
+        localStorage.setItem(BEARER_KEY, _bearer);
+        document.getElementById('page-login').classList.add('hidden');
+        document.getElementById('page-main').classList.remove('hidden');
+        renderCards(testData.cards);
+      } catch (e) {
+        showLoginError('连接失败，请检查网络');
+      }
     }
 
     function showLoginError(msg) {
@@ -249,11 +267,12 @@
     }
 
     function logout() {
-      localStorage.removeItem('cards_admin_token');
-      _token = '';
+      localStorage.removeItem(BEARER_KEY);
+      _bearer = '';
       document.getElementById('page-main').classList.add('hidden');
       document.getElementById('page-login').classList.remove('hidden');
-      document.getElementById('login-token').value = '';
+      document.getElementById('login-account').value = '';
+      document.getElementById('login-password').value = '';
       document.getElementById('login-error').classList.add('hidden');
     }
 
@@ -399,13 +418,24 @@
       }
     }, 30000);
 
-    // 自动登录（已保存密钥）
-    window.addEventListener('DOMContentLoaded', () => {
-      const saved = localStorage.getItem('cards_admin_token');
-      if (saved) {
-        document.getElementById('login-token').value = saved;
-        login();
-      }
+    // 自动登录（已保存 Bearer token）
+    window.addEventListener('DOMContentLoaded', async () => {
+      const saved = localStorage.getItem(BEARER_KEY);
+      if (!saved) return;
+      _bearer = saved;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/cards`, { headers: getHeaders() });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(data.cards)) {
+          document.getElementById('page-login').classList.add('hidden');
+          document.getElementById('page-main').classList.remove('hidden');
+          renderCards(data.cards);
+        } else {
+          // token 失效，清掉回登录页
+          localStorage.removeItem(BEARER_KEY);
+          _bearer = '';
+        }
+      } catch (e) {}
     });
   </script>
 </body>
