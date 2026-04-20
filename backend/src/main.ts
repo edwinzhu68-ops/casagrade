@@ -77,14 +77,12 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function bootstrap() {
-  // 生产环境必须设置这两个敏感 env；缺失则直接拒绝启动（防止硬编码默认值泄漏导致全系统裸奔）
+  // 生产环境必须设置 TOKEN_SECRET（否则老板 token 用硬编码默认签名，任何人可伪造）
+  // ADMIN_TOKEN 改为可选：用户可以通过 ADMIN_ACCOUNT 指定管理员账号，不再必需密钥。
   const isProduction = process.env.NODE_ENV === 'production';
   if (isProduction) {
-    const missing: string[] = [];
-    if (!process.env.TOKEN_SECRET || process.env.TOKEN_SECRET.trim() === '') missing.push('TOKEN_SECRET');
-    if (!process.env.ADMIN_TOKEN || process.env.ADMIN_TOKEN.trim() === '') missing.push('ADMIN_TOKEN');
-    if (missing.length > 0) {
-      const msg = `❌ 生产环境必须设置环境变量: ${missing.join(', ')}。拒绝启动，防止使用硬编码默认值导致安全裸奔。`;
+    if (!process.env.TOKEN_SECRET || process.env.TOKEN_SECRET.trim() === '') {
+      const msg = `❌ 生产环境必须设置 TOKEN_SECRET env。拒绝启动，防止硬编码默认值被利用。`;
       writeErrorLog(msg);
       throw new Error(msg);
     }

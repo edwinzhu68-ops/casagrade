@@ -1,45 +1,71 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 import * as crypto from 'crypto';
+import { DataSource } from 'typeorm';
+import { User } from '../entities/user.entity';
 
 /**
- * 管理员接口鉴权：要求请求头 X-Admin-Token 与环境变量 ADMIN_TOKEN 一致（timingSafeEqual 防时序攻击）。
- * 开发环境未设 ADMIN_TOKEN 时放行；生产环境启动时已在 main.ts 强校验必须设置。
- * 放行白名单走精确路径匹配，避免 .includes() 的前缀/子串绕过。
+ * 管理员接口鉴权。优先级：
+ *   1. Bearer token 有效 + 对应用户 role='admin'  （推荐，账号密码登录即可）
+ *   2. X-Admin-Token 等于 ADMIN_TOKEN env（兼容保留，dev/过渡期）
+ *
+ * 路径白名单（ADMIN_PUBLIC_PATHS）跳过此 guard，如 clear-settlement 走 Bearer 校验但不要求 admin 身份。
  */
 const ADMIN_PUBLIC_PATHS = new Set<string>([
   '/api/admin/health',
   '/api/admin/clear-settlement',
 ]);
 
+const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
+
+function parseUserIdFromBearer(auth: string): number | null {
+  const raw = auth.replace(/^\s*bearer\s+/i, '').trim();
+  if (!raw) return null;
+  const lastDot = raw.lastIndexOf('.');
+  if (lastDot <= 0) return null;
+  const payload = raw.slice(0, lastDot);
+  const sig = raw.slice(lastDot + 1);
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const decoded = Buffer.from(payload, 'base64').toString('utf8');
+    const colonIdx = decoded.indexOf(':');
+    const userId = colonIdx > 0 ? parseInt(decoded.slice(0, colonIdx), 10) : NaN;
+    return isNaN(userId) ? null : userId;
+  } catch { return null; }
+}
+
 @Injectable()
 export class AdminTokenGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const adminToken = process.env.ADMIN_TOKEN;
+  constructor(private readonly dataSource: DataSource) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
 
-    if (!adminToken || adminToken === '') {
-      // 开发环境未设 → 放行（本地调试方便）。生产环境由 main.ts 启动校验兜底。
-      return true;
+    // 白名单路径：不在此 guard 校验（方法内部可能自行校验 Bearer）
+    if (req.path && ADMIN_PUBLIC_PATHS.has(req.path)) return true;
+
+    // 方案 1（首选）：Bearer token + user.role='admin'
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const userId = parseUserIdFromBearer(authHeader);
+    if (userId) {
+      const user = await this.dataSource.getRepository(User).findOne({ where: { user_id: userId } });
+      if (user && user.role === 'admin') return true;
     }
 
-    // 精确路径白名单（如 clear-settlement 靠商家 Bearer 另行校验）
-    if (req.path && ADMIN_PUBLIC_PATHS.has(req.path)) {
-      return true;
+    // 方案 2（兼容）：X-Admin-Token 精确匹配 env
+    const adminTokenEnv = process.env.ADMIN_TOKEN;
+    if (adminTokenEnv && adminTokenEnv !== '') {
+      const hdr = req.headers['x-admin-token'];
+      if (typeof hdr === 'string' && hdr.length === adminTokenEnv.length) {
+        const a = Buffer.from(hdr, 'utf8');
+        const b = Buffer.from(adminTokenEnv, 'utf8');
+        if (crypto.timingSafeEqual(a, b)) return true;
+      }
     }
 
-    const token = req.headers['x-admin-token'];
-    if (typeof token !== 'string' || token.length === 0) {
-      throw new UnauthorizedException('需要管理员密钥');
-    }
-
-    // timingSafeEqual：长度不同直接拒绝；等长时常数时间比较，防止计时攻击逐字符爆破
-    const a = Buffer.from(token, 'utf8');
-    const b = Buffer.from(adminToken, 'utf8');
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      throw new UnauthorizedException('需要管理员密钥');
-    }
-
-    return true;
+    throw new UnauthorizedException('需要管理员账号登录');
   }
 }

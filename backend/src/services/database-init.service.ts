@@ -19,6 +19,7 @@ export class DatabaseInitService implements OnModuleInit {
   async onModuleInit() {
     await this.ensureTicaNicaColumns();
     await this.ensureDrawPeriodNoColumn();
+    await this.bootstrapAdminAccount();
 
     const indexes: { name: string; sql: string }[] = [
       // ── orders ────────────────────────────────────────────────────────────
@@ -117,6 +118,30 @@ export class DatabaseInitService implements OnModuleInit {
         `UPDATE orders SET lottery_type = 'NACIONAL' WHERE lottery_type IS NULL`,
       );
     } catch {}
+  }
+
+  /**
+   * 启动时根据 ADMIN_ACCOUNT env 自动把该账号的 role 设为 'admin'。
+   * 让你（平台方）登录后即可操作 admin 接口，无需再用 X-Admin-Token 密钥。
+   * 未设 env 或找不到账号时静默跳过，不影响启动。
+   */
+  private async bootstrapAdminAccount(): Promise<void> {
+    const adminAccount = (process.env.ADMIN_ACCOUNT || '').trim();
+    if (!adminAccount) return;
+    try {
+      const result = await this.dataSource.query(
+        `UPDATE users SET role = 'admin' WHERE account_number = ? AND role != 'admin'`,
+        [adminAccount],
+      );
+      const affected = (result as any)?.affected ?? (Array.isArray(result) ? 0 : 0);
+      if (affected > 0) {
+        this.logger.log(`Admin bootstrap：账号 ${adminAccount} role 已设为 admin`);
+      } else {
+        this.logger.log(`Admin bootstrap：账号 ${adminAccount} 已是 admin 或不存在（跳过）`);
+      }
+    } catch (e) {
+      this.logger.warn(`Admin bootstrap 失败: ${(e as Error).message}`);
+    }
   }
 
   /** draws.period_no：各彩种/各店独立展示期号，与 draw_id 主键分离 */
