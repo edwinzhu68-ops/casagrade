@@ -201,8 +201,16 @@
 
   <script>
     const API_BASE = (() => {
+      // 白名单校验：插件/XSS 不能劫持 API 地址
+      function isAllowedApiBase(u) {
+        try {
+          const url = new URL(u);
+          if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+          return url.hostname === 'api.casagrade.com' || url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+        } catch (e) { return false; }
+      }
       const saved = localStorage.getItem('lottery_api_base');
-      if (saved) return saved;
+      if (saved && isAllowedApiBase(saved)) return saved;
       const h = location.hostname;
       if (h === 'localhost' || h === '127.0.0.1') return '';
       return 'https://api.casagrade.com';

@@ -919,9 +919,19 @@
         if (/\/api$/i.test(s)) s = s.replace(/\/api$/i, '');
         return s;
       }
+      // 白名单校验：插件/XSS 不能把 API 劫持到任意 origin 偷 token 和订单
+      function isAllowedApiBase(u) {
+        try {
+          var url = new URL(u);
+          if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+          return url.hostname === 'api.casagrade.com' ||
+                 url.hostname === 'localhost' ||
+                 url.hostname === '127.0.0.1';
+        } catch (e) { return false; }
+      }
       try {
         var saved = localStorage.getItem('lottery_api_base');
-        if (saved !== null && saved !== '') return normalizeBase(saved);
+        if (saved && isAllowedApiBase(saved)) return normalizeBase(saved);
       } catch (e) {}
       if (typeof location !== 'undefined') {
         var h = location.hostname || '';

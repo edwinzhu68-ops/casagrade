@@ -406,9 +406,17 @@ function applyMainLang() {
 // ─────────────────────────────────────────────────────────
 
 const API = (function resolveMainShopApiBase() {
+  // 白名单校验：插件/XSS 不能劫持 API 地址偷走 token 和订单
+  function isAllowedApiBase(u) {
+    try {
+      var url = new URL(u);
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+      return url.hostname === 'api.casagrade.com' || url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    } catch (e) { return false; }
+  }
   try {
     var saved = localStorage.getItem('lottery_api_base');
-    if (saved != null && String(saved).trim() !== '') {
+    if (saved && isAllowedApiBase(saved)) {
       var b = String(saved).trim().replace(/\/$/, '');
       return b.replace(/\/api\/?$/i, '');
     }

@@ -569,9 +569,19 @@
         if (/\/api$/i.test(s)) s = s.replace(/\/api$/i, '');
         return s;
       }
+      // 白名单校验：插件/XSS 不能把 API 劫持到任意 origin 偷 token 和订单
+      function isAllowedApiBase(u) {
+        try {
+          var url = new URL(u);
+          if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+          return url.hostname === 'api.casagrade.com' ||
+                 url.hostname === 'localhost' ||
+                 url.hostname === '127.0.0.1';
+        } catch (e) { return false; }
+      }
       try {
         var saved = localStorage.getItem('lottery_api_base');
-        if (saved !== null && saved !== '') return normalizeBase(saved);
+        if (saved && isAllowedApiBase(saved)) return normalizeBase(saved);
       } catch (e) {}
       // 本地调试：用 http://localhost 打开，或直接双击 file:// 打开本页时，都指向本机 API（默认 Nest 3000 端口）
       if (typeof location !== 'undefined') {
