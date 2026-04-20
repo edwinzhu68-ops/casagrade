@@ -1,10 +1,40 @@
-import { Controller, Get, Post, Body, Inject, Logger, UseGuards, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Inject, Logger, UseGuards, NotFoundException, UnauthorizedException, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { DataSource, Repository } from 'typeorm';
+import * as crypto from 'crypto';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
 import { DrawDayService } from './draw-day.service';
+
+/** 验证 Bearer HMAC-SHA256 签名 token，失败抛 UnauthorizedException */
+function requireValidBearerToken(req: Request): number {
+  const authHeader = (req.headers?.['authorization'] || '') as string;
+  const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+  if (!raw) throw new UnauthorizedException('请先登录');
+  const lastDot = raw.lastIndexOf('.');
+  if (lastDot <= 0) throw new UnauthorizedException('请先登录');
+  const payload = raw.slice(0, lastDot);
+  const sig = raw.slice(lastDot + 1);
+  const secret = process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    throw new UnauthorizedException('登录已过期');
+  }
+  try {
+    const decoded = Buffer.from(payload, 'base64').toString('utf8');
+    const colonIdx = decoded.indexOf(':');
+    const userId = colonIdx > 0 ? parseInt(decoded.slice(0, colonIdx), 10) : NaN;
+    if (isNaN(userId)) throw new UnauthorizedException('登录已过期');
+    return userId;
+  } catch {
+    throw new UnauthorizedException('登录已过期');
+  }
+}
+
 import {
   findNationalLastCompletedDraw,
   findNationalLatestCompletedUnarchivedDraw,
@@ -929,10 +959,14 @@ export class AdminController {
   constructor(private readonly dataSource: DataSource) {}
 
   /**
-   * POST /api/admin/clear-settlement - 清空开奖结算（当前期转入历史，结算页显示等待开奖）；登录即可，不需管理员密钥
+   * POST /api/admin/clear-settlement - 清空开奖结算（当前期转入历史）
+   * 不需要 X-Admin-Token（AdminGuard 白名单放行），但必须是登录的商家（Bearer token 有效）
    */
   @Post('clear-settlement')
-  async clearSettlement() {
+  async clearSettlement(@Req() req: Request) {
+    // 要求 Bearer token 有效（防止未登录的匿名调用归档当期数据）
+    requireValidBearerToken(req);
+
     const drawRepo = this.dataSource.getRepository(Draw);
     // 仅归档全国 NACIONAL completed draws，不要影响店内 TICA/NICA 历史
     const result = await drawRepo

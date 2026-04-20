@@ -24,6 +24,11 @@ const cardFailMap = new Map<string, { count: number; until: number }>();
 const CARD_MAX_FAIL = 5;               // 同一IP最多失败5次
 const CARD_LOCKOUT_MS = 30 * 60 * 1000; // 锁定30分钟
 
+// ─── 忘记密码限流（防被任意调用强制重置商家密码，导致账户持续锁定） ──────────
+const forgotPwMap = new Map<string, { count: number; resetAt: number }>();
+const FORGOT_PW_MAX_PER_HOUR = 3;
+const FORGOT_PW_WINDOW_MS = 60 * 60 * 1000;
+
 // 每小时清理过期记录，防止扫描器长期积累导致内存泄漏
 setInterval(() => {
   const now = Date.now();
@@ -32,6 +37,9 @@ setInterval(() => {
   }
   for (const [ip, entry] of cardFailMap) {
     if (entry.until < now) cardFailMap.delete(ip);
+  }
+  for (const [ip, entry] of forgotPwMap) {
+    if (entry.resetAt < now) forgotPwMap.delete(ip);
   }
 }, 60 * 60 * 1000);
 
@@ -259,14 +267,30 @@ export class MerchantController implements OnModuleInit {
    * POST /merchant/forgot-password - 通过邮箱找回密码
    */
   @Post('forgot-password')
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: { email: string }, @Req() req: any) {
     const email = (body.email || '').trim().toLowerCase();
     if (!email) throw new BadRequestException('请输入邮箱');
+
+    // IP 限流：防止匿名调用无限次强制重置商家密码（DoS + 账户锁定攻击）
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || 'unknown').toString().split(',')[0].trim();
+    const now = Date.now();
+    const entry = forgotPwMap.get(ip);
+    if (entry && entry.resetAt > now) {
+      if (entry.count >= FORGOT_PW_MAX_PER_HOUR) {
+        throw new BadRequestException('操作过于频繁，请 1 小时后再试');
+      }
+      entry.count++;
+    } else {
+      forgotPwMap.set(ip, { count: 1, resetAt: now + FORGOT_PW_WINDOW_MS });
+    }
 
     const userRepo = this.dataSource.getRepository(User);
     const shopRepo = this.dataSource.getRepository(Shop);
     const user = await userRepo.findOne({ where: { email } as any });
-    if (!user) throw new NotFoundException('该邮箱未绑定任何账号');
+    // 统一响应：不区分邮箱存在/不存在，避免用户枚举
+    if (!user) {
+      return { success: true, message: '如邮箱已注册，新密码邮件已发送' };
+    }
 
     // 生成临时密码（12位，含字母+数字，使用密码学安全随机数）
     const lowerChars = 'abcdefghjkmnpqrstuvwxyz';
@@ -311,7 +335,7 @@ export class MerchantController implements OnModuleInit {
     });
 
     this.logger.log(`找回密码: 账号=${user.account_number}, 邮箱=${email}`);
-    return { success: true, message: '新密码已发送到你的邮箱' };
+    return { success: true, message: '如邮箱已注册，新密码邮件已发送' };
   }
 
   /**
@@ -701,10 +725,18 @@ export class MerchantController implements OnModuleInit {
    * 小庄获取收到的待确认绑定邀请（大庄发来的）
    */
   @Get('binding/pending')
-  async bindingPending(@Query('shopId') shopId: string) {
+  async bindingPending(@Query('shopId') shopId: string, @Req() req: any) {
     if (!shopId) throw new BadRequestException('缺少 shopId');
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
     const shopRepo = this.dataSource.getRepository(Shop);
+
+    // 权限：tokenUserId 必须是 shopId 的 owner（子店老板查自己收到的邀请）
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+    const subShop = await shopRepo.findOne({ where: { shop_id: Number(shopId) } });
+    if (!subShop || subShop.owner_id !== tokenInfo.userId) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
 
     // 小庄查自己收到的邀请
     const pending = await bindingRepo.find({
@@ -775,10 +807,18 @@ export class MerchantController implements OnModuleInit {
    * 大庄查看收到的待审绑定申请（小庄发来的）
    */
   @Get('binding/incoming')
-  async bindingIncoming(@Query('mainShopId') mainShopId: string) {
+  async bindingIncoming(@Query('mainShopId') mainShopId: string, @Req() req: any) {
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
     const shopRepo = this.dataSource.getRepository(Shop);
+
+    // 权限：tokenUserId 必须是 mainShopId 的 owner
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+    const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+    if (!mainShop || mainShop.owner_id !== tokenInfo.userId) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
 
     const incoming = await bindingRepo.find({
       where: { main_shop_id: Number(mainShopId), status: 'pending' },
@@ -928,10 +968,18 @@ export class MerchantController implements OnModuleInit {
    * 分店铺查自己的绑定状态
    */
   @Get('binding/my-binding')
-  async myBinding(@Query('shopId') shopId: string) {
+  async myBinding(@Query('shopId') shopId: string, @Req() req: any) {
     if (!shopId) throw new BadRequestException('缺少 shopId');
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
     const shopRepo = this.dataSource.getRepository(Shop);
+
+    // 权限：tokenUserId 必须是 shopId 的 owner
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+    const subShop = await shopRepo.findOne({ where: { shop_id: Number(shopId) } });
+    if (!subShop || subShop.owner_id !== tokenInfo.userId) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
 
     const binding = await bindingRepo.findOne({ where: { sub_shop_id: Number(shopId) } });
     if (!binding) return { binding: null };
@@ -1053,10 +1101,18 @@ export class MerchantController implements OnModuleInit {
    * 主店铺获取所有已绑定分店铺列表（含基本信息）
    */
   @Get('binding/sub-shops')
-  async subShops(@Query('mainShopId') mainShopId: string) {
+  async subShops(@Query('mainShopId') mainShopId: string, @Req() req: any) {
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
     const shopRepo = this.dataSource.getRepository(Shop);
+
+    // 权限：tokenUserId 必须是 mainShopId 的 owner
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+    const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+    if (!mainShop || mainShop.owner_id !== tokenInfo.userId) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
 
     const bindings = await bindingRepo.find({
       where: { main_shop_id: Number(mainShopId), status: 'active' },
@@ -1087,7 +1143,8 @@ export class MerchantController implements OnModuleInit {
   async subShopData(
     @Query('mainShopId') mainShopId: string,
     @Query('drawId') drawId: string,
-    @Query('lotteryKind') lotteryKind?: string,
+    @Query('lotteryKind') lotteryKind: string | undefined,
+    @Req() req: any,
   ) {
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
 
@@ -1100,6 +1157,14 @@ export class MerchantController implements OnModuleInit {
     const shopRepo = this.dataSource.getRepository(Shop);
     const orderRepo = this.dataSource.getRepository(Order);
     const drawRepo = this.dataSource.getRepository(Draw);
+
+    // 权限：tokenUserId 必须是 mainShopId 的 owner
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+    const mainShopAuth = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+    if (!mainShopAuth || mainShopAuth.owner_id !== tokenInfo.userId) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
 
     const bindings = await bindingRepo.find({
       where: { main_shop_id: Number(mainShopId), status: 'active' },
@@ -1279,7 +1344,8 @@ export class MerchantController implements OnModuleInit {
   async bindingHistory(
     @Query('mainShopId') mainShopId: string,
     @Query('limit') limit: string,
-    @Query('lotteryKind') lotteryKind?: string,
+    @Query('lotteryKind') lotteryKind: string | undefined,
+    @Req() req: any,
   ) {
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
 
@@ -1291,6 +1357,15 @@ export class MerchantController implements OnModuleInit {
     const drawRepo = this.dataSource.getRepository(Draw);
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
     const orderRepo = this.dataSource.getRepository(Order);
+    const shopRepo = this.dataSource.getRepository(Shop);
+
+    // 权限：tokenUserId 必须是 mainShopId 的 owner
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    if (!tokenInfo) throw new UnauthorizedException('请先登录');
+    const mainShopAuth = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+    if (!mainShopAuth || mainShopAuth.owner_id !== tokenInfo.userId) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
 
     const bindings = await bindingRepo.find({
       where: { main_shop_id: Number(mainShopId), status: 'active' },

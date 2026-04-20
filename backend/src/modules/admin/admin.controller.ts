@@ -203,14 +203,23 @@ export class AdminController {
     if (!user) throw new NotFoundException(`账号 ${account} 不存在`);
     const shops = await this.shopRepo.find({ where: { owner_id: user.user_id } });
     const shopNumbers = shops.map(s => s.shop_number);
+    let deletedOrders = 0;
+    let deletedDraws = 0;
     for (const shop of shops) {
-      // 先删除该店铺相关的所有 binding 记录（主店或子店），防止 shop_id 被复用后残留数据污染新账号
+      // 级联清理：防止 shop_id 被复用后历史 orders/draws 变成新账号的数据
+      const o = await this.orderRepo.delete({ shop_id: shop.shop_id });
+      const d = await this.drawRepo.delete({ shop_id: shop.shop_id }); // 仅删 TICA/NICA 店内彩期（NACIONAL 的 shop_id 为 NULL）
+      deletedOrders += o.affected || 0;
+      deletedDraws += d.affected || 0;
       await this.shopBindingRepo.delete({ main_shop_id: shop.shop_id });
       await this.shopBindingRepo.delete({ sub_shop_id: shop.shop_id });
       await this.shopRepo.delete(shop.shop_id);
     }
     await this.userRepo.delete(user.user_id);
-    return { success: true, message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}` };
+    return {
+      success: true,
+      message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}（清理订单 ${deletedOrders} 条，店内彩期 ${deletedDraws} 条）`,
+    };
   }
 
   /**

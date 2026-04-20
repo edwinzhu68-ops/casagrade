@@ -77,6 +77,19 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function bootstrap() {
+  // 生产环境必须设置这两个敏感 env；缺失则直接拒绝启动（防止硬编码默认值泄漏导致全系统裸奔）
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    const missing: string[] = [];
+    if (!process.env.TOKEN_SECRET || process.env.TOKEN_SECRET.trim() === '') missing.push('TOKEN_SECRET');
+    if (!process.env.ADMIN_TOKEN || process.env.ADMIN_TOKEN.trim() === '') missing.push('ADMIN_TOKEN');
+    if (missing.length > 0) {
+      const msg = `❌ 生产环境必须设置环境变量: ${missing.join(', ')}。拒绝启动，防止使用硬编码默认值导致安全裸奔。`;
+      writeErrorLog(msg);
+      throw new Error(msg);
+    }
+  }
+
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'], // 开启所有日志级别
   });

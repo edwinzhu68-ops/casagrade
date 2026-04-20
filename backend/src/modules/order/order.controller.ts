@@ -599,6 +599,14 @@ export class OrderController implements OnModuleInit {
       throw new NotFoundException('订单不存在');
     }
 
+    // 归属校验：token 的 userId 必须是订单所属店铺的 owner
+    // 防止商家 A 拿到商家 B 的订单号后恶意 confirm（强把未付款单标为 paid 骚扰 B 店）
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shopOfOrder = await shopRepo.findOne({ where: { shop_id: order.shop_id } });
+    if (!shopOfOrder || (shopOfOrder as any).owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作其他店铺的订单');
+    }
+
     if (order.status !== 0) {
       if (order.status === 1) {
         return { success: true, message: '订单已确认付款' };
