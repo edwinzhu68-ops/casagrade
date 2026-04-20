@@ -1095,6 +1095,12 @@
             changed = true;
             continue;
           }
+          // 401/403：token 过期或无权限 → 从列表移除该单，不再无限轮询
+          if (res.status === 401 || res.status === 403) {
+            removePendingOrderByNumber(orderNumber);
+            changed = true;
+            continue;
+          }
           if (!res.ok) continue;
           var data = await res.json();
           // 只有 pending(0) 才留在未付款列表；其他所有状态都清理（防止 stale 占满 MAX_PENDING_ORDERS）
@@ -1999,6 +2005,12 @@
       // 先检查再赋值，防止禁用彩种时锁定模式
       if (mode === 'TICA' && (!currentShop || !currentShop.tica_enabled)) return;
       if (mode === 'NICA' && (!currentShop || !currentShop.nica_enabled)) return;
+      // 切彩种时清空 betList（NACIONAL 是 4 位，TICA/NICA 是 2 位，不清会下错单）
+      if (mode !== clientLotteryMode) {
+        betList = [];
+        currentNumber = '';
+        currentQuantity = '';
+      }
       clientLotteryMode = mode;
       if (currentShop && currentShop.shop_id != null) persistClientLotteryModeForShop(currentShop.shop_id, mode);
       syncBilletePaletLabel(); updateClientModeButtons();
