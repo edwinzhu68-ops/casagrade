@@ -1735,8 +1735,8 @@
      * 订单增量同步缓存：order_id → order。localStorage 持久化避免反复全量拉取。
      * ordersSyncSince 是上一次同步的 serverTime（ISO），下次只拉 updated_at > since。
      */
-    // v2 强制所有设备下次打开走"首次加载"覆盖掉 v1 的脏缓存（修复多设备数据不一致 bug）
-    const ORDERS_CACHE_PREFIX = 'merchant_orders_cache_v2_';
+    // v3 强制所有设备重新首次加载（修复后端 updated_at 不更新导致的 paid 状态不同步 bug）
+    const ORDERS_CACHE_PREFIX = 'merchant_orders_cache_v3_';
     const LOCAL_SETTLED_KEY = 'merchant_local_settled_nacional_v1_';
     let ordersSyncSince = '';
     let ordersById = new Map();
