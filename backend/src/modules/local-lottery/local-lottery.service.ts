@@ -56,25 +56,33 @@ export class LocalLotteryService {
       this.assertLocalFeatureForKind(shop, kind);
     }
     const drawRepo = this.dataSource.getRepository(Draw);
-    let d = await findShopPendingLocalDraw(drawRepo, shopId, kind);
-    if (d) return d;
+    // 快路径：已存在 pending 直接返回，无需加锁
+    const existing = await findShopPendingLocalDraw(drawRepo, shopId, kind);
+    if (existing) return existing;
 
-    const panama = getPanamaYmd();
-    const drawDateStr = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
-    const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId, lotteryType: kind });
-    d = drawRepo.create({
-      draw_date: drawDateStr as any,
-      draw_time: '12:00:00',
-      status: 'pending',
-      winning_numbers: '',
-      is_manual_override: false,
-      lottery_type: kind,
-      shop_id: shopId,
-      period_no: periodNo,
+    // 慢路径：加锁避免并发下单时创建两个 pending 期（否则订单会分散到重复期，统计结算全乱）
+    return withShopLock(shopId, async () => {
+      // 锁内再查一次：可能前面的请求已经创建好了
+      const again = await findShopPendingLocalDraw(drawRepo, shopId, kind);
+      if (again) return again;
+
+      const panama = getPanamaYmd();
+      const drawDateStr = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+      const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId, lotteryType: kind });
+      const d = drawRepo.create({
+        draw_date: drawDateStr as any,
+        draw_time: '12:00:00',
+        status: 'pending',
+        winning_numbers: '',
+        is_manual_override: false,
+        lottery_type: kind,
+        shop_id: shopId,
+        period_no: periodNo,
+      });
+      await drawRepo.save(d);
+      this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} period_no=${periodNo} shop_id=${shopId}`);
+      return d;
     });
-    await drawRepo.save(d);
-    this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} period_no=${periodNo} shop_id=${shopId}`);
-    return d;
   }
 
   async getCurrent(shopId: number, kind: 'TICA' | 'NICA') {

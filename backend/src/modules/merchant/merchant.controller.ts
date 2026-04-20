@@ -458,6 +458,10 @@ export class MerchantController implements OnModuleInit {
       if (sessionToken) {
         await sessionRepo.delete({ user_id: userId, token: sessionToken });
       }
+      // 同时清掉 User 表的 session_token（历史字段），避免旧 session 还能被 fallback 路径识别为有效
+      try {
+        await this.dataSource.getRepository(User).update(userId, { session_token: null, updated_at: new Date() } as any);
+      } catch {}
     } catch {}
     return { success: true };
   }
@@ -1033,6 +1037,14 @@ export class MerchantController implements OnModuleInit {
       if (mainShop.owner_id !== tokenInfo.userId) throw new UnauthorizedException('无权操作该店铺');
     }
 
+    // 密码强度校验（调用方传的自定义密码必须 6+ 位且含字母+数字）
+    if (password != null && String(password).trim() !== '') {
+      const trimmed = String(password).trim();
+      if (trimmed.length < 6 || !/[A-Za-z]/.test(trimmed) || !/\d/.test(trimmed)) {
+        throw new BadRequestException('密码需 6+ 位，且同时包含字母和数字');
+      }
+    }
+
     // 找最大的5位数店号（≥10000），从它+1开始分配
     const allShops = await shopRepo.find({ select: ['shop_number'] });
     const usedShopNumbers = new Set(allShops.map(s => s.shop_number));
@@ -1054,12 +1066,13 @@ export class MerchantController implements OnModuleInit {
 
       const shopNumber = String(next);
       const accountNumber = shopNumber;
-      // 密码：用统一密码 or 每个随机生成（字母+数字，去掉易混淆字符）
+      // 密码：用统一密码 or 每个随机生成（8 位：字母+数字混合，去掉易混淆字符 O/0/I/l/1）
       const customPwd = (password || '').trim();
       const pwd = customPwd || (() => {
-        const letters = 'abcdefghjkmnpqrstuvwxyz'; // 去掉 i/l/o
-        const rand2 = Array.from({ length: 2 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
-        return shopNumber + rand2; // 如：10001kx
+        const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let s = '';
+        for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+        return s;
       })();
       const passwordHash = await bcrypt.hash(pwd, 10);
 

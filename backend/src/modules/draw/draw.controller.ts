@@ -904,6 +904,11 @@ export class DrawController {
       return { success: false, error: '没有可回滚的已完成开奖' };
     }
 
+    // 已归档期拒绝回滚（历史数据应保持不可变，避免报表和对账乱）
+    if ((completed as any).archived_at != null) {
+      return { success: false, error: '该期已归档，不可回滚。如确需回滚请先手动清除 archived_at' };
+    }
+
     // 检查是否有已兑奖订单（redeemed_at 不为 null），有则拒绝回滚
     const redeemed = await orderRepo
       .createQueryBuilder('o')

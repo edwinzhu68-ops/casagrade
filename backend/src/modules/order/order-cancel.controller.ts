@@ -24,6 +24,10 @@ export class OrderCancelController {
       throw new NotFoundException('订单不存在');
     }
     if (order.status !== 0) {
+      // 已付款/已中奖/已取消都不可取消
+      // - status=1/2 已付款或已开奖未中：业务上已形成交易
+      // - status=3 已中奖：绝不可取消，否则应收消失
+      // - status=-1 已取消：幂等返回错误
       throw new BadRequestException('只能取消未付款订单');
     }
 

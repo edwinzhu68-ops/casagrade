@@ -245,6 +245,7 @@ export class AdminController {
   async setShopSubscription(
     @Param('shopId') shopId: string,
     @Body('expires_at') expiresAt: string | null,
+    @Req() req: any,
   ) {
     const id = parseInt(shopId, 10);
     if (isNaN(id)) throw new BadRequestException('无效的 shopId');
@@ -257,7 +258,19 @@ export class AdminController {
       if (isNaN(newExpiry.getTime())) throw new BadRequestException('日期格式无效，请用 YYYY-MM-DD');
     }
 
+    const oldExpiry = (shop as any).subscription_expires_at
+      ? new Date((shop as any).subscription_expires_at).toISOString()
+      : null;
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+
     await this.shopRepo.update(id, { subscription_expires_at: newExpiry } as any);
+
+    // 审计日志（改月费到期日属于高敏感操作，必须留痕可追溯）
+    this.logger.log(
+      `[审计] 修改店铺订阅到期日 shop_id=${id} shop_number=${shop.shop_number} ` +
+      `old=${oldExpiry} → new=${newExpiry ? newExpiry.toISOString() : null} ip=${ip} time=${new Date().toISOString()}`,
+    );
+
     return {
       success: true,
       shop_id: id,
