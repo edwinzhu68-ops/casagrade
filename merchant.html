@@ -3201,6 +3201,12 @@
 
     /** 开奖后 winner sync 并发守卫，避免 3 秒轮询里重复发同一请求 */
     let winnerSyncInFlight = false;
+    /** loadDashboard 并发守卫：1 秒轮询下前一次没跑完新一次不启动，避免打后端 4 倍请求 */
+    let loadDashboardInFlight = false;
+    /** 上次已渲染过的 sid+workbenchKind 组合，空增量 + 同组合 + 30 秒内跑过 → 跳过派生重算 */
+    let lastDashboardRenderKey = null;
+    let lastDashboardRenderTime = 0;
+    const DASHBOARD_FULL_REFRESH_MS = 30 * 1000;
 
     /** 开奖后只拉中奖单（status=3），把下行从几 MB 降到几百 KB */
     async function syncShopOrdersWinnerOnly(drawId) {
@@ -3276,19 +3282,35 @@
       if (!currentShop || (currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId) !== sid) {
         return 0;
       }
-      (data.orders || []).forEach(function (o) {
-        if (o && o.order_id != null) ordersById.set(o.order_id, o);
-      });
-      ordersSyncSince = data.serverTime || ordersSyncSince;
-      allOrders = Array.from(ordersById.values()).filter(function (o) {
-        return o.status !== 'canceled' && o.status !== -1;
-      });
-      persistOrdersCache(sid);
-      return (data.orders || []).length;
+      const updateCount = (data.orders || []).length;
+      // 只在有实际变化时才 merge + 写 localStorage，空增量直接 return 避免浪费 IO（配合 1 秒轮询）
+      if (updateCount > 0) {
+        (data.orders || []).forEach(function (o) {
+          if (o && o.order_id != null) ordersById.set(o.order_id, o);
+        });
+        ordersSyncSince = data.serverTime || ordersSyncSince;
+        allOrders = Array.from(ordersById.values()).filter(function (o) {
+          return o.status !== 'canceled' && o.status !== -1;
+        });
+        persistOrdersCache(sid);
+      } else if (data.serverTime && data.serverTime !== ordersSyncSince) {
+        // 极少数情况：后端返回空但 serverTime 变了（理论不会发生，做兜底）
+        ordersSyncSince = data.serverTime;
+      }
+      return updateCount;
     }
 
     // 加载仪表盘（本期 = 待开奖期；开奖日期展示与客户端 /api/bet-status 保持一致）
     async function loadDashboard() {
+      if (!currentShop) return;
+      // 1 秒轮询并发守卫：前一次没跑完就跳过本次（避免慢网络下堆积）
+      if (loadDashboardInFlight) return;
+      loadDashboardInFlight = true;
+      try { await loadDashboardInner(); }
+      finally { loadDashboardInFlight = false; }
+    }
+
+    async function loadDashboardInner() {
       if (!currentShop) return;
 
       var shopKey = currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId;
@@ -3304,14 +3326,26 @@
       try {
         // 订单：增量同步（首次 90 天窗口 + 未兑奖中奖单；之后只拉 updated_at > since）
         // 不受任何 limit 截断，单店几万单也能稳定工作。
+        var syncedCount = 0;
         try {
-          await syncShopOrders();
+          syncedCount = await syncShopOrders();
         } catch (e) {
           showToast((getMerchantLang() === 'zh' ? '拉取订单失败: ' : 'Error al cargar pedidos: ') + (e.message || e) + ' · ' + API_BASE, 'error');
           console.error('syncShopOrders failed', e);
           return;
         }
         if (dashGen !== merchantDashboardLoadGeneration) return;
+
+        // 1 秒轮询优化：0 增量 + 同一店同工作台 + 30 秒内已完整渲染过 → 跳过 pending/latest/status fetch 和派生重算
+        // 后端压力保持和 3 秒轮询相当（绝大多数 tick 只发 1 个 orders-sync 请求）
+        // 30 秒兜底强制完整跑一次，感知万一漏掉的 draw 状态变化
+        var workbenchKindForKey = getMerchantWorkbenchKind();
+        var renderKey = sid + '_' + workbenchKindForKey;
+        if (syncedCount === 0 &&
+            lastDashboardRenderKey === renderKey &&
+            Date.now() - lastDashboardRenderTime < DASHBOARD_FULL_REFRESH_MS) {
+          return;
+        }
 
         const [pendingRes, latestRes, statusRes] = await Promise.all([
           fetch(`${API_BASE}/api/draw/pending`).catch(function () { return null; }),
@@ -3543,6 +3577,10 @@
         persistMerchantShopLocalFlags(currentShop);
         renderMerchantWorkbenchNav();
         scheduleMaybeOpenCashierOrder();
+
+        // 成功完成一次完整渲染，记录水位线供下次早退判断
+        lastDashboardRenderKey = renderKey;
+        lastDashboardRenderTime = Date.now();
 
       } catch (err) {
         console.error(err);
@@ -5594,10 +5632,12 @@
       }, 2000);
     }
 
-    // 定时刷新（约 3 秒一次，便于尽快看到顾客新下单）
+    // 定时刷新：1 秒一次（多端秒级同步）
+    // 绝大多数 tick 的 orders-sync 是 0 增量 → 直接早退，不打 pending/latest/status；
+    // 有新订单时才跑完整 loadDashboard。后端压力和 3 秒轮询相当。
     setInterval(() => {
       if (currentShop) loadDashboard();
-    }, 3000);
+    }, 1000);
     // 切回本页时立即刷新
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && currentShop) loadDashboard();
