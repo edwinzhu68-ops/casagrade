@@ -518,6 +518,7 @@ export class OrderController implements OnModuleInit {
         game_type: gameType,
         win_amount: 0,
         win_breakdown: null,
+        updated_at: new Date(),
       } as any);
 
       this.logger.log(`订单修改: #${fresh.order_number}, 店铺: ${shopId}, 新金额: $${amount}`);
@@ -609,9 +610,11 @@ export class OrderController implements OnModuleInit {
     const drawRepo = this.dataSource.getRepository(Draw);
     const orderLt = String((order as any).lottery_type || 'NACIONAL').toUpperCase();
     const currentNational = await findNationalPendingDraw(drawRepo);
+    const nowTs = new Date();
     const updatePayload: any = {
       status: 1, // Paid
-      paid_at: new Date(),
+      paid_at: nowTs,
+      updated_at: nowTs, // TypeORM @UpdateDateColumn 对 .update() 不生效，必须手动写
     };
     if (body.note != null) updatePayload.note = String(body.note).slice(0, 200);
     if (
@@ -666,10 +669,11 @@ export class OrderController implements OnModuleInit {
       throw new BadRequestException(order.status === 1 ? '尚未开奖，无法兑奖' : '该订单未中奖或状态异常');
     }
     // 原子操作：WHERE redeemed_at IS NULL，防止并发双击导致重复兑奖
+    const nowTs2 = new Date();
     const redeemResult = await orderRepo
       .createQueryBuilder()
       .update(Order)
-      .set({ redeemed_at: new Date() } as any)
+      .set({ redeemed_at: nowTs2, updated_at: nowTs2 } as any)
       .where('order_id = :id AND redeemed_at IS NULL', { id: order.order_id })
       .execute();
 

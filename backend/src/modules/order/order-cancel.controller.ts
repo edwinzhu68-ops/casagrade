@@ -27,9 +27,11 @@ export class OrderCancelController {
       throw new BadRequestException('只能取消未付款订单');
     }
 
+    const nowTs = new Date();
     await orderRepo.update(order.order_id, {
       status: -1,
-      canceled_at: new Date(),
+      canceled_at: nowTs,
+      updated_at: nowTs,
     } as any);
 
     return {

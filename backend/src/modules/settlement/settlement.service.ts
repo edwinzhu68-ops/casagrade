@@ -109,15 +109,17 @@ export class SettlementService {
       for (let i = 0; i < orders.length; i++) {
         const order = orders[i];
         const orderResult = results.results[i];
+        const nowTs = new Date();
         await manager.update(Order, order.order_id, {
           status: orderResult.payout > 0 ? 3 : 2, // 3=已中奖 2=已开奖
           win_amount: orderResult.payout,
           win_breakdown: orderResult.wins,
-          settled_at: new Date(),
+          settled_at: nowTs,
+          updated_at: nowTs,
         } as any);
       }
-      // 更新开奖期次状态
-      await manager.update(Draw, drawId, { status: 'COMPLETED' as any });
+      // 更新开奖期次状态（统一小写）
+      await manager.update(Draw, drawId, { status: 'completed' as any });
     });
 
     this.logger.log(`结算完成: ${results.totalOrders}单, 销售额$${results.totalSales}, 赔付$${results.totalPayout}, 中奖${results.wins}单`);
@@ -178,19 +180,22 @@ export class SettlementService {
       for (let i = 0; i < orders.length; i++) {
         const order = orders[i];
         const orderResult = results.results[i];
+        const nowTs = new Date();
         await manager.update(Order, order.order_id, {
           status: orderResult.payout > 0 ? 3 : 2,
           win_amount: orderResult.payout,
           win_breakdown: orderResult.wins,
-          settled_at: new Date(),
+          settled_at: nowTs,
+          updated_at: nowTs,
         } as any);
       }
       await manager.update(Draw, drawId, { status: 'completed' } as any);
       // TICA/NICA 开奖后自动取消该期所有未付款订单(status=0 → status=-1)
+      const cancelTs = new Date();
       const cancelResult = await manager
         .createQueryBuilder()
         .update(Order)
-        .set({ status: -1 } as any)
+        .set({ status: -1, canceled_at: cancelTs, updated_at: cancelTs } as any)
         .where('draw_id = :drawId AND status = 0', { drawId })
         .execute();
       if (cancelResult.affected && cancelResult.affected > 0) {

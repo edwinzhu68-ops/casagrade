@@ -89,10 +89,11 @@ export class OrderCancelService implements OnModuleInit {
       if (!(await this.isInStopSellPeriod())) return;
 
       const orderRepo = this.dataSource.getRepository(Order);
+      const nowTs = new Date();
       const result = await orderRepo
         .createQueryBuilder()
         .update(Order)
-        .set({ status: -1 as any, canceled_at: new Date() } as any)
+        .set({ status: -1 as any, canceled_at: nowTs, updated_at: nowTs } as any)
         .where('status = :status', { status: 0 })
         .andWhere('(lottery_type IS NULL OR lottery_type = :nac)', { nac: 'NACIONAL' })
         .execute();

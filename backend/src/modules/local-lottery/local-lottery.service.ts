@@ -505,6 +505,7 @@ export class LocalLotteryService {
         game_type: gameType,
         win_amount: 0,
         win_breakdown: null,
+        updated_at: new Date(),
       } as any);
 
       this.logger.log(`${kind} 订单修改: #${order.order_number}, 店铺: ${shopId}, 新金额: $${amount}`);

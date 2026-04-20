@@ -166,12 +166,14 @@ async function settleOrdersForDraw(
       }
 
       const newStatus = totalWin > 0 ? 3 : 2; // 3=已中奖 2=已开奖
+      const nowTs = new Date();
       await manager.update(Order, order.order_id, {
         draw_id: drawId,
         win_amount: totalWin,
         win_breakdown: winBreakdown,
         status: newStatus,
-        settled_at: new Date(),
+        settled_at: nowTs,
+        updated_at: nowTs,
       } as any);
     }
   });
@@ -686,7 +688,7 @@ export class DrawController {
     const cancelResult = await this.dataSource.getRepository(Order)
       .createQueryBuilder()
       .update(Order)
-      .set({ status: -1 } as any)
+      .set({ status: -1, canceled_at: new Date(), updated_at: new Date() } as any)
       .where('draw_id = :drawId AND status = 0', { drawId: draw.draw_id })
       .execute();
     if (cancelResult.affected && cancelResult.affected > 0) {
@@ -890,7 +892,7 @@ export class DrawController {
     await orderRepo
       .createQueryBuilder()
       .update(Order)
-      .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null } as any)
+      .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() } as any)
       .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
       .execute();
 

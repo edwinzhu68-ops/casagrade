@@ -197,10 +197,11 @@ export class DrawDayService implements OnModuleInit {
   /** 开奖时间到：将当期所有未付款订单（status=0）标记为已取消（status=-1）；幂等操作 */
   private async cancelUnpaidOrders(drawId: number) {
     try {
+      const nowTs = new Date();
       const result = await this.dataSource.getRepository(Order)
         .createQueryBuilder()
         .update(Order)
-        .set({ status: -1 } as any)
+        .set({ status: -1, canceled_at: nowTs, updated_at: nowTs } as any)
         .where('draw_id = :drawId AND status = 0', { drawId })
         .execute();
       if (result.affected && result.affected > 0) {
