@@ -220,7 +220,8 @@
       return 'https://api.casagrade.com';
     })();
 
-    const BEARER_KEY = 'cards_admin_bearer';
+    // 和 dashboard.html / merchant.html 共享同一 Bearer key，一次登录多处生效
+    const BEARER_KEY = 'lottery_token';
     let _bearer = '';
 
     function getHeaders() {
