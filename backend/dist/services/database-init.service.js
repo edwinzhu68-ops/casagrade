@@ -23,6 +23,7 @@ let DatabaseInitService = DatabaseInitService_1 = class DatabaseInitService {
     async onModuleInit() {
         await this.ensureTicaNicaColumns();
         await this.ensureDrawPeriodNoColumn();
+        await this.bootstrapAdminAccount();
         const indexes = [
             {
                 name: 'idx_orders_draw_status',
@@ -109,6 +110,24 @@ let DatabaseInitService = DatabaseInitService_1 = class DatabaseInitService {
             await this.dataSource.query(`UPDATE orders SET lottery_type = 'NACIONAL' WHERE lottery_type IS NULL`);
         }
         catch { }
+    }
+    async bootstrapAdminAccount() {
+        const adminAccount = (process.env.ADMIN_ACCOUNT || '').trim();
+        if (!adminAccount)
+            return;
+        try {
+            const result = await this.dataSource.query(`UPDATE users SET role = 'admin' WHERE account_number = ? AND role != 'admin'`, [adminAccount]);
+            const affected = result?.affected ?? (Array.isArray(result) ? 0 : 0);
+            if (affected > 0) {
+                this.logger.log(`Admin bootstrap：账号 ${adminAccount} role 已设为 admin`);
+            }
+            else {
+                this.logger.log(`Admin bootstrap：账号 ${adminAccount} 已是 admin 或不存在（跳过）`);
+            }
+        }
+        catch (e) {
+            this.logger.warn(`Admin bootstrap 失败: ${e.message}`);
+        }
     }
     async ensureDrawPeriodNoColumn() {
         try {

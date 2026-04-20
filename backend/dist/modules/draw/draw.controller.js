@@ -1,10 +1,43 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
@@ -12,15 +45,47 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var DrawController_1, AdminController_1;
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminController = exports.DrawController = void 0;
 const common_1 = require("@nestjs/common");
+const express_1 = require("express");
 const typeorm_1 = require("typeorm");
+const crypto = __importStar(require("crypto"));
 const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
 const admin_token_guard_1 = require("../../guards/admin-token.guard");
 const draw_day_service_1 = require("./draw-day.service");
+function requireValidBearerToken(req) {
+    const authHeader = (req.headers?.['authorization'] || '');
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    if (!raw)
+        throw new common_1.UnauthorizedException('请先登录');
+    const lastDot = raw.lastIndexOf('.');
+    if (lastDot <= 0)
+        throw new common_1.UnauthorizedException('请先登录');
+    const payload = raw.slice(0, lastDot);
+    const sig = raw.slice(lastDot + 1);
+    const secret = process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
+    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        throw new common_1.UnauthorizedException('登录已过期');
+    }
+    try {
+        const decoded = Buffer.from(payload, 'base64').toString('utf8');
+        const colonIdx = decoded.indexOf(':');
+        const userId = colonIdx > 0 ? parseInt(decoded.slice(0, colonIdx), 10) : NaN;
+        if (isNaN(userId))
+            throw new common_1.UnauthorizedException('登录已过期');
+        return userId;
+    }
+    catch {
+        throw new common_1.UnauthorizedException('登录已过期');
+    }
+}
 const draw_queries_1 = require("../../utils/draw-queries");
 const draw_period_no_1 = require("../../utils/draw-period-no");
 const BILLETE_RATE_DEFAULT = {
@@ -144,12 +209,14 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
                 winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });
             }
             const newStatus = totalWin > 0 ? 3 : 2;
+            const nowTs = new Date();
             await manager.update(order_entity_1.Order, order.order_id, {
                 draw_id: drawId,
                 win_amount: totalWin,
                 win_breakdown: winBreakdown,
                 status: newStatus,
-                settled_at: new Date(),
+                settled_at: nowTs,
+                updated_at: nowTs,
             });
         }
     });
@@ -546,7 +613,7 @@ let DrawController = DrawController_1 = class DrawController {
         const cancelResult = await this.dataSource.getRepository(order_entity_1.Order)
             .createQueryBuilder()
             .update(order_entity_1.Order)
-            .set({ status: -1 })
+            .set({ status: -1, canceled_at: new Date(), updated_at: new Date() })
             .where('draw_id = :drawId AND status = 0', { drawId: draw.draw_id })
             .execute();
         if (cancelResult.affected && cancelResult.affected > 0) {
@@ -680,6 +747,9 @@ let DrawController = DrawController_1 = class DrawController {
         if (!completed) {
             return { success: false, error: '没有可回滚的已完成开奖' };
         }
+        if (completed.archived_at != null) {
+            return { success: false, error: '该期已归档，不可回滚。如确需回滚请先手动清除 archived_at' };
+        }
         const redeemed = await orderRepo
             .createQueryBuilder('o')
             .where('o.draw_id = :did', { did: completed.draw_id })
@@ -693,7 +763,7 @@ let DrawController = DrawController_1 = class DrawController {
         await orderRepo
             .createQueryBuilder()
             .update(order_entity_1.Order)
-            .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null })
+            .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() })
             .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
             .execute();
         await drawRepo.update(completed.draw_id, {
@@ -793,7 +863,8 @@ let AdminController = AdminController_1 = class AdminController {
         this.dataSource = dataSource;
         this.logger = new common_1.Logger(AdminController_1.name);
     }
-    async clearSettlement() {
+    async clearSettlement(req) {
+        requireValidBearerToken(req);
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const result = await drawRepo
             .createQueryBuilder()
@@ -827,8 +898,9 @@ let AdminController = AdminController_1 = class AdminController {
 exports.AdminController = AdminController;
 __decorate([
     (0, common_1.Post)('clear-settlement'),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [typeof (_a = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _a : Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "clearSettlement", null);
 __decorate([

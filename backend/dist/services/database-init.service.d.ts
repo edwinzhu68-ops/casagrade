@@ -6,5 +6,6 @@ export declare class DatabaseInitService implements OnModuleInit {
     constructor(dataSource: DataSource);
     onModuleInit(): Promise<void>;
     private ensureTicaNicaColumns;
+    private bootstrapAdminAccount;
     private ensureDrawPeriodNoColumn;
 }

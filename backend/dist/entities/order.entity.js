@@ -126,6 +126,7 @@ exports.Order = Order = __decorate([
     (0, typeorm_1.Entity)('orders'),
     (0, typeorm_1.Index)(['draw_id', 'status']),
     (0, typeorm_1.Index)(['shop_id', 'draw_id']),
-    (0, typeorm_1.Index)(['shop_id', 'status'])
+    (0, typeorm_1.Index)(['shop_id', 'status']),
+    (0, typeorm_1.Index)(['shop_id', 'updated_at'])
 ], Order);
 //# sourceMappingURL=order.entity.js.map

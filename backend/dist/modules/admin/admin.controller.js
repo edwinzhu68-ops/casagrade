@@ -204,13 +204,22 @@ let AdminController = AdminController_1 = class AdminController {
             throw new common_1.NotFoundException(`账号 ${account} 不存在`);
         const shops = await this.shopRepo.find({ where: { owner_id: user.user_id } });
         const shopNumbers = shops.map(s => s.shop_number);
+        let deletedOrders = 0;
+        let deletedDraws = 0;
         for (const shop of shops) {
+            const o = await this.orderRepo.delete({ shop_id: shop.shop_id });
+            const d = await this.drawRepo.delete({ shop_id: shop.shop_id });
+            deletedOrders += o.affected || 0;
+            deletedDraws += d.affected || 0;
             await this.shopBindingRepo.delete({ main_shop_id: shop.shop_id });
             await this.shopBindingRepo.delete({ sub_shop_id: shop.shop_id });
             await this.shopRepo.delete(shop.shop_id);
         }
         await this.userRepo.delete(user.user_id);
-        return { success: true, message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}` };
+        return {
+            success: true,
+            message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}（清理订单 ${deletedOrders} 条，店内彩期 ${deletedDraws} 条）`,
+        };
     }
     async setShopStatus(shopId, status) {
         const shop = await this.shopRepo.findOne({ where: { shop_id: parseInt(shopId) } });
@@ -221,7 +230,7 @@ let AdminController = AdminController_1 = class AdminController {
         await this.shopRepo.update(shop.shop_id, { status });
         return { success: true, shop_id: shop.shop_id, status };
     }
-    async setShopSubscription(shopId, expiresAt) {
+    async setShopSubscription(shopId, expiresAt, req) {
         const id = parseInt(shopId, 10);
         if (isNaN(id))
             throw new common_1.BadRequestException('无效的 shopId');
@@ -234,7 +243,13 @@ let AdminController = AdminController_1 = class AdminController {
             if (isNaN(newExpiry.getTime()))
                 throw new common_1.BadRequestException('日期格式无效，请用 YYYY-MM-DD');
         }
+        const oldExpiry = shop.subscription_expires_at
+            ? new Date(shop.subscription_expires_at).toISOString()
+            : null;
+        const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
         await this.shopRepo.update(id, { subscription_expires_at: newExpiry });
+        this.logger.log(`[审计] 修改店铺订阅到期日 shop_id=${id} shop_number=${shop.shop_number} ` +
+            `old=${oldExpiry} → new=${newExpiry ? newExpiry.toISOString() : null} ip=${ip} time=${new Date().toISOString()}`);
         return {
             success: true,
             shop_id: id,
@@ -508,8 +523,9 @@ __decorate([
     (0, common_1.Patch)('shops/:shopId/subscription'),
     __param(0, (0, common_1.Param)('shopId')),
     __param(1, (0, common_1.Body)('expires_at')),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "setShopSubscription", null);
 __decorate([

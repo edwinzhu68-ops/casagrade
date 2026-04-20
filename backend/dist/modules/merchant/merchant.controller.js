@@ -67,6 +67,9 @@ const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const cardFailMap = new Map();
 const CARD_MAX_FAIL = 5;
 const CARD_LOCKOUT_MS = 30 * 60 * 1000;
+const forgotPwMap = new Map();
+const FORGOT_PW_MAX_PER_HOUR = 3;
+const FORGOT_PW_WINDOW_MS = 60 * 60 * 1000;
 setInterval(() => {
     const now = Date.now();
     for (const [ip, entry] of loginFailMap) {
@@ -76,6 +79,10 @@ setInterval(() => {
     for (const [ip, entry] of cardFailMap) {
         if (entry.until < now)
             cardFailMap.delete(ip);
+    }
+    for (const [ip, entry] of forgotPwMap) {
+        if (entry.resetAt < now)
+            forgotPwMap.delete(ip);
     }
 }, 60 * 60 * 1000);
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
@@ -255,15 +262,28 @@ let MerchantController = MerchantController_1 = class MerchantController {
             trialExpiresAt: trialExpires.toISOString().slice(0, 10),
         };
     }
-    async forgotPassword(body) {
+    async forgotPassword(body, req) {
         const email = (body.email || '').trim().toLowerCase();
         if (!email)
             throw new common_1.BadRequestException('请输入邮箱');
+        const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || 'unknown').toString().split(',')[0].trim();
+        const now = Date.now();
+        const entry = forgotPwMap.get(ip);
+        if (entry && entry.resetAt > now) {
+            if (entry.count >= FORGOT_PW_MAX_PER_HOUR) {
+                throw new common_1.BadRequestException('操作过于频繁，请 1 小时后再试');
+            }
+            entry.count++;
+        }
+        else {
+            forgotPwMap.set(ip, { count: 1, resetAt: now + FORGOT_PW_WINDOW_MS });
+        }
         const userRepo = this.dataSource.getRepository(user_entity_1.User);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const user = await userRepo.findOne({ where: { email } });
-        if (!user)
-            throw new common_1.NotFoundException('该邮箱未绑定任何账号');
+        if (!user) {
+            return { success: true, message: '如邮箱已注册，新密码邮件已发送' };
+        }
         const lowerChars = 'abcdefghjkmnpqrstuvwxyz';
         const upperChars = 'ABCDEFGHJKMNPQRSTUVWXYZ';
         const digitChars = '23456789';
@@ -300,7 +320,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
             html: `<p>Tu nueva contraseña temporal es: <strong>${newPassword}</strong></p><p>Cuenta: ${user.account_number}<br>Tienda: ${shop?.shop_number || '-'}</p><p style="color:#888;font-size:12px">Cambia tu contraseña después de iniciar sesión.</p>`,
         });
         this.logger.log(`找回密码: 账号=${user.account_number}, 邮箱=${email}`);
-        return { success: true, message: '新密码已发送到你的邮箱' };
+        return { success: true, message: '如邮箱已注册，新密码邮件已发送' };
     }
     async login(dto, req) {
         const account = String(dto.account ?? dto.accountNumber ?? '').trim().toLowerCase();
@@ -394,6 +414,10 @@ let MerchantController = MerchantController_1 = class MerchantController {
             if (sessionToken) {
                 await sessionRepo.delete({ user_id: userId, token: sessionToken });
             }
+            try {
+                await this.dataSource.getRepository(user_entity_1.User).update(userId, { session_token: null, updated_at: new Date() });
+            }
+            catch { }
         }
         catch { }
         return { success: true };
@@ -607,11 +631,18 @@ let MerchantController = MerchantController_1 = class MerchantController {
         this.logger.log(`大庄邀请绑定: 大庄=${mainShop.shop_number} → 小庄=${subShop.shop_number}`);
         return { success: true, message: '绑定邀请已发送，等待小庄确认' };
     }
-    async bindingPending(shopId) {
+    async bindingPending(shopId, req) {
         if (!shopId)
             throw new common_1.BadRequestException('缺少 shopId');
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        if (!tokenInfo)
+            throw new common_1.UnauthorizedException('请先登录');
+        const subShop = await shopRepo.findOne({ where: { shop_id: Number(shopId) } });
+        if (!subShop || subShop.owner_id !== tokenInfo.userId) {
+            throw new common_1.UnauthorizedException('无权查看该店铺数据');
+        }
         const pending = await bindingRepo.find({
             where: { sub_shop_id: Number(shopId), status: 'pending' },
             order: { created_at: 'ASC' },
@@ -665,11 +696,18 @@ let MerchantController = MerchantController_1 = class MerchantController {
         this.logger.log(`小庄申请绑定: 小庄=${subShop.shop_number} → 大庄=${mainShop.shop_number}`);
         return { success: true, message: `申请已发送，等待大庄 ${mainShop.shop_number} 确认` };
     }
-    async bindingIncoming(mainShopId) {
+    async bindingIncoming(mainShopId, req) {
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        if (!tokenInfo)
+            throw new common_1.UnauthorizedException('请先登录');
+        const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+        if (!mainShop || mainShop.owner_id !== tokenInfo.userId) {
+            throw new common_1.UnauthorizedException('无权查看该店铺数据');
+        }
         const incoming = await bindingRepo.find({
             where: { main_shop_id: Number(mainShopId), status: 'pending' },
             order: { created_at: 'ASC' },
@@ -779,11 +817,18 @@ let MerchantController = MerchantController_1 = class MerchantController {
         await bindingRepo.save(binding);
         return { success: true, commission_rate: rate };
     }
-    async myBinding(shopId) {
+    async myBinding(shopId, req) {
         if (!shopId)
             throw new common_1.BadRequestException('缺少 shopId');
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        if (!tokenInfo)
+            throw new common_1.UnauthorizedException('请先登录');
+        const subShop = await shopRepo.findOne({ where: { shop_id: Number(shopId) } });
+        if (!subShop || subShop.owner_id !== tokenInfo.userId) {
+            throw new common_1.UnauthorizedException('无权查看该店铺数据');
+        }
         const binding = await bindingRepo.findOne({ where: { sub_shop_id: Number(shopId) } });
         if (!binding)
             return { binding: null };
@@ -820,6 +865,12 @@ let MerchantController = MerchantController_1 = class MerchantController {
             if (mainShop.owner_id !== tokenInfo.userId)
                 throw new common_1.UnauthorizedException('无权操作该店铺');
         }
+        if (password != null && String(password).trim() !== '') {
+            const trimmed = String(password).trim();
+            if (trimmed.length < 6 || !/[A-Za-z]/.test(trimmed) || !/\d/.test(trimmed)) {
+                throw new common_1.BadRequestException('密码需 6+ 位，且同时包含字母和数字');
+            }
+        }
         const allShops = await shopRepo.find({ select: ['shop_number'] });
         const usedShopNumbers = new Set(allShops.map(s => s.shop_number));
         const allUsers = await userRepo.find({ select: ['account_number'] });
@@ -838,9 +889,11 @@ let MerchantController = MerchantController_1 = class MerchantController {
             const accountNumber = shopNumber;
             const customPwd = (password || '').trim();
             const pwd = customPwd || (() => {
-                const letters = 'abcdefghjkmnpqrstuvwxyz';
-                const rand2 = Array.from({ length: 2 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
-                return shopNumber + rand2;
+                const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                let s = '';
+                for (let i = 0; i < 8; i++)
+                    s += chars[Math.floor(Math.random() * chars.length)];
+                return s;
             })();
             const passwordHash = await bcrypt.hash(pwd, 10);
             const user = userRepo.create({ account_number: accountNumber, password_hash: passwordHash });
@@ -868,11 +921,18 @@ let MerchantController = MerchantController_1 = class MerchantController {
         this.logger.log(`大庄批量注册小庄: 大庄=${mainShop.shop_number} 创建${n}个 [${created.map(c => c.shopNumber).join(',')}]`);
         return { success: true, created, count: created.length };
     }
-    async subShops(mainShopId) {
+    async subShops(mainShopId, req) {
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        if (!tokenInfo)
+            throw new common_1.UnauthorizedException('请先登录');
+        const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+        if (!mainShop || mainShop.owner_id !== tokenInfo.userId) {
+            throw new common_1.UnauthorizedException('无权查看该店铺数据');
+        }
         const bindings = await bindingRepo.find({
             where: { main_shop_id: Number(mainShopId), status: 'active' },
             order: { created_at: 'ASC' },
@@ -889,7 +949,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
         }));
         return { sub_shops: result };
     }
-    async subShopData(mainShopId, drawId, lotteryKind) {
+    async subShopData(mainShopId, drawId, lotteryKind, req) {
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
         const kind = (lotteryKind || 'NACIONAL').toString().toUpperCase();
@@ -900,6 +960,13 @@ let MerchantController = MerchantController_1 = class MerchantController {
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        if (!tokenInfo)
+            throw new common_1.UnauthorizedException('请先登录');
+        const mainShopAuth = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+        if (!mainShopAuth || mainShopAuth.owner_id !== tokenInfo.userId) {
+            throw new common_1.UnauthorizedException('无权查看该店铺数据');
+        }
         const bindings = await bindingRepo.find({
             where: { main_shop_id: Number(mainShopId), status: 'active' },
         });
@@ -1050,7 +1117,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
             },
         };
     }
-    async bindingHistory(mainShopId, limit, lotteryKind) {
+    async bindingHistory(mainShopId, limit, lotteryKind, req) {
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
         const kind = (lotteryKind || 'NACIONAL').toString().toUpperCase();
@@ -1060,6 +1127,14 @@ let MerchantController = MerchantController_1 = class MerchantController {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        if (!tokenInfo)
+            throw new common_1.UnauthorizedException('请先登录');
+        const mainShopAuth = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
+        if (!mainShopAuth || mainShopAuth.owner_id !== tokenInfo.userId) {
+            throw new common_1.UnauthorizedException('无权查看该店铺数据');
+        }
         const bindings = await bindingRepo.find({
             where: { main_shop_id: Number(mainShopId), status: 'active' },
         });
@@ -1332,8 +1407,9 @@ __decorate([
 __decorate([
     (0, common_1.Post)('forgot-password'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "forgotPassword", null);
 __decorate([
@@ -1392,8 +1468,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)('binding/pending'),
     __param(0, (0, common_1.Query)('shopId')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "bindingPending", null);
 __decorate([
@@ -1406,8 +1483,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)('binding/incoming'),
     __param(0, (0, common_1.Query)('mainShopId')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "bindingIncoming", null);
 __decorate([
@@ -1447,8 +1525,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)('binding/my-binding'),
     __param(0, (0, common_1.Query)('shopId')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "myBinding", null);
 __decorate([
@@ -1462,8 +1541,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)('binding/sub-shops'),
     __param(0, (0, common_1.Query)('mainShopId')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "subShops", null);
 __decorate([
@@ -1471,8 +1551,9 @@ __decorate([
     __param(0, (0, common_1.Query)('mainShopId')),
     __param(1, (0, common_1.Query)('drawId')),
     __param(2, (0, common_1.Query)('lotteryKind')),
+    __param(3, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "subShopData", null);
 __decorate([
@@ -1480,8 +1561,9 @@ __decorate([
     __param(0, (0, common_1.Query)('mainShopId')),
     __param(1, (0, common_1.Query)('limit')),
     __param(2, (0, common_1.Query)('lotteryKind')),
+    __param(3, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "bindingHistory", null);
 __decorate([

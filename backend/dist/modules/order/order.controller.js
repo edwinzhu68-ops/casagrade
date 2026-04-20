@@ -472,6 +472,7 @@ let OrderController = OrderController_1 = class OrderController {
                 game_type: gameType,
                 win_amount: 0,
                 win_breakdown: null,
+                updated_at: new Date(),
             });
             this.logger.log(`订单修改: #${fresh.order_number}, 店铺: ${shopId}, 新金额: $${amount}`);
             return {
@@ -535,6 +536,11 @@ let OrderController = OrderController_1 = class OrderController {
         if (!order) {
             throw new common_1.NotFoundException('订单不存在');
         }
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const shopOfOrder = await shopRepo.findOne({ where: { shop_id: order.shop_id } });
+        if (!shopOfOrder || shopOfOrder.owner_id !== tokenUserId) {
+            throw new common_2.UnauthorizedException('无权操作其他店铺的订单');
+        }
         if (order.status !== 0) {
             if (order.status === 1) {
                 return { success: true, message: '订单已确认付款' };
@@ -544,9 +550,11 @@ let OrderController = OrderController_1 = class OrderController {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
         const orderLt = String(order.lottery_type || 'NACIONAL').toUpperCase();
         const currentNational = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        const nowTs = new Date();
         const updatePayload = {
             status: 1,
-            paid_at: new Date(),
+            paid_at: nowTs,
+            updated_at: nowTs,
         };
         if (body.note != null)
             updatePayload.note = String(body.note).slice(0, 200);
@@ -584,10 +592,11 @@ let OrderController = OrderController_1 = class OrderController {
         if (order.status !== 3) {
             throw new common_1.BadRequestException(order.status === 1 ? '尚未开奖，无法兑奖' : '该订单未中奖或状态异常');
         }
+        const nowTs2 = new Date();
         const redeemResult = await orderRepo
             .createQueryBuilder()
             .update(order_entity_1.Order)
-            .set({ redeemed_at: new Date() })
+            .set({ redeemed_at: nowTs2, updated_at: nowTs2 })
             .where('order_id = :id AND redeemed_at IS NULL', { id: order.order_id })
             .execute();
         if (!redeemResult.affected || redeemResult.affected === 0) {
@@ -695,6 +704,118 @@ let ShopController = ShopController_1 = class ShopController {
         }
         return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
     }
+    async syncShopOrders(shopId, since = '', drawId, lotteryKind, winnerOnly) {
+        const id = parseInt(String(shopId || '').trim(), 10);
+        if (!shopId || isNaN(id) || id <= 0) {
+            throw new common_1.BadRequestException('缺少或无效的 shopId');
+        }
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+        let shop = await shopRepo.findOne({ where: { shop_id: id } });
+        if (!shop) {
+            shop = await shopRepo.findOne({ where: { shop_number: String(id) } });
+        }
+        if (!shop) {
+            throw new common_1.NotFoundException('店铺不存在');
+        }
+        const isWinnerOnly = winnerOnly === '1' || winnerOnly === 'true';
+        const isInitialLoad = !(since && since.trim());
+        let sinceDate = new Date(0);
+        if (!isInitialLoad) {
+            const parsed = new Date(since);
+            sinceDate = isNaN(parsed.getTime()) ? new Date(0) : parsed;
+        }
+        const q = orderRepo.createQueryBuilder('order')
+            .where('order.shop_id = :shopId', { shopId: shop.shop_id })
+            .orderBy('order.updated_at', 'ASC');
+        if (isWinnerOnly) {
+            q.andWhere('order.status = 3');
+            if (drawId && Number(drawId) > 0) {
+                q.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
+            }
+            if (!isInitialLoad) {
+                q.andWhere('order.updated_at >= :since', { since: sinceDate });
+            }
+        }
+        else if (isInitialLoad) {
+            const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+            const drawIds = [];
+            const [nacPending, nacCompleted, ticaPending, ticaCompleted, nicaPending, nicaCompleted] = await Promise.all([
+                (0, draw_queries_1.findNationalPendingDraw)(drawRepo),
+                (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo),
+                (0, draw_queries_1.findShopPendingLocalDraw)(drawRepo, shop.shop_id, 'TICA'),
+                (0, draw_queries_1.findShopLastCompletedLocalDraw)(drawRepo, shop.shop_id, 'TICA'),
+                (0, draw_queries_1.findShopPendingLocalDraw)(drawRepo, shop.shop_id, 'NICA'),
+                (0, draw_queries_1.findShopLastCompletedLocalDraw)(drawRepo, shop.shop_id, 'NICA'),
+            ]);
+            for (const d of [nacPending, nacCompleted, ticaPending, ticaCompleted, nicaPending, nicaCompleted]) {
+                if (d && d.draw_id != null)
+                    drawIds.push(d.draw_id);
+            }
+            if (drawIds.length > 0) {
+                q.andWhere('(order.draw_id IN (:...drawIds) OR (order.status = 3 AND order.redeemed_at IS NULL))', { drawIds });
+            }
+            else {
+                q.andWhere('(order.status = 3 AND order.redeemed_at IS NULL)');
+            }
+        }
+        else {
+            q.andWhere('order.updated_at >= :since', { since: sinceDate });
+        }
+        if (drawId && Number(drawId) > 0) {
+            q.andWhere('(order.draw_id = :drawId OR order.draw_id IS NULL)', { drawId: Number(drawId) });
+        }
+        const lk = (lotteryKind || '').toString().toUpperCase();
+        if (lk === 'TICA' || lk === 'NICA') {
+            q.andWhere('order.lottery_type = :lk', { lk });
+        }
+        else if (lk === 'NACIONAL') {
+            q.andWhere('(order.lottery_type = :nac OR order.lottery_type IS NULL)', { nac: 'NACIONAL' });
+        }
+        const orders = await q.getMany();
+        let nextSinceIso;
+        if (orders.length > 0) {
+            const last = orders[orders.length - 1];
+            const stamp = last.updated_at || last.created_at;
+            nextSinceIso = new Date(stamp).toISOString();
+        }
+        else {
+            nextSinceIso = isInitialLoad ? new Date(0).toISOString() : sinceDate.toISOString();
+        }
+        const statusMap = {
+            0: 'pending', 1: 'paid', 2: 'settled', 3: 'won', [-1]: 'canceled',
+        };
+        return {
+            shop_id: shop.shop_id,
+            shopId: shop.shop_id,
+            shopNumber: shop.shop_number,
+            shopName: shop.shop_name,
+            serverTime: nextSinceIso,
+            since: sinceDate.toISOString(),
+            count: orders.length,
+            orders: orders.map(order => ({
+                order_id: order.order_id,
+                shop_id: order.shop_id,
+                order_number: order.order_number,
+                order_hash: order.order_hash,
+                numbers: order.numbers,
+                amount: order.amount,
+                game_type: order.game_type,
+                lottery_type: order.lottery_type ?? 'NACIONAL',
+                status: statusMap[order.status] || 'pending',
+                draw_id: order.draw_id ?? null,
+                win_amount: order.win_amount,
+                win_breakdown: order.win_breakdown ?? null,
+                redeemed_at: order.redeemed_at ?? null,
+                canceled_at: order.canceled_at ?? null,
+                note: order.note ?? null,
+                verification_code: order.verification_code,
+                created_at: order.created_at,
+                updated_at: order.updated_at ?? null,
+                paid_at: order.paid_at,
+            })),
+        };
+    }
     async buildShopOrdersList(shopIdNum, limit, status, suffix, drawId, lotteryKind) {
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
@@ -705,11 +826,9 @@ let ShopController = ShopController_1 = class ShopController {
         if (!shop) {
             throw new common_1.NotFoundException('店铺不存在');
         }
-        const limitNum = Math.min(parseInt(limit, 10) || 100, 500);
         const query = orderRepo.createQueryBuilder('order')
             .where('order.shop_id = :shopId', { shopId: shop.shop_id })
-            .orderBy('order.created_at', 'DESC')
-            .take(limitNum);
+            .orderBy('order.created_at', 'DESC');
         if (drawId && Number(drawId) > 0) {
             query.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
         }
@@ -737,7 +856,7 @@ let ShopController = ShopController_1 = class ShopController {
             query.andWhere('order.status = 3');
             query.andWhere('order.redeemed_at IS NULL');
         }
-        const orders = await query.getMany();
+        let orders = await query.getMany();
         const statusMap = {
             0: 'pending',
             1: 'paid',
@@ -962,6 +1081,17 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "listShopOrdersByQuery", null);
+__decorate([
+    (0, common_1.Get)('orders-sync'),
+    __param(0, (0, common_1.Query)('shopId')),
+    __param(1, (0, common_1.Query)('since')),
+    __param(2, (0, common_1.Query)('drawId')),
+    __param(3, (0, common_1.Query)('lotteryKind')),
+    __param(4, (0, common_1.Query)('winnerOnly')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ShopController.prototype, "syncShopOrders", null);
 __decorate([
     (0, common_1.Patch)(':shopId/limits'),
     __param(0, (0, common_1.Param)('shopId')),

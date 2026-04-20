@@ -148,6 +148,39 @@ export declare class ShopController {
             paid_at: Date;
         }[];
     }>;
+    syncShopOrders(shopId: string, since?: string, drawId?: string, lotteryKind?: string, winnerOnly?: string): Promise<{
+        shop_id: number;
+        shopId: number;
+        shopNumber: string;
+        shopName: string;
+        serverTime: string;
+        since: string;
+        count: number;
+        orders: {
+            order_id: number;
+            shop_id: number;
+            order_number: string;
+            order_hash: string;
+            numbers: {
+                n: string;
+                q: number;
+            }[];
+            amount: number;
+            game_type: string;
+            lottery_type: any;
+            status: string;
+            draw_id: number;
+            win_amount: number;
+            win_breakdown: any;
+            redeemed_at: any;
+            canceled_at: any;
+            note: any;
+            verification_code: string;
+            created_at: Date;
+            updated_at: any;
+            paid_at: Date;
+        }[];
+    }>;
     private buildShopOrdersList;
     updateShopLimits(shopId: string, body: {
         limitChance?: number | null;

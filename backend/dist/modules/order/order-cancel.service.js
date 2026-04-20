@@ -103,10 +103,11 @@ let OrderCancelService = OrderCancelService_1 = class OrderCancelService {
             if (!(await this.isInStopSellPeriod()))
                 return;
             const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+            const nowTs = new Date();
             const result = await orderRepo
                 .createQueryBuilder()
                 .update(order_entity_1.Order)
-                .set({ status: -1, canceled_at: new Date() })
+                .set({ status: -1, canceled_at: nowTs, updated_at: nowTs })
                 .where('status = :status', { status: 0 })
                 .andWhere('(lottery_type IS NULL OR lottery_type = :nac)', { nac: 'NACIONAL' })
                 .execute();

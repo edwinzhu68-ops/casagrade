@@ -34,7 +34,7 @@ export declare class MerchantController implements OnModuleInit {
     }>;
     forgotPassword(body: {
         email: string;
-    }): Promise<{
+    }, req: any): Promise<{
         success: boolean;
         message: string;
     }>;
@@ -144,7 +144,7 @@ export declare class MerchantController implements OnModuleInit {
         success: boolean;
         message: string;
     }>;
-    bindingPending(shopId: string): Promise<{
+    bindingPending(shopId: string, req: any): Promise<{
         pending: {
             binding_id: number;
             main_shop_id: number;
@@ -161,7 +161,7 @@ export declare class MerchantController implements OnModuleInit {
         success: boolean;
         message: string;
     }>;
-    bindingIncoming(mainShopId: string): Promise<{
+    bindingIncoming(mainShopId: string, req: any): Promise<{
         incoming: {
             binding_id: number;
             sub_shop_id: number;
@@ -191,7 +191,7 @@ export declare class MerchantController implements OnModuleInit {
         success: boolean;
         commission_rate: number;
     }>;
-    myBinding(shopId: string): Promise<{
+    myBinding(shopId: string, req: any): Promise<{
         binding: {
             binding_id: number;
             status: string;
@@ -215,7 +215,7 @@ export declare class MerchantController implements OnModuleInit {
         }[];
         count: number;
     }>;
-    subShops(mainShopId: string): Promise<{
+    subShops(mainShopId: string, req: any): Promise<{
         sub_shops: {
             binding_id: number;
             sub_shop_id: number;
@@ -224,7 +224,7 @@ export declare class MerchantController implements OnModuleInit {
             commission_rate: number;
         }[];
     }>;
-    subShopData(mainShopId: string, drawId: string, lotteryKind?: string): Promise<{
+    subShopData(mainShopId: string, drawId: string, lotteryKind: string | undefined, req: any): Promise<{
         draw_id: number;
         draw_status: string;
         draw_date: Date;
@@ -236,7 +236,7 @@ export declare class MerchantController implements OnModuleInit {
             main_total_net: number;
         };
     }>;
-    bindingHistory(mainShopId: string, limit: string, lotteryKind?: string): Promise<{
+    bindingHistory(mainShopId: string, limit: string, lotteryKind: string | undefined, req: any): Promise<{
         history: any[];
         lottery_kind: string;
     }>;

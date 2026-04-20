@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import { DataSource } from 'typeorm';
 import { DrawDayService } from './draw-day.service';
 interface SetDrawTimeDto {
@@ -146,7 +147,7 @@ export declare class AdminController {
     private readonly dataSource;
     private readonly logger;
     constructor(dataSource: DataSource);
-    clearSettlement(): Promise<{
+    clearSettlement(req: Request): Promise<{
         success: boolean;
         message: string;
     }>;

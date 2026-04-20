@@ -287,9 +287,10 @@ export class SettlementService {
         const result = this.calculateBilletePayout(numStr, winning, quantity, exactRates);
         if (result.totalPayout > 0) {
           wins.push({
-            number: numStr,
-            matches: result.matches,
-            payout: result.totalPayout,
+            n: numStr,
+            q: quantity,
+            win: result.totalPayout,
+            match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
           });
         }
         payout += result.totalPayout;
@@ -297,9 +298,10 @@ export class SettlementService {
         const result = this.calculateChancePayout(numStr, winning, quantity, chanceRates);
         if (result.totalPayout > 0) {
           wins.push({
-            number: numStr,
-            matches: result.matches,
-            payout: result.totalPayout,
+            n: numStr,
+            q: quantity,
+            win: result.totalPayout,
+            match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
           });
         }
         payout += result.totalPayout;
@@ -372,9 +374,10 @@ export class SettlementService {
         const result = this.calculateTicaNicaBilletePayout(numStr, n123, quantity, chain);
         if (result.totalPayout > 0) {
           wins.push({
-            number: numStr,
-            matches: result.matches,
-            payout: result.totalPayout,
+            n: numStr,
+            q: quantity,
+            win: result.totalPayout,
+            match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
           });
         }
         payout += result.totalPayout;
@@ -382,9 +385,10 @@ export class SettlementService {
         const result = this.calculateChancePayout(numStr, chanceWinning, quantity, chanceRates);
         if (result.totalPayout > 0) {
           wins.push({
-            number: numStr,
-            matches: result.matches,
-            payout: result.totalPayout,
+            n: numStr,
+            q: quantity,
+            win: result.totalPayout,
+            match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
           });
         }
         payout += result.totalPayout;

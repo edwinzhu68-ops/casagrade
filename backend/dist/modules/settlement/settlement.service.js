@@ -65,14 +65,16 @@ let SettlementService = SettlementService_1 = class SettlementService {
             for (let i = 0; i < orders.length; i++) {
                 const order = orders[i];
                 const orderResult = results.results[i];
+                const nowTs = new Date();
                 await manager.update(order_entity_1.Order, order.order_id, {
                     status: orderResult.payout > 0 ? 3 : 2,
                     win_amount: orderResult.payout,
                     win_breakdown: orderResult.wins,
-                    settled_at: new Date(),
+                    settled_at: nowTs,
+                    updated_at: nowTs,
                 });
             }
-            await manager.update(draw_entity_1.Draw, drawId, { status: 'COMPLETED' });
+            await manager.update(draw_entity_1.Draw, drawId, { status: 'completed' });
         });
         this.logger.log(`结算完成: ${results.totalOrders}单, 销售额$${results.totalSales}, 赔付$${results.totalPayout}, 中奖${results.wins}单`);
         return results;
@@ -116,18 +118,21 @@ let SettlementService = SettlementService_1 = class SettlementService {
             for (let i = 0; i < orders.length; i++) {
                 const order = orders[i];
                 const orderResult = results.results[i];
+                const nowTs = new Date();
                 await manager.update(order_entity_1.Order, order.order_id, {
                     status: orderResult.payout > 0 ? 3 : 2,
                     win_amount: orderResult.payout,
                     win_breakdown: orderResult.wins,
-                    settled_at: new Date(),
+                    settled_at: nowTs,
+                    updated_at: nowTs,
                 });
             }
             await manager.update(draw_entity_1.Draw, drawId, { status: 'completed' });
+            const cancelTs = new Date();
             const cancelResult = await manager
                 .createQueryBuilder()
                 .update(order_entity_1.Order)
-                .set({ status: -1 })
+                .set({ status: -1, canceled_at: cancelTs, updated_at: cancelTs })
                 .where('draw_id = :drawId AND status = 0', { drawId })
                 .execute();
             if (cancelResult.affected && cancelResult.affected > 0) {
@@ -198,9 +203,10 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 const result = this.calculateBilletePayout(numStr, winning, quantity, exactRates);
                 if (result.totalPayout > 0) {
                     wins.push({
-                        number: numStr,
-                        matches: result.matches,
-                        payout: result.totalPayout,
+                        n: numStr,
+                        q: quantity,
+                        win: result.totalPayout,
+                        match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
                     });
                 }
                 payout += result.totalPayout;
@@ -209,9 +215,10 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 const result = this.calculateChancePayout(numStr, winning, quantity, chanceRates);
                 if (result.totalPayout > 0) {
                     wins.push({
-                        number: numStr,
-                        matches: result.matches,
-                        payout: result.totalPayout,
+                        n: numStr,
+                        q: quantity,
+                        win: result.totalPayout,
+                        match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
                     });
                 }
                 payout += result.totalPayout;
@@ -268,9 +275,10 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 const result = this.calculateTicaNicaBilletePayout(numStr, n123, quantity, chain);
                 if (result.totalPayout > 0) {
                     wins.push({
-                        number: numStr,
-                        matches: result.matches,
-                        payout: result.totalPayout,
+                        n: numStr,
+                        q: quantity,
+                        win: result.totalPayout,
+                        match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
                     });
                 }
                 payout += result.totalPayout;
@@ -279,9 +287,10 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 const result = this.calculateChancePayout(numStr, chanceWinning, quantity, chanceRates);
                 if (result.totalPayout > 0) {
                     wins.push({
-                        number: numStr,
-                        matches: result.matches,
-                        payout: result.totalPayout,
+                        n: numStr,
+                        q: quantity,
+                        win: result.totalPayout,
+                        match: Array.isArray(result.matches) ? result.matches.join('+') : undefined,
                     });
                 }
                 payout += result.totalPayout;

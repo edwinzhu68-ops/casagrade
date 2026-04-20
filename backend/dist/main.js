@@ -110,6 +110,14 @@ process.on('unhandledRejection', (reason, promise) => {
     writeErrorLog(`[Process-unhandledRejection] ${msg}`);
 });
 async function bootstrap() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+        if (!process.env.TOKEN_SECRET || process.env.TOKEN_SECRET.trim() === '') {
+            const msg = `❌ 生产环境必须设置 TOKEN_SECRET env。拒绝启动，防止硬编码默认值被利用。`;
+            writeErrorLog(msg);
+            throw new Error(msg);
+        }
+    }
     const app = await core_1.NestFactory.create(app_module_1.AppModule, {
         logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });

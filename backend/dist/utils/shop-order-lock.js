@@ -5,7 +5,12 @@ const shopOrderLocks = new Map();
 function withShopLock(shopId, fn) {
     const prev = shopOrderLocks.get(shopId) ?? Promise.resolve();
     const next = prev.then(() => fn());
-    shopOrderLocks.set(shopId, next.catch(() => { }));
+    const tracked = next.catch(() => { }).finally(() => {
+        if (shopOrderLocks.get(shopId) === tracked) {
+            shopOrderLocks.delete(shopId);
+        }
+    });
+    shopOrderLocks.set(shopId, tracked);
     return next;
 }
 //# sourceMappingURL=shop-order-lock.js.map

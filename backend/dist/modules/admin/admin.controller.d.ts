@@ -48,7 +48,7 @@ export declare class AdminController {
         shop_id: number;
         status: string;
     }>;
-    setShopSubscription(shopId: string, expiresAt: string | null): Promise<{
+    setShopSubscription(shopId: string, expiresAt: string | null, req: any): Promise<{
         success: boolean;
         shop_id: number;
         subscription_expires_at: string;

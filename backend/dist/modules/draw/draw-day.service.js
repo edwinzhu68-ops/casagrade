@@ -186,10 +186,11 @@ let DrawDayService = DrawDayService_1 = class DrawDayService {
     }
     async cancelUnpaidOrders(drawId) {
         try {
+            const nowTs = new Date();
             const result = await this.dataSource.getRepository(order_entity_1.Order)
                 .createQueryBuilder()
                 .update(order_entity_1.Order)
-                .set({ status: -1 })
+                .set({ status: -1, canceled_at: nowTs, updated_at: nowTs })
                 .where('draw_id = :drawId AND status = 0', { drawId })
                 .execute();
             if (result.affected && result.affected > 0) {
