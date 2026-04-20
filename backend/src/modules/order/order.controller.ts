@@ -777,8 +777,6 @@ export class ShopController {
       throw new NotFoundException('店铺不存在');
     }
 
-    const serverTime = new Date();
-
     // winnerOnly=1：只拉中奖单（status=3），用于开奖瞬间前端"本地标 loser + 拉 winner"策略
     // 一次开奖大店可能有几万 loser 变化，此参数让前端跳过这一大波，只拉几百条中奖单
     const isWinnerOnly = winnerOnly === '1' || winnerOnly === 'true';
@@ -797,13 +795,14 @@ export class ShopController {
       .orderBy('order.updated_at', 'ASC');
 
     if (isWinnerOnly) {
-      // 只拉中奖单。配合 drawId 精确到某期；不传 drawId 则拉全部中奖单（与首次加载的未兑奖中奖兜底一致）
+      // 只拉中奖单。配合 drawId 精确到某期；不传 drawId 则拉全部中奖单
       q.andWhere('order.status = 3');
       if (drawId && Number(drawId) > 0) {
         q.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
       }
       if (!isInitialLoad) {
-        q.andWhere('order.updated_at > :since', { since: sinceDate });
+        // >= 保证同 ms 并列订单不被漏（客户端 ordersById.set 天然去重）
+        q.andWhere('order.updated_at >= :since', { since: sinceDate });
       }
     } else if (isInitialLoad) {
       // 首次加载：只取「当期 + 上期 + 未兑奖中奖单」
@@ -834,8 +833,8 @@ export class ShopController {
         q.andWhere('(order.status = 3 AND order.redeemed_at IS NULL)');
       }
     } else {
-      // 增量：严格 updated_at > since
-      q.andWhere('order.updated_at > :since', { since: sinceDate });
+      // 增量：>= 保证同 ms 并列订单不被漏（客户端 ordersById.set 天然去重）
+      q.andWhere('order.updated_at >= :since', { since: sinceDate });
     }
 
     if (drawId && Number(drawId) > 0) {
@@ -852,6 +851,20 @@ export class ShopController {
 
     const orders = await q.getMany();
 
+    // serverTime 下次作为 since 用。必须是"本次返回里最大的 updated_at"，不能用 new Date()。
+    // 原因：`new Date()` 在 query 之前取，这期间新写入的订单 updated_at 可能 > 原 since 但 <= new Date()，
+    // 被本次查询返回后 serverTime 又推得更晚，下次 `>= since` 也错过那些 edge 值。
+    // 用"本批最大 updated_at"能保证下次 `>= since` 严格不漏。
+    let nextSinceIso: string;
+    if (orders.length > 0) {
+      const last: any = orders[orders.length - 1]; // ORDER BY updated_at ASC
+      const stamp = last.updated_at || last.created_at;
+      nextSinceIso = new Date(stamp).toISOString();
+    } else {
+      // 空返回：保持原 since 不推进（下次继续等）；首次加载空返回时退化为 epoch，下次仍走首次加载
+      nextSinceIso = isInitialLoad ? new Date(0).toISOString() : sinceDate.toISOString();
+    }
+
     const statusMap: { [key: number]: string } = {
       0: 'pending', 1: 'paid', 2: 'settled', 3: 'won', [-1]: 'canceled',
     };
@@ -861,7 +874,7 @@ export class ShopController {
       shopId: shop.shop_id,
       shopNumber: shop.shop_number,
       shopName: shop.shop_name,
-      serverTime: serverTime.toISOString(),
+      serverTime: nextSinceIso,
       since: sinceDate.toISOString(),
       count: orders.length,
       orders: orders.map(order => ({
