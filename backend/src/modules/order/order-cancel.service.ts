@@ -68,7 +68,9 @@ export class OrderCancelService implements OnModuleInit {
       return false;
     }
 
-    const stopSaleStart = drawHour * 60 + drawMin - 5;
+    // 停售时间 = 开奖时间（15:00），与 bet-status 接口返回给前端的 stopSellAt 一致
+    // 之前提前 5 分钟（14:55）导致 14:55-15:00 下的未付款单被定时任务自动取消，与前端"可下单"展示冲突
+    const stopSaleStart = drawHour * 60 + drawMin;
     const RESUME_MINS = 7 * 60;
 
     const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;

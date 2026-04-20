@@ -533,7 +533,7 @@ export class DrawController {
   }
 
   /**
-   * GET /api/draw/pending - 获取待开奖期（本期：16:00 开售到下次 14:55 停售）
+   * GET /api/draw/pending - 获取待开奖期（本期：16:00 开售到下次 15:00 停售）
    * 老板端用本期 drawId 筛订单，统计本期销售额/订单数
    */
   @Get('pending')
