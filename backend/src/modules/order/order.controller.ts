@@ -385,8 +385,18 @@ export class OrderController implements OnModuleInit {
       throw new BadRequestException('已结算或已中奖的订单不允许删除');
     }
 
-    this.logger.log(`订单删除: #${order.order_number}, 店铺: ${shopId}, 状态: ${order.status}`);
-    await orderRepo.remove(order);
+    // 软删除（status=-1）代替物理删除。
+    // 原因：物理 .remove() 后增量同步（WHERE updated_at >= since）永远查不到被删订单，
+    // 其他手机的 ordersById 里这条单残留在 pending 列表，UI 永远不消失。
+    // 软删后 updated_at 变化 → 其他手机增量同步拉到 status=-1 → 前端 filter 排除 → UI 同步消失。
+    const nowTs = new Date();
+    const prevStatus = order.status;
+    await orderRepo.update(order.order_id, {
+      status: -1,
+      canceled_at: nowTs,
+      updated_at: nowTs,
+    } as any);
+    this.logger.log(`订单删除(软): #${order.order_number}, 店铺: ${shopId}, 原状态: ${prevStatus}`);
     return { success: true, message: '订单已删除' };
   }
 

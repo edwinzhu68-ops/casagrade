@@ -86,7 +86,7 @@ let OrderCancelService = OrderCancelService_1 = class OrderCancelService {
         else {
             return false;
         }
-        const stopSaleStart = drawHour * 60 + drawMin - 5;
+        const stopSaleStart = drawHour * 60 + drawMin;
         const RESUME_MINS = 7 * 60;
         const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
         const nextDay = new Date(`${drawDateISO}T12:00:00`);
