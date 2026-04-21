@@ -60,29 +60,40 @@ export class LocalLotteryService {
     const existing = await findShopPendingLocalDraw(drawRepo, shopId, kind);
     if (existing) return existing;
 
-    // 慢路径：加锁避免并发下单时创建两个 pending 期（否则订单会分散到重复期，统计结算全乱）
-    return withShopLock(shopId, async () => {
-      // 锁内再查一次：可能前面的请求已经创建好了
-      const again = await findShopPendingLocalDraw(drawRepo, shopId, kind);
-      if (again) return again;
+    // 慢路径：加锁避免并发下单时创建两个 pending 期
+    return withShopLock(shopId, () => this.ensureShopPendingDrawLocked(shopId, kind));
+  }
 
-      const panama = getPanamaYmd();
-      const drawDateStr = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
-      const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId, lotteryType: kind });
-      const d = drawRepo.create({
-        draw_date: drawDateStr as any,
-        draw_time: '12:00:00',
-        status: 'pending',
-        winning_numbers: '',
-        is_manual_override: false,
-        lottery_type: kind,
-        shop_id: shopId,
-        period_no: periodNo,
-      });
-      await drawRepo.save(d);
-      this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} period_no=${periodNo} shop_id=${shopId}`);
-      return d;
+  /**
+   * 创建 pending 期的无锁内部实现。
+   * 调用者必须已经持有 withShopLock(shopId)，否则并发可能产生重复期。
+   * 外部 public ensureShopPendingDraw 或内部已持锁路径（如 settleAndRollNext）复用这里，避免重入死锁。
+   */
+  private async ensureShopPendingDrawLocked(
+    shopId: number,
+    kind: 'TICA' | 'NICA',
+  ): Promise<Draw> {
+    const drawRepo = this.dataSource.getRepository(Draw);
+    // 持锁内再查一次：可能前面的请求已经创建好了
+    const again = await findShopPendingLocalDraw(drawRepo, shopId, kind);
+    if (again) return again;
+
+    const panama = getPanamaYmd();
+    const drawDateStr = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+    const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId, lotteryType: kind });
+    const d = drawRepo.create({
+      draw_date: drawDateStr as any,
+      draw_time: '12:00:00',
+      status: 'pending',
+      winning_numbers: '',
+      is_manual_override: false,
+      lottery_type: kind,
+      shop_id: shopId,
+      period_no: periodNo,
     });
+    await drawRepo.save(d);
+    this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} period_no=${periodNo} shop_id=${shopId}`);
+    return d;
   }
 
   async getCurrent(shopId: number, kind: 'TICA' | 'NICA') {
@@ -350,7 +361,8 @@ export class LocalLotteryService {
 
       const stats = await this.settlementService.settleShopLotteryDraw(pending.draw_id);
 
-      const next = await this.ensureShopPendingDraw(shopId, kind, true);
+      // 关键：已持 withShopLock，必须走无锁内部实现避免对同把锁重入死锁（公开版的 ensureShopPendingDraw 慢路径会再抢同一把锁）
+      const next = await this.ensureShopPendingDrawLocked(shopId, kind);
 
       return {
         settled_draw_id: pending.draw_id,
