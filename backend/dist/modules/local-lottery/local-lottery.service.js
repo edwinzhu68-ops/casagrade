@@ -80,27 +80,29 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
         const existing = await (0, draw_queries_1.findShopPendingLocalDraw)(drawRepo, shopId, kind);
         if (existing)
             return existing;
-        return (0, shop_order_lock_1.withShopLock)(shopId, async () => {
-            const again = await (0, draw_queries_1.findShopPendingLocalDraw)(drawRepo, shopId, kind);
-            if (again)
-                return again;
-            const panama = getPanamaYmd();
-            const drawDateStr = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
-            const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId, lotteryType: kind });
-            const d = drawRepo.create({
-                draw_date: drawDateStr,
-                draw_time: '12:00:00',
-                status: 'pending',
-                winning_numbers: '',
-                is_manual_override: false,
-                lottery_type: kind,
-                shop_id: shopId,
-                period_no: periodNo,
-            });
-            await drawRepo.save(d);
-            this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} period_no=${periodNo} shop_id=${shopId}`);
-            return d;
+        return (0, shop_order_lock_1.withShopLock)(shopId, () => this.ensureShopPendingDrawLocked(shopId, kind));
+    }
+    async ensureShopPendingDrawLocked(shopId, kind) {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const again = await (0, draw_queries_1.findShopPendingLocalDraw)(drawRepo, shopId, kind);
+        if (again)
+            return again;
+        const panama = getPanamaYmd();
+        const drawDateStr = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+        const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId, lotteryType: kind });
+        const d = drawRepo.create({
+            draw_date: drawDateStr,
+            draw_time: '12:00:00',
+            status: 'pending',
+            winning_numbers: '',
+            is_manual_override: false,
+            lottery_type: kind,
+            shop_id: shopId,
+            period_no: periodNo,
         });
+        await drawRepo.save(d);
+        this.logger.log(`创建 ${kind} 新期 draw_id=${d.draw_id} period_no=${periodNo} shop_id=${shopId}`);
+        return d;
     }
     async getCurrent(shopId, kind) {
         const draw = await this.ensureShopPendingDraw(shopId, kind);
@@ -321,7 +323,7 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
             const winningJson = JSON.stringify({ n1: a, n2: b, n3: c });
             await drawRepo.update(pending.draw_id, { winning_numbers: winningJson });
             const stats = await this.settlementService.settleShopLotteryDraw(pending.draw_id);
-            const next = await this.ensureShopPendingDraw(shopId, kind, true);
+            const next = await this.ensureShopPendingDrawLocked(shopId, kind);
             return {
                 settled_draw_id: pending.draw_id,
                 next_draw_id: next.draw_id,

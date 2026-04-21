@@ -362,8 +362,14 @@ let OrderController = OrderController_1 = class OrderController {
         if (order.status === 2 || order.status === 3) {
             throw new common_1.BadRequestException('已结算或已中奖的订单不允许删除');
         }
-        this.logger.log(`订单删除: #${order.order_number}, 店铺: ${shopId}, 状态: ${order.status}`);
-        await orderRepo.remove(order);
+        const nowTs = new Date();
+        const prevStatus = order.status;
+        await orderRepo.update(order.order_id, {
+            status: -1,
+            canceled_at: nowTs,
+            updated_at: nowTs,
+        });
+        this.logger.log(`订单删除(软): #${order.order_number}, 店铺: ${shopId}, 原状态: ${prevStatus}`);
         return { success: true, message: '订单已删除' };
     }
     async patchOrder(orderNumber, body, req) {

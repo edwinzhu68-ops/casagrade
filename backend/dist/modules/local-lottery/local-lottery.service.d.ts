@@ -25,6 +25,7 @@ export declare class LocalLotteryService {
     constructor(dataSource: DataSource, settlementService: SettlementService);
     assertLocalFeatureForKind(shop: Shop | null, kind: 'TICA' | 'NICA'): void;
     ensureShopPendingDraw(shopId: number, kind: 'TICA' | 'NICA', skipFeatureCheck?: boolean): Promise<Draw>;
+    private ensureShopPendingDrawLocked;
     getCurrent(shopId: number, kind: 'TICA' | 'NICA'): Promise<{
         draw_id: number;
         period_no: number;
