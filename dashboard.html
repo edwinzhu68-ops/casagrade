@@ -523,8 +523,10 @@
     }
 
     function getAdminHeaders(includeAuth) {
+      // 总是带 Bearer token（新 AdminTokenGuard 优先校验 Bearer + user.role=admin）
+      // includeAuth 参数保留兼容但不再生效——旧调用方传 false 也会带 Bearer
       const h = { 'Content-Type': 'application/json' };
-      if (includeAuth && authToken) h['Authorization'] = 'Bearer ' + authToken;
+      if (authToken) h['Authorization'] = 'Bearer ' + authToken;
       const t = localStorage.getItem(ADMIN_TOKEN_KEY);
       if (t) h['X-Admin-Token'] = t;
       return h;
