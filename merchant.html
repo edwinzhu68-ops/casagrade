@@ -3907,8 +3907,18 @@
     }
 
     // 未付款订单 + 等待兑奖；suffixFilter 按订单号尾数筛；allOrdersForRedeem 用于从全部订单里筛待兑奖（不传则用 orders）
+    /** 订单按 created_at 降序（新的在上），并列时按 order_id 降序兜底 */
+    function _sortOrdersDesc(arr) {
+      return (arr || []).slice().sort(function (a, b) {
+        var ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        var tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (tb !== ta) return tb - ta;
+        return Number(b.order_id || 0) - Number(a.order_id || 0);
+      });
+    }
+
     function renderPendingOrders(orders, suffixFilter, allOrdersForRedeem) {
-      var pending = (orders || []).filter(isMerchantOrderUnpaid);
+      var pending = _sortOrdersDesc((orders || []).filter(isMerchantOrderUnpaid));
       var totalUnpaid = pending.length;
       var suf = suffixFilter !== undefined && suffixFilter !== '' ? String(suffixFilter).replace(/\D/g, '') : '';
       if (suf) {
@@ -3919,12 +3929,12 @@
         });
       }
       var redeemOrdersSrc = (allOrdersForRedeem && allOrdersForRedeem.length) ? allOrdersForRedeem : (orders || []);
-      var redeemPending = redeemOrdersSrc.filter(function (o) {
+      var redeemPending = _sortOrdersDesc(redeemOrdersSrc.filter(function (o) {
         var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
         if (!((o.status === 3 || o.status === 'won') && !redeemed)) return false;
         if (!orderMatchesMerchantWorkbench(o, merchantWorkbenchKind)) return false;
         return true;
-      });
+      }));
 
       var unpaidCountEl = document.getElementById('unpaid-count');
       if (unpaidCountEl) {
@@ -3963,10 +3973,10 @@
           '</div></div>';
       }
 
-      // 主页预览（最多3条）
+      // 主页预览（最多3条，新的在上）
       var preview = document.getElementById('pending-preview');
       if (preview) {
-        var allUnpaid = (orders || []).filter(isMerchantOrderUnpaid);
+        var allUnpaid = _sortOrdersDesc((orders || []).filter(isMerchantOrderUnpaid));
         if (allUnpaid.length === 0) {
           preview.innerHTML = '<p class="text-gray-500 text-sm">' + (t('no_pending') || '暂无未付款订单') + '</p>';
         } else {
@@ -5281,10 +5291,10 @@
     function renderPeriodOrderList(suffix) {
       var listEl = document.getElementById('period-order-list');
       if (!listEl) return;
-      var list = (periodOrders || []).filter(function (o) {
+      var list = _sortOrdersDesc((periodOrders || []).filter(function (o) {
         var s = o.status;
         return s === 1 || s === 'paid' || s === 2 || s === 'settled' || s === 3 || s === 'won';
-      });
+      }));
       if (suffix) {
         var suf = suffix.trim();
         list = list.filter(function (o) {
