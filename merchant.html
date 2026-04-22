@@ -3211,6 +3211,9 @@
 
     /** 开奖后 winner sync 并发守卫，避免 3 秒轮询里重复发同一请求 */
     let winnerSyncInFlight = false;
+    /** 同步失败 toast 降噪：1 秒轮询下网络抖动会连续弹 N 个 error toast，只弹第一次，10 秒冷却 */
+    let lastSyncErrorToastAt = 0;
+    const SYNC_ERROR_TOAST_COOLDOWN_MS = 10 * 1000;
     /** loadDashboard 并发守卫：1 秒轮询下前一次没跑完新一次不启动，避免打后端 4 倍请求 */
     let loadDashboardInFlight = false;
     /** 上次已渲染过的 sid+workbenchKind 组合，空增量 + 同组合 + 30 秒内跑过 → 跳过派生重算 */
@@ -3339,9 +3342,16 @@
         var syncedCount = 0;
         try {
           syncedCount = await syncShopOrders();
+          // 成功后重置冷却：下次真失败能立即提示
+          lastSyncErrorToastAt = 0;
         } catch (e) {
-          showToast((getMerchantLang() === 'zh' ? '拉取订单失败: ' : 'Error al cargar pedidos: ') + (e.message || e) + ' · ' + API_BASE, 'error');
           console.error('syncShopOrders failed', e);
+          // 网络抖动时 1 秒轮询会连续失败多次，只弹第一次 + 10 秒冷却期；不阻塞下次重试
+          var nowTs = Date.now();
+          if (nowTs - lastSyncErrorToastAt > SYNC_ERROR_TOAST_COOLDOWN_MS) {
+            showToast((getMerchantLang() === 'zh' ? '网络波动，正在重试' : 'Red inestable, reintentando'), 'warning', 3000);
+            lastSyncErrorToastAt = nowTs;
+          }
           return;
         }
         if (dashGen !== merchantDashboardLoadGeneration) return;
