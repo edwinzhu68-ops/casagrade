@@ -100,6 +100,10 @@ export class DatabaseInitService implements OnModuleInit {
       `ALTER TABLE shops ADD COLUMN accepting_nica_orders boolean NOT NULL DEFAULT ${boolDefault}`,
       `ALTER TABLE shops ADD COLUMN tica_enabled boolean NOT NULL DEFAULT ${boolDisabled}`,
       `ALTER TABLE shops ADD COLUMN nica_enabled boolean NOT NULL DEFAULT ${boolDisabled}`,
+      // TICA 独立 Chance 赔率（与 NACIONAL 解耦；nullable，null 时 fallback 到 rate_chance_*）
+      `ALTER TABLE shops ADD COLUMN tica_chance_1 decimal(10,2)`,
+      `ALTER TABLE shops ADD COLUMN tica_chance_2 decimal(10,2)`,
+      `ALTER TABLE shops ADD COLUMN tica_chance_3 decimal(10,2)`,
     ];
     for (const sql of alters) {
       try {

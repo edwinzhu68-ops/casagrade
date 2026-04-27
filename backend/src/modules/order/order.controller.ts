@@ -1101,6 +1101,9 @@ export class ShopController {
       rateChance1?: number | null;
       rateChance2?: number | null;
       rateChance3?: number | null;
+      ticaChance1?: number | null;
+      ticaChance2?: number | null;
+      ticaChance3?: number | null;
       chain12?: number | null;
       chain13?: number | null;
       chain21?: number | null;
@@ -1146,6 +1149,10 @@ export class ShopController {
     if (body.rateChance1 !== undefined) (shop as any).rate_chance_1 = toRate(body.rateChance1, 14);
     if (body.rateChance2 !== undefined) (shop as any).rate_chance_2 = toRate(body.rateChance2, 3);
     if (body.rateChance3 !== undefined) (shop as any).rate_chance_3 = toRate(body.rateChance3, 2);
+    // TICA 独立 Chance 赔率（与 Lotería 解耦）
+    if (body.ticaChance1 !== undefined) (shop as any).tica_chance_1 = toRate(body.ticaChance1, 14);
+    if (body.ticaChance2 !== undefined) (shop as any).tica_chance_2 = toRate(body.ticaChance2, 3);
+    if (body.ticaChance3 !== undefined) (shop as any).tica_chance_3 = toRate(body.ticaChance3, 2);
     if (body.chain12 !== undefined) (shop as any).chain_1_2 = toChainRate(body.chain12);
     if (body.chain13 !== undefined) (shop as any).chain_1_3 = toChainRate(body.chain13);
     if (body.chain21 !== undefined) (shop as any).chain_2_1 = toChainRate(body.chain21);
@@ -1171,6 +1178,9 @@ export class ShopController {
       rate_chance_1: (shop as any).rate_chance_1,
       rate_chance_2: (shop as any).rate_chance_2,
       rate_chance_3: (shop as any).rate_chance_3,
+      tica_chance_1: (shop as any).tica_chance_1,
+      tica_chance_2: (shop as any).tica_chance_2,
+      tica_chance_3: (shop as any).tica_chance_3,
       chain_1_2: (shop as any).chain_1_2,
       chain_1_3: (shop as any).chain_1_3,
       chain_2_1: (shop as any).chain_2_1,

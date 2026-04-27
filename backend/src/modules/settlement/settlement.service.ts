@@ -340,14 +340,15 @@ export class SettlementService {
     const lotteryType = ((order as any).lottery_type || '').toString().toUpperCase();
     const isNica = lotteryType === 'NICA';
 
+    // TICA/NICA Chance 赔率：各自有独立字段，null 时 fallback 到 NACIONAL 的 rate_chance_*（与 Lotería 解耦后用作历史兼容）
     const chanceRates: [number, number, number] = isNica ? [
       shop?.nica_chance_1 != null ? Number(shop.nica_chance_1) : (shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14),
       shop?.nica_chance_2 != null ? Number(shop.nica_chance_2) : (shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3),
       shop?.nica_chance_3 != null ? Number(shop.nica_chance_3) : (shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2),
     ] : [
-      shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
-      shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
-      shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
+      shop?.tica_chance_1 != null ? Number(shop.tica_chance_1) : (shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14),
+      shop?.tica_chance_2 != null ? Number(shop.tica_chance_2) : (shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3),
+      shop?.tica_chance_3 != null ? Number(shop.tica_chance_3) : (shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2),
     ];
 
     const chain = isNica ? {
