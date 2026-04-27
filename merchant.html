@@ -4036,8 +4036,28 @@
       try {
         if (sessionStorage.getItem(MERCHANT_OPEN_CASHIER_ORDER_KEY) !== '1') return;
         sessionStorage.removeItem(MERCHANT_OPEN_CASHIER_ORDER_KEY);
-        setTimeout(function () {
-          if (currentShop) openCashierOrderModal();
+        // 跨页面 reorder payload（result.html 订单详情→重新下单）
+        var rPayload = null;
+        try {
+          var pRaw = sessionStorage.getItem('merchant_reorder_payload_v1');
+          if (pRaw) {
+            rPayload = JSON.parse(pRaw);
+            sessionStorage.removeItem('merchant_reorder_payload_v1');
+          }
+        } catch (eP) { rPayload = null; }
+        setTimeout(async function () {
+          if (!currentShop) return;
+          if (rPayload && Array.isArray(rPayload.numbers) && rPayload.numbers.length > 0) {
+            // 先切到原订单的彩种工作台，再打开代客下单 + 填号码
+            var targetKind = (rPayload.lottery_type === 'TICA' || rPayload.lottery_type === 'NICA')
+              ? rPayload.lottery_type : 'NACIONAL';
+            try {
+              if (targetKind !== getMerchantWorkbenchKind()) setMerchantWorkbenchKind(targetKind);
+            } catch (eK) {}
+            await applyReorderNumbers(rPayload.numbers);
+          } else {
+            await openCashierOrderModal();
+          }
         }, 400);
       } catch (eSch) {}
     }
@@ -5213,16 +5233,11 @@
       showRedeemModal(order, hash);
     }
 
-    // 从历史订单详情重新代客下单（填入相同号码打开代客下单弹窗）
-    async function reorderToCashier() {
-      if (!currentOrder) return;
-      var numbers = currentOrder.numbers || [];
-      if (!numbers.length) { showToast(t('no_orders'), 'error'); return; }
-      // 不切换工作台，在当前彩种下重新下单
-      closeModal('modal-order');
-      // 打开代客下单弹窗（会自动刷新bet状态）
+    // 应用一组历史号码到代客下单弹窗（merchant 自身订单详情 + 跨页面 reorder 共用入口）
+    // 注：调用前请先确保彩种已切到目标工作台（本函数不动彩种，避免重复切换闪烁）
+    async function applyReorderNumbers(numbers) {
+      if (!Array.isArray(numbers) || numbers.length === 0) return;
       await openCashierOrderModal();
-      // 填入历史号码
       merchantCashierLines = [];
       var _pb = 1, _pc = 0.25;
       try { var _v = parseFloat(localStorage.getItem('price_billete')); if (!isNaN(_v) && _v > 0) _pb = _v; } catch(e) {}
@@ -5230,16 +5245,26 @@
       numbers.forEach(function(item) {
         var n = String(item.n != null ? item.n : (item.number || '')).replace(/\D/g, '');
         var q = Math.max(1, parseInt(item.q != null ? item.q : (item.quantity || 1), 10) || 1);
+        if (!n) return;
         var isBi = n.length >= 4;
         var unitPrice = isBi ? _pb : _pc;
         var existing = merchantCashierLines.find(function(l) { return l.n === n; });
         if (existing) { existing.q += q; }
         else { merchantCashierLines.push({ n: n, q: q, isBi: isBi, unitPrice: unitPrice }); }
       });
-      // 根据第一条号码切换游戏类型
       var firstIsBi = merchantCashierLines.length > 0 ? merchantCashierLines[0].isBi : true;
       setMerchantCashierGameType(firstIsBi ? 'BILLETE' : 'CHANCE');
       renderMerchantCashierLines();
+    }
+
+    // 从历史订单详情重新代客下单（填入相同号码打开代客下单弹窗）
+    async function reorderToCashier() {
+      if (!currentOrder) return;
+      var numbers = currentOrder.numbers || [];
+      if (!numbers.length) { showToast(t('no_orders'), 'error'); return; }
+      // 不切换工作台，在当前彩种下重新下单
+      closeModal('modal-order');
+      await applyReorderNumbers(numbers);
     }
 
     function confirmDeleteOrder() {

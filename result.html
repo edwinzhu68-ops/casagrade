@@ -275,9 +275,10 @@
               <div id="result-detail-numbers" class="text-sm space-y-0.5"></div>
             </div>
           </div>
-          <div class="flex gap-3 mt-4">
-            <button type="button" onclick="closeResultOrderModal()" class="flex-1 bg-gray-600 text-white py-3 rounded-xl font-bold" data-i18n="close">关闭</button>
-            <button type="button" id="btn-result-redeem" onclick="redeemFromResultDetail()" class="hidden flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold" data-i18n="btn_confirm_redeem">确认兑奖</button>
+          <div class="flex flex-wrap gap-3 mt-4">
+            <button type="button" onclick="closeResultOrderModal()" class="flex-1 min-w-[88px] bg-gray-600 text-white py-3 rounded-xl font-bold" data-i18n="close">关闭</button>
+            <button type="button" id="btn-result-redeem" onclick="redeemFromResultDetail()" class="hidden flex-1 min-w-[110px] bg-emerald-600 text-white py-3 rounded-xl font-bold" data-i18n="btn_confirm_redeem">确认兑奖</button>
+            <button type="button" id="btn-result-reorder" onclick="reorderFromResultDetail()" class="hidden flex-1 min-w-[110px] bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold" data-i18n="btn_reorder">🔄 重新下单</button>
           </div>
         </div>
       </div>
@@ -302,11 +303,21 @@
         </div>
       </div>
 
-      <!-- 最近 20 期结算记录（点进某期可看详情） -->
+      <!-- 最近 20 期结算记录（点进某期可看详情；含跨期订单号搜索） -->
       <div class="card-result rounded-2xl p-5 shadow-xl national-only">
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-bold text-lg" data-i18n="recent_20">📅 最近 20 期结算记录</h3>
           <span class="text-xs text-gray-400" data-i18n="paid_only">仅统计已付款订单</span>
+        </div>
+        <!-- 跨期订单号搜索：输入完整订单号 → 命中后弹详情(含兑奖按钮) -->
+        <div class="mb-3 flex gap-2">
+          <input type="text" id="history-order-search-input"
+            data-i18n-placeholder="search_order_input_ph" placeholder="输入完整订单号搜索（跨所有期）"
+            maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false"
+            class="flex-1 min-w-0 py-2 px-3 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono uppercase focus:border-emerald-500 focus:outline-none"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();searchOrderByNumber();}" />
+          <button type="button" onclick="searchOrderByNumber()" data-i18n="search_order_btn"
+            class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap">🔍 搜索</button>
         </div>
         <div id="history-list" class="divide-y divide-gray-700/80 text-sm">
           <div class="py-4 text-center text-gray-500">加载中...</div>
@@ -324,7 +335,7 @@
   <div id="modal-rates" class="hidden fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onclick="if(event.target===this)closeRatesModal()">
     <div class="bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
       <div class="p-5 border-b border-gray-700 flex items-center justify-between">
-        <h3 class="font-bold text-white text-lg">⚙️ 赔率设置</h3>
+        <h3 class="font-bold text-white text-lg">⚙️ 赔率设置 · <span id="rates-modal-kind-label" class="text-amber-400">Lotería</span></h3>
         <button type="button" onclick="closeRatesModal()" class="text-gray-400 hover:text-white text-2xl leading-none w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-700">&times;</button>
       </div>
       <div class="p-5 space-y-4">
@@ -648,6 +659,15 @@
         filter_suffix_4: '后4位',
         filter_suffix_title: '输入订单号后4位筛选',
         no_match_orders: '无匹配订单',
+        search_order_input_ph: '输入完整订单号搜索（跨所有期）',
+        search_order_btn: '🔍 搜索',
+        alert_search_input_required: '请输入订单号',
+        alert_order_not_found: '未找到该订单',
+        alert_order_other_shop: '该订单不属于本店',
+        alert_search_failed: '搜索失败，请重试',
+        btn_reorder: '🔄 重新下单',
+        alert_reorder_no_numbers: '订单无号码，无法重新下单',
+        alert_reorder_storage: '浏览器不支持 sessionStorage，无法重新下单',
         result_login_hint: '请先在收银台完成登录，再使用本页面',
         result_login_go_merchant: '去收银台登录'
       },
@@ -742,6 +762,15 @@
         filter_suffix_4: 'Últ. 4',
         filter_suffix_title: 'Filtrar por los últimos 4 dígitos del pedido',
         no_match_orders: 'Sin pedidos coincidentes',
+        search_order_input_ph: 'Buscar por N.º de pedido (todos los períodos)',
+        search_order_btn: '🔍 Buscar',
+        alert_search_input_required: 'Ingrese el número de pedido',
+        alert_order_not_found: 'Pedido no encontrado',
+        alert_order_other_shop: 'El pedido no pertenece a esta tienda',
+        alert_search_failed: 'Error al buscar, intente de nuevo',
+        btn_reorder: '🔄 Repetir pedido',
+        alert_reorder_no_numbers: 'El pedido no tiene números, no se puede repetir',
+        alert_reorder_storage: 'El navegador no admite sessionStorage',
         result_login_hint: 'Inicie sesión primero en el POS para usar esta página',
         result_login_go_merchant: 'Ir al POS a iniciar sesión'
       }
@@ -2748,6 +2777,37 @@
       });
     }
 
+    // 从结算页订单详情发起"重新下单"：把订单号码存入 sessionStorage，跳转回 merchant.html 自动打开代客下单弹窗并预填
+    // 与 merchant.html 共用 key（merchant.html 启动时识别并填充）
+    function reorderFromResultDetail(order) {
+      if (!order || !Array.isArray(order.numbers) || order.numbers.length === 0) {
+        showToast(t('alert_reorder_no_numbers') || '订单无号码，无法重新下单', 'error');
+        return;
+      }
+      var lt = String(order.lottery_type || order.lotteryType || 'NACIONAL').toUpperCase();
+      try {
+        sessionStorage.setItem('merchant_open_cashier_order_v1', '1');
+        sessionStorage.setItem('merchant_reorder_payload_v1', JSON.stringify({
+          numbers: order.numbers,
+          lottery_type: lt,
+          source_order: order.order_number || order.orderNumber || '',
+          ts: Date.now()
+        }));
+      } catch (e) {
+        showToast(t('alert_reorder_storage') || '浏览器不支持 sessionStorage，无法重新下单', 'error');
+        return;
+      }
+      // 关闭弹窗，避免跳转过程闪烁
+      try { closeResultOrderModal(); } catch (e) {}
+      // 跳转到 merchant.html，带店号信息（merchant.html 启动后识别 sessionStorage 自动打开代客下单 + 预填号码）
+      var qs = '';
+      if (currentShop && currentShop.shop_id != null) {
+        qs = '?shopId=' + encodeURIComponent(currentShop.shop_id);
+        if (currentShop.shop_number) qs += '&shopNumber=' + encodeURIComponent(currentShop.shop_number);
+      }
+      window.location.href = 'merchant.html' + qs;
+    }
+
     // 从结算页详情弹窗兑奖
     async function redeemFromResultDetail(order) {
       const orderNumber = order.order_number || order.orderNumber;
@@ -2937,12 +2997,43 @@
       document.getElementById('modal-period-detail').classList.remove('hidden');
     }
 
+    // 最近 20 期结算记录卡片：跨期订单号搜索
+    // 输入完整订单号 → 命中后调用 openResultOrderDetail 弹详情(含 404 提示、店铺归属校验、兑奖按钮)
+    async function searchOrderByNumber() {
+      const inputEl = document.getElementById('history-order-search-input');
+      if (!inputEl) return;
+      var raw = (inputEl.value || '').trim().replace(/^#+/, '').toUpperCase();
+      if (!raw) {
+        showToast(t('alert_search_input_required') || '请输入订单号', 'warning');
+        try { inputEl.focus(); } catch (e) {}
+        return;
+      }
+      // 同步规范化后的值，方便用户看到实际查的字串
+      inputEl.value = raw;
+      try {
+        await openResultOrderDetail(raw);
+      } catch (e) {
+        console.error('搜索订单失败:', e);
+        showToast(t('alert_search_failed') || '搜索失败，请重试', 'error');
+      }
+    }
+
     async function openResultOrderDetail(orderNumber) {
       if (!orderNumber) return;
       try {
         const res = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`);
+        if (res.status === 404) {
+          showToast(t('alert_order_not_found') || '未找到该订单', 'error');
+          return;
+        }
         if (!res.ok) throw new Error('订单不存在');
         const data = await res.json();
+        // 跨期订单号搜索可能命中其他店铺的订单：仅展示本店订单，防误兑奖
+        if (currentShop && currentShop.shop_id != null && data.shop_id != null
+            && Number(data.shop_id) !== Number(currentShop.shop_id)) {
+          showToast(t('alert_order_other_shop') || '该订单不属于本店', 'error');
+          return;
+        }
         document.getElementById('result-detail-order-id').textContent = data.order_number || orderNumber;
         var lt = String(data.lottery_type || data.lotteryType || 'NACIONAL').toUpperCase();
         var ltRow = document.getElementById('result-detail-lottery-row');
@@ -2958,10 +3049,13 @@
         const winRow = document.getElementById('result-detail-win-row');
         const winEl = document.getElementById('result-detail-win');
         const redeemBtn = document.getElementById('btn-result-redeem');
+        const reorderBtn = document.getElementById('btn-result-reorder');
         const tier = orderStatusTier(data);
         const isWon = tier === 3;
         const redeemed = orderIsRedeemed(data);
-        
+        // 重新下单：未中奖(tier=2) 或 已兑奖(中奖且已兑) 才显示；中奖未兑奖排除（避免和兑奖按钮混淆）
+        const canReorder = (tier === 2) || (isWon && redeemed);
+
         if (isWon && !redeemed) {
           statusRow.classList.remove('hidden'); statusEl.textContent = t('status_won');
           winRow.classList.remove('hidden'); winEl.textContent = getOrderWinAmount(data).toFixed(2);
@@ -2978,6 +3072,12 @@
         } else {
           statusRow.classList.add('hidden'); winRow.classList.add('hidden');
           redeemBtn.classList.add('hidden');
+        }
+
+        // 重新下单按钮显隐 + 绑定回调（闭包带订单数据，避免依赖全局变量）
+        if (reorderBtn) {
+          reorderBtn.classList.toggle('hidden', !canReorder);
+          reorderBtn.onclick = function() { reorderFromResultDetail(data); };
         }
         const numbersEl = document.getElementById('result-detail-numbers');
         if (data.numbers && data.numbers.length) {
@@ -3146,6 +3246,13 @@
       // 根据彩种显示/隐藏对应区域：Lotería=Billete+Chance，TICA/NICA=Chain串赔率
       var kind = getResultPageKind();
       var isLocal = (kind === 'TICA' || kind === 'NICA');
+      // 顶部彩种标签：明示当前修改的是哪个彩种的赔率（三彩种字段独立、互不影响）
+      var kindLabel = document.getElementById('rates-modal-kind-label');
+      if (kindLabel) {
+        if (kind === 'TICA') { kindLabel.textContent = 'TICA'; kindLabel.className = 'text-purple-400'; }
+        else if (kind === 'NICA') { kindLabel.textContent = 'NICA'; kindLabel.className = 'text-cyan-400'; }
+        else { kindLabel.textContent = 'Lotería'; kindLabel.className = 'text-amber-400'; }
+      }
       var billeteSection = document.getElementById('billete-rates-section');
       var chanceSection = document.getElementById('chance-rates-section');
       var chainSection = document.getElementById('chain-rates-section');
@@ -3166,14 +3273,17 @@
           if (inp) inp.value = val;
           if (disp) disp.textContent = val;
         }
-        // Chance 赔率：NICA 独立，TICA 复用 rate_chance_*
+        // Chance 赔率：三彩种各自独立字段；TICA/NICA null 时 fallback 到 NACIONAL 的 rate_chance_*（与后端结算一致）
         var localC1, localC2, localC3;
         if (kind === 'NICA') {
           localC1 = rv('nica_chance_1', c1);
           localC2 = rv('nica_chance_2', c2);
           localC3 = rv('nica_chance_3', c3);
         } else {
-          localC1 = c1; localC2 = c2; localC3 = c3;
+          // TICA
+          localC1 = rv('tica_chance_1', c1);
+          localC2 = rv('tica_chance_2', c2);
+          localC3 = rv('tica_chance_3', c3);
         }
         var lc1 = document.getElementById('rate-input-local-c1');
         var lc2 = document.getElementById('rate-input-local-c2');
@@ -3213,16 +3323,16 @@
         body.rateChance2 = toNum('rate-input-c2');
         body.rateChance3 = toNum('rate-input-c3');
       } else if (kind === 'TICA') {
-        // TICA：Chain 串赔率 + Chance 赔率（存到 chain_* 和 rate_chance_*）
+        // TICA：Chain 串赔率 + Chance 赔率（独立到 chain_* 和 tica_chance_*，与 NACIONAL 解耦）
         body.chain12 = toNumOrZero('rate-input-chain12');
         body.chain13 = toNumOrZero('rate-input-chain13');
         body.chain21 = toNumOrZero('rate-input-chain21');
         body.chain23 = toNumOrZero('rate-input-chain23');
         body.chain31 = toNumOrZero('rate-input-chain31');
         body.chain32 = toNumOrZero('rate-input-chain32');
-        body.rateChance1 = toNum('rate-input-local-c1');
-        body.rateChance2 = toNum('rate-input-local-c2');
-        body.rateChance3 = toNum('rate-input-local-c3');
+        body.ticaChance1 = toNum('rate-input-local-c1');
+        body.ticaChance2 = toNum('rate-input-local-c2');
+        body.ticaChance3 = toNum('rate-input-local-c3');
       } else {
         // NICA：独立赔率字段
         body.nicaChain12 = toNumOrZero('rate-input-chain12');
@@ -3250,6 +3360,10 @@
         currentShop.rate_chance_1 = data.rate_chance_1;
         currentShop.rate_chance_2 = data.rate_chance_2;
         currentShop.rate_chance_3 = data.rate_chance_3;
+        // TICA 独立 Chance 赔率缓存
+        if (data.tica_chance_1 !== undefined) currentShop.tica_chance_1 = data.tica_chance_1;
+        if (data.tica_chance_2 !== undefined) currentShop.tica_chance_2 = data.tica_chance_2;
+        if (data.tica_chance_3 !== undefined) currentShop.tica_chance_3 = data.tica_chance_3;
         if (data.chain_1_2 !== undefined) currentShop.chain_1_2 = data.chain_1_2;
         if (data.chain_1_3 !== undefined) currentShop.chain_1_3 = data.chain_1_3;
         if (data.chain_2_1 !== undefined) currentShop.chain_2_1 = data.chain_2_1;
