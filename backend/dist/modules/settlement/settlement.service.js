@@ -248,9 +248,9 @@ let SettlementService = SettlementService_1 = class SettlementService {
             shop?.nica_chance_2 != null ? Number(shop.nica_chance_2) : (shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3),
             shop?.nica_chance_3 != null ? Number(shop.nica_chance_3) : (shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2),
         ] : [
-            shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14,
-            shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3,
-            shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2,
+            shop?.tica_chance_1 != null ? Number(shop.tica_chance_1) : (shop?.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14),
+            shop?.tica_chance_2 != null ? Number(shop.tica_chance_2) : (shop?.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3),
+            shop?.tica_chance_3 != null ? Number(shop.tica_chance_3) : (shop?.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2),
         ];
         const chain = isNica ? {
             c12: shop?.nica_chain_1_2 != null ? Number(shop.nica_chain_1_2) : (shop?.chain_1_2 != null ? Number(shop.chain_1_2) : 1000),

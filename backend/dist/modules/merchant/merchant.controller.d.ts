@@ -82,6 +82,9 @@ export declare class MerchantController implements OnModuleInit {
             rate_chance_1: any;
             rate_chance_2: any;
             rate_chance_3: any;
+            tica_chance_1: any;
+            tica_chance_2: any;
+            tica_chance_3: any;
             loteria_enabled: boolean;
             tica_enabled: boolean;
             nica_enabled: boolean;
@@ -111,6 +114,9 @@ export declare class MerchantController implements OnModuleInit {
             rate_chance_1: any;
             rate_chance_2: any;
             rate_chance_3: any;
+            tica_chance_1: any;
+            tica_chance_2: any;
+            tica_chance_3: any;
             chain_1_2: any;
             chain_1_3: any;
             chain_2_1: any;

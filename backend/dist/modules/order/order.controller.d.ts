@@ -215,6 +215,9 @@ export declare class ShopController {
         rateChance1?: number | null;
         rateChance2?: number | null;
         rateChance3?: number | null;
+        ticaChance1?: number | null;
+        ticaChance2?: number | null;
+        ticaChance3?: number | null;
         chain12?: number | null;
         chain13?: number | null;
         chain21?: number | null;
@@ -238,6 +241,9 @@ export declare class ShopController {
         rate_chance_1: any;
         rate_chance_2: any;
         rate_chance_3: any;
+        tica_chance_1: any;
+        tica_chance_2: any;
+        tica_chance_3: any;
         chain_1_2: any;
         chain_1_3: any;
         chain_2_1: any;

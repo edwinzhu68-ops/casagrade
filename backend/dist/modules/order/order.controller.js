@@ -982,6 +982,12 @@ let ShopController = ShopController_1 = class ShopController {
             shop.rate_chance_2 = toRate(body.rateChance2, 3);
         if (body.rateChance3 !== undefined)
             shop.rate_chance_3 = toRate(body.rateChance3, 2);
+        if (body.ticaChance1 !== undefined)
+            shop.tica_chance_1 = toRate(body.ticaChance1, 14);
+        if (body.ticaChance2 !== undefined)
+            shop.tica_chance_2 = toRate(body.ticaChance2, 3);
+        if (body.ticaChance3 !== undefined)
+            shop.tica_chance_3 = toRate(body.ticaChance3, 2);
         if (body.chain12 !== undefined)
             shop.chain_1_2 = toChainRate(body.chain12);
         if (body.chain13 !== undefined)
@@ -1021,6 +1027,9 @@ let ShopController = ShopController_1 = class ShopController {
             rate_chance_1: shop.rate_chance_1,
             rate_chance_2: shop.rate_chance_2,
             rate_chance_3: shop.rate_chance_3,
+            tica_chance_1: shop.tica_chance_1,
+            tica_chance_2: shop.tica_chance_2,
+            tica_chance_3: shop.tica_chance_3,
             chain_1_2: shop.chain_1_2,
             chain_1_3: shop.chain_1_3,
             chain_2_1: shop.chain_2_1,

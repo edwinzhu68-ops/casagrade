@@ -36,6 +36,9 @@ export declare class Shop {
     chain_2_3: number;
     chain_3_1: number;
     chain_3_2: number;
+    tica_chance_1: number | null;
+    tica_chance_2: number | null;
+    tica_chance_3: number | null;
     nica_chain_1_2: number | null;
     nica_chain_1_3: number | null;
     nica_chain_2_1: number | null;

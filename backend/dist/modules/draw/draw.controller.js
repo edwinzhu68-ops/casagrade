@@ -189,21 +189,25 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
                 else if (numLen >= 2) {
                     const betCh = num.slice(-2).padStart(2, '0');
                     let winVal = 0;
+                    const matchedRates = [];
                     if (betCh === ch1) {
                         winVal += chanceRates[0] * qty;
                         matchInfo += (matchInfo ? '+' : '') + '头奖';
+                        matchedRates.push(chanceRates[0]);
                     }
                     if (betCh === ch2) {
                         winVal += chanceRates[1] * qty;
                         matchInfo += (matchInfo ? '+' : '') + '二奖';
+                        matchedRates.push(chanceRates[1]);
                     }
                     if (betCh === ch3) {
                         winVal += chanceRates[2] * qty;
                         matchInfo += (matchInfo ? '+' : '') + '三奖';
+                        matchedRates.push(chanceRates[2]);
                     }
                     lineWin = winVal;
-                    if (matchInfo)
-                        matchInfo += `(${chanceRates[0]}+${chanceRates[1]}+${chanceRates[2]})`;
+                    if (matchInfo && matchedRates.length > 0)
+                        matchInfo += `(${matchedRates.join('+')})`;
                 }
                 totalWin += lineWin;
                 winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });

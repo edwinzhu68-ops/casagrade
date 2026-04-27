@@ -161,6 +161,18 @@ __decorate([
     __metadata("design:type", Number)
 ], Shop.prototype, "chain_3_2", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'tica_chance_1', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "tica_chance_1", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'tica_chance_2', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "tica_chance_2", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'tica_chance_3', type: 'decimal', precision: 10, scale: 2, nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "tica_chance_3", void 0);
+__decorate([
     (0, typeorm_1.Column)({ name: 'nica_chain_1_2', type: 'decimal', precision: 10, scale: 2, nullable: true }),
     __metadata("design:type", Number)
 ], Shop.prototype, "nica_chain_1_2", void 0);
