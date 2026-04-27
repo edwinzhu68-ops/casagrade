@@ -182,14 +182,15 @@ async function settleOrdersForDraw(
           if (win3Val > 0) matches.push('三奖');
           if (matches.length > 0) matchInfo = matches.join('+');
         } else if (numLen >= 2) {
-          // Chance：取后2位，三奖叠加
+          // Chance：取后2位，命中多档时赔率叠加；match 字符串只列出"实际命中"档的赔率（避免误显示成三档全中）
           const betCh = num.slice(-2).padStart(2, '0');
           let winVal = 0;
-          if (betCh === ch1) { winVal += chanceRates[0] * qty; matchInfo += (matchInfo ? '+' : '') + '头奖'; }
-          if (betCh === ch2) { winVal += chanceRates[1] * qty; matchInfo += (matchInfo ? '+' : '') + '二奖'; }
-          if (betCh === ch3) { winVal += chanceRates[2] * qty; matchInfo += (matchInfo ? '+' : '') + '三奖'; }
+          const matchedRates: number[] = [];
+          if (betCh === ch1) { winVal += chanceRates[0] * qty; matchInfo += (matchInfo ? '+' : '') + '头奖'; matchedRates.push(chanceRates[0]); }
+          if (betCh === ch2) { winVal += chanceRates[1] * qty; matchInfo += (matchInfo ? '+' : '') + '二奖'; matchedRates.push(chanceRates[1]); }
+          if (betCh === ch3) { winVal += chanceRates[2] * qty; matchInfo += (matchInfo ? '+' : '') + '三奖'; matchedRates.push(chanceRates[2]); }
           lineWin = winVal;
-          if (matchInfo) matchInfo += `(${chanceRates[0]}+${chanceRates[1]}+${chanceRates[2]})`;
+          if (matchInfo && matchedRates.length > 0) matchInfo += `(${matchedRates.join('+')})`;
         }
         totalWin += lineWin;
         winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });
