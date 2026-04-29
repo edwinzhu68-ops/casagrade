@@ -974,8 +974,8 @@ export class ShopController {
     if (suffix && suffix.trim()) {
       const safe = String(suffix.trim()).replace(/%/g, '\\%').replace(/_/g, '\\_');
       query.andWhere('order.order_number LIKE :suffixPattern', { suffixPattern: '%' + safe });
-      query.andWhere('order.status = 3');
-      query.andWhere('order.redeemed_at IS NULL');
+      // 状态/已兑奖过滤交给上游 status 参数 + 客户端按需过滤；suffix 只负责后缀匹配
+      // merchant.html 收银台兑奖搜索显式带 status=won 并过滤 redeemed_at，不受影响
     }
 
     let orders = await query.getMany();
