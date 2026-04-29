@@ -6814,6 +6814,12 @@
       txt('No se aceptan reclamos'); LF();
       txt('despues del sorteo.'); LF();
       LF();
+      // ── 7. 末尾再印一次订单号（撕票后仍可识别）──
+      if (orderNum) {
+        push(...CENTER,...BON);
+        txt('#' + orderNum); LF();
+        push(...BOFF);
+      }
       push(...CUT);
       return new Uint8Array(buf);
     }

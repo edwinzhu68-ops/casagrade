@@ -309,15 +309,14 @@
           <h3 class="font-bold text-lg" data-i18n="recent_20">📅 最近 20 期结算记录</h3>
           <span class="text-xs text-gray-400" data-i18n="paid_only">仅统计已付款订单</span>
         </div>
-        <!-- 跨期订单号搜索：输入完整订单号 → 命中后弹详情(含兑奖按钮) -->
-        <div class="mb-3 flex gap-2">
+        <!-- 后4位实时搜索：输入满 4 位即跨所有期列出未兑奖中奖订单（点击行进详情/兑奖） -->
+        <div class="mb-3">
           <input type="text" id="history-order-search-input"
-            data-i18n-placeholder="search_order_input_ph" placeholder="输入完整订单号搜索（跨所有期）"
-            maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false"
-            class="flex-1 min-w-0 py-2 px-3 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono uppercase focus:border-emerald-500 focus:outline-none"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();searchOrderByNumber();}" />
-          <button type="button" onclick="searchOrderByNumber()" data-i18n="search_order_btn"
-            class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap">🔍 搜索</button>
+            data-i18n-placeholder="search_order_input_ph" placeholder="输入后 4 位 · 跨所有期搜匹配订单"
+            maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+            class="w-full min-w-0 py-2 px-3 bg-gray-700 border border-gray-600 rounded-lg text-sm font-mono focus:border-emerald-500 focus:outline-none"
+            oninput="onHistorySearchInput(this.value)" />
+          <div id="history-search-results" class="hidden mt-2 space-y-1.5"></div>
         </div>
         <div id="history-list" class="divide-y divide-gray-700/80 text-sm">
           <div class="py-4 text-center text-gray-500">加载中...</div>
@@ -659,7 +658,7 @@
         filter_suffix_4: '后4位',
         filter_suffix_title: '输入订单号后4位筛选',
         no_match_orders: '无匹配订单',
-        search_order_input_ph: '输入完整订单号搜索（跨所有期）',
+        search_order_input_ph: '输入后 4 位 · 跨所有期搜匹配订单',
         search_order_btn: '🔍 搜索',
         alert_search_input_required: '请输入订单号',
         alert_order_not_found: '未找到该订单',
@@ -762,7 +761,7 @@
         filter_suffix_4: 'Últ. 4',
         filter_suffix_title: 'Filtrar por los últimos 4 dígitos del pedido',
         no_match_orders: 'Sin pedidos coincidentes',
-        search_order_input_ph: 'Buscar por N.º de pedido (todos los períodos)',
+        search_order_input_ph: 'Últ. 4 cifras · Buscar pedidos (todos los períodos)',
         search_order_btn: '🔍 Buscar',
         alert_search_input_required: 'Ingrese el número de pedido',
         alert_order_not_found: 'Pedido no encontrado',
@@ -2997,24 +2996,96 @@
       document.getElementById('modal-period-detail').classList.remove('hidden');
     }
 
-    // 最近 20 期结算记录卡片：跨期订单号搜索
-    // 输入完整订单号 → 命中后调用 openResultOrderDetail 弹详情(含 404 提示、店铺归属校验、兑奖按钮)
-    async function searchOrderByNumber() {
+    // 最近 20 期结算记录卡片：后 4 位实时搜索
+    // 输入满 4 位 → 调 /api/shop/orders?suffix=XXXX 列出本店所有期所有状态匹配订单；点击行打开详情(含兑奖按钮)
+    let _historySearchSeq = 0;
+    async function onHistorySearchInput(rawValue) {
       const inputEl = document.getElementById('history-order-search-input');
-      if (!inputEl) return;
-      var raw = (inputEl.value || '').trim().replace(/^#+/, '').toUpperCase();
-      if (!raw) {
-        showToast(t('alert_search_input_required') || '请输入订单号', 'warning');
-        try { inputEl.focus(); } catch (e) {}
+      const resultsEl = document.getElementById('history-search-results');
+      if (!inputEl || !resultsEl) return;
+
+      // 只保留数字、限制 4 位
+      const digits = String(rawValue || '').replace(/\D/g, '').slice(0, 4);
+      if (inputEl.value !== digits) inputEl.value = digits;
+
+      // 不足 4 位 → 隐藏结果区
+      if (digits.length < 4) {
+        resultsEl.classList.add('hidden');
+        resultsEl.innerHTML = '';
         return;
       }
-      // 同步规范化后的值，方便用户看到实际查的字串
-      inputEl.value = raw;
+
+      if (!currentShop || currentShop.shop_id == null) {
+        resultsEl.classList.remove('hidden');
+        resultsEl.innerHTML = '<div class="py-2 text-center text-red-400 text-sm">' + esc(t('result_login_hint') || '请先登录') + '</div>';
+        return;
+      }
+
+      const seq = ++_historySearchSeq;
+      resultsEl.classList.remove('hidden');
+      resultsEl.innerHTML = '<div class="py-2 text-center text-gray-500 text-sm">' + esc(t('loading') || '加载中...') + '</div>';
+
       try {
-        await openResultOrderDetail(raw);
+        const params = new URLSearchParams({
+          shopId: String(currentShop.shop_id),
+          suffix: digits,
+          _: String(Date.now()),
+        });
+        // 与历史列表保持一致的彩种作用域（NACIONAL / TICA / NICA）
+        var pkSearch = (typeof getResultPageKind === 'function') ? getResultPageKind() : 'NACIONAL';
+        if (pkSearch === 'TICA' || pkSearch === 'NICA') {
+          params.set('lotteryKind', pkSearch);
+        } else {
+          params.set('lotteryKind', 'NACIONAL');
+        }
+        const res = await fetch(`${API_BASE}/api/shop/orders?` + params.toString(), {
+          cache: 'no-store',
+          headers: resultAuthFetchHeaders(),
+        });
+        // 已被新输入取代 → 丢弃这次响应
+        if (seq !== _historySearchSeq) return;
+        const data = await res.json();
+        if (!res.ok) throw new Error(data && data.error ? data.error : 'search failed');
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+
+        if (orders.length === 0) {
+          resultsEl.innerHTML = '<div class="py-3 text-center text-gray-500 text-sm">' + esc(t('alert_order_not_found') || '未找到该订单') + '</div>';
+          return;
+        }
+
+        resultsEl.innerHTML = orders.map(function(o) {
+          const num = String(o.order_number || o.orderNumber || '');
+          const short = num.length <= 4 ? num : num.slice(-4);
+          const winAmt = getOrderWinAmount(o);
+          const tier = orderStatusTier(o);
+          const redeemed = orderIsRedeemed(o);
+          // 与期详情列表一致：中奖未兑=金色 / 未中或已兑=灰色 / 已付款=绿色
+          let rowCls = 'order-row-paid';
+          if (tier === 3 && !redeemed) rowCls = 'order-row-won';
+          else if (tier === 2 || (tier === 3 && redeemed)) rowCls = 'order-row-settled';
+          const disp = winAmt > 0 ? winAmt.toFixed(2) : Number(o.amount || 0).toFixed(2);
+          const amtCls = (tier === 3 && !redeemed) ? 'text-amber-300' : '';
+          const drawId = o.draw_id != null ? o.draw_id : (o.drawId != null ? o.drawId : '');
+          const drawTag = drawId !== '' ? ('#' + esc(String(drawId))) : '';
+          const safeNum = num.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+          return '<button type="button" class="history-search-row w-full text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2 ' + rowCls + '" data-order-number="' + safeNum + '">' +
+            '<span class="font-mono text-sm flex-shrink-0">#' + esc(short) + '</span>' +
+            '<span class="text-xs opacity-80 flex-shrink-0">' + drawTag + '</span>' +
+            '<span class="font-mono text-xs opacity-90 flex-shrink-0">' + esc(orderStatusLabel(o)) + '</span>' +
+            '<span class="font-mono font-bold text-sm flex-shrink-0 ' + amtCls + '">$' + disp + '</span>' +
+            '</button>';
+        }).join('');
+
+        resultsEl.querySelectorAll('.history-search-row').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            const orderNumber = this.getAttribute('data-order-number');
+            if (orderNumber) openResultOrderDetail(orderNumber);
+          });
+        });
       } catch (e) {
+        if (seq !== _historySearchSeq) return;
         console.error('搜索订单失败:', e);
-        showToast(t('alert_search_failed') || '搜索失败，请重试', 'error');
+        resultsEl.innerHTML = '<div class="py-2 text-center text-red-400 text-sm">' + esc(t('alert_search_failed') || '搜索失败，请重试') + '</div>';
       }
     }
 
