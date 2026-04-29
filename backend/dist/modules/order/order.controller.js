@@ -859,8 +859,6 @@ let ShopController = ShopController_1 = class ShopController {
         if (suffix && suffix.trim()) {
             const safe = String(suffix.trim()).replace(/%/g, '\\%').replace(/_/g, '\\_');
             query.andWhere('order.order_number LIKE :suffixPattern', { suffixPattern: '%' + safe });
-            query.andWhere('order.status = 3');
-            query.andWhere('order.redeemed_at IS NULL');
         }
         let orders = await query.getMany();
         const statusMap = {
