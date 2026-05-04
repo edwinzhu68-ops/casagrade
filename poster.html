@@ -68,11 +68,12 @@
       desde su celular!
     </p>
 
-    <!-- 三个卖点 -->
-    <div class="flex gap-3 mb-6 text-xs font-bold text-gray-700">
-      <span class="bg-green-50 border border-green-200 rounded-full px-3 py-1">✅ Sin filas</span>
-      <span class="bg-green-50 border border-green-200 rounded-full px-3 py-1">📱 Fácil</span>
-      <span class="bg-green-50 border border-green-200 rounded-full px-3 py-1">⚡ Rápido</span>
+    <!-- 四个卖点：2x2 布局 -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 24px; width: 100%;">
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 8px 10px; text-align: center; font-size: 11px; font-weight: bold; color: #374151;">📱 Sin hacer fila</div>
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 8px 10px; text-align: center; font-size: 11px; font-weight: bold; color: #374151;">⚡ En 5 segundos</div>
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 8px 10px; text-align: center; font-size: 11px; font-weight: bold; color: #374151;">🏠 Desde su casa</div>
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 8px 10px; text-align: center; font-size: 11px; font-weight: bold; color: #374151;">✅ Pague y listo</div>
     </div>
 
     <!-- QR 码 -->
@@ -84,7 +85,7 @@
     <!-- 分隔线 -->
     <div class="w-full border-t border-dashed border-gray-300 mb-5"></div>
 
-    <!-- 店号 + 店名 -->
+    <!-- 店号 -->
     <div class="text-center mb-5">
       <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Tienda</p>
       <p class="font-black text-5xl text-gray-900 font-mono leading-none" id="display-shop-number">—</p>
@@ -128,7 +129,7 @@
         height: 200,
         colorDark: '#16a34a',
         colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
+        correctLevel: QRCode.CorrectLevel.Q
       });
     })();
 
@@ -146,8 +147,11 @@
         btn.textContent = '📸 Guardar imagen';
         btn.disabled = false;
       }).catch(function() {
-        btn.textContent = '📸 Guardar imagen';
-        btn.disabled = false;
+        btn.textContent = '❌ Error, reintente';
+        setTimeout(function() {
+          btn.textContent = '📸 Guardar imagen';
+          btn.disabled = false;
+        }, 2000);
       });
     }
   </script>

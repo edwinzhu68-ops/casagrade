@@ -110,7 +110,7 @@
         height: 200,
         colorDark: '#16a34a',
         colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
+        correctLevel: QRCode.CorrectLevel.Q
       });
     })();
 
@@ -127,8 +127,11 @@
         btn.textContent = '📸 Guardar imagen';
         btn.disabled = false;
       }).catch(function() {
-        btn.textContent = '📸 Guardar imagen';
-        btn.disabled = false;
+        btn.textContent = '❌ Error, reintente';
+        setTimeout(function() {
+          btn.textContent = '📸 Guardar imagen';
+          btn.disabled = false;
+        }, 2000);
       });
     }
   </script>
