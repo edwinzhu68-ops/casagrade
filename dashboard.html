@@ -510,16 +510,28 @@
         document.body.appendChild(el);
       }
       el.innerHTML = '<div class="bg-gray-800 border border-gray-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl">' +
-        '<p class="text-sm text-gray-200 mb-5 text-center leading-relaxed">' + msg + '</p>' +
+        '<p id="_confirm-msg" class="text-sm text-gray-200 mb-5 text-center leading-relaxed whitespace-pre-line"></p>' +
         '<div class="flex gap-3">' +
         '<button id="_confirm-cancel" class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-xl font-bold text-sm">取消</button>' +
         '<button id="_confirm-ok" class="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-sm">确认</button>' +
         '</div></div>';
+      document.getElementById('_confirm-msg').textContent = msg;
       el.classList.remove('hidden');
       el.style.display = 'flex';
       document.getElementById('_confirm-cancel').onclick = function () { el.style.display = 'none'; };
       document.getElementById('_confirm-ok').onclick = function () { el.style.display = 'none'; onConfirm(); };
       el.onclick = function (e) { if (e.target === el) el.style.display = 'none'; };
+    }
+
+    /** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    /** 嵌入 HTML 内联事件（onclick 等）作为 JS 字符串字面量；安全方式 = JSON 序列化后再 HTML 转义 */
+    function jsAttr(v) {
+      return esc(JSON.stringify(String(v == null ? '' : v)));
     }
 
     function getAdminHeaders(includeAuth) {
@@ -1844,30 +1856,30 @@
         // 小庄绑定数量
         const subCount = s.sub_shop_count || 0;
         const subTag = subCount > 0
-          ? `<button onclick="toggleSubShops(${s.shop_id}, this)" class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300">小庄 ${subCount} 家 ▸</button>`
+          ? `<button onclick="toggleSubShops(${Number(s.shop_id)}, this)" class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300">小庄 ${Number(subCount)} 家 ▸</button>`
           : '';
-        const addSubBtn = `<button onclick="adminBatchCreateSubs(${s.shop_id},'${s.shop_number}')" class="px-1.5 py-0.5 rounded text-[10px] bg-green-900/50 hover:bg-green-800 text-green-300">+注册小庄</button>`;
+        const addSubBtn = `<button onclick="adminBatchCreateSubs(${Number(s.shop_id)},${jsAttr(s.shop_number)})" class="px-1.5 py-0.5 rounded text-[10px] bg-green-900/50 hover:bg-green-800 text-green-300">+注册小庄</button>`;
         return `
-          <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1" id="shop-row-${s.shop_id}">
+          <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1" id="shop-row-${Number(s.shop_id)}">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="font-mono font-bold text-white w-16 shrink-0">${s.shop_number}</span>
-              <span class="text-gray-300 truncate">${acct}</span>
-              <span class="text-gray-500 text-[11px] shrink-0">${regDate}</span>
+              <span class="font-mono font-bold text-white w-16 shrink-0">${esc(s.shop_number)}</span>
+              <span class="text-gray-300 truncate">${esc(acct)}</span>
+              <span class="text-gray-500 text-[11px] shrink-0">${esc(regDate)}</span>
               ${inactiveTag}
               ${subTag}
               ${addSubBtn}
-              <button onclick="confirmDeleteAccount('${acct}','${s.shop_number}')"
+              <button onclick="confirmDeleteAccount(${jsAttr(acct)},${jsAttr(s.shop_number)})"
                 class="ml-auto px-2 py-0.5 rounded text-[10px] bg-red-900/50 hover:bg-red-800 text-red-300">删除</button>
             </div>
             <div class="flex gap-4 text-gray-400 flex-wrap items-center">
-              <span>订单 <span class="text-white font-mono">${s.total_orders}</span></span>
-              <span>销售额 <span class="text-green-400 font-mono">${Math.round(s.total_sales)}</span></span>
-              <span class="${expiryColor} text-[11px]">到期 ${expiryLabel}</span>
-              <button onclick="editShopExpiry(${s.shop_id},'${expiryISO}')"
+              <span>订单 <span class="text-white font-mono">${Number(s.total_orders) || 0}</span></span>
+              <span>销售额 <span class="text-green-400 font-mono">${Math.round(Number(s.total_sales) || 0)}</span></span>
+              <span class="${expiryColor} text-[11px]">到期 ${esc(expiryLabel)}</span>
+              <button onclick="editShopExpiry(${Number(s.shop_id)},${jsAttr(expiryISO)})"
                 class="px-2 py-0.5 rounded text-[10px] bg-blue-900/50 hover:bg-blue-800 text-blue-300">改到期日</button>
             </div>
             <!-- 小庄展开列表（默认隐藏） -->
-            <div id="sub-list-${s.shop_id}" class="hidden mt-1 pl-2 border-l-2 border-purple-700/40 space-y-1"></div>
+            <div id="sub-list-${Number(s.shop_id)}" class="hidden mt-1 pl-2 border-l-2 border-purple-700/40 space-y-1"></div>
           </div>`;
       }).join('');
     }
@@ -1916,7 +1928,7 @@
         const subs = data.sub_shops || [];
         if (!subs.length) { el.innerHTML = '<p class="text-gray-500 text-[11px] py-1">暂无小庄</p>'; return; }
         // 批量续期按钮
-        const batchBtn = `<button onclick="batchSubExpiry(${shopId})" class="text-[10px] px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white ml-auto">📅 批量续期</button>`;
+        const batchBtn = `<button onclick="batchSubExpiry(${Number(shopId)})" class="text-[10px] px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white ml-auto">📅 批量续期</button>`;
         el.innerHTML = `<div class="flex items-center mb-1">${batchBtn}</div>` + subs.map(s => {
           const expiry = s.subscription_expires_at ? new Date(s.subscription_expires_at) : null;
           const now = new Date();
@@ -1925,9 +1937,9 @@
           const color = expired ? 'text-red-400' : 'text-gray-400';
           const expiryISO = expiry ? expiry.toISOString().slice(0,10) : '';
           return `<div class="flex items-center gap-2 text-[11px] bg-gray-800/60 rounded px-2 py-1">
-            <span class="font-mono text-purple-300 w-16 shrink-0">${s.shop_number}</span>
-            <span class="${color} flex-1">到期 ${expiryStr}${expired ? '（已过期）':''}</span>
-            <button onclick="editShopExpiry(${s.shop_id},'${expiryISO}')" class="text-blue-400 hover:text-blue-200">改</button>
+            <span class="font-mono text-purple-300 w-16 shrink-0">${esc(s.shop_number)}</span>
+            <span class="${color} flex-1">到期 ${esc(expiryStr)}${expired ? '（已过期）':''}</span>
+            <button onclick="editShopExpiry(${Number(s.shop_id)},${jsAttr(expiryISO)})" class="text-blue-400 hover:text-blue-200">改</button>
           </div>`;
         }).join('');
       } catch (e) { el.innerHTML = '<p class="text-red-400 text-[11px] py-1">加载失败</p>'; }
@@ -2096,7 +2108,7 @@
         if (data.success) {
           resultEl.classList.remove('hidden');
           const label = type === 'monthly' ? '月卡' : '年卡';
-          resultEl.innerHTML = data.codes.map(c => `<div class="text-green-300">[${label}] ${c}</div>`).join('');
+          resultEl.innerHTML = data.codes.map(c => `<div class="text-green-300">[${esc(label)}] ${esc(c)}</div>`).join('');
         } else {
           showToast(data.message || '生成失败', 'error');
         }

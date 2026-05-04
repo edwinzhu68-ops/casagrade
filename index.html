@@ -1433,7 +1433,6 @@
       if (isPaidBtn || isHomeBtn) {
         e.preventDefault();
         e.stopPropagation();
-        console.log('点击了已付款订单:', num);
         openClientOrderDetail(num);
       }
     }); // 使用冒泡阶段（默认），让 onclick 属性也能正常工作
@@ -3267,7 +3266,6 @@
 
     var __openingOrderNumber = null;
     async function openClientOrderDetail(orderNumberFromList) {
-      console.log('openClientOrderDetail 被调用:', orderNumberFromList);
       if (!orderNumberFromList) return;
       var orderNumStr = String(orderNumberFromList).trim();
       if (!orderNumStr) return;

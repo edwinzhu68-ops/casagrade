@@ -86,7 +86,7 @@
         <button onclick="openForgotModal()" class="w-full text-gray-400 text-sm py-1" data-i18n="btn_forgot">忘记密码？</button>
       </div>
       <div class="mt-6 text-center">
-        <a href="guide.html" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm" data-i18n="link_guide">📖 使用说明</a>
+        <a href="guide.html" target="_blank" rel="noopener" class="text-blue-400 hover:text-blue-300 text-sm" data-i18n="link_guide">📖 使用说明</a>
       </div>
     </div>
   </div>
@@ -106,7 +106,7 @@
           <p class="text-white text-base font-mono mb-3" id="reg-existing-account"></p>
           <p class="text-gray-300 text-xs" data-i18n="reg_device_contact">如忘记密码，请通过 WhatsApp 联系客服解决。</p>
         </div>
-        <a href="https://chat.whatsapp.com/Gug1qVxK8aR6k17VRUuTA9?mode=gi_t" target="_blank"
+        <a href="https://chat.whatsapp.com/Gug1qVxK8aR6k17VRUuTA9?mode=gi_t" target="_blank" rel="noopener noreferrer"
           class="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold text-sm">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
           <span data-i18n="reg_whatsapp_btn">加入 WhatsApp 客服群</span>
@@ -2952,7 +2952,14 @@
         return;
       }
 
-      fetch(`${API_BASE}/api/orders/${orderNumber}`)
+      // 安全：orderNumber 必须是字母数字（防止恶意 QR 注入路径分隔符/换行/查询串改写 URL）
+      if (!/^[A-Za-z0-9]{3,32}$/.test(String(orderNumber))) {
+        closeScan();
+        showToast(t('alert_order_not_found'), 'error');
+        return;
+      }
+
+      fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`)
         .then(res => res.json())
         .then(data => {
           closeScan();
@@ -3047,7 +3054,7 @@
       if (!currentRedeemOrder || !currentShop || redeemInProgress) return;
       redeemInProgress = true;
       try {
-        const res = await fetch(`${API_BASE}/api/orders/${currentRedeemOrder.order_number}/redeem`, {
+        const res = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(currentRedeemOrder.order_number)}/redeem`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
           body: JSON.stringify({
@@ -5076,7 +5083,7 @@
     }
 
     function viewOrder(orderNumber) {
-      fetch(`${API_BASE}/api/orders/${orderNumber}`)
+      fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}`)
         .then(res => res.json())
         .then(data => showOrderDetail(data));
     }
@@ -5646,7 +5653,7 @@
       if (_nv) saveOrderNote(String(orderNumber), _nv);
       paymentInProgress = true;
       try {
-        const res = await fetch(`${API_BASE}/api/orders/${orderNumber}/confirm`, {
+        const res = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderNumber)}/confirm`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (authToken || localStorage.getItem('lottery_token') || '') },
           body: JSON.stringify({ shopId: currentShop.shop_id, note: _nv || undefined })
@@ -5731,14 +5738,14 @@
         } else if (binding && binding.status === 'active') {
           html += `<div class="flex items-center justify-between mb-2">
             <div class="text-xs">
-              <span class="text-green-400 font-semibold">${t('binding_bound_title')}</span>
-              <span class="text-gray-400 ml-2">${t('binding_main_shop_label')} <span class="font-mono font-bold text-white">${binding.main_shop_number}</span></span>
+              <span class="text-green-400 font-semibold">${esc(t('binding_bound_title'))}</span>
+              <span class="text-gray-400 ml-2">${esc(t('binding_main_shop_label'))} <span class="font-mono font-bold text-white">${esc(binding.main_shop_number)}</span></span>
             </div>
-            <button onclick="unbindSelf(${binding.binding_id})" class="text-xs text-red-400 hover:underline ml-2">${t('binding_unbind_btn')}</button>
+            <button onclick="unbindSelf(${Number(binding.binding_id)})" class="text-xs text-red-400 hover:underline ml-2">${esc(t('binding_unbind_btn'))}</button>
           </div>
-          <p class="text-xs text-gray-500">${t('binding_commission_rate_label')}<span class="text-white font-bold">${(binding.commission_rate * 100).toFixed(0)}%</span></p>`;
+          <p class="text-xs text-gray-500">${esc(t('binding_commission_rate_label'))}<span class="text-white font-bold">${(Number(binding.commission_rate) * 100).toFixed(0)}%</span></p>`;
         } else if (!binding || binding.status === 'rejected') {
-          html += `<p class="text-xs text-gray-400">${t('binding_none')}</p>`;
+          html += `<p class="text-xs text-gray-400">${esc(t('binding_none'))}</p>`;
         }
 
         // 待确认邀请：内联显示，不弹窗
@@ -5748,13 +5755,13 @@
             html += `<div class="bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-3">
               <div class="flex items-center justify-between mb-2">
                 <div class="text-sm">
-                  <span class="text-gray-400 text-xs">店号 </span><span class="font-mono font-black text-yellow-300">${inv.main_shop_number}</span>
-                  <span class="text-gray-400 text-xs ml-2">${t('binding_invite_join')} <span class="text-white font-bold">${(inv.commission_rate * 100).toFixed(0)}%</span></span>
+                  <span class="text-gray-400 text-xs">店号 </span><span class="font-mono font-black text-yellow-300">${esc(inv.main_shop_number)}</span>
+                  <span class="text-gray-400 text-xs ml-2">${esc(t('binding_invite_join'))} <span class="text-white font-bold">${(Number(inv.commission_rate) * 100).toFixed(0)}%</span></span>
                 </div>
               </div>
               <div class="flex gap-2">
-                <button onclick="respondInvite(${inv.binding_id}, true)" class="flex-1 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-sm font-bold transition">${t('btn_approve')}</button>
-                <button onclick="respondInvite(${inv.binding_id}, false)" class="flex-1 py-2 rounded-xl bg-red-900/60 hover:bg-red-800 text-sm font-bold transition text-red-300">${t('btn_reject')}</button>
+                <button onclick="respondInvite(${Number(inv.binding_id)}, true)" class="flex-1 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-sm font-bold transition">${esc(t('btn_approve'))}</button>
+                <button onclick="respondInvite(${Number(inv.binding_id)}, false)" class="flex-1 py-2 rounded-xl bg-red-900/60 hover:bg-red-800 text-sm font-bold transition text-red-300">${esc(t('btn_reject'))}</button>
               </div>
             </div>`;
           });
@@ -7274,7 +7281,7 @@
       </div>
       <div class="space-y-4 overflow-y-auto px-6 pb-6">
         <!-- 0. 使用说明 -->
-        <a href="guide.html" target="_blank" class="flex items-center justify-center gap-2 w-full border border-blue-500/40 bg-blue-900/20 hover:bg-blue-900/40 rounded-xl py-3 text-blue-400 font-bold text-sm" data-i18n="link_guide">
+        <a href="guide.html" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 w-full border border-blue-500/40 bg-blue-900/20 hover:bg-blue-900/40 rounded-xl py-3 text-blue-400 font-bold text-sm" data-i18n="link_guide">
           📖 Instrucciones de uso
         </a>
 
