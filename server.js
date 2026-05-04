@@ -16,11 +16,20 @@ const STATIC_DIR = path.join(__dirname);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// 安全响应头（纵深防御；nginx 也应配相同头）
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 // API 代理：转发到已有后端
 app.use('/api', async (req, res) => {
   const url = `http://localhost:${BACKEND_PORT}${req.originalUrl}`;
   const headers = { ...req.headers, host: `localhost:${BACKEND_PORT}` };
   delete headers['content-length'];
+  delete headers['transfer-encoding'];
   const opts = { method: req.method, headers };
   if (req.method !== 'GET' && req.method !== 'HEAD' && req.body !== undefined) {
     opts.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
@@ -37,13 +46,20 @@ app.use('/api', async (req, res) => {
       res.status(response.status).set('Content-Type', contentType).send(text);
     }
   } catch (e) {
-    res.status(502).json({ error: 'Backend unreachable: ' + e.message });
+    // 不暴露内网拓扑（端口/IP/系统调用错误码）
+    if (process.env.NODE_ENV !== 'production') console.warn('[proxy] backend error:', e.message);
+    res.status(502).json({ error: 'Backend unreachable' });
   }
 });
 
-// 静态文件服务
+// 静态文件服务（含 path traversal 防御）
 app.use((req, res) => {
-  let filePath = path.join(STATIC_DIR, req.path);
+  // 防 path traversal：req.path 可能含未规范化的 ..；path.resolve 后必须仍在 STATIC_DIR 内
+  const candidate = path.resolve(STATIC_DIR, '.' + req.path);
+  if (candidate !== STATIC_DIR && !candidate.startsWith(STATIC_DIR + path.sep)) {
+    return res.status(403).send('Forbidden');
+  }
+  let filePath = candidate;
   if (!existsSync(filePath) || path.extname(filePath) === '') {
     filePath = path.join(STATIC_DIR, 'index.html');
   }
