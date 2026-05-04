@@ -1540,7 +1540,7 @@
         }
         const div = document.createElement('div');
         div.className = 'text-center py-1.5 rounded font-mono bg-gray-700/40';
-        div.innerHTML = `<div class="font-bold text-xs">${num}</div><div class="text-[10px] ${qtyColorClass}">${qty}</div>`;
+        div.innerHTML = `<div class="font-bold text-xs">${esc(num)}</div><div class="text-[10px] ${qtyColorClass}">${Number(qty) || 0}</div>`;
         chanceGrid.appendChild(div);
       });
 
@@ -1559,8 +1559,8 @@
           }
           return `
             <div class="text-center py-2 rounded font-mono bg-gray-700/40">
-              <div class="font-bold text-sm">${num}</div>
-              <div class="text-[11px] ${qtyColorClass}">${qty}</div>
+              <div class="font-bold text-sm">${esc(num)}</div>
+              <div class="text-[11px] ${qtyColorClass}">${Number(qty) || 0}</div>
             </div>
           `;
         }).join('');
@@ -1618,7 +1618,7 @@
         }
         const div = document.createElement('div');
         div.className = 'text-center py-1.5 rounded font-mono bg-gray-700/40';
-        div.innerHTML = `<div class="font-bold text-xs">${num}</div><div class="text-[10px] ${qtyColorClass}">${qty}</div>`;
+        div.innerHTML = `<div class="font-bold text-xs">${esc(num)}</div><div class="text-[10px] ${qtyColorClass}">${Number(qty) || 0}</div>`;
         chanceTotalGrid.appendChild(div);
       });
 
@@ -1640,8 +1640,8 @@
           }
           return `
             <div class="text-center py-2 rounded font-mono bg-gray-700/40">
-              <div class="font-bold text-sm">${num}</div>
-              <div class="text-[11px] ${qtyColorClass}">${qty}</div>
+              <div class="font-bold text-sm">${esc(num)}</div>
+              <div class="text-[11px] ${qtyColorClass}">${Number(qty) || 0}</div>
             </div>
           `;
         }).join('');
@@ -1668,8 +1668,8 @@
         });
       });
       const chanceSorted = Object.entries(chanceCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
-      document.getElementById('shop-chance').innerHTML = chanceSorted.length ? 
-        chanceSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${num}</span><span>${qty}张</span></div>`).join('') :
+      document.getElementById('shop-chance').innerHTML = chanceSorted.length ?
+        chanceSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${esc(num)}</span><span>${Number(qty) || 0}张</span></div>`).join('') :
         '<p class="text-gray-500">暂无</p>';
       
       // Billete销售
@@ -1680,8 +1680,8 @@
         });
       });
       const billeteSorted = Object.entries(billeteCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
-      document.getElementById('shop-billete').innerHTML = billeteSorted.length ? 
-        billeteSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${num}</span><span>${qty}张</span></div>`).join('') :
+      document.getElementById('shop-billete').innerHTML = billeteSorted.length ?
+        billeteSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${esc(num)}</span><span>${Number(qty) || 0}张</span></div>`).join('') :
         '<p class="text-gray-500">暂无</p>';
       
       document.getElementById('modal-shop').classList.remove('hidden');

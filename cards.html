@@ -228,6 +228,17 @@
       return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _bearer };
     }
 
+    /** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    /** 嵌入 HTML 内联事件（onclick 等）作为 JS 字符串字面量 */
+    function jsAttr(v) {
+      return esc(JSON.stringify(String(v == null ? '' : v)));
+    }
+
     async function login() {
       const account = (document.getElementById('login-account').value || '').trim();
       const password = document.getElementById('login-password').value;
@@ -297,7 +308,7 @@
       let ok = 0, fail = 0;
       for (const c of used) {
         try {
-          const res = await fetch(`${API_BASE}/api/admin/cards/${c.id}`, { method: 'DELETE', headers: getHeaders() });
+          const res = await fetch(`${API_BASE}/api/admin/cards/${encodeURIComponent(c.id)}`, { method: 'DELETE', headers: getHeaders() });
           const data = await res.json();
           data.success ? ok++ : fail++;
         } catch { fail++; }
@@ -353,9 +364,9 @@
         : 'text-yellow-400 hover:text-yellow-200';
 
       el.innerHTML = cards.map(c => `
-        <div class="flex items-center justify-between ${codeCls} rounded-xl px-3 py-2 fade-in" data-code="${c.code}">
-          <span class="font-mono card-code text-sm tracking-widest">${c.code}</span>
-          <button onclick="copyCode('${c.code}')" class="${btnCls} text-xs ml-2 flex-shrink-0 transition-colors" title="复制">
+        <div class="flex items-center justify-between ${codeCls} rounded-xl px-3 py-2 fade-in" data-code="${esc(c.code)}">
+          <span class="font-mono card-code text-sm tracking-widest">${esc(c.code)}</span>
+          <button onclick="copyCode(${jsAttr(c.code)})" class="${btnCls} text-xs ml-2 flex-shrink-0 transition-colors" title="复制">
             📋
           </button>
         </div>

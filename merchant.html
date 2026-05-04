@@ -5827,7 +5827,7 @@
           var r = await fetch('https://casagrade.com/app-version.json?t=' + Date.now());
           var data = await r.json();
           if (!data || !data.version) return;
-          console.log('[AppVersion] local=' + APP_VERSION + ' remote.min=' + data.minVersion);
+          if (DEBUG) console.log('[AppVersion] local=' + APP_VERSION + ' remote.min=' + data.minVersion);
           if (data.minVersion && APP_VERSION < data.minVersion) {
               if (document.getElementById('app-upgrade-banner')) return;
               var lang = getMerchantLang();
@@ -6866,7 +6866,7 @@
     async function sendToPrinter(data) {
       if (!_printerChar) throw new Error('打印机未连接');
       _printingNow = true;  // 阻止心跳干扰
-      console.log('[PRINT] sendToPrinter, length=' + data.length);
+      if (DEBUG) console.log('[PRINT] sendToPrinter, length=' + data.length);
       const canWrite   = _printerChar.properties && _printerChar.properties.write;
       const canWithout = _printerChar.properties && _printerChar.properties.writeWithoutResponse;
       // MTU 协商：BLE 默认 MTU=23，payload=20；大部分热敏打印机支持更大 MTU
@@ -6938,9 +6938,9 @@
       }
       let receipt;
       try {
-        console.log('[PRINT] building receipt...');
+        if (DEBUG) console.log('[PRINT] building receipt...');
         receipt = await buildReceipt(order, currentShop?.shop_number || '');
-        console.log('[PRINT] receipt built, length=' + receipt.length);
+        if (DEBUG) console.log('[PRINT] receipt built, length=' + receipt.length);
       } catch (e) {
         console.warn('buildReceipt 失败:', e.message);
         showPrinterWarning('🖨️ 构建小票失败：' + e.message, order);

@@ -434,6 +434,17 @@ let mainWorkbenchKind = 'NACIONAL';
 let mainShopTicaEnabled = false;
 let mainShopNicaEnabled = false;
 
+/** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
+function esc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+/** 嵌入 HTML 内联事件（onclick 等）作为 JS 字符串字面量 */
+function jsAttr(v) {
+  return esc(JSON.stringify(String(v == null ? '' : v)));
+}
+
 function getMainHeaders(includeJson = false) {
   const token = localStorage.getItem('lottery_token') || '';
   const sessionToken = localStorage.getItem('lottery_session_token') || '';
@@ -693,29 +704,29 @@ async function loadCurrentData() {
       listEl.innerHTML = '<div class="text-center text-gray-500 text-sm py-6">暂无绑定小庄</div>';
     } else {
       listEl.innerHTML = d.sub_shops.map(s => {
-        const mn = s.main_net_profit;
+        const mn = Number(s.main_net_profit) || 0;
         const drawn = currentDrawStatus !== 'pending';
         const profitHtml = drawn
           ? `<span class="${mn < 0 ? 'text-red-400' : 'text-green-400'}">${mn < 0 ? '-' : '+'}${Math.abs(mn).toFixed(2)}</span>`
           : `<span class="text-gray-500">0</span>`;
         const shopId = s.sub_shop_id || s.shopId || '';
-        const payoutVal = (s.total_payout || 0).toFixed(2);
-        return `<div class="bg-gray-800 rounded-xl border border-gray-700 px-4 py-3 cursor-pointer active:opacity-80" onclick="openShopDetail('${shopId}')">
+        const payoutVal = (Number(s.total_payout) || 0).toFixed(2);
+        return `<div class="bg-gray-800 rounded-xl border border-gray-700 px-4 py-3 cursor-pointer active:opacity-80" onclick="openShopDetail(${jsAttr(shopId)})">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="font-black text-red-400 font-mono tracking-widest">${s.sub_shop_number}</span>
-              <span class="text-xs bg-gray-700 px-1.5 py-0.5 rounded text-gray-400">${(s.commission_rate*100).toFixed(0)}%</span>
+              <span class="font-black text-red-400 font-mono tracking-widest">${esc(s.sub_shop_number)}</span>
+              <span class="text-xs bg-gray-700 px-1.5 py-0.5 rounded text-gray-400">${(Number(s.commission_rate)*100).toFixed(0)}%</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-gray-400">佣金 <span class="text-orange-400 font-mono">${s.sub_commission.toFixed(2)}</span></span>
-              <button onclick="event.stopPropagation(); openCommissionModal(${s.binding_id}, '${s.sub_shop_number}', ${s.commission_rate})"
+              <span class="text-xs text-gray-400">佣金 <span class="text-orange-400 font-mono">${(Number(s.sub_commission) || 0).toFixed(2)}</span></span>
+              <button onclick="event.stopPropagation(); openCommissionModal(${Number(s.binding_id)}, ${jsAttr(s.sub_shop_number)}, ${Number(s.commission_rate) || 0})"
                 class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg transition">⚙️</button>
-              <button onclick="event.stopPropagation(); openUnbindModal(${s.binding_id}, '${s.sub_shop_number}')"
+              <button onclick="event.stopPropagation(); openUnbindModal(${Number(s.binding_id)}, ${jsAttr(s.sub_shop_number)})"
                 class="text-xs px-2 py-1 bg-red-900/40 hover:bg-red-900/70 rounded-lg text-red-400 transition">解绑</button>
             </div>
           </div>
           <div class="flex items-center justify-between mt-2">
-            <div class="text-green-400 font-mono font-bold text-sm">${s.total_sales.toFixed(2)}</div>
+            <div class="text-green-400 font-mono font-bold text-sm">${(Number(s.total_sales) || 0).toFixed(2)}</div>
             <div class="text-xs text-gray-500">赔付 <span class="text-red-300 font-mono">${payoutVal}</span> · 盈利 ${profitHtml}</div>
           </div>
         </div>`;
@@ -779,7 +790,7 @@ async function loadNumberSummary(subShops, drawId, lotteryKind) {
         }
         // 按 drawId 天然收窄一期范围，不再传 limit（后端已去掉 500 截断）
         const params = (drawParam + lkParam).replace(/^&/, '');
-        const r = await fetch(`${API}/shop/${shopId}/orders?${params}`, {
+        const r = await fetch(`${API}/shop/${encodeURIComponent(shopId)}/orders?${params}`, {
           headers: getMainHeaders(),
         });
         if (!r.ok) return;
@@ -995,9 +1006,9 @@ async function batchCreateSubs() {
     resultTitle.textContent = `✓ 成功注册 ${_batchCreated.length} 个小庄`;
     resultList.innerHTML = _batchCreated.map(c => `
       <div class="flex items-center justify-between bg-gray-700/60 rounded-lg px-3 py-1.5 text-xs font-mono">
-        <span class="text-purple-300 w-20">店号 ${c.shopNumber}</span>
-        <span class="text-gray-300">账号: ${c.account}</span>
-        <span class="text-yellow-300">密码: ${c.password}</span>
+        <span class="text-purple-300 w-20">店号 ${esc(c.shopNumber)}</span>
+        <span class="text-gray-300">账号: ${esc(c.account)}</span>
+        <span class="text-yellow-300">密码: ${esc(c.password)}</span>
       </div>`).join('');
     resultDiv.classList.remove('hidden');
     // 刷新当期数据，让新小庄出现在列表
@@ -1056,7 +1067,7 @@ async function saveCommission() {
   const val = parseFloat(document.getElementById('commission-input').value);
   if (isNaN(val) || val < 0 || val > 100) { showToast('请输入 0~100 的数字', '❌'); return; }
   try {
-    const r = await fetch(`${API}/merchant/binding/${editingBindingId}/commission`, {
+    const r = await fetch(`${API}/merchant/binding/${encodeURIComponent(editingBindingId)}/commission`, {
       method: 'PATCH',
       headers: getMainHeaders(true),
       body: JSON.stringify({ commission_rate: val / 100 }),
@@ -1079,7 +1090,7 @@ function closeUnbindModal() { document.getElementById('modal-unbind').classList.
 
 async function confirmUnbind() {
   try {
-    const r = await fetch(`${API}/merchant/binding/${unbindingBindingId}`, {
+    const r = await fetch(`${API}/merchant/binding/${encodeURIComponent(unbindingBindingId)}`, {
       method: 'DELETE',
       headers: getMainHeaders()
     });
