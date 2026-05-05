@@ -1214,7 +1214,7 @@
         var r = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderNumber: orderNumber })
+          body: JSON.stringify({ orderNumber: orderNumber, orderHash: currentOrderHash || '' })
         });
         if (r.ok) {
           removePendingOrderByNumber(orderNumber);
@@ -1240,13 +1240,25 @@
       renderClientPendingOrders();
     }
 
+    /** 从客户端本地缓存的 pending 列表查出 orderHash（取消订单时鉴权用） */
+    function getPendingOrderHash(orderNumber) {
+      try {
+        var raw = localStorage.getItem(CLIENT_PENDING_ORDERS_KEY);
+        var list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) return '';
+        var hit = list.find(function (o) { return o && o.orderNumber === orderNumber; });
+        return (hit && (hit.orderHash || hit.order_hash)) || '';
+      } catch (e) { return ''; }
+    }
+
     async function cancelPendingOrderInline(orderNumber) {
       if (!orderNumber) return;
+      var orderHash = getPendingOrderHash(orderNumber);
       try {
         var r = await fetch(API_BASE + '/api/orders-cancel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderNumber: orderNumber })
+          body: JSON.stringify({ orderNumber: orderNumber, orderHash: orderHash })
         });
         if (r.ok) {
           removePendingOrderByNumber(orderNumber);

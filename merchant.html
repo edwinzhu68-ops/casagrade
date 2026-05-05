@@ -3002,7 +3002,11 @@
       try {
         if (raw.length >= 4) {
           var suffix = raw.slice(-4);
-          var res = await fetch(`${API_BASE}/api/shop/orders?shopId=${encodeURIComponent(currentShop.shop_id)}&status=won&suffix=${encodeURIComponent(suffix)}&limit=50`);
+          var _searchHeaders = {};
+          if (authToken) _searchHeaders['Authorization'] = 'Bearer ' + authToken;
+          var _searchSt = localStorage.getItem('lottery_session_token') || '';
+          if (_searchSt) _searchHeaders['X-Session-Token'] = _searchSt;
+          var res = await fetch(`${API_BASE}/api/shop/orders?shopId=${encodeURIComponent(currentShop.shop_id)}&status=won&suffix=${encodeURIComponent(suffix)}&limit=50`, { headers: _searchHeaders });
           var data = await res.json();
           var orders = (data.orders || []).filter(function(o) { 
               var redeemed = o.redeemed_at && o.redeemed_at !== '' && o.redeemed_at !== 'null';
