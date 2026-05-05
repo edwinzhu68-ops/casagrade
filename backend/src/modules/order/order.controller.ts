@@ -1160,10 +1160,16 @@ export class ShopController {
       throw new UnauthorizedException('无权操作此店铺');
     }
 
-    const toRate = (v: number | null | undefined, def: number) =>
-      v != null && isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
-    const toChainRate = (v: number | null | undefined) =>
-      v != null && isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null;
+    // 上限 100000 防误填天文数字（业务最大默认 2000，留 50× 安全裕度防超付/退款风暴）
+    const RATE_MAX = 100000;
+    const toRate = (v: number | null | undefined, def: number) => {
+      const n = Number(v);
+      return v != null && isFinite(n) && n > 0 && n <= RATE_MAX ? n : null;
+    };
+    const toChainRate = (v: number | null | undefined) => {
+      const n = Number(v);
+      return v != null && isFinite(n) && n >= 0 && n <= RATE_MAX ? n : null;
+    };
     if (body.rateBillete1 !== undefined) (shop as any).rate_billete_1 = toRate(body.rateBillete1, 2000);
     if (body.rateBillete2 !== undefined) (shop as any).rate_billete_2 = toRate(body.rateBillete2, 600);
     if (body.rateBillete3 !== undefined) (shop as any).rate_billete_3 = toRate(body.rateBillete3, 300);

@@ -924,25 +924,28 @@ export class DrawController {
     const nextPending = await findNationalPendingDraw(drawRepo);
     const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
 
-    // 重置已结算订单（status 2/3）回 status=1，清除结算字段
-    await orderRepo
-      .createQueryBuilder()
-      .update(Order)
-      .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() } as any)
-      .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
-      .execute();
+    // 三步写入用事务包裹，避免中途失败留下 "订单已重置但 draw 仍 completed" 或 "两个 pending 共存" 等不一致状态
+    await this.dataSource.transaction(async (manager) => {
+      // 重置已结算订单（status 2/3）回 status=1，清除结算字段
+      await manager
+        .createQueryBuilder()
+        .update(Order)
+        .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() } as any)
+        .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
+        .execute();
 
-    // 恢复 draw 到 pending
-    await drawRepo.update(completed.draw_id, {
-      status: 'pending',
-      winning_numbers: '',
-      archived_at: null,
-    } as any);
+      // 恢复 draw 到 pending
+      await manager.update(Draw, completed.draw_id, {
+        status: 'pending',
+        winning_numbers: '',
+        archived_at: null,
+      } as any);
 
-    // 删除自动创建的下一期 pending（避免出现两个 pending）
-    if (shouldDeleteNext) {
-      await drawRepo.delete(nextPending!.draw_id);
-    }
+      // 删除自动创建的下一期 pending（避免出现两个 pending）
+      if (shouldDeleteNext) {
+        await manager.delete(Draw, nextPending!.draw_id);
+      }
+    });
 
     this.logger.log(`回滚开奖: draw_id=${completed.draw_id}`);
     return {

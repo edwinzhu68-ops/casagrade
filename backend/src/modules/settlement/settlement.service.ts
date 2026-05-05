@@ -72,6 +72,13 @@ export class SettlementService {
       throw new Error('开奖期次不存在');
     }
 
+    // 防呆：本路径仅支持 NACIONAL；TICA/NICA 必须走 local-lottery 自己的结算流程
+    // 否则会按 NACIONAL Billete/Chance 规则给店内彩订单结算 → 金额完全错
+    const lt = (draw as any).lottery_type;
+    if (lt && lt !== 'NACIONAL') {
+      throw new Error(`此接口仅支持 NACIONAL 期次结算，drawId=${drawId} 的 lottery_type=${lt}，请走 local-lottery 模块`);
+    }
+
     // 解析开奖结果
     const winning = this.parseDrawResult(draw);
     this.logger.log(`开奖结果: ${winning.primer} ${winning.segundo} ${winning.tercero}`);
@@ -473,6 +480,10 @@ export class SettlementService {
     const segundoNorm = s.length >= 4 ? s.slice(-4).padStart(4, '0') : null;
     const terceroNorm = t.length >= 4 ? t.slice(-4).padStart(4, '0') : null;
 
+    // GORDITO：头奖 4 位 + 二三奖 2 位 → Billete 仅头奖参与赔付，二三奖完全跳过
+    // 与 DrawController.settleOrdersForDraw 的 isGordito 判定一致（draw.controller.ts）
+    const isGordito = (s?.length ?? 0) <= 2 && (t?.length ?? 0) <= 2;
+
     const matches: string[] = [];
     let totalPayout = 0;
 
@@ -508,7 +519,7 @@ export class SettlementService {
       }
     }
 
-    // 二奖：只取最高一档
+    // 二奖：只取最高一档（GORDITO 期 Billete 二奖不参与）
     if (segundoNorm) {
       if (paddedNum === segundoNorm) {
         matches.push(`二奖四位 ${paddedNum} x${exactRates[1]}`);
@@ -523,14 +534,14 @@ export class SettlementService {
         matches.push(`二奖后两位 x2`);
         totalPayout += 2 * qty;
       }
-    } else {
+    } else if (!isGordito) {
       if (paddedNum.slice(-2) === s.slice(-2).padStart(2, '0')) {
         matches.push(`二奖后两位 ${s} x2`);
         totalPayout += 2 * qty;
       }
     }
 
-    // 三奖：只取最高一档
+    // 三奖：只取最高一档（GORDITO 期 Billete 三奖不参与）
     if (terceroNorm) {
       if (paddedNum === terceroNorm) {
         matches.push(`三奖四位 ${paddedNum} x${exactRates[2]}`);
@@ -545,7 +556,7 @@ export class SettlementService {
         matches.push(`三奖后两位 x1`);
         totalPayout += 1 * qty;
       }
-    } else {
+    } else if (!isGordito) {
       if (paddedNum.slice(-2) === t.slice(-2).padStart(2, '0')) {
         matches.push(`三奖后两位 ${t} x1`);
         totalPayout += 1 * qty;
