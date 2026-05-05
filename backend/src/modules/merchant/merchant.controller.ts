@@ -29,6 +29,11 @@ const forgotPwMap = new Map<string, { count: number; resetAt: number }>();
 const FORGOT_PW_MAX_PER_HOUR = 3;
 const FORGOT_PW_WINDOW_MS = 60 * 60 * 1000;
 
+// ─── 注册限流（防批量占用店号池 / 账号枚举） ──────────────────────────────────
+const registerMap = new Map<string, { count: number; resetAt: number }>();
+const REGISTER_MAX_PER_HOUR = 5;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+
 // 每小时清理过期记录，防止扫描器长期积累导致内存泄漏
 setInterval(() => {
   const now = Date.now();
@@ -40,6 +45,9 @@ setInterval(() => {
   }
   for (const [ip, entry] of forgotPwMap) {
     if (entry.resetAt < now) forgotPwMap.delete(ip);
+  }
+  for (const [ip, entry] of registerMap) {
+    if (entry.resetAt < now) registerMap.delete(ip);
   }
 }, 60 * 60 * 1000);
 
@@ -158,7 +166,20 @@ export class MerchantController implements OnModuleInit {
    * POST /merchant/register - 注册新门店账号（创建用户+店铺，店号从3位起自动分配）
    */
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
+  async register(@Body() dto: RegisterDto, @Req() req?: any) {
+    // IP 限流：防止批量注册占用店号池 + 防止用注册接口枚举已存在账号
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || 'unknown').toString().split(',')[0].trim();
+    const now = Date.now();
+    const entry = registerMap.get(ip);
+    if (entry && entry.resetAt > now) {
+      if (entry.count >= REGISTER_MAX_PER_HOUR) {
+        throw new BadRequestException('注册过于频繁，请 1 小时后再试');
+      }
+      entry.count++;
+    } else {
+      registerMap.set(ip, { count: 1, resetAt: now + REGISTER_WINDOW_MS });
+    }
+
     const account = (dto.account || dto.accountNumber || '').trim().toLowerCase();
     const password = dto.password || '';
     const passwordConfirm = dto.passwordConfirm ?? dto.password;
@@ -191,7 +212,8 @@ export class MerchantController implements OnModuleInit {
     const shopRepo = this.dataSource.getRepository(Shop);
     const existing = await userRepo.findOne({ where: { account_number: account } });
     if (existing) {
-      throw new BadRequestException('该账号已存在');
+      // 不区分 "已存在" / "格式错误" 统一文案，防止用注册端点枚举已注册账号
+      throw new BadRequestException('该账号无法注册，请尝试其他账号');
     }
 
     // 一机一号：同一 device_id 不允许重复注册

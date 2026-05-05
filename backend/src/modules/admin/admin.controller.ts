@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Query, Body, Param, Req, UseGuards, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -41,6 +41,7 @@ export class AdminController {
     private readonly cardCodeRepo: Repository<CardCode>,
     @InjectRepository(ShopBinding)
     private readonly shopBindingRepo: Repository<ShopBinding>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -196,7 +197,7 @@ export class AdminController {
    * DELETE /api/admin/accounts/:accountNumber - 删除账号及其店铺（店号释放回随机池）
    */
   @Delete('accounts/:accountNumber')
-  async deleteAccount(@Param('accountNumber') accountNumber: string) {
+  async deleteAccount(@Param('accountNumber') accountNumber: string, @Req() req?: any) {
     const account = (accountNumber || '').trim();
     if (!account) throw new BadRequestException('请提供账号');
     const user = await this.userRepo.findOne({ where: { account_number: account } });
@@ -205,17 +206,29 @@ export class AdminController {
     const shopNumbers = shops.map(s => s.shop_number);
     let deletedOrders = 0;
     let deletedDraws = 0;
-    for (const shop of shops) {
-      // 级联清理：防止 shop_id 被复用后历史 orders/draws 变成新账号的数据
-      const o = await this.orderRepo.delete({ shop_id: shop.shop_id });
-      const d = await this.drawRepo.delete({ shop_id: shop.shop_id }); // 仅删 TICA/NICA 店内彩期（NACIONAL 的 shop_id 为 NULL）
-      deletedOrders += o.affected || 0;
-      deletedDraws += d.affected || 0;
-      await this.shopBindingRepo.delete({ main_shop_id: shop.shop_id });
-      await this.shopBindingRepo.delete({ sub_shop_id: shop.shop_id });
-      await this.shopRepo.delete(shop.shop_id);
-    }
-    await this.userRepo.delete(user.user_id);
+
+    // 事务化：所有 delete 必须全部成功或全部回滚，避免中途失败留下孤儿数据（如订单删了但店还在 / 店删了但 user 还在）
+    await this.dataSource.transaction(async (manager) => {
+      for (const shop of shops) {
+        // 级联清理：防止 shop_id 被复用后历史 orders/draws 变成新账号的数据
+        const o = await manager.delete(Order, { shop_id: shop.shop_id });
+        const d = await manager.delete(Draw, { shop_id: shop.shop_id }); // 仅删 TICA/NICA 店内彩期（NACIONAL 的 shop_id 为 NULL）
+        deletedOrders += o.affected || 0;
+        deletedDraws += d.affected || 0;
+        await manager.delete(ShopBinding, { main_shop_id: shop.shop_id });
+        await manager.delete(ShopBinding, { sub_shop_id: shop.shop_id });
+        await manager.delete(Shop, shop.shop_id);
+      }
+      await manager.delete(User, user.user_id);
+    });
+
+    // 审计日志（删账号是不可逆高敏感操作，必须留痕可追溯）
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+    this.logger.log(
+      `[审计] 删除账号 account=${account} user_id=${user.user_id} 释放店号=[${shopNumbers.join(',')}] ` +
+      `订单=${deletedOrders} 彩期=${deletedDraws} ip=${ip} time=${new Date().toISOString()}`,
+    );
+
     return {
       success: true,
       message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}（清理订单 ${deletedOrders} 条，店内彩期 ${deletedDraws} 条）`,
@@ -285,6 +298,7 @@ export class AdminController {
   async resetPassword(
     @Body('shopNumber') shopNumber: string,
     @Body('newPassword') newPassword: string,
+    @Req() req?: any,
   ) {
     const sn = (shopNumber || '').trim();
     const pwd = (newPassword || '').trim();
@@ -302,6 +316,14 @@ export class AdminController {
 
     const hash = await bcrypt.hash(pwd, 10);
     await this.userRepo.update(shop.owner_id, { password_hash: hash });
+
+    // 审计日志（重置密码是高敏感操作，必须留痕可追溯）
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+    this.logger.log(
+      `[审计] 重置密码 shop_number=${sn} shop_id=${shop.shop_id} target_user_id=${shop.owner_id} ` +
+      `ip=${ip} time=${new Date().toISOString()}`,
+    );
+
     return { success: true, message: `店号 ${sn} 密码已重置` };
   }
 
