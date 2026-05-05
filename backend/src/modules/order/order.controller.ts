@@ -749,6 +749,23 @@ export class ShopController {
   constructor(private readonly dataSource: DataSource) {}
 
   /**
+   * 校验请求方是否为该 shopId 的 owner（基于 Bearer token）。
+   * 失败抛 UnauthorizedException，防止匿名/越权拉取他店订单（IDOR 防御）。
+   */
+  private async requireShopOwner(req: any, shopId: number): Promise<void> {
+    const authHeader = (req?.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+    const shop = await this.dataSource.getRepository(Shop).findOne({ where: { shop_id: shopId } });
+    if (!shop || shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
+  }
+
+  /**
    * GET /api/shop/orders?shopId=&limit= — 收银台拉订单列表（静态路径，绝不与 :shopNumber 冲突）
    */
   @Get('orders')
@@ -759,11 +776,13 @@ export class ShopController {
     @Query('suffix') suffix?: string,
     @Query('drawId') drawId?: string,
     @Query('lotteryKind') lotteryKind?: string,
+    @Req() req?: any,
   ) {
     const id = parseInt(String(shopId || '').trim(), 10);
     if (!shopId || isNaN(id) || id <= 0) {
       throw new BadRequestException('缺少或无效的 shopId');
     }
+    await this.requireShopOwner(req, id);
     return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
   }
 
@@ -782,11 +801,13 @@ export class ShopController {
     @Query('drawId') drawId?: string,
     @Query('lotteryKind') lotteryKind?: string,
     @Query('winnerOnly') winnerOnly?: string,
+    @Req() req?: any,
   ) {
     const id = parseInt(String(shopId || '').trim(), 10);
     if (!shopId || isNaN(id) || id <= 0) {
       throw new BadRequestException('缺少或无效的 shopId');
     }
+    await this.requireShopOwner(req, id);
 
     const shopRepo = this.dataSource.getRepository(Shop);
     const orderRepo = this.dataSource.getRepository(Order);
@@ -1210,11 +1231,13 @@ export class ShopController {
     @Query('suffix') suffix?: string,
     @Query('drawId') drawId?: string,
     @Query('lotteryKind') lotteryKind?: string,
+    @Req() req?: any,
   ) {
     const id = parseInt(String(shopId || '').trim(), 10);
     if (isNaN(id) || id <= 0) {
       throw new BadRequestException('无效的 shopId');
     }
+    await this.requireShopOwner(req, id);
     return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
   }
 
@@ -1459,29 +1482,11 @@ export class BetStatusController {
           acceptingNicaOrders: false,
         };
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const orders = await this.dataSource.getRepository(Order)
-      .createQueryBuilder('order')
-      .where('order.shop_id = :shopId', { shopId: sid })
-      .andWhere('order.created_at >= :yesterday', { yesterday })
-      .orderBy('order.created_at', 'DESC')
-      .take(50)
-      .getMany();
-
     return {
       ...base,
       ...localFlags,
       shop_id: sid,
       shopId: sid,
-      orderCount: orders.length,
-      orders: orders.map((o) => ({
-        order_id: o.order_id,
-        order_number: o.order_number,
-        status: o.status,
-        amount: o.amount,
-      })),
     };
   }
 }

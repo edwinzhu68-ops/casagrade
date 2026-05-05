@@ -4,6 +4,7 @@ export declare class OrderCancelController {
     constructor(dataSource: DataSource);
     cancel(body: {
         orderNumber?: string;
+        orderHash?: string;
     }): Promise<{
         success: boolean;
         order_number: string;

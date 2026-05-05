@@ -120,7 +120,8 @@ export declare class ShopController {
     private readonly dataSource;
     private readonly logger;
     constructor(dataSource: DataSource);
-    listShopOrdersByQuery(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string): Promise<{
+    private requireShopOwner;
+    listShopOrdersByQuery(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string, req?: any): Promise<{
         shop_id: number;
         shopId: number;
         shopNumber: string;
@@ -148,7 +149,7 @@ export declare class ShopController {
             paid_at: Date;
         }[];
     }>;
-    syncShopOrders(shopId: string, since?: string, drawId?: string, lotteryKind?: string, winnerOnly?: string): Promise<{
+    syncShopOrders(shopId: string, since?: string, drawId?: string, lotteryKind?: string, winnerOnly?: string, req?: any): Promise<{
         shop_id: number;
         shopId: number;
         shopNumber: string;
@@ -260,7 +261,7 @@ export declare class ShopController {
         nica_chance_2: any;
         nica_chance_3: any;
     }>;
-    getShopOrders(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string): Promise<{
+    getShopOrders(shopId: string, limit?: string, status?: string, suffix?: string, drawId?: string, lotteryKind?: string, req?: any): Promise<{
         shop_id: number;
         shopId: number;
         shopNumber: string;
@@ -329,13 +330,6 @@ export declare class BetStatusController {
     } | {
         shop_id: number;
         shopId: number;
-        orderCount: number;
-        orders: {
-            order_id: number;
-            order_number: string;
-            status: number;
-            amount: number;
-        }[];
         loteriaEnabled: boolean;
         ticaEnabled: boolean;
         nicaEnabled: boolean;

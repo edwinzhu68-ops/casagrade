@@ -94,26 +94,20 @@ function createSignedToken(userId, accountNumber) {
 function parseSignedToken(token) {
     if (!token)
         return null;
-    let payload;
-    let signed = false;
     const lastDot = token.lastIndexOf('.');
-    if (lastDot > 0) {
-        payload = token.slice(0, lastDot);
-        const sig = token.slice(lastDot + 1);
-        const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
-        try {
-            const sigBuf = Buffer.from(sig);
-            const expBuf = Buffer.from(expected);
-            if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf))
-                return null;
-        }
-        catch {
+    if (lastDot <= 0)
+        return null;
+    const payload = token.slice(0, lastDot);
+    const sig = token.slice(lastDot + 1);
+    const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
+    try {
+        const sigBuf = Buffer.from(sig);
+        const expBuf = Buffer.from(expected);
+        if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf))
             return null;
-        }
-        signed = true;
     }
-    else {
-        payload = token;
+    catch {
+        return null;
     }
     try {
         const decoded = Buffer.from(payload, 'base64').toString('utf8');
@@ -124,7 +118,7 @@ function parseSignedToken(token) {
         const accountNumber = decoded.slice(colonIdx + 1);
         if (!userId || isNaN(userId))
             return null;
-        return { userId, accountNumber, signed };
+        return { userId, accountNumber, signed: true };
     }
     catch {
         return null;
@@ -164,10 +158,11 @@ let MerchantController = MerchantController_1 = class MerchantController {
     }
     async verifySession(req, userId) {
         const headerToken = req.headers?.['x-session-token'];
-        if (!headerToken)
-            return;
         const user = await this.dataSource.getRepository(user_entity_1.User).findOne({ where: { user_id: userId } });
-        if (user?.session_token && user.session_token !== headerToken) {
+        if (!user?.session_token) {
+            throw new common_1.UnauthorizedException('SESSION_EXPIRED');
+        }
+        if (!headerToken || user.session_token !== headerToken) {
             throw new common_1.UnauthorizedException('SESSION_EXPIRED');
         }
     }

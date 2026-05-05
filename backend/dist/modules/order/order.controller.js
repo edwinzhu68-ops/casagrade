@@ -703,18 +703,32 @@ let ShopController = ShopController_1 = class ShopController {
         this.dataSource = dataSource;
         this.logger = new common_1.Logger(ShopController_1.name);
     }
-    async listShopOrdersByQuery(shopId, limit = '100', status, suffix, drawId, lotteryKind) {
+    async requireShopOwner(req, shopId) {
+        const authHeader = (req?.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
+        const shop = await this.dataSource.getRepository(shop_entity_1.Shop).findOne({ where: { shop_id: shopId } });
+        if (!shop || shop.owner_id !== tokenUserId) {
+            throw new common_2.UnauthorizedException('无权查看该店铺数据');
+        }
+    }
+    async listShopOrdersByQuery(shopId, limit = '100', status, suffix, drawId, lotteryKind, req) {
         const id = parseInt(String(shopId || '').trim(), 10);
         if (!shopId || isNaN(id) || id <= 0) {
             throw new common_1.BadRequestException('缺少或无效的 shopId');
         }
+        await this.requireShopOwner(req, id);
         return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
     }
-    async syncShopOrders(shopId, since = '', drawId, lotteryKind, winnerOnly) {
+    async syncShopOrders(shopId, since = '', drawId, lotteryKind, winnerOnly, req) {
         const id = parseInt(String(shopId || '').trim(), 10);
         if (!shopId || isNaN(id) || id <= 0) {
             throw new common_1.BadRequestException('缺少或无效的 shopId');
         }
+        await this.requireShopOwner(req, id);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         let shop = await shopRepo.findOne({ where: { shop_id: id } });
@@ -1045,11 +1059,12 @@ let ShopController = ShopController_1 = class ShopController {
             nica_chance_3: shop.nica_chance_3,
         };
     }
-    async getShopOrders(shopId, limit = '100', status, suffix, drawId, lotteryKind) {
+    async getShopOrders(shopId, limit = '100', status, suffix, drawId, lotteryKind, req) {
         const id = parseInt(String(shopId || '').trim(), 10);
         if (isNaN(id) || id <= 0) {
             throw new common_1.BadRequestException('无效的 shopId');
         }
+        await this.requireShopOwner(req, id);
         return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
     }
     async getShopByNumber(shopNumber) {
@@ -1090,8 +1105,9 @@ __decorate([
     __param(3, (0, common_1.Query)('suffix')),
     __param(4, (0, common_1.Query)('drawId')),
     __param(5, (0, common_1.Query)('lotteryKind')),
+    __param(6, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "listShopOrdersByQuery", null);
 __decorate([
@@ -1101,8 +1117,9 @@ __decorate([
     __param(2, (0, common_1.Query)('drawId')),
     __param(3, (0, common_1.Query)('lotteryKind')),
     __param(4, (0, common_1.Query)('winnerOnly')),
+    __param(5, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "syncShopOrders", null);
 __decorate([
@@ -1131,8 +1148,9 @@ __decorate([
     __param(3, (0, common_1.Query)('suffix')),
     __param(4, (0, common_1.Query)('drawId')),
     __param(5, (0, common_1.Query)('lotteryKind')),
+    __param(6, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, String]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "getShopOrders", null);
 __decorate([
@@ -1322,27 +1340,11 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
                 acceptingTicaOrders: false,
                 acceptingNicaOrders: false,
             };
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const orders = await this.dataSource.getRepository(order_entity_1.Order)
-            .createQueryBuilder('order')
-            .where('order.shop_id = :shopId', { shopId: sid })
-            .andWhere('order.created_at >= :yesterday', { yesterday })
-            .orderBy('order.created_at', 'DESC')
-            .take(50)
-            .getMany();
         return {
             ...base,
             ...localFlags,
             shop_id: sid,
             shopId: sid,
-            orderCount: orders.length,
-            orders: orders.map((o) => ({
-                order_id: o.order_id,
-                order_number: o.order_number,
-                status: o.status,
-                amount: o.amount,
-            })),
         };
     }
 };

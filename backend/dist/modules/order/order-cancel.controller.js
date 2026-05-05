@@ -22,6 +22,7 @@ let OrderCancelController = class OrderCancelController {
     }
     async cancel(body) {
         const orderNumber = (body?.orderNumber ?? '').trim();
+        const orderHash = (body?.orderHash ?? '').trim();
         if (!orderNumber) {
             throw new common_1.BadRequestException('缺少 orderNumber');
         }
@@ -31,6 +32,9 @@ let OrderCancelController = class OrderCancelController {
         });
         if (!order) {
             throw new common_1.NotFoundException('订单不存在');
+        }
+        if (!orderHash || !order.order_hash || orderHash !== order.order_hash) {
+            throw new common_1.UnauthorizedException('订单凭证无效');
         }
         if (order.status !== 0) {
             throw new common_1.BadRequestException('只能取消未付款订单');

@@ -55,30 +55,23 @@ function createSignedToken(userId: number, accountNumber: string): string {
 
 /**
  * 解析并验证 Token。
- * 新格式（payload.sig）：校验 HMAC；旧格式（无 .）：解析但标记为 unsigned。
- * 返回 { userId, accountNumber, signed } 或 null（签名非法时）。
+ * 仅接受签名格式（payload.sig），HMAC 校验通过才返回 payload。
+ * 旧格式（无 .）一律拒绝（已过过渡期；createSignedToken 始终输出新格式）。
  */
 function parseSignedToken(token: string): { userId: number; accountNumber: string; signed: boolean } | null {
   if (!token) return null;
-  let payload: string;
-  let signed = false;
-
   const lastDot = token.lastIndexOf('.');
-  if (lastDot > 0) {
-    payload = token.slice(0, lastDot);
-    const sig = token.slice(lastDot + 1);
-    const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
-    // 使用 timingSafeEqual 防止时序攻击
-    try {
-      const sigBuf = Buffer.from(sig);
-      const expBuf = Buffer.from(expected);
-      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return null;
-    } catch { return null; }
-    signed = true;
-  } else {
-    // 旧格式：无签名，向后兼容（仅在过渡期保留）
-    payload = token;
-  }
+  if (lastDot <= 0) return null; // 旧格式（无签名）一律拒绝
+
+  const payload = token.slice(0, lastDot);
+  const sig = token.slice(lastDot + 1);
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
+  // 使用 timingSafeEqual 防止时序攻击
+  try {
+    const sigBuf = Buffer.from(sig);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) return null;
+  } catch { return null; }
 
   try {
     const decoded = Buffer.from(payload, 'base64').toString('utf8');
@@ -87,7 +80,7 @@ function parseSignedToken(token: string): { userId: number; accountNumber: strin
     const userId = parseInt(decoded.slice(0, colonIdx), 10);
     const accountNumber = decoded.slice(colonIdx + 1);
     if (!userId || isNaN(userId)) return null;
-    return { userId, accountNumber, signed };
+    return { userId, accountNumber, signed: true };
   } catch { return null; }
 }
 // ────────────────────────────────────────────────────────────────────────────
@@ -148,12 +141,15 @@ export class MerchantController implements OnModuleInit {
     await qr.release();
   }
 
-  /** 验证 X-Session-Token 请求头是否与 DB 一致；header 缺失则跳过（向后兼容） */
+  /** 验证 X-Session-Token 请求头与 DB 中 user.session_token 一致（强制要求） */
   private async verifySession(req: any, userId: number): Promise<void> {
     const headerToken = req.headers?.['x-session-token'];
-    if (!headerToken) return;
     const user = await this.dataSource.getRepository(User).findOne({ where: { user_id: userId } });
-    if (user?.session_token && user.session_token !== headerToken) {
+    // 用户已登录但 DB 没记录 session_token：异常状态拒绝
+    if (!user?.session_token) {
+      throw new UnauthorizedException('SESSION_EXPIRED');
+    }
+    if (!headerToken || user.session_token !== headerToken) {
       throw new UnauthorizedException('SESSION_EXPIRED');
     }
   }
