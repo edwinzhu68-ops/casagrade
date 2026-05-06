@@ -25,7 +25,7 @@ export declare class MerchantController implements OnModuleInit {
     constructor(dataSource: DataSource, localLotteryService: LocalLotteryService);
     onModuleInit(): Promise<void>;
     private verifySession;
-    register(dto: RegisterDto): Promise<{
+    register(dto: RegisterDto, req?: any): Promise<{
         success: boolean;
         message: string;
         accountNumber: string;

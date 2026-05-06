@@ -980,8 +980,15 @@ let ShopController = ShopController_1 = class ShopController {
         if (shop.owner_id !== tokenUserId) {
             throw new common_2.UnauthorizedException('无权操作此店铺');
         }
-        const toRate = (v, def) => v != null && isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
-        const toChainRate = (v) => v != null && isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null;
+        const RATE_MAX = 100000;
+        const toRate = (v, def) => {
+            const n = Number(v);
+            return v != null && isFinite(n) && n > 0 && n <= RATE_MAX ? n : null;
+        };
+        const toChainRate = (v) => {
+            const n = Number(v);
+            return v != null && isFinite(n) && n >= 0 && n <= RATE_MAX ? n : null;
+        };
         if (body.rateBillete1 !== undefined)
             shop.rate_billete_1 = toRate(body.rateBillete1, 2000);
         if (body.rateBillete2 !== undefined)

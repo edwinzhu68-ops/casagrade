@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { User } from '../../entities/user.entity';
@@ -13,8 +13,9 @@ export declare class AdminController {
     private readonly drawRepo;
     private readonly cardCodeRepo;
     private readonly shopBindingRepo;
+    private readonly dataSource;
     private readonly logger;
-    constructor(orderRepo: Repository<Order>, shopRepo: Repository<Shop>, userRepo: Repository<User>, drawRepo: Repository<Draw>, cardCodeRepo: Repository<CardCode>, shopBindingRepo: Repository<ShopBinding>);
+    constructor(orderRepo: Repository<Order>, shopRepo: Repository<Shop>, userRepo: Repository<User>, drawRepo: Repository<Draw>, cardCodeRepo: Repository<CardCode>, shopBindingRepo: Repository<ShopBinding>, dataSource: DataSource);
     shopCompare(from: string, to: string, top?: string): Promise<{
         items: {
             shopNumber: string;
@@ -39,7 +40,7 @@ export declare class AdminController {
             sub_shop_count: number;
         }[];
     }>;
-    deleteAccount(accountNumber: string): Promise<{
+    deleteAccount(accountNumber: string, req?: any): Promise<{
         success: boolean;
         message: string;
     }>;
@@ -53,7 +54,7 @@ export declare class AdminController {
         shop_id: number;
         subscription_expires_at: string;
     }>;
-    resetPassword(shopNumber: string, newPassword: string): Promise<{
+    resetPassword(shopNumber: string, newPassword: string, req?: any): Promise<{
         success: boolean;
         message: string;
     }>;

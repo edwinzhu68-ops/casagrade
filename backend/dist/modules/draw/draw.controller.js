@@ -764,20 +764,22 @@ let DrawController = DrawController_1 = class DrawController {
         }
         const nextPending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
-        await orderRepo
-            .createQueryBuilder()
-            .update(order_entity_1.Order)
-            .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() })
-            .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
-            .execute();
-        await drawRepo.update(completed.draw_id, {
-            status: 'pending',
-            winning_numbers: '',
-            archived_at: null,
+        await this.dataSource.transaction(async (manager) => {
+            await manager
+                .createQueryBuilder()
+                .update(order_entity_1.Order)
+                .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() })
+                .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
+                .execute();
+            await manager.update(draw_entity_1.Draw, completed.draw_id, {
+                status: 'pending',
+                winning_numbers: '',
+                archived_at: null,
+            });
+            if (shouldDeleteNext) {
+                await manager.delete(draw_entity_1.Draw, nextPending.draw_id);
+            }
         });
-        if (shouldDeleteNext) {
-            await drawRepo.delete(nextPending.draw_id);
-        }
         this.logger.log(`回滚开奖: draw_id=${completed.draw_id}`);
         return {
             success: true,

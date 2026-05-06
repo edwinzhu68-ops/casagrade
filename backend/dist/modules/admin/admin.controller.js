@@ -70,13 +70,14 @@ function generateCardCode(type) {
     return `${prefix}${rand2()}-${seg4()}-${seg4()}`;
 }
 let AdminController = AdminController_1 = class AdminController {
-    constructor(orderRepo, shopRepo, userRepo, drawRepo, cardCodeRepo, shopBindingRepo) {
+    constructor(orderRepo, shopRepo, userRepo, drawRepo, cardCodeRepo, shopBindingRepo, dataSource) {
         this.orderRepo = orderRepo;
         this.shopRepo = shopRepo;
         this.userRepo = userRepo;
         this.drawRepo = drawRepo;
         this.cardCodeRepo = cardCodeRepo;
         this.shopBindingRepo = shopBindingRepo;
+        this.dataSource = dataSource;
         this.logger = new common_1.Logger(AdminController_1.name);
     }
     async shopCompare(from, to, top = '10') {
@@ -195,7 +196,7 @@ let AdminController = AdminController_1 = class AdminController {
             }),
         };
     }
-    async deleteAccount(accountNumber) {
+    async deleteAccount(accountNumber, req) {
         const account = (accountNumber || '').trim();
         if (!account)
             throw new common_1.BadRequestException('请提供账号');
@@ -206,16 +207,21 @@ let AdminController = AdminController_1 = class AdminController {
         const shopNumbers = shops.map(s => s.shop_number);
         let deletedOrders = 0;
         let deletedDraws = 0;
-        for (const shop of shops) {
-            const o = await this.orderRepo.delete({ shop_id: shop.shop_id });
-            const d = await this.drawRepo.delete({ shop_id: shop.shop_id });
-            deletedOrders += o.affected || 0;
-            deletedDraws += d.affected || 0;
-            await this.shopBindingRepo.delete({ main_shop_id: shop.shop_id });
-            await this.shopBindingRepo.delete({ sub_shop_id: shop.shop_id });
-            await this.shopRepo.delete(shop.shop_id);
-        }
-        await this.userRepo.delete(user.user_id);
+        await this.dataSource.transaction(async (manager) => {
+            for (const shop of shops) {
+                const o = await manager.delete(order_entity_1.Order, { shop_id: shop.shop_id });
+                const d = await manager.delete(draw_entity_1.Draw, { shop_id: shop.shop_id });
+                deletedOrders += o.affected || 0;
+                deletedDraws += d.affected || 0;
+                await manager.delete(shop_binding_entity_1.ShopBinding, { main_shop_id: shop.shop_id });
+                await manager.delete(shop_binding_entity_1.ShopBinding, { sub_shop_id: shop.shop_id });
+                await manager.delete(shop_entity_1.Shop, shop.shop_id);
+            }
+            await manager.delete(user_entity_1.User, user.user_id);
+        });
+        const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+        this.logger.log(`[审计] 删除账号 account=${account} user_id=${user.user_id} 释放店号=[${shopNumbers.join(',')}] ` +
+            `订单=${deletedOrders} 彩期=${deletedDraws} ip=${ip} time=${new Date().toISOString()}`);
         return {
             success: true,
             message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}（清理订单 ${deletedOrders} 条，店内彩期 ${deletedDraws} 条）`,
@@ -256,7 +262,7 @@ let AdminController = AdminController_1 = class AdminController {
             subscription_expires_at: newExpiry ? newExpiry.toISOString() : null,
         };
     }
-    async resetPassword(shopNumber, newPassword) {
+    async resetPassword(shopNumber, newPassword, req) {
         const sn = (shopNumber || '').trim();
         const pwd = (newPassword || '').trim();
         if (!sn)
@@ -274,6 +280,9 @@ let AdminController = AdminController_1 = class AdminController {
             throw new common_1.BadRequestException('该店铺没有关联账号');
         const hash = await bcrypt.hash(pwd, 10);
         await this.userRepo.update(shop.owner_id, { password_hash: hash });
+        const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+        this.logger.log(`[审计] 重置密码 shop_number=${sn} shop_id=${shop.shop_id} target_user_id=${shop.owner_id} ` +
+            `ip=${ip} time=${new Date().toISOString()}`);
         return { success: true, message: `店号 ${sn} 密码已重置` };
     }
     async generateCards(type, count, req) {
@@ -507,8 +516,9 @@ __decorate([
 __decorate([
     (0, common_1.Delete)('accounts/:accountNumber'),
     __param(0, (0, common_1.Param)('accountNumber')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "deleteAccount", null);
 __decorate([
@@ -532,8 +542,9 @@ __decorate([
     (0, common_1.Post)('reset-password'),
     __param(0, (0, common_1.Body)('shopNumber')),
     __param(1, (0, common_1.Body)('newPassword')),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "resetPassword", null);
 __decorate([
@@ -615,6 +626,7 @@ exports.AdminController = AdminController = AdminController_1 = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        typeorm_2.DataSource])
 ], AdminController);
 //# sourceMappingURL=admin.controller.js.map

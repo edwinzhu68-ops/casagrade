@@ -37,6 +37,10 @@ let SettlementService = SettlementService_1 = class SettlementService {
         if (!draw) {
             throw new Error('开奖期次不存在');
         }
+        const lt = draw.lottery_type;
+        if (lt && lt !== 'NACIONAL') {
+            throw new Error(`此接口仅支持 NACIONAL 期次结算，drawId=${drawId} 的 lottery_type=${lt}，请走 local-lottery 模块`);
+        }
         const winning = this.parseDrawResult(draw);
         this.logger.log(`开奖结果: ${winning.primer} ${winning.segundo} ${winning.tercero}`);
         const orders = await this.orderRepo.find({
@@ -333,6 +337,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
         const primerNorm = p.length >= 4 ? p.slice(-4).padStart(4, '0') : null;
         const segundoNorm = s.length >= 4 ? s.slice(-4).padStart(4, '0') : null;
         const terceroNorm = t.length >= 4 ? t.slice(-4).padStart(4, '0') : null;
+        const isGordito = (s?.length ?? 0) <= 2 && (t?.length ?? 0) <= 2;
         const matches = [];
         let totalPayout = 0;
         if (primerNorm) {
@@ -387,7 +392,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 totalPayout += 2 * qty;
             }
         }
-        else {
+        else if (!isGordito) {
             if (paddedNum.slice(-2) === s.slice(-2).padStart(2, '0')) {
                 matches.push(`二奖后两位 ${s} x2`);
                 totalPayout += 2 * qty;
@@ -411,7 +416,7 @@ let SettlementService = SettlementService_1 = class SettlementService {
                 totalPayout += 1 * qty;
             }
         }
-        else {
+        else if (!isGordito) {
             if (paddedNum.slice(-2) === t.slice(-2).padStart(2, '0')) {
                 matches.push(`三奖后两位 ${t} x1`);
                 totalPayout += 1 * qty;

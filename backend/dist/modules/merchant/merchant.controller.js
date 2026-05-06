@@ -70,6 +70,9 @@ const CARD_LOCKOUT_MS = 30 * 60 * 1000;
 const forgotPwMap = new Map();
 const FORGOT_PW_MAX_PER_HOUR = 3;
 const FORGOT_PW_WINDOW_MS = 60 * 60 * 1000;
+const registerMap = new Map();
+const REGISTER_MAX_PER_HOUR = 5;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
 setInterval(() => {
     const now = Date.now();
     for (const [ip, entry] of loginFailMap) {
@@ -83,6 +86,10 @@ setInterval(() => {
     for (const [ip, entry] of forgotPwMap) {
         if (entry.resetAt < now)
             forgotPwMap.delete(ip);
+    }
+    for (const [ip, entry] of registerMap) {
+        if (entry.resetAt < now)
+            registerMap.delete(ip);
     }
 }, 60 * 60 * 1000);
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
@@ -166,7 +173,19 @@ let MerchantController = MerchantController_1 = class MerchantController {
             throw new common_1.UnauthorizedException('SESSION_EXPIRED');
         }
     }
-    async register(dto) {
+    async register(dto, req) {
+        const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || 'unknown').toString().split(',')[0].trim();
+        const now = Date.now();
+        const entry = registerMap.get(ip);
+        if (entry && entry.resetAt > now) {
+            if (entry.count >= REGISTER_MAX_PER_HOUR) {
+                throw new common_1.BadRequestException('注册过于频繁，请 1 小时后再试');
+            }
+            entry.count++;
+        }
+        else {
+            registerMap.set(ip, { count: 1, resetAt: now + REGISTER_WINDOW_MS });
+        }
         const account = (dto.account || dto.accountNumber || '').trim().toLowerCase();
         const password = dto.password || '';
         const passwordConfirm = dto.passwordConfirm ?? dto.password;
@@ -197,7 +216,7 @@ let MerchantController = MerchantController_1 = class MerchantController {
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const existing = await userRepo.findOne({ where: { account_number: account } });
         if (existing) {
-            throw new common_1.BadRequestException('该账号已存在');
+            throw new common_1.BadRequestException('该账号无法注册，请尝试其他账号');
         }
         const deviceId = (dto.device_id || '').trim() || null;
         if (deviceId) {
@@ -1401,8 +1420,9 @@ exports.MerchantController = MerchantController;
 __decorate([
     (0, common_1.Post)('register'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], MerchantController.prototype, "register", null);
 __decorate([
