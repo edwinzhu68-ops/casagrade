@@ -3225,6 +3225,9 @@
     /** 同步失败 toast 降噪：1 秒轮询下网络抖动会连续弹 N 个 error toast，只弹第一次，10 秒冷却 */
     let lastSyncErrorToastAt = 0;
     const SYNC_ERROR_TOAST_COOLDOWN_MS = 10 * 1000;
+    /** sync 失败 console 降噪：每秒轮询下持续 401 会刷爆 console，引起 WebView 内存压力（蓝牙打印断的潜在因）。10 秒打一次 */
+    let lastSyncErrorLogAt = 0;
+    const SYNC_ERROR_LOG_COOLDOWN_MS = 10 * 1000;
     /** loadDashboard 并发守卫：1 秒轮询下前一次没跑完新一次不启动，避免打后端 4 倍请求 */
     let loadDashboardInFlight = false;
     /** 上次已渲染过的 sid+workbenchKind 组合，空增量 + 同组合 + 30 秒内跑过 → 跳过派生重算 */
@@ -3299,6 +3302,17 @@
       if (!res.ok) {
         let errMsg = 'HTTP ' + res.status;
         try { const ej = await res.json(); errMsg = ej.message || ej.error || errMsg; } catch (e) {}
+        // 401：token/session 失效（含后端 C6 严格化后旧未签名 token 全拒）。
+        // 静默 throw 会让收银台每秒一次 toast + console，长时间蓄积可能压垮 WebView / 影响蓝牙 keepAlive。
+        // 这里直接清登录态跳登录，让老板一次性重登；比"网络波动"提示更准确。
+        if (res.status === 401) {
+          try {
+            localStorage.removeItem('lottery_token');
+            localStorage.removeItem('lottery_session_token');
+          } catch (eR) {}
+          authToken = '';
+          throw new Error('AUTH_EXPIRED');
+        }
         throw new Error(errMsg);
       }
       const data = await res.json();
@@ -3356,9 +3370,22 @@
           // 成功后重置冷却：下次真失败能立即提示
           lastSyncErrorToastAt = 0;
         } catch (e) {
-          console.error('syncShopOrders failed', e);
-          // 网络抖动时 1 秒轮询会连续失败多次，只弹第一次 + 10 秒冷却期；不阻塞下次重试
+          // 401 token 失效：syncShopOrders 已清掉 localStorage 并 throw AUTH_EXPIRED。
+          // 一次性提示并跳登录页，避免每秒 401 风暴影响蓝牙 keepAlive。
+          if (e && (e.message === 'AUTH_EXPIRED' || /401/.test(String(e.message)))) {
+            showToast(getMerchantLang() === 'zh' ? '登录已过期，请重新登录' : 'Sesión expirada, vuelva a iniciar sesión', 'error', 5000);
+            try {
+              document.getElementById('page-cashier').classList.add('hidden');
+              document.getElementById('page-login').classList.remove('hidden');
+            } catch (eUI) {}
+            return;
+          }
+          // 网络抖动时 1 秒轮询会连续失败多次，console + toast 都做 10 秒冷却，避免 WebView 内存/UI 压力
           var nowTs = Date.now();
+          if (nowTs - lastSyncErrorLogAt > SYNC_ERROR_LOG_COOLDOWN_MS) {
+            console.warn('syncShopOrders failed', e && (e.message || e));
+            lastSyncErrorLogAt = nowTs;
+          }
           if (nowTs - lastSyncErrorToastAt > SYNC_ERROR_TOAST_COOLDOWN_MS) {
             showToast((getMerchantLang() === 'zh' ? '网络波动，正在重试' : 'Red inestable, reintentando'), 'warning', 3000);
             lastSyncErrorToastAt = nowTs;
