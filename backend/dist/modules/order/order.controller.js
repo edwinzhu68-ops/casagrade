@@ -53,6 +53,7 @@ const express_1 = require("express");
 const typeorm_1 = require("typeorm");
 const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
+const shop_binding_entity_1 = require("../../entities/shop-binding.entity");
 async function findShopByNumber(shopRepo, number) {
     const byPrimary = await shopRepo.findOne({ where: { shop_number: number } });
     if (byPrimary)
@@ -710,10 +711,22 @@ let ShopController = ShopController_1 = class ShopController {
         if (!tokenUserId) {
             throw new common_2.UnauthorizedException('请先登录');
         }
-        const shop = await this.dataSource.getRepository(shop_entity_1.Shop).findOne({ where: { shop_id: shopId } });
-        if (!shop || shop.owner_id !== tokenUserId) {
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
+        if (!shop) {
             throw new common_2.UnauthorizedException('无权查看该店铺数据');
         }
+        if (shop.owner_id === tokenUserId)
+            return;
+        const binding = await this.dataSource.getRepository(shop_binding_entity_1.ShopBinding).findOne({
+            where: { sub_shop_id: shopId, status: 'active' },
+        });
+        if (binding) {
+            const mainShop = await shopRepo.findOne({ where: { shop_id: binding.main_shop_id } });
+            if (mainShop && mainShop.owner_id === tokenUserId)
+                return;
+        }
+        throw new common_2.UnauthorizedException('无权查看该店铺数据');
     }
     async listShopOrdersByQuery(shopId, limit = '100', status, suffix, drawId, lotteryKind, req) {
         const id = parseInt(String(shopId || '').trim(), 10);

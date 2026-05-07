@@ -149,17 +149,33 @@ export class MerchantController implements OnModuleInit {
     await qr.release();
   }
 
-  /** 验证 X-Session-Token 请求头与 DB 中 user.session_token 一致（强制要求） */
+  /**
+   * 验证 X-Session-Token 请求头是该 userId 的有效 session（多设备共存：查 sessions 表）。
+   * 优先：sessions 表中存在 (user_id, token) 即放行。
+   * 兜底：兼容旧记录 — 若 sessions 表无记录但 user.session_token 与 header 一致，也放行。
+   * 任一失败：抛 SESSION_EXPIRED。
+   */
   private async verifySession(req: any, userId: number): Promise<void> {
-    const headerToken = req.headers?.['x-session-token'];
+    const headerToken = (req.headers?.['x-session-token'] || '').toString().trim();
+    if (!headerToken) {
+      throw new UnauthorizedException('SESSION_EXPIRED');
+    }
+    const sessionRepo = this.dataSource.getRepository(Session);
+    const session = await sessionRepo.findOne({ where: { user_id: userId, token: headerToken } });
+    if (session) {
+      // 顺手刷新 last_active，方便后续运维查活跃度（失败不影响放行）
+      try {
+        session.last_active = new Date();
+        await sessionRepo.save(session);
+      } catch {}
+      return;
+    }
+    // 兜底：旧记录可能只在 user.session_token 里，sessions 表还没补齐
     const user = await this.dataSource.getRepository(User).findOne({ where: { user_id: userId } });
-    // 用户已登录但 DB 没记录 session_token：异常状态拒绝
-    if (!user?.session_token) {
-      throw new UnauthorizedException('SESSION_EXPIRED');
+    if (user?.session_token && user.session_token === headerToken) {
+      return;
     }
-    if (!headerToken || user.session_token !== headerToken) {
-      throw new UnauthorizedException('SESSION_EXPIRED');
-    }
+    throw new UnauthorizedException('SESSION_EXPIRED');
   }
 
   /**

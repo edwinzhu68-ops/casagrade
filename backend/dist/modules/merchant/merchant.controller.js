@@ -164,14 +164,25 @@ let MerchantController = MerchantController_1 = class MerchantController {
         await qr.release();
     }
     async verifySession(req, userId) {
-        const headerToken = req.headers?.['x-session-token'];
+        const headerToken = (req.headers?.['x-session-token'] || '').toString().trim();
+        if (!headerToken) {
+            throw new common_1.UnauthorizedException('SESSION_EXPIRED');
+        }
+        const sessionRepo = this.dataSource.getRepository(session_entity_1.Session);
+        const session = await sessionRepo.findOne({ where: { user_id: userId, token: headerToken } });
+        if (session) {
+            try {
+                session.last_active = new Date();
+                await sessionRepo.save(session);
+            }
+            catch { }
+            return;
+        }
         const user = await this.dataSource.getRepository(user_entity_1.User).findOne({ where: { user_id: userId } });
-        if (!user?.session_token) {
-            throw new common_1.UnauthorizedException('SESSION_EXPIRED');
+        if (user?.session_token && user.session_token === headerToken) {
+            return;
         }
-        if (!headerToken || user.session_token !== headerToken) {
-            throw new common_1.UnauthorizedException('SESSION_EXPIRED');
-        }
+        throw new common_1.UnauthorizedException('SESSION_EXPIRED');
     }
     async register(dto, req) {
         const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || 'unknown').toString().split(',')[0].trim();

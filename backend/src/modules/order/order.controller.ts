@@ -3,6 +3,7 @@ import { Request } from 'express';
 import { DataSource, Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
+import { ShopBinding } from '../../entities/shop-binding.entity';
 
 /** 按店号查找店铺，同时检查主号和别名（避免全表扫描） */
 async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Promise<Shop | null> {
@@ -749,7 +750,10 @@ export class ShopController {
   constructor(private readonly dataSource: DataSource) {}
 
   /**
-   * 校验请求方是否为该 shopId 的 owner（基于 Bearer token）。
+   * 校验请求方是否有权访问 shopId 的订单（基于 Bearer token）。
+   * 通过条件之一即放行：
+   *   1) tokenUserId == shop.owner_id（自己的店）
+   *   2) shopId 是某个 mainShop 的 active 子店，且 tokenUserId == mainShop.owner_id（大庄看小庄）
    * 失败抛 UnauthorizedException，防止匿名/越权拉取他店订单（IDOR 防御）。
    */
   private async requireShopOwner(req: any, shopId: number): Promise<void> {
@@ -759,10 +763,21 @@ export class ShopController {
     if (!tokenUserId) {
       throw new UnauthorizedException('请先登录');
     }
-    const shop = await this.dataSource.getRepository(Shop).findOne({ where: { shop_id: shopId } });
-    if (!shop || shop.owner_id !== tokenUserId) {
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
+    if (!shop) {
       throw new UnauthorizedException('无权查看该店铺数据');
     }
+    if (shop.owner_id === tokenUserId) return;
+    // 大庄绑定路径：如果 tokenUser 是 shopId 所属 active main_shop 的 owner，则放行
+    const binding = await this.dataSource.getRepository(ShopBinding).findOne({
+      where: { sub_shop_id: shopId, status: 'active' },
+    });
+    if (binding) {
+      const mainShop = await shopRepo.findOne({ where: { shop_id: binding.main_shop_id } });
+      if (mainShop && mainShop.owner_id === tokenUserId) return;
+    }
+    throw new UnauthorizedException('无权查看该店铺数据');
   }
 
   /**
