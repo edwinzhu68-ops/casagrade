@@ -262,6 +262,10 @@
               <span class="text-gray-400" data-i18n="amount_label">金额</span>
               <span class="font-bold text-green-400"><span id="result-detail-amount">0</span></span>
             </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400" data-i18n="placed_at_label">下单时间</span>
+              <span class="font-mono text-sm" id="result-detail-placed-at">--</span>
+            </div>
             <div id="result-detail-status-row" class="flex justify-between hidden">
               <span class="text-gray-400" data-i18n="status_label">状态</span>
               <span class="font-bold" id="result-detail-status">--</span>
@@ -596,6 +600,7 @@
         order_detail_title: '订单详情',
         order_id_label: '订单号',
         amount_label: '金额',
+        placed_at_label: '下单时间',
         status_label: '状态',
         win_amount_label: '中奖金额',
         numbers_label: '号码',
@@ -698,6 +703,7 @@
         order_detail_title: 'Detalle del pedido',
         order_id_label: 'N.º pedido',
         amount_label: 'Importe',
+        placed_at_label: 'Fecha de pedido',
         status_label: 'Estado',
         win_amount_label: 'Premio',
         numbers_label: 'Números',
@@ -1098,6 +1104,26 @@
     function getOrderNote(num, order) {
       if (order && order.note) return order.note;
       try { return JSON.parse(localStorage.getItem('lottery_order_notes') || '{}')[String(num)] || ''; } catch(e) { return ''; }
+    }
+
+    /** 格式化时间戳为 DD-MM-YYYY HH:mm（巴拿马时区） */
+    function formatPanamaDateTime(ts) {
+      if (!ts) return '--';
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return '--';
+      try {
+        var parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Panama',
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        }).formatToParts(d);
+        var get = function (type) { var p = parts.find(function (x) { return x.type === type; }); return p ? p.value : ''; };
+        var hh = get('hour'); if (hh === '24') hh = '00';
+        return get('day') + '-' + get('month') + '-' + get('year') + ' ' + hh + ':' + get('minute');
+      } catch (e) {
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        return pad(d.getDate()) + '-' + pad(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      }
     }
 
     // 订单显示用中奖金额：优先用后端 win_amount；仅当 win_amount 为 0 时用 win_breakdown 之和兜底
@@ -3115,6 +3141,8 @@
           ltRow.classList.remove('hidden');
         }
         document.getElementById('result-detail-amount').textContent = Number(data.amount || 0).toFixed(2);
+        var _resPlacedEl = document.getElementById('result-detail-placed-at');
+        if (_resPlacedEl) _resPlacedEl.textContent = formatPanamaDateTime(data.created_at || data.createdAt);
         const statusRow = document.getElementById('result-detail-status-row');
         const statusEl = document.getElementById('result-detail-status');
         const winRow = document.getElementById('result-detail-win-row');

@@ -416,6 +416,28 @@
 
 
   <!-- Chance详情弹窗 -->
+  <!-- 修正当期开奖日期（Lotería 官方改期应急用） -->
+  <div id="modal-draw-date" class="hidden fixed inset-0 bg-black/70 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeDrawDateEditor()">
+    <div class="bg-gray-800 rounded-2xl p-5 w-full max-w-sm" onclick="event.stopPropagation()">
+      <h2 class="text-lg font-bold mb-3 text-yellow-300">📅 <span data-i18n="draw_date_edit_title">修正当期开奖日期</span></h2>
+      <p class="text-xs text-gray-400 mb-3 leading-relaxed" data-i18n="draw_date_edit_hint">仅当 Lotería 官方改期、系统未及时更新时使用。修改后本店所有打印小票、电子票、顾客下单页都将显示此日期，下一期开奖后自动失效。</p>
+      <div class="mb-3 text-xs text-gray-300">
+        <span data-i18n="draw_date_edit_server">系统当前日期</span>：
+        <span id="draw-date-server-display" class="font-bold text-green-300">--</span>
+      </div>
+      <label class="block text-sm text-gray-300 mb-1" data-i18n="draw_date_edit_label">设为</label>
+      <input type="date" id="draw-date-input" class="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-base mb-4">
+      <div id="draw-date-current-custom" class="hidden mb-3 text-xs text-blue-300 bg-blue-900/30 border border-blue-500/40 rounded-lg px-3 py-2">
+        <span data-i18n="draw_date_edit_active">当前已自定义</span>：<span id="draw-date-current-custom-value" class="font-bold"></span>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" onclick="closeDrawDateEditor()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-bold" data-i18n="btn_cancel">取消</button>
+        <button type="button" id="draw-date-reset-btn" onclick="resetCustomDrawDate()" class="hidden flex-1 bg-orange-600 hover:bg-orange-500 text-white py-3 rounded-lg font-bold" data-i18n="draw_date_edit_reset">恢复默认</button>
+        <button type="button" onclick="saveCustomDrawDate()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold" data-i18n="btn_save">保存</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-chance" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeModal('modal-chance')">
     <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
       <div class="flex justify-between items-start mb-3 gap-2">
@@ -779,6 +801,10 @@
           <span class="text-gray-400" data-i18n="amount_label">金额</span>
           <span class="text-3xl font-bold text-green-400">$<span id="detail-amount">0</span></span>
         </div>
+        <div class="flex justify-between mb-2">
+          <span class="text-gray-400" data-i18n="placed_at_label">下单时间</span>
+          <span class="font-mono text-sm" id="detail-placed-at">--</span>
+        </div>
         <div id="detail-numbers-view-wrap" class="border-t border-gray-600 pt-2 mt-2">
           <p class="text-gray-400 text-sm mb-2" data-i18n="numbers_label">号码</p>
           <div id="detail-numbers" class="font-mono text-sm space-y-1"></div>
@@ -1032,6 +1058,7 @@
         order_detail_title: '订单详情',
         order_id_label: '订单号',
         amount_label: '金额',
+        placed_at_label: '下单时间',
         numbers_label: '号码',
         status_label: '状态',
         btn_confirm_pay: '✅ 确认收款',
@@ -1358,6 +1385,7 @@
         order_detail_title: 'Detalle del pedido',
         order_id_label: 'Nº pedido',
         amount_label: 'Importe',
+        placed_at_label: 'Fecha de pedido',
         numbers_label: 'Números',
         status_label: 'Estado',
         btn_confirm_pay: '✅ Confirmar pago',
@@ -3338,6 +3366,156 @@
       return updateCount;
     }
 
+    // ─────────────────────────────────────────────
+    //  当期开奖日期应急修正（Lotería 官方改期但服务端 Draw 还没改时使用）
+    //  作用：覆盖工作台显示、蓝牙小票、电子票、顾客端店铺页的开奖日期文案
+    //  作用域：当前 pending drawId；下期开奖后自动失效
+    //  入口：工作台店号下方那个开奖日期 pill（NACIONAL 模式）
+    // ─────────────────────────────────────────────
+    function _formatDDMMYYYYToISO(s) {
+      // DD-MM-YYYY → YYYY-MM-DD
+      if (!s) return null;
+      var m = String(s).match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      if (!m) return null;
+      return m[3] + '-' + m[2] + '-' + m[1];
+    }
+    function _formatISOToDDMMYYYY(iso) {
+      if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return iso || '--';
+      return String(iso).slice(8, 10) + '-' + String(iso).slice(5, 7) + '-' + String(iso).slice(0, 4);
+    }
+    /** 格式化时间戳为 DD-MM-YYYY HH:mm（巴拿马时区，跨年订单也清晰） */
+    function formatPanamaDateTime(ts) {
+      if (!ts) return '--';
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return '--';
+      try {
+        var parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Panama',
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        }).formatToParts(d);
+        var get = function (type) { var p = parts.find(function (x) { return x.type === type; }); return p ? p.value : ''; };
+        var hh = get('hour'); if (hh === '24') hh = '00';
+        return get('day') + '-' + get('month') + '-' + get('year') + ' ' + hh + ':' + get('minute');
+      } catch (e) {
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        return pad(d.getDate()) + '-' + pad(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      }
+    }
+    /**
+     * 取订单打印 / 电子票展示用的开奖日期。
+     * 自定义日期仅当其绑定的 drawId == 订单的 draw_id 时生效（即"老板为这一期改的日期"）。
+     * 这样：当期重打用最新自定义值；上一期 / 历史期 用订单原始 draw_date；下期开奖后自定义自动失效（不再匹配）。
+     */
+    function getOrderDisplayDrawDate(order) {
+      var realDD = order && (order.draw_date || order.drawDate);
+      var orderDID = order && (order.draw_id != null ? order.draw_id : (order.drawId != null ? order.drawId : null));
+      var customDD = currentShop && currentShop.national_custom_draw_date;
+      var customDID = currentShop && currentShop.national_custom_draw_id;
+      if (customDD && customDID != null && orderDID != null && Number(customDID) === Number(orderDID)) {
+        return customDD;
+      }
+      return realDD || currentDrawDate || null;
+    }
+
+    function openDrawDateEditor() {
+      if (!currentShop || !currentShop.shop_id) {
+        showToast(getMerchantLang() === 'zh' ? '请先登录' : 'Inicie sesión primero', 'error');
+        return;
+      }
+      if (merchantPendingNationalDrawId == null) {
+        showToast(getMerchantLang() === 'zh' ? '当前无待开奖期' : 'No hay sorteo pendiente', 'warning');
+        return;
+      }
+      var modal = document.getElementById('modal-draw-date');
+      var input = document.getElementById('draw-date-input');
+      var serverDisp = document.getElementById('draw-date-server-display');
+      var currentBox = document.getElementById('draw-date-current-custom');
+      var currentVal = document.getElementById('draw-date-current-custom-value');
+      var resetBtn = document.getElementById('draw-date-reset-btn');
+
+      // 从全局 currentDrawDate（来自 /api/draw/pending，YYYY-MM-DD）反推一个安全默认值
+      var serverISO = currentDrawDate && /^\d{4}-\d{2}-\d{2}/.test(String(currentDrawDate)) ? String(currentDrawDate).slice(0, 10) : '';
+      if (serverDisp) serverDisp.textContent = serverISO ? _formatISOToDDMMYYYY(serverISO) : '--';
+
+      // 仅当自定义绑定到当前 pending drawId 时才视为「生效中」
+      var customISO = currentShop.national_custom_draw_date;
+      var customDID = currentShop.national_custom_draw_id;
+      var active = customISO && customDID != null && Number(customDID) === Number(merchantPendingNationalDrawId);
+      if (active) {
+        if (currentBox) currentBox.classList.remove('hidden');
+        if (currentVal) currentVal.textContent = _formatISOToDDMMYYYY(customISO);
+        if (resetBtn) resetBtn.classList.remove('hidden');
+        if (input) input.value = String(customISO).slice(0, 10);
+      } else {
+        if (currentBox) currentBox.classList.add('hidden');
+        if (resetBtn) resetBtn.classList.add('hidden');
+        if (input) input.value = serverISO;
+      }
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeDrawDateEditor() {
+      var modal = document.getElementById('modal-draw-date');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function saveCustomDrawDate() {
+      if (!currentShop || !currentShop.shop_id) return;
+      var input = document.getElementById('draw-date-input');
+      var val = input ? String(input.value || '').trim() : '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        showToast(getMerchantLang() === 'zh' ? '请选择有效日期' : 'Seleccione una fecha válida', 'warning');
+        return;
+      }
+      try {
+        var token = authToken || localStorage.getItem('lottery_token') || '';
+        var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/national-draw-date', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ drawDate: val }),
+        });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return {}; });
+          throw new Error(err.message || ('HTTP ' + res.status));
+        }
+        var data = await res.json();
+        currentShop.national_custom_draw_date = data.national_custom_draw_date;
+        currentShop.national_custom_draw_id = data.national_custom_draw_id;
+        showToast(getMerchantLang() === 'zh' ? '已保存，本期所有打印将使用新日期' : 'Guardado: las impresiones de este sorteo usarán la nueva fecha', 'success');
+        closeDrawDateEditor();
+        // 触发立即重渲染
+        try { lastDashboardRenderKey = null; loadDashboard(); } catch (e) {}
+      } catch (e) {
+        console.error('保存自定义开奖日期失败:', e);
+        showToast((getMerchantLang() === 'zh' ? '保存失败：' : 'Error: ') + (e.message || e), 'error');
+      }
+    }
+
+    async function resetCustomDrawDate() {
+      if (!currentShop || !currentShop.shop_id) return;
+      try {
+        var token = authToken || localStorage.getItem('lottery_token') || '';
+        var res = await fetch(API_BASE + '/api/shop/' + currentShop.shop_id + '/national-draw-date', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ drawDate: null }),
+        });
+        if (!res.ok) {
+          var err = await res.json().catch(function () { return {}; });
+          throw new Error(err.message || ('HTTP ' + res.status));
+        }
+        currentShop.national_custom_draw_date = null;
+        currentShop.national_custom_draw_id = null;
+        showToast(getMerchantLang() === 'zh' ? '已恢复默认日期' : 'Fecha predeterminada restaurada', 'success');
+        closeDrawDateEditor();
+        try { lastDashboardRenderKey = null; loadDashboard(); } catch (e) {}
+      } catch (e) {
+        console.error('恢复默认开奖日期失败:', e);
+        showToast((getMerchantLang() === 'zh' ? '操作失败：' : 'Error: ') + (e.message || e), 'error');
+      }
+    }
+
     // 加载仪表盘（本期 = 待开奖期；开奖日期展示与客户端 /api/bet-status 保持一致）
     async function loadDashboard() {
       if (!currentShop) return;
@@ -3483,9 +3661,18 @@
           });
         }
 
-        const currentPeriodLabel = statusData && statusData.currentPeriodDate
+        // statusData.currentPeriodDate 已被后端按 shopId 应用过自定义日期（若有效）
+        // 这里再做一次前端兜底：如果 currentShop 有匹配 pending drawId 的自定义日期，转 DD-MM-YYYY 优先用之
+        let currentPeriodLabel = statusData && statusData.currentPeriodDate
           ? statusData.currentPeriodDate
           : (pendingDrawDate || '');
+        const _customNDD = currentShop && currentShop.national_custom_draw_date;
+        const _customNDID = currentShop && currentShop.national_custom_draw_id;
+        const _hasActiveCustom = _customNDD && _customNDID != null && pendingDrawId != null && Number(_customNDID) === Number(pendingDrawId);
+        if (_hasActiveCustom && /^\d{4}-\d{2}-\d{2}$/.test(String(_customNDD))) {
+          const _iso = String(_customNDD);
+          currentPeriodLabel = `${_iso.slice(8, 10)}-${_iso.slice(5, 7)}-${_iso.slice(0, 4)}`;
+        }
 
         var scopedOrders = (allOrders || []).filter(function (o) { return orderMatchesMerchantWorkbench(o, merchantWorkbenchKind); });
 
@@ -3557,10 +3744,18 @@
           if (merchantWorkbenchKind === 'NACIONAL') {
             const labelDate = currentPeriodLabel;
             if (labelDate) {
-              statusBadge.textContent = `${t('fecha_sorteo')} · ${labelDate}`;
-              statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400';
+              const _editIcon = '✏️';
+              if (_hasActiveCustom) {
+                statusBadge.textContent = `${_editIcon} ${t('fecha_sorteo')} · ${labelDate}`;
+                statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-300 cursor-pointer';
+              } else {
+                statusBadge.textContent = `${_editIcon} ${t('fecha_sorteo')} · ${labelDate}`;
+                statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-900/50 text-green-400 cursor-pointer';
+              }
+              statusBadge.onclick = function () { openDrawDateEditor(); };
               statusBadge.classList.remove('hidden');
             } else {
+              statusBadge.onclick = null;
               statusBadge.classList.add('hidden');
             }
           } else if (merchantWorkbenchKind === 'TICA' || merchantWorkbenchKind === 'NICA') {
@@ -3577,8 +3772,10 @@
             } else {
               statusBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-200';
             }
+            statusBadge.onclick = null;
             statusBadge.classList.remove('hidden');
           } else {
+            statusBadge.onclick = null;
             statusBadge.classList.add('hidden');
           }
         }
@@ -4555,7 +4752,7 @@
           if (etDrawValue) etDrawValue.textContent = _etCustomP ? _etCustomP : ((_etPNo != null && String(_etPNo).trim() !== '') ? ('#' + _etPNo) : '--');
           etDrawRow.classList.remove('hidden');
         } else {
-          var _etDd = order.draw_date || order.drawDate || currentDrawDate || null;
+          var _etDd = getOrderDisplayDrawDate(order);
           if (etDrawLabel) etDrawLabel.textContent = 'Lotería Sorteo';
           if (_etDd) {
             var _etDs = String(_etDd);
@@ -4855,7 +5052,7 @@
           if (odetDrawValue) odetDrawValue.textContent = _odetCustomP ? _odetCustomP : ((_odetPNo != null && String(_odetPNo).trim() !== '') ? ('#' + _odetPNo) : '--');
           odetDrawRow.classList.remove('hidden');
         } else {
-          var _odetDd = order.draw_date || order.drawDate || currentDrawDate || null;
+          var _odetDd = getOrderDisplayDrawDate(order);
           if (odetDrawLabel) odetDrawLabel.textContent = 'Lotería Sorteo';
           if (_odetDd) {
             var _odetDs = String(_odetDd);
@@ -5143,6 +5340,8 @@
         ltRow.classList.remove('hidden');
       }
       document.getElementById('detail-amount').textContent = (order.amount != null ? Number(order.amount) : 0).toFixed(2);
+      var _placedEl = document.getElementById('detail-placed-at');
+      if (_placedEl) _placedEl.textContent = formatPanamaDateTime(order.created_at || order.createdAt);
       document.getElementById('detail-status').textContent = (statusKeys[idx] ? t(statusKeys[idx]) : t('status_unknown'));
       document.getElementById('detail-status').className = (statusColors[idx] || 'text-gray-400') + ' font-bold';
 
@@ -6802,7 +7001,7 @@
           push(...LEFT);
         }
       } else {
-        var _drawDateStr = _ord.draw_date || _ord.drawDate || currentDrawDate || null;
+        var _drawDateStr = getOrderDisplayDrawDate(_ord);
         if (_drawDateStr) {
           // YYYY-MM-DD → DD-MM-YYYY
           var _ds = String(_drawDateStr);
