@@ -93,6 +93,14 @@ __decorate([
     __metadata("design:type", String)
 ], Shop.prototype, "nica_custom_period", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 12, nullable: true }),
+    __metadata("design:type", String)
+], Shop.prototype, "national_custom_draw_date", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Number)
+], Shop.prototype, "national_custom_draw_id", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'boolean', default: true }),
     __metadata("design:type", Boolean)
 ], Shop.prototype, "loteria_enabled", void 0);

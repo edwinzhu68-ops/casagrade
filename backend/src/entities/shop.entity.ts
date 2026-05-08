@@ -73,6 +73,17 @@ export class Shop {
   @Column({ type: 'varchar', length: 20, nullable: true })
   nica_custom_period: string | null;
 
+  /**
+   * 全国 Lotería 当期自定义开奖日期（应急修正用：官方改期但服务端 Draw 还没改时，老板自己先改）
+   * 格式 YYYY-MM-DD；仅当 national_custom_draw_id 与当前 pending drawId 一致时生效，下期自动失效。
+   */
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  national_custom_draw_date: string | null;
+
+  /** 自定义日期绑定的 pending drawId，用于跨期自动失效 */
+  @Column({ type: 'int', nullable: true })
+  national_custom_draw_id: number | null;
+
   /** 是否在顾客端展示 Lotería（官方彩；默认开启，店主可关闭） */
   @Column({ type: 'boolean', default: true })
   loteria_enabled: boolean;

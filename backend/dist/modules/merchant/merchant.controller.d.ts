@@ -76,6 +76,8 @@ export declare class MerchantController implements OnModuleInit {
             nica_limit_palet: any;
             tica_custom_period: any;
             nica_custom_period: any;
+            national_custom_draw_date: any;
+            national_custom_draw_id: any;
             rate_billete_1: any;
             rate_billete_2: any;
             rate_billete_3: any;
@@ -108,6 +110,8 @@ export declare class MerchantController implements OnModuleInit {
             nica_limit_palet: any;
             tica_custom_period: any;
             nica_custom_period: any;
+            national_custom_draw_date: any;
+            national_custom_draw_id: any;
             rate_billete_1: any;
             rate_billete_2: any;
             rate_billete_3: any;

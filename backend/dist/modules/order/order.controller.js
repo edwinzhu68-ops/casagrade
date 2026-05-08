@@ -45,7 +45,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var OrderController_1, ShopController_1, BetStatusController_1;
-var _a, _b, _c, _d, _e;
+var _a, _b, _c, _d, _e, _f;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BetStatusController = exports.ShopController = exports.OrderController = void 0;
 const common_1 = require("@nestjs/common");
@@ -1087,6 +1087,55 @@ let ShopController = ShopController_1 = class ShopController {
         await this.requireShopOwner(req, id);
         return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
     }
+    async updateShopNationalDrawDate(shopId, body, req) {
+        const parsedShopId = parseInt(shopId, 10);
+        if (isNaN(parsedShopId))
+            throw new common_1.BadRequestException('shopId 无效');
+        const authHeader = (req.headers?.['authorization'] || '');
+        const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+        const tokenUserId = parseOrderToken(raw);
+        if (!tokenUserId) {
+            throw new common_2.UnauthorizedException('请先登录');
+        }
+        const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+        const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
+        if (!shop)
+            throw new common_1.NotFoundException('店铺不存在');
+        if (shop.owner_id !== tokenUserId) {
+            throw new common_2.UnauthorizedException('无权操作此店铺');
+        }
+        const incoming = body?.drawDate;
+        if (incoming == null || (typeof incoming === 'string' && incoming.trim() === '')) {
+            shop.national_custom_draw_date = null;
+            shop.national_custom_draw_id = null;
+            await shopRepo.save(shop);
+            return {
+                success: true,
+                national_custom_draw_date: null,
+                national_custom_draw_id: null,
+            };
+        }
+        if (typeof incoming !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(incoming)) {
+            throw new common_1.BadRequestException('drawDate 格式必须为 YYYY-MM-DD');
+        }
+        const probe = new Date(`${incoming}T12:00:00Z`);
+        if (isNaN(probe.getTime()) || probe.toISOString().slice(0, 10) !== incoming) {
+            throw new common_1.BadRequestException('drawDate 不是有效日期');
+        }
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const pendingDraw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        if (!pendingDraw) {
+            throw new common_1.BadRequestException('当前无待开奖期，无法设置自定义日期');
+        }
+        shop.national_custom_draw_date = incoming;
+        shop.national_custom_draw_id = pendingDraw.draw_id;
+        await shopRepo.save(shop);
+        return {
+            success: true,
+            national_custom_draw_date: incoming,
+            national_custom_draw_id: pendingDraw.draw_id,
+        };
+    }
     async getShopByNumber(shopNumber) {
         const shop = await findShopByNumber(this.dataSource.getRepository(shop_entity_1.Shop), shopNumber);
         if (!shop) {
@@ -1107,6 +1156,8 @@ let ShopController = ShopController_1 = class ShopController {
                 nica_limit_palet: shop.nica_limit_palet ?? null,
                 tica_custom_period: shop.tica_custom_period ?? null,
                 nica_custom_period: shop.nica_custom_period ?? null,
+                national_custom_draw_date: shop.national_custom_draw_date ?? null,
+                national_custom_draw_id: shop.national_custom_draw_id ?? null,
                 loteria_enabled: shop.loteria_enabled !== false,
                 tica_enabled: !!shop.tica_enabled,
                 nica_enabled: !!shop.nica_enabled,
@@ -1173,6 +1224,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, String, String, String, Object]),
     __metadata("design:returntype", Promise)
 ], ShopController.prototype, "getShopOrders", null);
+__decorate([
+    (0, common_1.Patch)(':shopId/national-draw-date'),
+    __param(0, (0, common_1.Param)('shopId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, typeof (_f = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _f : Object]),
+    __metadata("design:returntype", Promise)
+], ShopController.prototype, "updateShopNationalDrawDate", null);
 __decorate([
     (0, common_1.Get)(':shopNumber'),
     __param(0, (0, common_1.Param)('shopNumber')),
@@ -1274,6 +1334,17 @@ let BetStatusController = BetStatusController_1 = class BetStatusController {
                 }
             }
             currentPeriodDate = `${String(dd).padStart(2, '0')}-${String(dm).padStart(2, '0')}-${dy}`;
+            const shopIdNum = parseInt(String(shopId || '').trim(), 10);
+            if (!isNaN(shopIdNum) && shopIdNum > 0) {
+                const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
+                const shop = await shopRepo.findOne({ where: { shop_id: shopIdNum } });
+                const cd = shop?.national_custom_draw_date;
+                const cid = shop?.national_custom_draw_id;
+                if (cd && cid != null && Number(cid) === Number(draw.draw_id) && /^\d{4}-\d{2}-\d{2}$/.test(String(cd))) {
+                    const iso = String(cd);
+                    currentPeriodDate = `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`;
+                }
+            }
             let drawHour = 15;
             let drawMin = 0;
             if (timeStr.includes('T')) {

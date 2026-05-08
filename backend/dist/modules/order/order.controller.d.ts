@@ -289,6 +289,13 @@ export declare class ShopController {
             paid_at: Date;
         }[];
     }>;
+    updateShopNationalDrawDate(shopId: string, body: {
+        drawDate?: string | null;
+    }, req: Request): Promise<{
+        success: boolean;
+        national_custom_draw_date: string;
+        national_custom_draw_id: number;
+    }>;
     getShopByNumber(shopNumber: string): Promise<{
         shop: {
             shop_id: number;
@@ -304,6 +311,8 @@ export declare class ShopController {
             nica_limit_palet: any;
             tica_custom_period: any;
             nica_custom_period: any;
+            national_custom_draw_date: any;
+            national_custom_draw_id: any;
             loteria_enabled: boolean;
             tica_enabled: boolean;
             nica_enabled: boolean;

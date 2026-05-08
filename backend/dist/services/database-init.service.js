@@ -97,6 +97,8 @@ let DatabaseInitService = DatabaseInitService_1 = class DatabaseInitService {
             `ALTER TABLE shops ADD COLUMN tica_chance_1 decimal(10,2)`,
             `ALTER TABLE shops ADD COLUMN tica_chance_2 decimal(10,2)`,
             `ALTER TABLE shops ADD COLUMN tica_chance_3 decimal(10,2)`,
+            `ALTER TABLE shops ADD COLUMN national_custom_draw_date varchar(12)`,
+            `ALTER TABLE shops ADD COLUMN national_custom_draw_id integer`,
         ];
         for (const sql of alters) {
             try {

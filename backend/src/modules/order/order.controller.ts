@@ -1263,6 +1263,73 @@ export class ShopController {
   }
 
   /**
+   * PATCH /api/shop/:shopId/national-draw-date - 老板修改全国 Lotería 当期开奖日期（应急修正）
+   * body: { drawDate: 'YYYY-MM-DD' } 设置；{ drawDate: null } 清除恢复默认
+   * 后端自动绑定到当前 pending drawId，下期自动失效。
+   */
+  @Patch(':shopId/national-draw-date')
+  async updateShopNationalDrawDate(
+    @Param('shopId') shopId: string,
+    @Body() body: { drawDate?: string | null },
+    @Req() req: Request,
+  ) {
+    const parsedShopId = parseInt(shopId, 10);
+    if (isNaN(parsedShopId)) throw new BadRequestException('shopId 无效');
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+
+    const incoming = body?.drawDate;
+    if (incoming == null || (typeof incoming === 'string' && incoming.trim() === '')) {
+      // 清除自定义
+      (shop as any).national_custom_draw_date = null;
+      (shop as any).national_custom_draw_id = null;
+      await shopRepo.save(shop);
+      return {
+        success: true,
+        national_custom_draw_date: null,
+        national_custom_draw_id: null,
+      };
+    }
+
+    if (typeof incoming !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(incoming)) {
+      throw new BadRequestException('drawDate 格式必须为 YYYY-MM-DD');
+    }
+    // 校验是有效日期（防 2026-13-32 这种）
+    const probe = new Date(`${incoming}T12:00:00Z`);
+    if (isNaN(probe.getTime()) || probe.toISOString().slice(0, 10) !== incoming) {
+      throw new BadRequestException('drawDate 不是有效日期');
+    }
+
+    // 后端查当前 pending drawId 作为绑定值，避免前端缓存陈旧
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const pendingDraw = await findNationalPendingDraw(drawRepo);
+    if (!pendingDraw) {
+      throw new BadRequestException('当前无待开奖期，无法设置自定义日期');
+    }
+
+    (shop as any).national_custom_draw_date = incoming;
+    (shop as any).national_custom_draw_id = pendingDraw.draw_id;
+    await shopRepo.save(shop);
+    return {
+      success: true,
+      national_custom_draw_date: incoming,
+      national_custom_draw_id: pendingDraw.draw_id,
+    };
+  }
+
+  /**
    * GET /api/shop/:shopNumber - 通过店号查询店铺（单段，放在 orders/limits 之后）
    */
   @Get(':shopNumber')
@@ -1288,6 +1355,8 @@ export class ShopController {
         nica_limit_palet: (shop as any).nica_limit_palet ?? null,
         tica_custom_period: (shop as any).tica_custom_period ?? null,
         nica_custom_period: (shop as any).nica_custom_period ?? null,
+        national_custom_draw_date: (shop as any).national_custom_draw_date ?? null,
+        national_custom_draw_id: (shop as any).national_custom_draw_id ?? null,
         loteria_enabled: (shop as any).loteria_enabled !== false,
         tica_enabled: !!(shop as any).tica_enabled,
         nica_enabled: !!(shop as any).nica_enabled,
@@ -1403,6 +1472,20 @@ export class BetStatusController {
         }
       }
       currentPeriodDate = `${String(dd).padStart(2, '0')}-${String(dm).padStart(2, '0')}-${dy}`;
+
+      // 应急修正：若该店为当前 pending drawId 设置了自定义开奖日期，覆盖给客户端显示
+      // 仅影响 currentPeriodDate（顾客端展示），不影响 confirmedDrawDay/停售窗口（仍按真实 Draw 走）
+      const shopIdNum = parseInt(String(shopId || '').trim(), 10);
+      if (!isNaN(shopIdNum) && shopIdNum > 0) {
+        const shopRepo = this.dataSource.getRepository(Shop);
+        const shop = await shopRepo.findOne({ where: { shop_id: shopIdNum } });
+        const cd = (shop as any)?.national_custom_draw_date;
+        const cid = (shop as any)?.national_custom_draw_id;
+        if (cd && cid != null && Number(cid) === Number(draw.draw_id) && /^\d{4}-\d{2}-\d{2}$/.test(String(cd))) {
+          const iso = String(cd);
+          currentPeriodDate = `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`;
+        }
+      }
 
       let drawHour = 15;
       let drawMin = 0;

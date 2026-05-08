@@ -19,6 +19,8 @@ export declare class Shop {
     nica_limit_palet: number | null;
     tica_custom_period: string | null;
     nica_custom_period: string | null;
+    national_custom_draw_date: string | null;
+    national_custom_draw_id: number | null;
     loteria_enabled: boolean;
     tica_enabled: boolean;
     nica_enabled: boolean;

@@ -104,6 +104,9 @@ export class DatabaseInitService implements OnModuleInit {
       `ALTER TABLE shops ADD COLUMN tica_chance_1 decimal(10,2)`,
       `ALTER TABLE shops ADD COLUMN tica_chance_2 decimal(10,2)`,
       `ALTER TABLE shops ADD COLUMN tica_chance_3 decimal(10,2)`,
+      // Lotería 当期开奖日期老板侧应急修正（官方改期但服务端未及时更新时使用）
+      `ALTER TABLE shops ADD COLUMN national_custom_draw_date varchar(12)`,
+      `ALTER TABLE shops ADD COLUMN national_custom_draw_id integer`,
     ];
     for (const sql of alters) {
       try {
