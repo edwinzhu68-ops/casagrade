@@ -1954,6 +1954,15 @@
         var displayDrawId = null;
         var n1 = null, n2 = null, n3 = null;
 
+        // 单店多端同步：current 接口已附带 previousWinning（本店其他设备刚录入的开奖号）。
+        // 优先用它，让 B 设备 loadData 时不依赖 localStorage 也能立刻看到 A 设备录的号。
+        if (cur && cur.previousWinning && cur.previousWinning.n1 && cur.previousWinning.n2 && cur.previousWinning.n3) {
+          if (cur.previousDrawId != null) displayDrawId = Number(cur.previousDrawId);
+          n1 = cur.previousWinning.n1;
+          n2 = cur.previousWinning.n2;
+          n3 = cur.previousWinning.n3;
+        }
+
         var curN = currentDrawId != null && currentDrawId !== '' ? Number(currentDrawId) : NaN;
         if (apiMap && isFinite(apiMap.drawId)) {
           if (!isFinite(curN) || apiMap.drawId < curN) {
@@ -2293,7 +2302,11 @@
         return;
       }
       try {
+        // 乐观锁：把当前 pending 的 draw_id 带给后端，多端并发时只允许一笔成功
+        var expectedDrawId = (_resultLocalKindBadgeState && _resultLocalKindBadgeState.drawId != null)
+          ? Number(_resultLocalKindBadgeState.drawId) : null;
         var body = { shopId: currentShop.shop_id, kind: kind, n1: n1, n2: n2, n3: n3 };
+        if (expectedDrawId && !isNaN(expectedDrawId)) body.drawId = expectedDrawId;
         var out = await postLocalLotterySettlePayload(body);
         if (!out || !out.res) {
           showToast(getResultLang() === 'zh' ? '网络错误' : 'Error de red', 'error');
@@ -2309,7 +2322,26 @@
               'error');
             return;
           }
-          var msg = (data.messageZh && getResultLang() === 'zh') ? data.messageZh : (data.message || data.error || ('HTTP ' + res.status));
+          // 后端返回 BadRequestException 时，detail 对象可能嵌在 data.message（NestJS 默认行为）或 data 顶层
+          var detail = data;
+          if (data && typeof data.message === 'object' && data.message !== null) detail = data.message;
+          var serverCode = detail && detail.code;
+          if (serverCode === 'ALREADY_SETTLED') {
+            // 本期已被其它设备开奖：显示已录入的号码，清空输入框并刷新数据
+            var w = detail.winning_numbers || {};
+            var lockedMsg = getResultLang() === 'zh'
+              ? ('本期已被其他设备开奖：' + (w.n1 || '??') + '-' + (w.n2 || '??') + '-' + (w.n3 || '??'))
+              : ('Este sorteo ya fue cerrado en otro dispositivo: ' + (w.n1 || '??') + '-' + (w.n2 || '??') + '-' + (w.n3 || '??'));
+            showToast(lockedMsg, 'error');
+            try {
+              if (document.getElementById('local-n1')) document.getElementById('local-n1').value = '';
+              if (document.getElementById('local-n2')) document.getElementById('local-n2').value = '';
+              if (document.getElementById('local-n3')) document.getElementById('local-n3').value = '';
+            } catch (eClr) {}
+            try { loadData(); } catch (eRl) {}
+            return;
+          }
+          var msg = (detail && detail.messageZh && getResultLang() === 'zh') ? detail.messageZh : (detail && (detail.message || detail.error)) || ('HTTP ' + res.status);
           showToast(msg, 'error');
           return;
         }

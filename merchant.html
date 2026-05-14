@@ -3348,6 +3348,39 @@
       if (!currentShop || (currentShop.shop_id != null ? currentShop.shop_id : currentShop.shopId) !== sid) {
         return 0;
       }
+      // ── 单店多端同步：把后端返回的 shop 快照 + TICA/NICA 当期/上期信息 merge 进本地状态 ──
+      // 任意设备改限额/赔率/期号/开奖号，B 设备 1 秒内看到。
+      try {
+        if (data.shop && typeof data.shop === 'object') {
+          Object.assign(currentShop, data.shop);
+        }
+        if (data.currentLocalDraws) {
+          if (merchantLocalDrawTica && data.currentLocalDraws.TICA) {
+            merchantLocalDrawTica.draw_id = data.currentLocalDraws.TICA.draw_id;
+            merchantLocalDrawTica.period_no = data.currentLocalDraws.TICA.period_no;
+            merchantLocalDrawTica.status = data.currentLocalDraws.TICA.status;
+          }
+          if (merchantLocalDrawNica && data.currentLocalDraws.NICA) {
+            merchantLocalDrawNica.draw_id = data.currentLocalDraws.NICA.draw_id;
+            merchantLocalDrawNica.period_no = data.currentLocalDraws.NICA.period_no;
+            merchantLocalDrawNica.status = data.currentLocalDraws.NICA.status;
+          }
+        }
+        if (data.previousLocalDraws) {
+          if (merchantLocalDrawTica) {
+            var pT = data.previousLocalDraws.TICA;
+            merchantLocalDrawTica.previousWinning = pT && pT.winning_numbers ? pT.winning_numbers : null;
+            merchantLocalDrawTica.previousDrawId = pT && pT.draw_id != null ? pT.draw_id : null;
+            merchantLocalDrawTica.previousPeriodNo = pT && pT.period_no != null ? pT.period_no : null;
+          }
+          if (merchantLocalDrawNica) {
+            var pN = data.previousLocalDraws.NICA;
+            merchantLocalDrawNica.previousWinning = pN && pN.winning_numbers ? pN.winning_numbers : null;
+            merchantLocalDrawNica.previousDrawId = pN && pN.draw_id != null ? pN.draw_id : null;
+            merchantLocalDrawNica.previousPeriodNo = pN && pN.period_no != null ? pN.period_no : null;
+          }
+        }
+      } catch (eSync) { /* merge 失败不阻塞订单同步 */ }
       const updateCount = (data.orders || []).length;
       // 只在有实际变化时才 merge + 写 localStorage，空增量直接 return 避免浪费 IO（配合 1 秒轮询）
       if (updateCount > 0) {
@@ -3736,6 +3769,21 @@
         if (modeChip) {
           modeChip.classList.add('hidden');
           modeChip.textContent = '';
+          // TICA/NICA 工作台：modeChip 复用为「上一期开奖号」展示（多端实时同步：
+          // 任意设备在 result.html 录入开奖号后，orders-sync 把 previousLocalDraws
+          // 推到所有设备的 merchantLocalDrawTica/Nica.previousWinning，1 秒内可见）
+          if (merchantWorkbenchKind === 'TICA' || merchantWorkbenchKind === 'NICA') {
+            var _ldChip = merchantWorkbenchKind === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
+            var _prevW = _ldChip && _ldChip.previousWinning;
+            if (_prevW && _prevW.n1 && _prevW.n2 && _prevW.n3) {
+              var _prevP = _ldChip.previousPeriodNo != null ? _ldChip.previousPeriodNo : (_ldChip.previousDrawId != null ? _ldChip.previousDrawId : null);
+              var _prevLabel = getMerchantLang() === 'zh' ? '上一期开奖' : 'Último sorteo';
+              modeChip.textContent = (_prevP != null ? ('#' + _prevP + ' · ') : '') + _prevLabel + '：' + _prevW.n1 + ' · ' + _prevW.n2 + ' · ' + _prevW.n3;
+              var _chipColor = merchantWorkbenchKind === 'TICA' ? 'text-blue-300' : 'text-purple-300';
+              modeChip.className = 'text-center text-[11px] mt-1 font-bold tracking-wide ' + _chipColor;
+              modeChip.classList.remove('hidden');
+            }
+          }
         }
 
         // 更新期次状态角标
