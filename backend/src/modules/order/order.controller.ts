@@ -927,6 +927,36 @@ export class ShopController {
       0: 'pending', 1: 'paid', 2: 'settled', 3: 'won', [-1]: 'canceled',
     };
 
+    // ── 同账号多端同步（单店内）：本接口 1 秒一次的轮询通道里附带本店 ──
+    //   1) 完整 shop 快照（限额/赔率/开关/订阅/自定义期号…）
+    //   2) TICA/NICA 当前 pending 期（含 winning_numbers，刚开过的话）
+    //   3) TICA/NICA 最近一期 completed 的开奖号
+    // 跨店隔离：上面 q.where('order.shop_id') 与 requireShopOwner 已强约束
+    const drawRepoForSync = this.dataSource.getRepository(Draw);
+    const [ticaPendNow, ticaLastNow, nicaPendNow, nicaLastNow] = await Promise.all([
+      findShopPendingLocalDraw(drawRepoForSync, shop.shop_id, 'TICA'),
+      findShopLastCompletedLocalDraw(drawRepoForSync, shop.shop_id, 'TICA'),
+      findShopPendingLocalDraw(drawRepoForSync, shop.shop_id, 'NICA'),
+      findShopLastCompletedLocalDraw(drawRepoForSync, shop.shop_id, 'NICA'),
+    ]);
+    const parseWinningTriple = (raw: any): { n1: string; n2: string; n3: string } | null => {
+      if (!raw) return null;
+      try {
+        const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!w || typeof w !== 'object') return null;
+        const pad = (v: any) => String(v ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0');
+        const n1 = pad(w.n1), n2 = pad(w.n2), n3 = pad(w.n3);
+        if (!/^\d{2}$/.test(n1) || !/^\d{2}$/.test(n2) || !/^\d{2}$/.test(n3)) return null;
+        return { n1, n2, n3 };
+      } catch { return null; }
+    };
+    const fmtDraw = (d: any) => d ? {
+      draw_id: d.draw_id,
+      period_no: d.period_no ?? null,
+      status: d.status,
+      winning_numbers: parseWinningTriple(d.winning_numbers),
+    } : null;
+
     return {
       shop_id: shop.shop_id,
       shopId: shop.shop_id,
@@ -935,6 +965,65 @@ export class ShopController {
       serverTime: nextSinceIso,
       since: sinceDate.toISOString(),
       count: orders.length,
+      // 单店多端同步：完整 shop 字段（已过滤敏感字段：本表本就无密码/token）
+      shop: {
+        shop_id: shop.shop_id,
+        shop_number: shop.shop_number,
+        shop_name: shop.shop_name,
+        status: shop.status,
+        commission_rate: shop.commission_rate,
+        limit_chance: (shop as any).limit_chance ?? null,
+        limit_billete: (shop as any).limit_billete ?? null,
+        tica_limit_chance: (shop as any).tica_limit_chance ?? null,
+        tica_limit_palet: (shop as any).tica_limit_palet ?? null,
+        nica_limit_chance: (shop as any).nica_limit_chance ?? null,
+        nica_limit_palet: (shop as any).nica_limit_palet ?? null,
+        tica_custom_period: (shop as any).tica_custom_period ?? null,
+        nica_custom_period: (shop as any).nica_custom_period ?? null,
+        national_custom_draw_date: (shop as any).national_custom_draw_date ?? null,
+        national_custom_draw_id: (shop as any).national_custom_draw_id ?? null,
+        loteria_enabled: (shop as any).loteria_enabled ?? true,
+        tica_enabled: (shop as any).tica_enabled ?? false,
+        nica_enabled: (shop as any).nica_enabled ?? false,
+        accepting_tica_orders: (shop as any).accepting_tica_orders ?? true,
+        accepting_nica_orders: (shop as any).accepting_nica_orders ?? true,
+        rate_billete_1: (shop as any).rate_billete_1 ?? null,
+        rate_billete_2: (shop as any).rate_billete_2 ?? null,
+        rate_billete_3: (shop as any).rate_billete_3 ?? null,
+        rate_chance_1: (shop as any).rate_chance_1 ?? null,
+        rate_chance_2: (shop as any).rate_chance_2 ?? null,
+        rate_chance_3: (shop as any).rate_chance_3 ?? null,
+        chain_1_2: (shop as any).chain_1_2,
+        chain_1_3: (shop as any).chain_1_3,
+        chain_2_1: (shop as any).chain_2_1,
+        chain_2_3: (shop as any).chain_2_3,
+        chain_3_1: (shop as any).chain_3_1,
+        chain_3_2: (shop as any).chain_3_2,
+        tica_chance_1: (shop as any).tica_chance_1 ?? null,
+        tica_chance_2: (shop as any).tica_chance_2 ?? null,
+        tica_chance_3: (shop as any).tica_chance_3 ?? null,
+        nica_chain_1_2: (shop as any).nica_chain_1_2 ?? null,
+        nica_chain_1_3: (shop as any).nica_chain_1_3 ?? null,
+        nica_chain_2_1: (shop as any).nica_chain_2_1 ?? null,
+        nica_chain_2_3: (shop as any).nica_chain_2_3 ?? null,
+        nica_chain_3_1: (shop as any).nica_chain_3_1 ?? null,
+        nica_chain_3_2: (shop as any).nica_chain_3_2 ?? null,
+        nica_chance_1: (shop as any).nica_chance_1 ?? null,
+        nica_chance_2: (shop as any).nica_chance_2 ?? null,
+        nica_chance_3: (shop as any).nica_chance_3 ?? null,
+        subscription_expires_at: (shop as any).subscription_expires_at ?? null,
+        updated_at: (shop as any).updated_at ?? null,
+      },
+      // 当期 TICA/NICA pending 期次（pending 期 winning_numbers 必为 null）
+      currentLocalDraws: {
+        TICA: fmtDraw(ticaPendNow),
+        NICA: fmtDraw(nicaPendNow),
+      },
+      // 最近一期 completed 的 TICA/NICA：用于多端实时显示已录入的开奖号
+      previousLocalDraws: {
+        TICA: fmtDraw(ticaLastNow),
+        NICA: fmtDraw(nicaLastNow),
+      },
       orders: orders.map(order => ({
         order_id: order.order_id,
         shop_id: order.shop_id,

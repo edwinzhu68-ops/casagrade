@@ -67,11 +67,15 @@ export class LocalLotteryController {
 
   /**
    * POST /api/local-lottery/settle
-   * body: { shopId, kind: TICA|NICA, n1, n2, n3 }，须店铺 owner Bearer token
+   * body: { shopId, kind: TICA|NICA, n1, n2, n3, drawId? }，须店铺 owner Bearer token
+   *
+   * drawId 是乐观锁：前端从 GET /current 拿到 draw_id 后必须回传，
+   * 后端校验该期仍是 pending，否则返回 ALREADY_SETTLED，UI 立即锁定。
+   * 不传 drawId 时兼容旧前端，走"当前 pending"路径。
    */
   @Post('settle')
   async settle(
-    @Body() body: { shopId: number; kind: string; n1: string; n2: string; n3: string },
+    @Body() body: { shopId: number; kind: string; n1: string; n2: string; n3: string; drawId?: number },
     @Req() req: Request,
   ) {
     const shopId = Number(body?.shopId);
@@ -84,7 +88,17 @@ export class LocalLotteryController {
     if (k !== 'TICA' && k !== 'NICA') {
       throw badBilingual('kind debe ser TICA o NICA.', 'kind 须为 TICA 或 NICA');
     }
-    return this.localLotteryService.settleAndRollNext(shopId, k as 'TICA' | 'NICA', body.n1, body.n2, body.n3);
+    const expectedDrawId = body.drawId != null && !isNaN(Number(body.drawId)) && Number(body.drawId) > 0
+      ? Number(body.drawId)
+      : undefined;
+    return this.localLotteryService.settleAndRollNext(
+      shopId,
+      k as 'TICA' | 'NICA',
+      body.n1,
+      body.n2,
+      body.n3,
+      expectedDrawId,
+    );
   }
 
   /** PATCH /api/local-lottery/accepting?shopId=1 body: { acceptingTicaOrders?, acceptingNicaOrders? } */
