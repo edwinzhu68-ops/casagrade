@@ -157,6 +157,98 @@ export declare class ShopController {
         serverTime: string;
         since: string;
         count: number;
+        shop: {
+            shop_id: number;
+            shop_number: string;
+            shop_name: string;
+            status: string;
+            commission_rate: number;
+            limit_chance: any;
+            limit_billete: any;
+            tica_limit_chance: any;
+            tica_limit_palet: any;
+            nica_limit_chance: any;
+            nica_limit_palet: any;
+            tica_custom_period: any;
+            nica_custom_period: any;
+            national_custom_draw_date: any;
+            national_custom_draw_id: any;
+            loteria_enabled: any;
+            tica_enabled: any;
+            nica_enabled: any;
+            accepting_tica_orders: any;
+            accepting_nica_orders: any;
+            rate_billete_1: any;
+            rate_billete_2: any;
+            rate_billete_3: any;
+            rate_chance_1: any;
+            rate_chance_2: any;
+            rate_chance_3: any;
+            chain_1_2: any;
+            chain_1_3: any;
+            chain_2_1: any;
+            chain_2_3: any;
+            chain_3_1: any;
+            chain_3_2: any;
+            tica_chance_1: any;
+            tica_chance_2: any;
+            tica_chance_3: any;
+            nica_chain_1_2: any;
+            nica_chain_1_3: any;
+            nica_chain_2_1: any;
+            nica_chain_2_3: any;
+            nica_chain_3_1: any;
+            nica_chain_3_2: any;
+            nica_chance_1: any;
+            nica_chance_2: any;
+            nica_chance_3: any;
+            subscription_expires_at: any;
+            updated_at: any;
+        };
+        currentLocalDraws: {
+            TICA: {
+                draw_id: any;
+                period_no: any;
+                status: any;
+                winning_numbers: {
+                    n1: string;
+                    n2: string;
+                    n3: string;
+                };
+            };
+            NICA: {
+                draw_id: any;
+                period_no: any;
+                status: any;
+                winning_numbers: {
+                    n1: string;
+                    n2: string;
+                    n3: string;
+                };
+            };
+        };
+        previousLocalDraws: {
+            TICA: {
+                draw_id: any;
+                period_no: any;
+                status: any;
+                winning_numbers: {
+                    n1: string;
+                    n2: string;
+                    n3: string;
+                };
+            };
+            NICA: {
+                draw_id: any;
+                period_no: any;
+                status: any;
+                winning_numbers: {
+                    n1: string;
+                    n2: string;
+                    n3: string;
+                };
+            };
+        };
         orders: {
             order_id: number;
             shop_id: number;

@@ -7,6 +7,12 @@ export declare class LocalLotteryController {
         draw_id: number;
         period_no: number;
         previousDrawId: number;
+        previousPeriodNo: number;
+        previousWinning: {
+            n1: string;
+            n2: string;
+            n3: string;
+        };
         custom_period: any;
         shop_id: number;
         lottery_type: "TICA" | "NICA";
@@ -41,6 +47,7 @@ export declare class LocalLotteryController {
         n1: string;
         n2: string;
         n3: string;
+        drawId?: number;
     }, req: Request): Promise<{
         totalOrders: number;
         totalSales: number;

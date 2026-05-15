@@ -111,10 +111,14 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
             ? shop?.tica_custom_period ?? null
             : shop?.nica_custom_period ?? null;
         let previousDrawId = null;
+        let previousPeriodNo = null;
+        let previousWinning = null;
         if (draw.period_no != null) {
             const prevRow = await this.dataSource.getRepository(draw_entity_1.Draw)
                 .createQueryBuilder('d')
                 .select('d.draw_id', 'draw_id')
+                .addSelect('d.period_no', 'period_no')
+                .addSelect('d.winning_numbers', 'winning_numbers')
                 .where('d.shop_id = :sid', { sid: shopId })
                 .andWhere('d.lottery_type = :lt', { lt: kind })
                 .andWhere('d.period_no < :pn', { pn: Number(draw.period_no) })
@@ -123,11 +127,27 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
                 .limit(1)
                 .getRawOne();
             previousDrawId = prevRow?.draw_id != null ? Number(prevRow.draw_id) : null;
+            previousPeriodNo = prevRow?.period_no != null ? Number(prevRow.period_no) : null;
+            if (prevRow?.winning_numbers) {
+                try {
+                    const w = JSON.parse(prevRow.winning_numbers);
+                    if (w && typeof w === 'object') {
+                        previousWinning = {
+                            n1: String(w.n1 ?? '').padStart(2, '0'),
+                            n2: String(w.n2 ?? '').padStart(2, '0'),
+                            n3: String(w.n3 ?? '').padStart(2, '0'),
+                        };
+                    }
+                }
+                catch { }
+            }
         }
         return {
             draw_id: draw.draw_id,
             period_no: draw.period_no,
             previousDrawId,
+            previousPeriodNo,
+            previousWinning,
             custom_period: customPeriod,
             shop_id: shopId,
             lottery_type: kind,
@@ -306,7 +326,7 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
             };
         });
     }
-    async settleAndRollNext(shopId, kind, n1, n2, n3) {
+    async settleAndRollNext(shopId, kind, n1, n2, n3, expectedDrawId) {
         const norm = (v) => String(v ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0');
         const a = norm(n1);
         const b = norm(n2);
@@ -316,6 +336,43 @@ let LocalLotteryService = LocalLotteryService_1 = class LocalLotteryService {
         }
         return (0, shop_order_lock_1.withShopLock)(shopId, async () => {
             const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+            if (expectedDrawId != null && Number(expectedDrawId) > 0) {
+                const target = await drawRepo.findOne({ where: { draw_id: Number(expectedDrawId) } });
+                if (!target || target.shop_id !== shopId || String(target.lottery_type).toUpperCase() !== kind) {
+                    throw (0, api_bilingual_1.badBilingual)('Sorteo no encontrado para esta tienda.', '本店期次不存在');
+                }
+                if (target.status !== 'pending') {
+                    let already = null;
+                    try {
+                        const w = target.winning_numbers ? JSON.parse(target.winning_numbers) : null;
+                        if (w && typeof w === 'object') {
+                            already = {
+                                n1: String(w.n1 ?? '').padStart(2, '0'),
+                                n2: String(w.n2 ?? '').padStart(2, '0'),
+                                n3: String(w.n3 ?? '').padStart(2, '0'),
+                            };
+                        }
+                    }
+                    catch { }
+                    throw new common_1.BadRequestException({
+                        code: 'ALREADY_SETTLED',
+                        message: 'This draw has already been settled by another device.',
+                        messageZh: '本期已被其他设备开奖,无法重复录入',
+                        draw_id: target.draw_id,
+                        winning_numbers: already,
+                    });
+                }
+                const winningJson = JSON.stringify({ n1: a, n2: b, n3: c });
+                await drawRepo.update(target.draw_id, { winning_numbers: winningJson });
+                const stats = await this.settlementService.settleShopLotteryDraw(target.draw_id);
+                const next = await this.ensureShopPendingDrawLocked(shopId, kind);
+                return {
+                    settled_draw_id: target.draw_id,
+                    next_draw_id: next.draw_id,
+                    winning_numbers: { n1: a, n2: b, n3: c },
+                    ...stats,
+                };
+            }
             const pending = await (0, draw_queries_1.findShopPendingLocalDraw)(drawRepo, shopId, kind);
             if (!pending) {
                 throw (0, api_bilingual_1.badBilingual)('No hay sorteo TICA/NICA pendiente.', '没有待开奖的 TICA/NICA 期次');

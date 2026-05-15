@@ -121,7 +121,10 @@ let LocalLotteryController = class LocalLotteryController {
         if (k !== 'TICA' && k !== 'NICA') {
             throw (0, api_bilingual_1.badBilingual)('kind debe ser TICA o NICA.', 'kind 须为 TICA 或 NICA');
         }
-        return this.localLotteryService.settleAndRollNext(shopId, k, body.n1, body.n2, body.n3);
+        const expectedDrawId = body.drawId != null && !isNaN(Number(body.drawId)) && Number(body.drawId) > 0
+            ? Number(body.drawId)
+            : undefined;
+        return this.localLotteryService.settleAndRollNext(shopId, k, body.n1, body.n2, body.n3, expectedDrawId);
     }
     async accepting(shopId, body, req) {
         const sid = parseInt(String(shopId || ''), 10);

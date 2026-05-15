@@ -818,6 +818,36 @@ let ShopController = ShopController_1 = class ShopController {
         const statusMap = {
             0: 'pending', 1: 'paid', 2: 'settled', 3: 'won', [-1]: 'canceled',
         };
+        const drawRepoForSync = this.dataSource.getRepository(draw_entity_1.Draw);
+        const [ticaPendNow, ticaLastNow, nicaPendNow, nicaLastNow] = await Promise.all([
+            (0, draw_queries_1.findShopPendingLocalDraw)(drawRepoForSync, shop.shop_id, 'TICA'),
+            (0, draw_queries_1.findShopLastCompletedLocalDraw)(drawRepoForSync, shop.shop_id, 'TICA'),
+            (0, draw_queries_1.findShopPendingLocalDraw)(drawRepoForSync, shop.shop_id, 'NICA'),
+            (0, draw_queries_1.findShopLastCompletedLocalDraw)(drawRepoForSync, shop.shop_id, 'NICA'),
+        ]);
+        const parseWinningTriple = (raw) => {
+            if (!raw)
+                return null;
+            try {
+                const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                if (!w || typeof w !== 'object')
+                    return null;
+                const pad = (v) => String(v ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0');
+                const n1 = pad(w.n1), n2 = pad(w.n2), n3 = pad(w.n3);
+                if (!/^\d{2}$/.test(n1) || !/^\d{2}$/.test(n2) || !/^\d{2}$/.test(n3))
+                    return null;
+                return { n1, n2, n3 };
+            }
+            catch {
+                return null;
+            }
+        };
+        const fmtDraw = (d) => d ? {
+            draw_id: d.draw_id,
+            period_no: d.period_no ?? null,
+            status: d.status,
+            winning_numbers: parseWinningTriple(d.winning_numbers),
+        } : null;
         return {
             shop_id: shop.shop_id,
             shopId: shop.shop_id,
@@ -826,6 +856,62 @@ let ShopController = ShopController_1 = class ShopController {
             serverTime: nextSinceIso,
             since: sinceDate.toISOString(),
             count: orders.length,
+            shop: {
+                shop_id: shop.shop_id,
+                shop_number: shop.shop_number,
+                shop_name: shop.shop_name,
+                status: shop.status,
+                commission_rate: shop.commission_rate,
+                limit_chance: shop.limit_chance ?? null,
+                limit_billete: shop.limit_billete ?? null,
+                tica_limit_chance: shop.tica_limit_chance ?? null,
+                tica_limit_palet: shop.tica_limit_palet ?? null,
+                nica_limit_chance: shop.nica_limit_chance ?? null,
+                nica_limit_palet: shop.nica_limit_palet ?? null,
+                tica_custom_period: shop.tica_custom_period ?? null,
+                nica_custom_period: shop.nica_custom_period ?? null,
+                national_custom_draw_date: shop.national_custom_draw_date ?? null,
+                national_custom_draw_id: shop.national_custom_draw_id ?? null,
+                loteria_enabled: shop.loteria_enabled ?? true,
+                tica_enabled: shop.tica_enabled ?? false,
+                nica_enabled: shop.nica_enabled ?? false,
+                accepting_tica_orders: shop.accepting_tica_orders ?? true,
+                accepting_nica_orders: shop.accepting_nica_orders ?? true,
+                rate_billete_1: shop.rate_billete_1 ?? null,
+                rate_billete_2: shop.rate_billete_2 ?? null,
+                rate_billete_3: shop.rate_billete_3 ?? null,
+                rate_chance_1: shop.rate_chance_1 ?? null,
+                rate_chance_2: shop.rate_chance_2 ?? null,
+                rate_chance_3: shop.rate_chance_3 ?? null,
+                chain_1_2: shop.chain_1_2,
+                chain_1_3: shop.chain_1_3,
+                chain_2_1: shop.chain_2_1,
+                chain_2_3: shop.chain_2_3,
+                chain_3_1: shop.chain_3_1,
+                chain_3_2: shop.chain_3_2,
+                tica_chance_1: shop.tica_chance_1 ?? null,
+                tica_chance_2: shop.tica_chance_2 ?? null,
+                tica_chance_3: shop.tica_chance_3 ?? null,
+                nica_chain_1_2: shop.nica_chain_1_2 ?? null,
+                nica_chain_1_3: shop.nica_chain_1_3 ?? null,
+                nica_chain_2_1: shop.nica_chain_2_1 ?? null,
+                nica_chain_2_3: shop.nica_chain_2_3 ?? null,
+                nica_chain_3_1: shop.nica_chain_3_1 ?? null,
+                nica_chain_3_2: shop.nica_chain_3_2 ?? null,
+                nica_chance_1: shop.nica_chance_1 ?? null,
+                nica_chance_2: shop.nica_chance_2 ?? null,
+                nica_chance_3: shop.nica_chance_3 ?? null,
+                subscription_expires_at: shop.subscription_expires_at ?? null,
+                updated_at: shop.updated_at ?? null,
+            },
+            currentLocalDraws: {
+                TICA: fmtDraw(ticaPendNow),
+                NICA: fmtDraw(nicaPendNow),
+            },
+            previousLocalDraws: {
+                TICA: fmtDraw(ticaLastNow),
+                NICA: fmtDraw(nicaLastNow),
+            },
             orders: orders.map(order => ({
                 order_id: order.order_id,
                 shop_id: order.shop_id,

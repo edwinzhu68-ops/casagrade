@@ -30,6 +30,12 @@ export declare class LocalLotteryService {
         draw_id: number;
         period_no: number;
         previousDrawId: number;
+        previousPeriodNo: number;
+        previousWinning: {
+            n1: string;
+            n2: string;
+            n3: string;
+        };
         custom_period: any;
         shop_id: number;
         lottery_type: "TICA" | "NICA";
@@ -58,7 +64,7 @@ export declare class LocalLotteryService {
         lottery_type: "TICA" | "NICA";
         _idempotent: boolean;
     }>;
-    settleAndRollNext(shopId: number, kind: 'TICA' | 'NICA', n1: string, n2: string, n3: string): Promise<{
+    settleAndRollNext(shopId: number, kind: 'TICA' | 'NICA', n1: string, n2: string, n3: string, expectedDrawId?: number): Promise<{
         totalOrders: number;
         totalSales: number;
         totalPayout: number;
