@@ -32,6 +32,28 @@ export declare class OrderController implements OnModuleInit {
         amount: number;
         status: number;
         created_at: Date;
+        lottery_type: "TICA" | "NICA";
+        draw_id: number;
+    } | {
+        order_id: number;
+        order_number: string;
+        order_hash: string;
+        verification_code: string;
+        amount: number;
+        status: number;
+        created_at: Date;
+        lottery_type: "TICA" | "NICA";
+        _idempotent: boolean;
+    } | {
+        order_id: number;
+        order_number: string;
+        order_hash: string;
+        draw_id: number;
+        drawId: number;
+        verification_code: string;
+        amount: number;
+        status: number;
+        created_at: Date;
     } | {
         order_id: number;
         order_number: string;
@@ -77,6 +99,8 @@ export declare class OrderController implements OnModuleInit {
         game_type: string;
         lottery_type: any;
         status: string;
+        draw_id: number;
+        drawId: number;
         verification_code: string;
         shop_id: number;
         shopId: number;
