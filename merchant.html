@@ -3416,6 +3416,12 @@
       if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return iso || '--';
       return String(iso).slice(8, 10) + '-' + String(iso).slice(5, 7) + '-' + String(iso).slice(0, 4);
     }
+    function _normalizeDrawDateISO(s) {
+      if (!s) return null;
+      var v = String(s).slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+      return _formatDDMMYYYYToISO(v);
+    }
     /** 格式化时间戳为 DD-MM-YYYY HH:mm（巴拿马时区，跨年订单也清晰） */
     function formatPanamaDateTime(ts) {
       if (!ts) return '--';
@@ -3438,6 +3444,7 @@
     /**
      * 取订单打印 / 电子票展示用的开奖日期。
      * 自定义日期仅当其绑定的 drawId == 订单的 draw_id 时生效（即"老板为这一期改的日期"）。
+     * 若旧订单详情 payload 缺 draw_id，则只在当前 pending drawId 仍命中且订单原日期等于当前期时兜底。
      * 这样：当期重打用最新自定义值；上一期 / 历史期 用订单原始 draw_date；下期开奖后自定义自动失效（不再匹配）。
      */
     function getOrderDisplayDrawDate(order) {
@@ -3447,6 +3454,16 @@
       var customDID = currentShop && currentShop.national_custom_draw_id;
       if (customDD && customDID != null && orderDID != null && Number(customDID) === Number(orderDID)) {
         return customDD;
+      }
+      var activeCustomForPending = customDD && customDID != null &&
+        merchantPendingNationalDrawId != null &&
+        Number(customDID) === Number(merchantPendingNationalDrawId);
+      if (order && orderDID == null && activeCustomForPending && getOrderLotteryType(order) === 'NACIONAL') {
+        var realISO = _normalizeDrawDateISO(realDD);
+        var currentISO = _normalizeDrawDateISO(currentDrawDate);
+        if (!realISO || !currentISO || realISO === currentISO) {
+          return customDD;
+        }
       }
       return realDD || currentDrawDate || null;
     }
@@ -7034,7 +7051,7 @@
         }
       }
       row('#' + orderNum, placedStr);
-      // 开奖日期：优先订单关联的draw_date，其次全局currentDrawDate
+      // 开奖日期：全国台使用订单所属期 + 老板侧应急修正；TICA/NICA 使用本地期号
       if (_lt === 'TICA' || _lt === 'NICA') {
         var _ldLocal = _lt === 'TICA' ? merchantLocalDrawTica : merchantLocalDrawNica;
         var _pNo = _ldLocal && (_ldLocal.period_no != null ? _ldLocal.period_no : _ldLocal.periodNo);
