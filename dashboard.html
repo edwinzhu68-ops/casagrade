@@ -5,6 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>总后台 - 管理</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ====== Operator 深色皮肤·实装(操作端;整段删除即回原样) ====== -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    var Gd={50:'#f7eccb',100:'#eedca0',200:'#e3c878',300:'#efd58f',400:'#e0bf6a',500:'#caa23f',600:'#b8902e',700:'#8f6f1f',800:'#6b520f',900:'#4d3b0b'};
+    tailwind.config={theme:{extend:{colors:{
+      green:{50:'#e9faf1',100:'#c9f3dd',200:'#9be9c2',300:'#63dca0',400:'#35e8a0',500:'#21b574',600:'#179a60',700:'#0f7849',800:'#0c5d3a',900:'#0a4a2f'},
+      amber:Gd, orange:Gd, yellow:Gd,
+      red:{50:'#fbeae6',100:'#f6cfc6',200:'#eda493',300:'#eb9a8c',400:'#e0705e',500:'#d4513f',600:'#bb4231',700:'#9a3526',800:'#742518',900:'#511a11'}
+    }, fontFamily:{sans:['Inter','PingFang SC','Microsoft YaHei','system-ui','sans-serif']}}}}
+  </script>
+  <style>
+    body{ background:radial-gradient(900px 520px at 50% -180px, rgba(53,232,160,.10), transparent 60%), linear-gradient(180deg,#15151b,#0d0d11) !important;
+      font-family:'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif; }
+    .bg-gray-800{ background:#1b1a20 !important; box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 16px 36px -24px rgba(0,0,0,.8); }
+    .shadow-lg{ box-shadow:0 16px 38px -20px rgba(0,0,0,.7) !important; }
+    #shop-number{ color:#e9cf86 !important; text-shadow:0 0 16px rgba(233,200,115,.25); }
+    .rounded-2xl{ border-radius:20px !important; } .rounded-xl{ border-radius:14px !important; }
+    button,[role=button]{ transition:transform .08s ease, filter .15s ease !important; }
+  </style>
+  <!-- ====== /Operator 皮肤·实装 ====== -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -36,10 +56,7 @@
         class="w-full text-center text-xl py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-green-500 focus:outline-none mb-3" />
       
       <input type="password" id="admin-password" placeholder="密码"
-        class="w-full text-center text-xl py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-green-500 focus:outline-none mb-3" />
-      
-      <input type="password" id="admin-secret" placeholder="管理员密钥（可选，与服务器 ADMIN_TOKEN 一致才可开奖/结算）"
-        class="w-full text-center text-sm py-2 border border-gray-600 rounded-lg bg-gray-700 focus:border-green-500 focus:outline-none mb-6" />
+        class="w-full text-center text-xl py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-green-500 focus:outline-none mb-6" />
       
       <button onclick="login()" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
         登录
@@ -103,7 +120,7 @@
             </button>
           </div>
           <div id="firebase-draw-result" class="hidden text-sm bg-gray-900/60 rounded-lg p-3 space-y-1 font-mono mb-4">
-            <div><span class="text-gray-400">Fecha del Sorteo</span> <span id="fb-date"></span></div>
+            <div><span class="text-gray-400">Fecha del Sorteo (参考)</span> <span id="fb-date"></span></div>
             <div><span class="text-gray-400">Hora del Sorteo</span> <span id="fb-hora"></span></div>
             <div><span class="text-gray-400">Tipo de Sorteo</span> <span id="fb-type"></span></div>
             <div><span class="text-gray-400">Primer Premio</span> <span id="fb-primer" class="text-green-300 font-bold"></span></div>
@@ -164,25 +181,12 @@
           <button onclick="confirmManualDraw()" class="w-full bg-red-600 hover:bg-red-500 active:scale-95 py-5 rounded-2xl font-bold text-2xl tracking-wide shadow-lg shadow-red-900/50 transition-transform mb-3">
             🔴 发送开奖结果
           </button>
-          <div class="flex flex-wrap gap-3">
-            <button onclick="sendDrawTime()" class="flex-1 min-w-[140px] bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-bold text-sm">
-              📅 发送开奖时间
+          <div class="space-y-3">
+            <button onclick="sendDrawTime()" class="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 py-5 rounded-2xl font-bold text-2xl tracking-wide shadow-lg shadow-blue-900/40 transition-transform">
+              📅 修改开奖时间
             </button>
-            <button onclick="rollbackDraw()" class="flex-1 min-w-[140px] bg-orange-700 hover:bg-orange-600 py-2 rounded-lg font-bold text-sm">
+            <button onclick="rollbackDraw()" class="w-full bg-orange-700 hover:bg-orange-600 active:scale-95 py-5 rounded-2xl font-bold text-2xl tracking-wide shadow-lg shadow-orange-900/40 transition-transform">
               ↩️ 回滚开奖
-            </button>
-            <button onclick="clearSettlement()" class="flex-1 min-w-[140px] bg-amber-600 hover:bg-amber-500 py-2 rounded-lg font-bold text-sm" title="效果与开奖当天 15:00 前清除一致：当前期转入历史，结算页显示等待开奖。登录即可操作">
-              🧹 清空开奖结算
-            </button>
-            <button onclick="archiveMainShop()" class="flex-1 min-w-[140px] bg-teal-700 hover:bg-teal-600 py-2 rounded-lg font-bold text-sm" title="手动归档大庄管理中心数据，效果等同于开奖次日 09:00 自动归档">
-              🏬 归档大庄数据
-            </button>
-          </div>
-          <p id="archive-main-result" class="text-xs mt-2 hidden"></p>
-          <p class="text-xs text-gray-400 mt-1">「清空开奖结算」：将当前期从结算页清除、转入历史，结算页会显示等待开奖，直到下次发送开奖结果。登录即可操作。</p>
-          <div class="mt-3 border-t border-gray-600 pt-3">
-            <button onclick="resetPendingDraw()" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg font-bold text-sm text-gray-300" title="期次错乱时使用：取消当前 pending 期，按正常周三/周日规则重建下一期">
-              🛠 期次错乱？重建下一期
             </button>
           </div>
         </div>
@@ -478,7 +482,6 @@
     });
 
     const API_BASE = 'https://api.casagrade.com';
-    const ADMIN_TOKEN_KEY = 'lottery_admin_token';
 
     let authToken = localStorage.getItem('lottery_token') || null;
 
@@ -535,12 +538,10 @@
     }
 
     function getAdminHeaders(includeAuth) {
-      // 总是带 Bearer token（新 AdminTokenGuard 优先校验 Bearer + user.role=admin）
+      // 总后台只使用管理员账号登录后的 Bearer token。
       // includeAuth 参数保留兼容但不再生效——旧调用方传 false 也会带 Bearer
       const h = { 'Content-Type': 'application/json' };
       if (authToken) h['Authorization'] = 'Bearer ' + authToken;
-      const t = localStorage.getItem(ADMIN_TOKEN_KEY);
-      if (t) h['X-Admin-Token'] = t;
       return h;
     }
 
@@ -839,6 +840,7 @@
     let allShops = [];
     // 当期订单（基于待开奖期 draw_id，与老板端/结算页逻辑一致）
     let currentPeriodOrders = [];
+    let currentPeriodStats = null;
     let historyCache = null;
 
     // 登录
@@ -863,8 +865,6 @@
         
         authToken = data.token;
         localStorage.setItem('lottery_token', authToken);
-        var secretEl = document.getElementById('admin-secret');
-        if (secretEl && secretEl.value) localStorage.setItem(ADMIN_TOKEN_KEY, secretEl.value);
         
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-admin').classList.remove('hidden');
@@ -937,54 +937,6 @@
       } catch (err) {
         showToast('开奖失败: ' + err.message, 'error');
       }
-    }
-
-    // 清空开奖结算：当前期转入历史，结算页显示等待开奖（效果与开奖当天 15:00 前清除一致）；登录即可操作，不需管理员密钥
-    function clearSettlement() {
-      showConfirm('确定要清空开奖结算吗？\n当前期将转入历史，结算页会显示「等待开奖」。', async function () {
-        try {
-          const res = await fetch(`${API_BASE}/api/admin/clear-settlement`, {
-            method: 'POST',
-            headers: getAdminHeaders(true)
-          });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && (data.success === true || data.ok === true)) {
-            showToast('✅ 已清空开奖结算，结算页将显示等待开奖', 'success');
-            initDrawDefaults().catch(function () {});
-            loadData();
-          } else {
-            showToast(data.message || data.error || '清空失败', 'error');
-          }
-        } catch (err) {
-          showToast('请求失败: ' + (err.message || err), 'error');
-        }
-      });
-    }
-
-    function archiveMainShop() {
-      const resultEl = document.getElementById('archive-main-result');
-      showConfirm('确定要归档大庄管理中心数据吗？\n大庄管理中心将切换到下一期显示。', async function () {
-        try {
-          const res = await fetch(`${API_BASE}/api/admin/archive-main-shop`, {
-            method: 'POST',
-            headers: getAdminHeaders(true)
-          });
-          const data = await res.json().catch(() => ({}));
-          resultEl.classList.remove('hidden', 'text-green-400', 'text-red-400');
-          if (data.success) {
-            resultEl.classList.add('text-green-400');
-            resultEl.textContent = '✓ ' + data.message;
-          } else {
-            resultEl.classList.add('text-red-400');
-            resultEl.textContent = data.message || data.error || '归档失败';
-          }
-          resultEl.classList.remove('hidden');
-        } catch (err) {
-          resultEl.classList.remove('hidden');
-          resultEl.classList.add('text-red-400');
-          resultEl.textContent = '请求失败: ' + (err.message || err);
-        }
-      });
     }
 
     let lastFirebaseDraw = null;
@@ -1060,6 +1012,25 @@
       return (x == null ? '' : String(x)).replace(/\D/g, '');
     }
 
+    function orderStatusValue(o) {
+      return typeof o?.status === 'string' ? o.status.toLowerCase() : o?.status;
+    }
+
+    function isCanceledOrder(o) {
+      const s = orderStatusValue(o);
+      return s === 'canceled' || s === -1;
+    }
+
+    function isPaidOrder(o) {
+      const s = orderStatusValue(o);
+      return s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
+    }
+
+    function isPendingOrder(o) {
+      const s = orderStatusValue(o);
+      return s === 'pending' || s === 0;
+    }
+
     // 把 Firebase 返回的 "DD-MM-YYYY" 或 "DD/MM/YYYY" 转为 "YYYY-MM-DD"
     function fbDateToYMD(s) {
       if (!s) return null;
@@ -1092,30 +1063,32 @@
       _show('firebase-draw-result');
 
       const preparingEl = document.getElementById('fb-preparing');
-      const fbYMD = fbDateToYMD(d.drawDate);
       const panamaTodayYMD = (function() {
         const now = new Date(Date.now() - 5 * 3600 * 1000);
         return `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`;
       })();
       const complete = isFirebaseDrawComplete(d);
-      const isToday = fbYMD === panamaTodayYMD;
-      const hasFbDate = !!fbYMD;
-      if (hasFbDate && isToday && !complete) {
+      const manualDrawYMD = fbDateToYMD(getDrawDate());
+      const formDateIsToday = manualDrawYMD === panamaTodayYMD;
+      const readyForManualDraw = complete && formDateIsToday;
+      if (formDateIsToday && !complete) {
         const type = (d.drawType || '').toUpperCase();
         const exp = d.expectedDigits || {};
         const digitHint = type === 'GORDITO'         ? `1奖${exp.p||4}位 · 2奖${exp.s||2}位 · 3奖${exp.t||2}位` :
                           type === 'EXTRAORDINARIA'  ? `三奖各${exp.p||5}位` :
                                                        `三奖各${exp.p||4}位`;
         if (preparingEl) { preparingEl.textContent = `🕐 今日开奖 · ${d.drawType || type} · 预计 ${digitHint} · 号码未出`; preparingEl.classList.remove('hidden'); }
+      } else if (complete && !formDateIsToday) {
+        if (preparingEl) { preparingEl.textContent = `⚠️ 已拉到完整号码，但手动开奖日期是 ${manualDrawYMD || '无'}，不是今天 ${panamaTodayYMD}，已阻止自动填入`; preparingEl.classList.remove('hidden'); }
       } else {
         if (preparingEl) preparingEl.classList.add('hidden');
       }
-      if (complete) _show('btn-confirm-firebase');
+      if (readyForManualDraw) _show('btn-confirm-firebase');
       else _hide('btn-confirm-firebase');
 
-      // 开奖就绪逻辑：号码完整且有待开奖期 → 自动填入 + 显示横幅
+      // 开奖就绪逻辑：必须是完整号码，且总后台手动开奖日期是今天。
       const banner = document.getElementById('draw-ready-banner');
-      if (complete && pendingDrawDate) {
+      if (readyForManualDraw && pendingDrawDate) {
         // 自动填入号码
         document.getElementById('draw-1st').value = rawDigits(d.primer) || '';
         document.getElementById('draw-2nd').value = rawDigits(d.segundo) || '';
@@ -1146,7 +1119,7 @@
 
       // 拉取一次后只填入号码，不填日期（日期在手动开奖处用 YYYY-MM-DD 单独填）
       if (!fillForm) return;
-      if (complete) {
+      if (readyForManualDraw) {
         document.getElementById('draw-1st').value = rawDigits(d.primer) || '';
         document.getElementById('draw-2nd').value = rawDigits(d.segundo) || '';
         document.getElementById('draw-3rd').value = rawDigits(d.tercero) || '';
@@ -1250,6 +1223,15 @@
         showToast('请先拉取到完整三组号码。' + msg, 'warning');
         return;
       }
+      const panamaTodayYMD = (function() {
+        const now = new Date(Date.now() - 5 * 3600 * 1000);
+        return `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`;
+      })();
+      const manualDrawYMD = fbDateToYMD(getDrawDate());
+      if (manualDrawYMD !== panamaTodayYMD) {
+        showToast(`手动开奖日期不是今天，已阻止填入（表单日期: ${manualDrawYMD || '无'}，今天: ${panamaTodayYMD}）`, 'warning');
+        return;
+      }
       document.getElementById('draw-1st').value = rawDigits(lastFirebaseDraw.primer) || '';
       document.getElementById('draw-2nd').value = rawDigits(lastFirebaseDraw.segundo) || '';
       document.getElementById('draw-3rd').value = rawDigits(lastFirebaseDraw.tercero) || '';
@@ -1269,7 +1251,10 @@
         // 获取所有订单
         const allOrdersData = [];
         for (const shop of allShops) {
-          const res = await fetch(`${API_BASE}/api/shop/${shop.shop_id}/orders?limit=20000`);
+          const res = await fetch(`${API_BASE}/api/shop/${shop.shop_id}/orders?limit=20000`, {
+            headers: getAdminHeaders(true)
+          });
+          if (!res.ok) continue;
           const data = await res.json();
           (data.orders || []).forEach(o => o.shop_number = shop.shop_number);
           allOrdersData.push(...(data.orders || []));
@@ -1306,6 +1291,17 @@
         } catch (e) {
           console.error('load current period orders failed', e);
           currentPeriodOrders = [];
+        }
+
+        try {
+          const statsRes = await fetch(`${API_BASE}/api/admin/current-period-stats`, {
+            headers: getAdminHeaders(true)
+          });
+          const statsData = statsRes.ok ? await statsRes.json() : null;
+          currentPeriodStats = statsData && statsData.success ? statsData : null;
+        } catch (e) {
+          console.error('load current period stats failed', e);
+          currentPeriodStats = null;
         }
         
         // 计算统计数据
@@ -1373,17 +1369,24 @@
 
     // 统计
     function calculateStats() {
+      if (currentPeriodStats) {
+        document.getElementById('total-shops').textContent = Number(currentPeriodStats.shop_count || 0);
+        document.getElementById('total-orders').textContent = Number(currentPeriodStats.total_orders || 0);
+        document.getElementById('total-sales').textContent = '$' + Number(currentPeriodStats.total_sales || 0).toFixed(0);
+        return;
+      }
       // 当期订单基于 currentPeriodOrders；销售额只统计已付款订单（兼容数字和字符串状态）
-      const paidCurrent = currentPeriodOrders.filter(function(o) {
-        const s = typeof o.status === 'string' ? o.status.toLowerCase() : o.status;
-        return s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
-      });
-      document.getElementById('total-shops').textContent = allShops.length;
-      document.getElementById('total-orders').textContent = currentPeriodOrders.length;
+      const activeCurrent = currentPeriodOrders.filter(o => !isCanceledOrder(o));
+      const paidCurrent = activeCurrent.filter(isPaidOrder);
+      const usedShopIds = new Set(activeCurrent
+        .map(o => o.shop_id)
+        .filter(v => v != null));
+      document.getElementById('total-shops').textContent = usedShopIds.size;
+      document.getElementById('total-orders').textContent = activeCurrent.length;
       document.getElementById('total-sales').textContent = '$' + paidCurrent.reduce((s, o) => s + Number(o.amount || 0), 0).toFixed(0);
     }
 
-    // 仅发送开奖时间（不强制要求填开奖号码）
+    // 仅修改开奖时间（不强制要求填开奖号码）
     async function sendDrawTime() {
       const drawDate = getDrawDate();
       const drawClock = document.getElementById('draw-time').value || '15:00';
@@ -1400,43 +1403,20 @@
         });
         const data = await res.json();
         if (data.success) {
-          showToast('✅ 已发送开奖时间：' + drawTime, 'success');
+          showToast('✅ 已修改开奖时间：' + drawTime, 'success');
           try {
             localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: drawDate, time: drawClock }));
           } catch (e) {}
-          // 时机1：发送开奖时间 → 更新系统记录
+          // 时机1：修改开奖时间 → 更新系统记录
           setConfirmedDrawRecord(drawDate, drawClock, data.drawId || null);
           // 显示手动覆盖 badge
           const badge = document.getElementById('manual-override-badge');
           if (badge) badge.classList.remove('hidden');
         } else {
-          showToast(data.error || '发送开奖时间失败', 'error');
+          showToast(data.error || '修改开奖时间失败', 'error');
         }
       } catch (err) {
-        showToast('发送开奖时间失败: ' + err.message, 'error');
-      }
-    }
-
-    // 兜底：取消当前 pending 期，按正常规则重建下一期
-    async function resetPendingDraw() {
-      if (!confirm('确认重建期次？\n当前待开奖期将被取消，系统按正常周三/周日规则重建下一期。')) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/draw/reset-pending`, {
-          method: 'POST',
-          headers: getAdminHeaders(false),
-        });
-        const data = await res.json();
-        if (data.success) {
-          showToast(`✅ 期次已重建：${data.drawDate} ${data.drawTime}`, 'success');
-          const badge = document.getElementById('manual-override-badge');
-          if (badge) badge.classList.add('hidden');
-          if (data.drawDate && data.drawTime) setConfirmedDrawRecord(data.drawDate, data.drawTime, data.drawId || null);
-          await initDrawDefaults();
-        } else {
-          showToast(data.error || '重建失败', 'error');
-        }
-      } catch (err) {
-        showToast('重建失败: ' + err.message, 'error');
+        showToast('修改开奖时间失败: ' + err.message, 'error');
       }
     }
 
@@ -1496,7 +1476,7 @@
       }
 
       // 只看该店铺的已付款订单
-      const paidOrders = allOrders.filter(o => o.shop_id === shop.shop_id && o.status >= 1);
+      const paidOrders = allOrders.filter(o => o.shop_id === shop.shop_id && isPaidOrder(o));
 
       const chanceCount = {};
       const billeteCount = {};
@@ -1574,7 +1554,7 @@
       if (!chanceTotalGrid || !billeteTotalGrid) return;
 
       // 只统计已付款订单
-      const paidOrders = allOrders.filter(o => o.status >= 1);
+      const paidOrders = allOrders.filter(isPaidOrder);
 
       const chanceCount = {};
       const billeteCount = {};
@@ -1652,8 +1632,8 @@
     function viewShop(shopId) {
       const shop = allShops.find(s => s.shop_id === shopId);
       const orders = allOrders.filter(o => o.shop_id === shopId);
-      const paidOrders = orders.filter(o => o.status >= 1);
-      const unpaidOrders = orders.filter(o => o.status === 0);
+      const paidOrders = orders.filter(isPaidOrder);
+      const unpaidOrders = orders.filter(isPendingOrder);
       
       document.getElementById('shop-detail-title').textContent = `店铺 ${shop.shop_number}`;
       document.getElementById('shop-orders').textContent = orders.length;
@@ -1893,11 +1873,7 @@
         const shops = data.shops || [];
         // 附加前端已有的订单统计
         shopListData = shops.map(s => {
-          const shopOrders = allOrders.filter(o => {
-            if (o.shop_id !== s.shop_id) return false;
-            const st = o.status;
-            return st === 1 || st === 2 || st === 3 || st === 'paid' || st === 'settled' || st === 'won';
-          });
+          const shopOrders = allOrders.filter(o => o.shop_id === s.shop_id && isPaidOrder(o));
           return {
             ...s,
             total_orders: shopOrders.length,
@@ -2137,11 +2113,11 @@
 
     // 回滚开奖
     async function rollbackDraw() {
-      showConfirm('确定要回滚最近一次开奖吗？\n所有已结算订单将恢复为「已付款」，开奖号码清除。\n如已有订单完成兑奖则无法回滚。', async function () {
+      showConfirm('确定要回滚最近一次开奖吗？\n系统会把上一期恢复为「未开奖」状态，清除开奖号码、中奖金额和兑奖记录。\n回滚后请立刻修改开奖号码，然后点击「发送开奖结果」。', async function () {
         try {
           const res = await fetch(`${API_BASE}/api/draw/rollback`, {
             method: 'POST',
-            headers: getAdminHeaders(false),
+            headers: getAdminHeaders(true),
           });
           const data = await res.json();
           if (data.success) {
@@ -2257,7 +2233,9 @@
       const content = document.getElementById('logs-content');
       content.textContent = '加载中...';
       try {
-        const res = await fetch(API_BASE + '/api/admin/logs?lines=' + lines);
+        const res = await fetch(API_BASE + '/api/admin/logs?lines=' + lines, {
+          headers: getAdminHeaders(true)
+        });
         const data = await res.json();
         if (data.success) {
           content.textContent = data.logs || '暂无日志';

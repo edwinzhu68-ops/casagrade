@@ -5,6 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>开奖结算</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ====== Operator 深色皮肤·实装(操作端;整段删除即回原样) ====== -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    var Gd={50:'#f7eccb',100:'#eedca0',200:'#e3c878',300:'#efd58f',400:'#e0bf6a',500:'#caa23f',600:'#b8902e',700:'#8f6f1f',800:'#6b520f',900:'#4d3b0b'};
+    tailwind.config={theme:{extend:{colors:{
+      green:{50:'#e9faf1',100:'#c9f3dd',200:'#9be9c2',300:'#63dca0',400:'#35e8a0',500:'#21b574',600:'#179a60',700:'#0f7849',800:'#0c5d3a',900:'#0a4a2f'},
+      amber:Gd, orange:Gd, yellow:Gd,
+      red:{50:'#fbeae6',100:'#f6cfc6',200:'#eda493',300:'#eb9a8c',400:'#e0705e',500:'#d4513f',600:'#bb4231',700:'#9a3526',800:'#742518',900:'#511a11'}
+    }, fontFamily:{sans:['Inter','PingFang SC','Microsoft YaHei','system-ui','sans-serif']}}}}
+  </script>
+  <style>
+    body{ background:radial-gradient(900px 520px at 50% -180px, rgba(53,232,160,.10), transparent 60%), linear-gradient(180deg,#15151b,#0d0d11) !important;
+      font-family:'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif; }
+    .bg-gray-800{ background:#1b1a20 !important; box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 16px 36px -24px rgba(0,0,0,.8); }
+    .shadow-lg{ box-shadow:0 16px 38px -20px rgba(0,0,0,.7) !important; }
+    #shop-number{ color:#e9cf86 !important; text-shadow:0 0 16px rgba(233,200,115,.25); }
+    .rounded-2xl{ border-radius:20px !important; } .rounded-xl{ border-radius:14px !important; }
+    button,[role=button]{ transition:transform .08s ease, filter .15s ease !important; }
+  </style>
+  <!-- ====== /Operator 皮肤·实装 ====== -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -645,7 +665,7 @@
         local_history_title: '📚 历史数据',
         local_history_badge: '本机保存',
         local_history_hint: '早于本页结算期的各期 · 点期号查看全部订单 · 弹窗内可搜后四位',
-        local_history_empty: '暂无历史期（上一期结算后将自动归档）',
+        local_history_empty: '暂无历史期',
         local_history_period_label: '历史期',
         local_history_won_abbr: '中奖',
         local_history_unredeemed_line: '本期有未兑奖订单',
@@ -1482,36 +1502,6 @@
       const todayStr = panamaTodayYmd();
       if (drawDateStr !== todayStr) return false;
       return panamaLocal.getUTCHours() < 15; // 15:00 起视为已开奖
-    }
-
-    // 本次会话是否已触发过自动归档（防止重复调用）
-    let _archiveCalledThisSession = false;
-
-    // 每天 09:00 后，若今天是开奖日且仍有未归档的结算数据，则自动归档
-    // 返回 true 表示本次调用发起了归档请求
-    async function checkAutoArchive(pendingDraw, drawResult) {
-      if (_archiveCalledThisSession) return false;
-      if (!drawResult || drawResult.drawId == null) return false;
-      if (!pendingDraw) return false;
-      const raw = pendingDraw.draw_date || pendingDraw.drawDate || pendingDraw.drawTime;
-      if (!raw) return false;
-      const drawDateStr = drawCalendarYmd(raw);
-      if (!drawDateStr) return false;
-      const PANAMA_OFFSET_MS = -5 * 60 * 60 * 1000;
-      const panamaLocal = new Date(Date.now() + PANAMA_OFFSET_MS);
-      const todayStr = panamaTodayYmd();
-      if (drawDateStr !== todayStr) return false;   // 今天不是开奖日
-      if (panamaLocal.getUTCHours() < 9) return false; // 还没到 09:00
-      // 今天是开奖日且已过 09:00 → 归档
-      _archiveCalledThisSession = true;
-      try {
-        await fetch(`${API_BASE}/api/admin/clear-settlement`, { method: 'POST' });
-        if (DEBUG) console.log('result.html: 自动归档结算数据');
-        return true;
-      } catch (e) {
-        _archiveCalledThisSession = false; // 请求失败可下次重试
-        return false;
-      }
     }
 
     function getResultPageKind() {
@@ -2436,10 +2426,6 @@
         } else {
           drawResult = null;
         }
-        // 开奖当天 09:00 后自动归档（每天检测一次，当天是开奖日才触发）
-        const didArchive = await checkAutoArchive(pendingDraw, drawResult);
-        if (didArchive) { loadData(); return; } // 归档后立即重新加载
-
         // 开奖当天 15:00 前：当前期清空，只显示等待开奖
         const showWaitingForDraw = isDrawDayBefore1500(pendingDraw);
         const paidOrSettledOrWon = allOrders.filter(function (o) { return isPaidSettledOrWonStatus(o); });

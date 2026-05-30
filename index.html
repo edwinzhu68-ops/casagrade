@@ -11,6 +11,30 @@
   <meta name="apple-mobile-web-app-title" content="Lotería">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ====== Ivory 皮肤·实装(顾客浅色;整段删除即回原样) ====== -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    var G={50:'#faf1d8',100:'#f3e6bf',200:'#e9d18f',300:'#e2c36b',400:'#cda646',500:'#b8902e',600:'#9a7826',700:'#7e6418',800:'#5f4d14',900:'#463a10'};
+    tailwind.config={theme:{extend:{colors:{
+      green:{50:'#eef7f1',100:'#d8ede1',200:'#aeddc4',300:'#7fc6a3',400:'#3f9e73',500:'#1d8a62',600:'#157a55',700:'#0e5e41',800:'#0c4e37',900:'#0a3f2d'},
+      gray:{50:'#faf7f1',100:'#f3eee4',200:'#e7dfd0',300:'#d6cbb6',400:'#a99f8c',500:'#6f675a',600:'#544d42',700:'#3f3a31',800:'#2b2720',900:'#26221a'},
+      amber:G, orange:G, yellow:G,
+      red:{50:'#f9ece8',100:'#f3d8cf',200:'#e6b3a4',300:'#d68b79',400:'#c0553f',500:'#b3402f',600:'#9a3526',700:'#7e2a1e',800:'#5f2016',900:'#46160f'}
+    }, fontFamily:{sans:['Inter','PingFang SC','Microsoft YaHei','system-ui','sans-serif']}}}}
+  </script>
+  <style>
+    body{ background:radial-gradient(900px 520px at 50% -160px, rgba(184,144,46,.10), transparent 60%), linear-gradient(180deg,#fbf8f2,#f1ebe0) !important;
+      font-family:'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif; }
+    .bg-white{ background:#fffdf8 !important; }
+    .shadow-sm{ box-shadow:0 1px 2px rgba(50,40,15,.05),0 10px 24px -20px rgba(50,40,15,.28) !important; }
+    .shadow-md{ box-shadow:0 1px 2px rgba(50,40,15,.05),0 16px 34px -22px rgba(50,40,15,.30) !important; }
+    .shadow-lg,.shadow-xl{ box-shadow:0 1px 2px rgba(50,40,15,.05),0 26px 52px -28px rgba(50,40,15,.34) !important; }
+    .bg-green-600{ background:linear-gradient(180deg,#1d8a62,#157a55) !important; box-shadow:inset 0 1px 0 rgba(255,255,255,.22); }
+    .rounded-lg{ border-radius:12px !important; } .rounded-xl{ border-radius:15px !important; }
+    .rounded-2xl{ border-radius:19px !important; } .rounded-3xl{ border-radius:26px !important; }
+    button,[role=button]{ transition:transform .08s ease, filter .15s ease !important; }
+  </style>
+  <!-- ====== /Ivory 皮肤·实装 ====== -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
   <script>window.html2canvas || document.write('<script src="libs/html2canvas.min.js"><\/script>')</script>
   <style>
@@ -63,8 +87,8 @@
     <div class="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md relative">
       <button type="button" id="home-account-btn" onclick="openAuthModal()" class="absolute top-4 right-4 text-sm text-green-600 hover:underline">Cuenta</button>
       <div class="text-center mb-8">
-        <div class="text-5xl mb-2">🖨️</div>
-        <div class="text-3xl mb-2">🧾</div>
+        <div class="mb-2"><svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="#157a55" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a2 2 0 0 0 0 4v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a2 2 0 0 0 0-4V8Z"/><path d="M14 6v12" stroke-dasharray="1.4 2.6"/></svg></div>
+        <div class="mb-2"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3f9e73" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/></svg></div>
         <p class="text-gray-500 mt-2" data-i18n="home_intro">Introduce el número de tienda para empezar</p>
       </div>
 
@@ -443,7 +467,7 @@
         <!-- 结算结果：中奖时最上方醒目展示 -->
         <div id="confirmed-result-area" class="mb-4 rounded-2xl p-4 text-center hidden">
           <div id="confirmed-result-won" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <div class="text-5xl mb-2">🎉</div>
+            <div class="mb-2"><svg width="56" height="56" viewBox="0 0 24 24" fill="none" style="display:inline-block"><path d="M12 2.2l2.6 1.6 3-.2 1.2 2.8 2.6 1.7-.9 2.9.9 2.9-2.6 1.7-1.2 2.8-3-.2L12 21.8 9.4 20.2l-3 .2-1.2-2.8-2.6-1.7.9-2.9-.9-2.9 2.6-1.7L6.4 3.6l3 .2L12 2.2Z" fill="#b8902e"/><path d="M8.3 12.2l2.5 2.5 5-5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <p class="text-xl font-bold text-amber-600" data-i18n="won_title">¡Felicidades! Has ganado</p>
             <p class="text-3xl font-bold text-green-600 mt-1">$<span id="confirmed-win-amount">0</span></p>
             <p class="text-sm text-amber-700 mt-2 font-medium" data-i18n="won_note">Presenta este comprobante (QR o número de pedido) en la tienda para cobrar tu premio.</p>
