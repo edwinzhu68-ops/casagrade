@@ -323,68 +323,10 @@
         </div>
       </div>
 
-      <!-- 销售限额设置 -->
-      <div class="bg-gray-800 rounded-2xl p-4">
-        <h3 class="font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额</h3>
-        <!-- Loteria 限额 -->
-        <div id="loteria-limits-section" class="grid grid-cols-2 gap-4">
-          <div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
-            <div class="flex items-center">
-              <input type="number" id="limit-chance" value="50"
-                class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-              <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
-            </div>
-          </div>
-          <div>
-            <p class="text-xs text-gray-400 mb-1" data-i18n="billete_limit_label">Billete 每号最多</p>
-            <div class="flex items-center">
-              <input type="number" id="limit-billete" value="10"
-                class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-              <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
-            </div>
-          </div>
-        </div>
-        <!-- TICA 限额 -->
-        <div id="tica-limits-section" class="hidden grid grid-cols-2 gap-4">
-          <div>
-            <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
-            <div class="flex items-center">
-              <input type="number" id="tica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-              <span class="ml-1 text-gray-400">张</span>
-            </div>
-          </div>
-          <div>
-            <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
-            <div class="flex items-center">
-              <input type="number" id="tica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-              <span class="ml-1 text-gray-400">张</span>
-            </div>
-          </div>
-        </div>
-        <!-- NICA 限额 -->
-        <div id="nica-limits-section" class="hidden grid grid-cols-2 gap-4">
-          <div>
-            <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
-            <div class="flex items-center">
-              <input type="number" id="nica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-              <span class="ml-1 text-gray-400">张</span>
-            </div>
-          </div>
-          <div>
-            <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
-            <div class="flex items-center">
-              <input type="number" id="nica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-              <span class="ml-1 text-gray-400">张</span>
-            </div>
-          </div>
-        </div>
-        <p class="text-xs text-gray-500 mt-2" data-i18n="limit_hint">0 = sin límite</p>
-        <button onclick="saveLimits()" class="w-full bg-blue-600 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
-      </div>
+      <!-- 销售限额设置 已移至「设置 ⚙️ Ajustes」面板(modal-settings),收银台主屏减负 -->
 
       <!-- 大庄管理中心入口 -->
-      <a href="main-shop.html" class="block w-full bg-gradient-to-r from-purple-700 to-purple-600 hover:from-purple-600 hover:to-purple-500 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-3 transition">
+      <a href="main-shop.html" class="block w-full bg-gradient-to-r from-purple-900 to-purple-800 hover:from-purple-800 hover:to-purple-700 py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-3 transition" style="box-shadow:inset 0 0 0 1px rgba(233,200,115,.18),0 16px 36px -24px rgba(0,0,0,.8)">
         <span class="text-2xl">🎰</span>
         <span data-i18n="main_shop_entry">大庄管理中心</span>
         <span id="binding-badge" class="hidden bg-red-500 text-white text-xs rounded-full min-w-5 h-5 flex items-center justify-center px-1">!</span>
@@ -7694,6 +7636,63 @@
           <div id="online-devices-list" class="space-y-2 text-sm">
             <p class="text-gray-500 text-xs" data-i18n="devices_loading">加载中...</p>
           </div>
+        </div>
+
+        <!-- 8. 销售限额(从收银台主屏移入) -->
+        <div class="border border-gray-600 rounded-xl p-3">
+          <p class="text-sm font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额</p>
+          <div id="loteria-limits-section" class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="limit-chance" value="50"
+                  class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1" data-i18n="billete_limit_label">Billete 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="limit-billete" value="10"
+                  class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
+              </div>
+            </div>
+          </div>
+          <div id="tica-limits-section" class="hidden grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="tica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="tica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+          </div>
+          <div id="nica-limits-section" class="hidden grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="nica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+              <div class="flex items-center">
+                <input type="number" id="nica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
+                <span class="ml-1 text-gray-400">张</span>
+              </div>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mt-2" data-i18n="limit_hint">0 = sin límite</p>
+          <button onclick="saveLimits()" class="w-full bg-green-600 hover:bg-green-500 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
         </div>
 
       </div>
