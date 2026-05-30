@@ -236,7 +236,7 @@
           <span class="text-center break-words hyphens-auto" data-i18n="scan_pay">📷 扫码</span>
         </button>
         <button type="button" onclick="openCashierOrderModal()" class="w-full min-w-0 bg-gradient-to-r from-amber-500 to-orange-600 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-[11px] sm:text-lg shadow-lg flex items-center justify-center px-0.5 sm:px-2 leading-tight">
-          <span class="text-center break-words hyphens-auto" data-i18n="cashier_order_btn">🧾 代客下单</span>
+          <span class="text-center break-words hyphens-auto" data-i18n="cashier_order_btn">🧾 下单</span>
         </button>
         <button onclick="openSettlement()" class="w-full min-w-0 bg-gradient-to-r from-purple-500 to-purple-600 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-[11px] sm:text-lg shadow-lg flex items-center justify-center px-0.5 sm:px-2 leading-tight">
           <span class="text-center break-words hyphens-auto" data-i18n="settlement">开奖结算</span>
@@ -1075,8 +1075,8 @@
         status_unknown: '未知',
         scan_pay: '📷 扫码',
         settlement: '开奖结算',
-        cashier_order_btn: '🧾 代客下单',
-        cashier_order_title: '代客下单（当场收款）',
+        cashier_order_btn: '🧾 下单',
+        cashier_order_title: '下单（当场收款）',
         cashier_order_printer_short: '请连接打印机使用',
         cashier_btn_activate_print: '激活',
         cashier_modal_close: '关闭',
@@ -1119,7 +1119,7 @@
         cashier_numpad_back: '退格',
         cashier_qty_minus: '减',
         cashier_qty_plus: '加',
-        login_hint_cashier: '登录后可见：扫码收款、代客下单（当场收款）、开奖结算等入口。',
+        login_hint_cashier: '登录后可见：扫码收款、下单（当场收款）、开奖结算等入口。',
         shop_label: '店号',
         period_sales: '本期销售额',
         period_orders: '本期订单',
@@ -7536,164 +7536,178 @@
         <h2 class="text-lg font-bold" data-i18n="settings_panel_title">⚙️ 设置</h2>
         <button onclick="document.getElementById('modal-settings').classList.add('hidden')" class="text-gray-400 hover:text-white text-2xl leading-none">×</button>
       </div>
-      <div class="space-y-4 overflow-y-auto px-6 pb-6">
-        <!-- 0. 使用说明 -->
-        <a href="guide.html" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 w-full border border-blue-500/40 bg-blue-900/20 hover:bg-blue-900/40 rounded-xl py-3 text-blue-400 font-bold text-sm" data-i18n="link_guide">
+      <div class="space-y-6 overflow-y-auto px-5 pb-6">
+
+        <!-- ── 店铺经营 ── -->
+        <div class="space-y-3">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1">店铺经营</p>
+
+          <!-- 充值卡密 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <p class="text-sm font-bold mb-1" data-i18n="card_section_title">🎫 充值卡密</p>
+            <p id="subscription-expires-modal" class="hidden text-xs mt-0.5 mb-2 text-red-400"></p>
+            <input type="text" id="settings-card-code"
+              class="w-full py-2.5 px-3 bg-black/25 border border-white/10 rounded-xl text-sm mb-2 tracking-widest uppercase placeholder-gray-500 focus:border-yellow-500 focus:outline-none"
+              maxlength="20" autocomplete="off" spellcheck="false"
+              data-i18n-placeholder="card_code_placeholder" placeholder="输入卡密，如 MMXX-XXXX-XXXX" />
+            <button id="btn-activate-card" onclick="activateCard()"
+              class="w-full bg-yellow-600 hover:bg-yellow-500 text-white py-2.5 rounded-xl text-sm font-bold" data-i18n="btn_activate">
+              激活
+            </button>
+            <p id="activate-result" class="text-xs text-center mt-2 hidden"></p>
+          </div>
+
+          <!-- 宣传海报 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <p class="text-sm font-bold mb-1">📄 <span data-i18n="poster_title">店铺宣传海报</span></p>
+            <p class="text-xs text-gray-400 mb-3" data-i18n="poster_desc">客户扫码直接进入您的店铺下单，无需输入店号</p>
+            <button onclick="openPoster(); closeModal('modal-settings')"
+              class="w-full bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-xl text-sm font-bold" data-i18n="btn_view_poster">
+              🔗 查看 / 打印海报
+            </button>
+          </div>
+
+          <!-- 销售限额 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <p class="text-sm font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额</p>
+            <div id="loteria-limits-section" class="grid grid-cols-2 gap-3">
+              <div>
+                <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
+                <div class="flex items-center">
+                  <input type="number" id="limit-chance" value="50"
+                    class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
+                  <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-gray-400 mb-1" data-i18n="billete_limit_label">Billete 每号最多</p>
+                <div class="flex items-center">
+                  <input type="number" id="limit-billete" value="10"
+                    class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
+                  <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
+                </div>
+              </div>
+            </div>
+            <div id="tica-limits-section" class="hidden grid grid-cols-2 gap-3">
+              <div>
+                <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+                <div class="flex items-center">
+                  <input type="number" id="tica-limit-chance" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
+                  <span class="ml-1 text-gray-400">张</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+                <div class="flex items-center">
+                  <input type="number" id="tica-limit-palet" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
+                  <span class="ml-1 text-gray-400">张</span>
+                </div>
+              </div>
+            </div>
+            <div id="nica-limits-section" class="hidden grid grid-cols-2 gap-3">
+              <div>
+                <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+                <div class="flex items-center">
+                  <input type="number" id="nica-limit-chance" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
+                  <span class="ml-1 text-gray-400">张</span>
+                </div>
+              </div>
+              <div>
+                <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+                <div class="flex items-center">
+                  <input type="number" id="nica-limit-palet" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
+                  <span class="ml-1 text-gray-400">张</span>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2" data-i18n="limit_hint">0 = sin límite</p>
+            <button onclick="saveLimits()" class="w-full bg-green-600 hover:bg-green-500 text-white py-2.5 mt-3 rounded-xl font-bold text-sm" data-i18n="btn_save">保存</button>
+          </div>
+        </div>
+
+        <!-- ── 账户安全 ── -->
+        <div class="space-y-3">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1">账户安全</p>
+
+          <!-- 修改密码 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <p class="text-sm font-bold mb-3" data-i18n="pwd_section_title">🔑 修改密码</p>
+            <input type="password" id="settings-cur-pwd" placeholder="当前密码"
+              class="w-full py-2.5 px-3 bg-black/25 border border-white/10 rounded-xl text-sm mb-2 placeholder-gray-500 focus:border-green-500 focus:outline-none" />
+            <input type="password" id="settings-new-pwd" placeholder="新密码（含字母+数字，≥6位）"
+              class="w-full py-2.5 px-3 bg-black/25 border border-white/10 rounded-xl text-sm mb-2 placeholder-gray-500 focus:border-green-500 focus:outline-none" />
+            <input type="password" id="settings-new-pwd2" placeholder="确认新密码"
+              class="w-full py-2.5 px-3 bg-black/25 border border-white/10 rounded-xl text-sm mb-2 placeholder-gray-500 focus:border-green-500 focus:outline-none" />
+            <button onclick="doChangePassword()"
+              class="w-full bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-xl text-sm font-bold" data-i18n="btn_change_pwd">
+              修改密码
+            </button>
+            <p id="change-pwd-result" class="text-xs text-center mt-2 hidden"></p>
+          </div>
+
+          <!-- 修改邮箱 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <p class="text-sm font-bold mb-3" data-i18n="email_section_title">📧 修改/绑定邮箱</p>
+            <input type="password" id="settings-email-cur-pwd" placeholder="当前密码（验证用）"
+              class="w-full py-2.5 px-3 bg-black/25 border border-white/10 rounded-xl text-sm mb-2 placeholder-gray-500 focus:border-green-500 focus:outline-none" />
+            <input type="email" id="settings-email" placeholder="新邮箱地址"
+              class="w-full py-2.5 px-3 bg-black/25 border border-white/10 rounded-xl text-sm mb-2 placeholder-gray-500 focus:border-green-500 focus:outline-none" />
+            <button onclick="doChangeEmail()"
+              class="w-full bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-xl text-sm font-bold" data-i18n="btn_save_email">
+              保存邮箱
+            </button>
+            <p id="change-email-result" class="text-xs text-center mt-2 hidden"></p>
+          </div>
+        </div>
+
+        <!-- ── 设备与显示 ── -->
+        <div class="space-y-3">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1">设备与显示</p>
+
+          <!-- 蓝牙热敏打印 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-bold" data-i18n="print_section_title">🖨️ 蓝牙热敏打印</p>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="print-toggle" class="sr-only peer" onchange="onPrintToggle(this.checked)">
+                <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+              </label>
+            </div>
+            <p class="text-xs text-gray-500 mt-2 mb-1" data-i18n="print_description">完美使用请下载APP。</p>
+            <div id="printer-status" class="text-xs text-gray-400" data-i18n="printer_disabled">未启用</div>
+            <button id="btn-connect-printer" onclick="connectPrinter()" class="hidden mt-2 w-full bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-xl text-sm font-bold" data-i18n="btn_connect_printer">
+              🔗 连接打印机
+            </button>
+          </div>
+
+          <!-- 在线设备 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-sm font-bold">📱 <span data-i18n="devices_title">在线设备</span></p>
+              <button onclick="loadOnlineDevices()" class="text-xs text-green-400 hover:underline" data-i18n="devices_refresh">刷新</button>
+            </div>
+            <div id="online-devices-list" class="space-y-2 text-sm">
+              <p class="text-gray-500 text-xs" data-i18n="devices_loading">加载中...</p>
+            </div>
+          </div>
+
+          <!-- 隐藏销售额 -->
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-bold">🙈 隐藏销售额</p>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="hide-sales-toggle" class="sr-only peer" onchange="onHideSalesToggle(this.checked)">
+                <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+              </label>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">开启后所有销售额显示为 ***</p>
+          </div>
+        </div>
+
+        <!-- 使用说明 -->
+        <a href="guide.html" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 w-full bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl py-3 text-gray-200 font-bold text-sm" data-i18n="link_guide">
           📖 Instrucciones de uso
         </a>
-
-        <!-- 1. 充值卡密 -->
-        <div class="border border-yellow-600/50 rounded-xl p-3">
-          <p class="text-sm font-bold mb-1" data-i18n="card_section_title">🎫 充值卡密</p>
-          <p id="subscription-expires-modal" class="hidden text-xs mt-0.5 mb-2 text-red-400"></p>
-          <input type="text" id="settings-card-code"
-            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2 tracking-widest uppercase"
-            maxlength="20" autocomplete="off" spellcheck="false"
-            data-i18n-placeholder="card_code_placeholder" placeholder="输入卡密，如 MMXX-XXXX-XXXX" />
-          <button id="btn-activate-card" onclick="activateCard()"
-            class="w-full bg-yellow-600 hover:bg-yellow-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_activate">
-            激活
-          </button>
-          <p id="activate-result" class="text-xs text-center mt-2 hidden"></p>
-        </div>
-
-        <!-- 2. 宣传海报（直接带来客户） -->
-        <div class="border border-green-700 rounded-xl p-3">
-          <p class="text-sm font-bold mb-1">📄 <span data-i18n="poster_title">店铺宣传海报</span></p>
-          <p class="text-xs text-gray-400 mb-3" data-i18n="poster_desc">客户扫码直接进入您的店铺下单，无需输入店号</p>
-          <button onclick="openPoster(); closeModal('modal-settings')"
-            class="w-full bg-green-700 hover:bg-green-600 py-2 rounded-xl text-sm font-bold" data-i18n="btn_view_poster">
-            🔗 查看 / 打印海报
-          </button>
-        </div>
-
-        <!-- 3. 隐藏销售额 -->
-        <div class="border border-gray-600 rounded-xl p-3">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-bold">🙈 隐藏销售额</p>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="hide-sales-toggle" class="sr-only peer" onchange="onHideSalesToggle(this.checked)">
-              <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-            </label>
-          </div>
-          <p class="text-xs text-gray-500 mt-1">开启后所有销售额显示为 ***</p>
-        </div>
-
-        <!-- 4. 打印设置（日常操作） -->
-        <div class="border border-gray-600 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <p class="text-sm font-bold" data-i18n="print_section_title">🖨️ 蓝牙热敏打印</p>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="print-toggle" class="sr-only peer" onchange="onPrintToggle(this.checked)">
-              <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-            </label>
-          </div>
-          <p class="text-xs text-gray-500 mb-2" data-i18n="print_description">完美使用请下载APP。</p>
-          <div id="printer-status" class="text-xs text-gray-400" data-i18n="printer_disabled">未启用</div>
-          <button id="btn-connect-printer" onclick="connectPrinter()" class="hidden mt-2 w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_connect_printer">
-            🔗 连接打印机
-          </button>
-        </div>
-
-        <!-- 4. 已删除"添加到桌面"，APP下载提示在版本检测弹窗中 -->
-
-        <!-- 5. 修改密码（账号安全） -->
-        <div class="border border-gray-600 rounded-xl p-3">
-          <p class="text-sm font-bold mb-3" data-i18n="pwd_section_title">🔑 修改密码</p>
-          <input type="password" id="settings-cur-pwd" placeholder="当前密码"
-            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
-          <input type="password" id="settings-new-pwd" placeholder="新密码（含字母+数字，≥6位）"
-            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
-          <input type="password" id="settings-new-pwd2" placeholder="确认新密码"
-            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
-          <button onclick="doChangePassword()"
-            class="w-full bg-yellow-600 hover:bg-yellow-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_change_pwd">
-            修改密码
-          </button>
-          <p id="change-pwd-result" class="text-xs text-center mt-2 hidden"></p>
-        </div>
-
-        <!-- 6. 修改邮箱（账号找回） -->
-        <div class="border border-gray-600 rounded-xl p-3">
-          <p class="text-sm font-bold mb-3" data-i18n="email_section_title">📧 修改/绑定邮箱</p>
-          <input type="password" id="settings-email-cur-pwd" placeholder="当前密码（验证用）"
-            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
-          <input type="email" id="settings-email" placeholder="新邮箱地址"
-            class="w-full py-2 px-3 bg-gray-700 rounded-lg text-sm mb-2" />
-          <button onclick="doChangeEmail()"
-            class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg text-sm font-bold" data-i18n="btn_save_email">
-            保存邮箱
-          </button>
-          <p id="change-email-result" class="text-xs text-center mt-2 hidden"></p>
-        </div>
-
-        <!-- 7. 在线设备管理（合并） -->
-        <div class="border border-gray-600 rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <p class="text-sm font-bold">📱 <span data-i18n="devices_title">在线设备</span></p>
-            <button onclick="loadOnlineDevices()" class="text-xs text-blue-400 hover:underline" data-i18n="devices_refresh">刷新</button>
-          </div>
-          <div id="online-devices-list" class="space-y-2 text-sm">
-            <p class="text-gray-500 text-xs" data-i18n="devices_loading">加载中...</p>
-          </div>
-        </div>
-
-        <!-- 8. 销售限额(从收银台主屏移入) -->
-        <div class="border border-gray-600 rounded-xl p-3">
-          <p class="text-sm font-bold mb-3" data-i18n="settings_title">⚙️ 销售限额</p>
-          <div id="loteria-limits-section" class="grid grid-cols-2 gap-4">
-            <div>
-              <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="limit-chance" value="50"
-                  class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
-              </div>
-            </div>
-            <div>
-              <p class="text-xs text-gray-400 mb-1" data-i18n="billete_limit_label">Billete 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="limit-billete" value="10"
-                  class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
-              </div>
-            </div>
-          </div>
-          <div id="tica-limits-section" class="hidden grid grid-cols-2 gap-4">
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="tica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="tica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-          </div>
-          <div id="nica-limits-section" class="hidden grid grid-cols-2 gap-4">
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="nica-limit-chance" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-            <div>
-              <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
-              <div class="flex items-center">
-                <input type="number" id="nica-limit-palet" class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono text-sm" />
-                <span class="ml-1 text-gray-400">张</span>
-              </div>
-            </div>
-          </div>
-          <p class="text-xs text-gray-500 mt-2" data-i18n="limit_hint">0 = sin límite</p>
-          <button onclick="saveLimits()" class="w-full bg-green-600 hover:bg-green-500 py-2 mt-2 rounded-lg font-bold text-sm" data-i18n="btn_save">保存</button>
-        </div>
 
       </div>
     </div>
