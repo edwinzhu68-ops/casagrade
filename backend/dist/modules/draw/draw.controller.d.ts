@@ -1,4 +1,3 @@
-import { Request } from 'express';
 import { DataSource } from 'typeorm';
 import { DrawDayService } from './draw-day.service';
 interface SetDrawTimeDto {
@@ -21,6 +20,7 @@ export declare class DrawController {
         data: {
             drawType: string;
             drawDate: string;
+            drawDateSource: string;
             drawHora: string;
             primer: string;
             segundo: string;
@@ -123,12 +123,6 @@ export declare class DrawController {
         drawDate: string;
         drawTime: string;
     }>;
-    resetPendingDraw(): Promise<{
-        success: boolean;
-        drawId: number;
-        drawDate: string;
-        drawTime: string;
-    }>;
     rollbackDraw(): Promise<{
         success: boolean;
         error: string;
@@ -147,10 +141,6 @@ export declare class AdminController {
     private readonly dataSource;
     private readonly logger;
     constructor(dataSource: DataSource);
-    clearSettlement(req: Request): Promise<{
-        success: boolean;
-        message: string;
-    }>;
     cleanupNullDrawOrders(): Promise<{
         success: boolean;
         deleted: number;

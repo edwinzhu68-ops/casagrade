@@ -883,18 +883,21 @@ let MerchantController = MerchantController_1 = class MerchantController {
         const { mainShopId, count, password, adminOverride } = body;
         if (!mainShopId)
             throw new common_1.BadRequestException('缺少 mainShopId');
-        const isAdmin = adminOverride && !!req.headers?.['x-admin-token'];
-        const n = isAdmin
-            ? Math.max(parseInt(String(count)) || 1, 1)
-            : Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const userRepo = this.dataSource.getRepository(user_entity_1.User);
         const bindingRepo = this.dataSource.getRepository(shop_binding_entity_1.ShopBinding);
+        const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+        const tokenUser = tokenInfo
+            ? await userRepo.findOne({ where: { user_id: tokenInfo.userId } })
+            : null;
+        const isAdmin = !!adminOverride && tokenUser?.role === 'admin';
+        const n = isAdmin
+            ? Math.max(parseInt(String(count)) || 1, 1)
+            : Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
         const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
         if (!mainShop)
             throw new common_1.NotFoundException('大庄店铺不存在');
         if (!isAdmin) {
-            const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
             if (!tokenInfo)
                 throw new common_1.UnauthorizedException('请先登录');
             if (mainShop.owner_id !== tokenInfo.userId)

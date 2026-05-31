@@ -1061,22 +1061,23 @@ export class MerchantController implements OnModuleInit {
     const { mainShopId, count, password, adminOverride } = body;
     if (!mainShopId) throw new BadRequestException('缺少 mainShopId');
 
-    // 管理员带 X-Admin-Token 且传 adminOverride=true 时不限数量
-    const isAdmin = adminOverride && !!req.headers?.['x-admin-token'];
-    const n = isAdmin
-      ? Math.max(parseInt(String(count)) || 1, 1)
-      : Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
-
     const shopRepo = this.dataSource.getRepository(Shop);
     const userRepo = this.dataSource.getRepository(User);
     const bindingRepo = this.dataSource.getRepository(ShopBinding);
+    const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
+    const tokenUser = tokenInfo
+      ? await userRepo.findOne({ where: { user_id: tokenInfo.userId } })
+      : null;
+    const isAdmin = !!adminOverride && tokenUser?.role === 'admin';
+    const n = isAdmin
+      ? Math.max(parseInt(String(count)) || 1, 1)
+      : Math.min(Math.max(parseInt(String(count)) || 1, 1), 10);
 
     const mainShop = await shopRepo.findOne({ where: { shop_id: Number(mainShopId) } });
     if (!mainShop) throw new NotFoundException('大庄店铺不存在');
 
     // 管理员 adminOverride 跳过大庄所有权验证；普通大庄必须验证 token
     if (!isAdmin) {
-      const tokenInfo = parseSignedToken((req.headers?.authorization || '').replace(/^\s*bearer\s+/i, '').trim());
       if (!tokenInfo) throw new UnauthorizedException('请先登录');
       if (mainShop.owner_id !== tokenInfo.userId) throw new UnauthorizedException('无权操作该店铺');
     }

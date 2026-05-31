@@ -1,43 +1,10 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
@@ -45,47 +12,15 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var DrawController_1, AdminController_1;
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminController = exports.DrawController = void 0;
 const common_1 = require("@nestjs/common");
-const express_1 = require("express");
 const typeorm_1 = require("typeorm");
-const crypto = __importStar(require("crypto"));
 const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
 const admin_token_guard_1 = require("../../guards/admin-token.guard");
 const draw_day_service_1 = require("./draw-day.service");
-function requireValidBearerToken(req) {
-    const authHeader = (req.headers?.['authorization'] || '');
-    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
-    if (!raw)
-        throw new common_1.UnauthorizedException('请先登录');
-    const lastDot = raw.lastIndexOf('.');
-    if (lastDot <= 0)
-        throw new common_1.UnauthorizedException('请先登录');
-    const payload = raw.slice(0, lastDot);
-    const sig = raw.slice(lastDot + 1);
-    const secret = process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
-    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-        throw new common_1.UnauthorizedException('登录已过期');
-    }
-    try {
-        const decoded = Buffer.from(payload, 'base64').toString('utf8');
-        const colonIdx = decoded.indexOf(':');
-        const userId = colonIdx > 0 ? parseInt(decoded.slice(0, colonIdx), 10) : NaN;
-        if (isNaN(userId))
-            throw new common_1.UnauthorizedException('登录已过期');
-        return userId;
-    }
-    catch {
-        throw new common_1.UnauthorizedException('登录已过期');
-    }
-}
 const draw_queries_1 = require("../../utils/draw-queries");
 const draw_period_no_1 = require("../../utils/draw-period-no");
 const BILLETE_RATE_DEFAULT = {
@@ -348,6 +283,7 @@ let DrawController = DrawController_1 = class DrawController {
             data: {
                 drawType: get('Tipo de Sorteo'),
                 drawDate: get('Fecha del Sorteo'),
+                drawDateSource: 'firebase-reference',
                 drawHora: get('Hora del Sorteo'),
                 primer,
                 segundo,
@@ -714,53 +650,11 @@ let DrawController = DrawController_1 = class DrawController {
             return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
         }
     }
-    async resetPendingDraw() {
-        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        await drawRepo
-            .createQueryBuilder()
-            .update(draw_entity_1.Draw)
-            .set({ status: 'canceled' })
-            .where('status = :s', { s: 'pending' })
-            .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
-            .andWhere('(shop_id IS NULL)')
-            .execute();
-        const nextDraw = getNextDrawDatePanama();
-        const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
-        const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
-        const next = drawRepo.create({
-            draw_date: nextDateStr,
-            draw_time: '15:00:00',
-            status: 'pending',
-            winning_numbers: '',
-            is_manual_override: false,
-            lottery_type: 'NACIONAL',
-            shop_id: null,
-            period_no: periodNo,
-        });
-        await drawRepo.save(next);
-        const nextDateDisplay = drawDateToDisplayString(nextDateStr);
-        this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
-        this.drawDayService.clearAutoArchiveFlag();
-        this.logger.log(`重置待开奖期: 新 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
-        return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
-    }
     async rollbackDraw() {
         const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         const completed = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
         if (!completed) {
             return { success: false, error: '没有可回滚的已完成开奖' };
-        }
-        if (completed.archived_at != null) {
-            return { success: false, error: '该期已归档，不可回滚。如确需回滚请先手动清除 archived_at' };
-        }
-        const redeemed = await orderRepo
-            .createQueryBuilder('o')
-            .where('o.draw_id = :did', { did: completed.draw_id })
-            .andWhere('o.redeemed_at IS NOT NULL')
-            .getCount();
-        if (redeemed > 0) {
-            return { success: false, error: `已有 ${redeemed} 笔订单完成兑奖，无法回滚` };
         }
         const nextPending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
         const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
@@ -768,16 +662,24 @@ let DrawController = DrawController_1 = class DrawController {
             await manager
                 .createQueryBuilder()
                 .update(order_entity_1.Order)
-                .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() })
-                .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
+                .set({
+                status: 1,
+                win_amount: 0,
+                win_breakdown: null,
+                settled_at: null,
+                redeemed_at: null,
+                updated_at: new Date(),
+            })
+                .where('draw_id = :did AND status IN (1, 2, 3)', { did: completed.draw_id })
                 .execute();
             await manager.update(draw_entity_1.Draw, completed.draw_id, {
                 status: 'pending',
                 winning_numbers: '',
                 archived_at: null,
+                main_shop_archived: false,
             });
             if (shouldDeleteNext) {
-                await manager.delete(draw_entity_1.Draw, nextPending.draw_id);
+                await manager.update(draw_entity_1.Draw, nextPending.draw_id, { status: 'canceled' });
             }
         });
         this.logger.log(`回滚开奖: draw_id=${completed.draw_id}`);
@@ -846,13 +748,6 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DrawController.prototype, "resetDrawTime", null);
 __decorate([
-    (0, common_1.Post)('reset-pending'),
-    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], DrawController.prototype, "resetPendingDraw", null);
-__decorate([
     (0, common_1.Post)('rollback'),
     (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
     __metadata("design:type", Function),
@@ -869,25 +764,6 @@ let AdminController = AdminController_1 = class AdminController {
         this.dataSource = dataSource;
         this.logger = new common_1.Logger(AdminController_1.name);
     }
-    async clearSettlement(req) {
-        requireValidBearerToken(req);
-        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
-        const result = await drawRepo
-            .createQueryBuilder()
-            .update(draw_entity_1.Draw)
-            .set({ archived_at: new Date() })
-            .where('status IN (:...statuses) AND archived_at IS NULL', { statuses: ['COMPLETED', 'completed'] })
-            .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
-            .andWhere('shop_id IS NULL')
-            .execute();
-        if (!result.affected || result.affected === 0) {
-            throw new common_1.NotFoundException('暂无已开奖期，无需清空');
-        }
-        return {
-            success: true,
-            message: `已清空开奖结算，共归档 ${result.affected} 期`,
-        };
-    }
     async cleanupNullDrawOrders() {
         const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
         const result = await orderRepo
@@ -902,13 +778,6 @@ let AdminController = AdminController_1 = class AdminController {
     }
 };
 exports.AdminController = AdminController;
-__decorate([
-    (0, common_1.Post)('clear-settlement'),
-    __param(0, (0, common_1.Req)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [typeof (_a = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _a : Object]),
-    __metadata("design:returntype", Promise)
-], AdminController.prototype, "clearSettlement", null);
 __decorate([
     (0, common_1.Post)('cleanup-null-draw-orders'),
     __metadata("design:type", Function),

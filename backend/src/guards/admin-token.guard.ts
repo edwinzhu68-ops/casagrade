@@ -5,15 +5,13 @@ import { DataSource } from 'typeorm';
 import { User } from '../entities/user.entity';
 
 /**
- * 管理员接口鉴权。优先级：
- *   1. Bearer token 有效 + 对应用户 role='admin'  （推荐，账号密码登录即可）
- *   2. X-Admin-Token 等于 ADMIN_TOKEN env（兼容保留，dev/过渡期）
+ * 管理员接口鉴权：
+ *   Bearer token 有效 + 对应用户 role='admin'。
  *
- * 路径白名单（ADMIN_PUBLIC_PATHS）跳过此 guard，如 clear-settlement 走 Bearer 校验但不要求 admin 身份。
+ * 路径白名单（ADMIN_PUBLIC_PATHS）跳过此 guard。
  */
 const ADMIN_PUBLIC_PATHS = new Set<string>([
   '/api/admin/health',
-  '/api/admin/clear-settlement',
 ]);
 
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
@@ -47,23 +45,12 @@ export class AdminTokenGuard implements CanActivate {
     // 白名单路径：不在此 guard 校验（方法内部可能自行校验 Bearer）
     if (req.path && ADMIN_PUBLIC_PATHS.has(req.path)) return true;
 
-    // 方案 1（首选）：Bearer token + user.role='admin'
+    // Bearer token + user.role='admin'
     const authHeader = (req.headers?.['authorization'] || '') as string;
     const userId = parseUserIdFromBearer(authHeader);
     if (userId) {
       const user = await this.dataSource.getRepository(User).findOne({ where: { user_id: userId } });
       if (user && user.role === 'admin') return true;
-    }
-
-    // 方案 2（兼容）：X-Admin-Token 精确匹配 env
-    const adminTokenEnv = process.env.ADMIN_TOKEN;
-    if (adminTokenEnv && adminTokenEnv !== '') {
-      const hdr = req.headers['x-admin-token'];
-      if (typeof hdr === 'string' && hdr.length === adminTokenEnv.length) {
-        const a = Buffer.from(hdr, 'utf8');
-        const b = Buffer.from(adminTokenEnv, 'utf8');
-        if (crypto.timingSafeEqual(a, b)) return true;
-      }
     }
 
     throw new UnauthorizedException('需要管理员账号登录');

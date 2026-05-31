@@ -7,7 +7,7 @@ export class SettlementController {
   constructor(private readonly settlementService: SettlementService) {}
 
   /**
-   * 手动结算指定期次（需管理员密钥）
+   * 手动结算指定期次（需管理员账号）
    * POST /api/settlement/settle/:drawId
    */
   @Post('settle/:drawId')

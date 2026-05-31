@@ -78,7 +78,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 async function bootstrap() {
   // 生产环境必须设置 TOKEN_SECRET（否则老板 token 用硬编码默认签名，任何人可伪造）
-  // ADMIN_TOKEN 改为可选：用户可以通过 ADMIN_ACCOUNT 指定管理员账号，不再必需密钥。
+  // 管理员接口使用管理员账号 Bearer token。
   const isProduction = process.env.NODE_ENV === 'production';
   if (isProduction) {
     if (!process.env.TOKEN_SECRET || process.env.TOKEN_SECRET.trim() === '') {

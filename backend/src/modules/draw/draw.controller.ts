@@ -1,39 +1,10 @@
-import { Controller, Get, Post, Body, Inject, Logger, UseGuards, NotFoundException, UnauthorizedException, Req } from '@nestjs/common';
-import { Request } from 'express';
+import { Controller, Get, Post, Body, Inject, Logger, UseGuards } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
-import * as crypto from 'crypto';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { AdminTokenGuard } from '../../guards/admin-token.guard';
 import { DrawDayService } from './draw-day.service';
-
-/** 验证 Bearer HMAC-SHA256 签名 token，失败抛 UnauthorizedException */
-function requireValidBearerToken(req: Request): number {
-  const authHeader = (req.headers?.['authorization'] || '') as string;
-  const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
-  if (!raw) throw new UnauthorizedException('请先登录');
-  const lastDot = raw.lastIndexOf('.');
-  if (lastDot <= 0) throw new UnauthorizedException('请先登录');
-  const payload = raw.slice(0, lastDot);
-  const sig = raw.slice(lastDot + 1);
-  const secret = process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    throw new UnauthorizedException('登录已过期');
-  }
-  try {
-    const decoded = Buffer.from(payload, 'base64').toString('utf8');
-    const colonIdx = decoded.indexOf(':');
-    const userId = colonIdx > 0 ? parseInt(decoded.slice(0, colonIdx), 10) : NaN;
-    if (isNaN(userId)) throw new UnauthorizedException('登录已过期');
-    return userId;
-  } catch {
-    throw new UnauthorizedException('登录已过期');
-  }
-}
 
 import {
   findNationalLastCompletedDraw,
@@ -315,7 +286,7 @@ export class DrawController {
   ) {}
 
   /**
-   * GET /api/draw/fetch-firebase - 从 Firebase 拉取巴拿马官方开奖数据（需管理员密钥）
+   * GET /api/draw/fetch-firebase - 从 Firebase 拉取巴拿马官方开奖数据（需管理员账号）
    * 数据源: https://loteria-panama.firebaseio.com/.json
    * 按 Tipo de Sorteo 解析位数：
    * - MIERCOLITO / DOMINICAL：三奖均为 4 位
@@ -372,7 +343,8 @@ export class DrawController {
       success: true,
       data: {
         drawType: get('Tipo de Sorteo'),
-        drawDate: get('Fecha del Sorteo'),   // 原样返回，如 "16-03-2026"
+        drawDate: get('Fecha del Sorteo'),   // Firebase 日期只作展示参考，前端不以它作为自动填入依据
+        drawDateSource: 'firebase-reference',
         drawHora: get('Hora del Sorteo'),    // 原样返回，如 "15:00" 或空
         primer,
         segundo,
@@ -384,7 +356,7 @@ export class DrawController {
   }
 
   /**
-   * GET /api/draw/fetch-lnb - 从 lnb.gob.pa 官网爬取开奖号码（需管理员密钥）
+   * GET /api/draw/fetch-lnb - 从 lnb.gob.pa 官网爬取开奖号码（需管理员账号）
    */
   @Get('fetch-lnb')
   @UseGuards(AdminTokenGuard)
@@ -574,7 +546,7 @@ export class DrawController {
   }
 
   /**
-   * POST /api/draw/time - 设置开奖时间（需管理员密钥）
+   * POST /api/draw/time - 设置开奖时间（需管理员账号）
    */
   @Post('time')
   @UseGuards(AdminTokenGuard)
@@ -649,7 +621,7 @@ export class DrawController {
   }
 
   /**
-   * POST /api/draw/manual - 手动开奖（需管理员密钥）
+   * POST /api/draw/manual - 手动开奖（需管理员账号）
    * 兼容前端字段：primer/billete, segundo/segundas, tercero/terceras
    */
   @Post('manual')
@@ -846,58 +818,13 @@ export class DrawController {
   }
 
   /**
-   * POST /api/draw/reset-pending - 兜底恢复：取消当前 pending 期，按服务器当前巴拿马时间重建正确的下一期
-   */
-  @Post('reset-pending')
-  @UseGuards(AdminTokenGuard)
-  async resetPendingDraw() {
-    const drawRepo = this.dataSource.getRepository(Draw);
-
-    // 仅取消全国 pending（不影响店内 TICA/NICA）
-    await drawRepo
-      .createQueryBuilder()
-      .update(Draw)
-      .set({ status: 'canceled' } as any)
-      .where('status = :s', { s: 'pending' })
-      .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
-      .andWhere('(shop_id IS NULL)')
-      .execute();
-
-    // 以服务器当前巴拿马时间为基准计算下次正常开奖日
-    const nextDraw = getNextDrawDatePanama();
-
-    const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
-
-    const periodNo = await getNextPeriodNoForScope(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
-    const next = drawRepo.create({
-      draw_date: nextDateStr as any,
-      draw_time: '15:00:00',
-      status: 'pending',
-      winning_numbers: '',
-      is_manual_override: false,
-      lottery_type: 'NACIONAL',
-      shop_id: null,
-      period_no: periodNo,
-    });
-    await drawRepo.save(next);
-    const nextDateDisplay = drawDateToDisplayString(nextDateStr);
-    // 立即同步 DrawDayService 内存状态，并清除 autoArchivedForDate 标志
-    // （测试开奖可能已触发归档标志，重置后需要确保下次真正开奖时能正常归档）
-    this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
-    this.drawDayService.clearAutoArchiveFlag();
-    this.logger.log(`重置待开奖期: 新 draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
-    return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
-  }
-
-  /**
-   * POST /api/draw/rollback - 回滚最近一次开奖（需管理员密钥）
+   * POST /api/draw/rollback - 回滚最近一次开奖（需管理员账号）
    * 将最新 completed 期恢复为 pending，重置所有已结算订单
    */
   @Post('rollback')
   @UseGuards(AdminTokenGuard)
   async rollbackDraw() {
     const drawRepo = this.dataSource.getRepository(Draw);
-    const orderRepo = this.dataSource.getRepository(Order);
 
     // 找最近一期全国已完成开奖
     const completed = await findNationalLastCompletedDraw(drawRepo);
@@ -905,33 +832,25 @@ export class DrawController {
       return { success: false, error: '没有可回滚的已完成开奖' };
     }
 
-    // 已归档期拒绝回滚（历史数据应保持不可变，避免报表和对账乱）
-    if ((completed as any).archived_at != null) {
-      return { success: false, error: '该期已归档，不可回滚。如确需回滚请先手动清除 archived_at' };
-    }
-
-    // 检查是否有已兑奖订单（redeemed_at 不为 null），有则拒绝回滚
-    const redeemed = await orderRepo
-      .createQueryBuilder('o')
-      .where('o.draw_id = :did', { did: completed.draw_id })
-      .andWhere('o.redeemed_at IS NOT NULL')
-      .getCount();
-    if (redeemed > 0) {
-      return { success: false, error: `已有 ${redeemed} 笔订单完成兑奖，无法回滚` };
-    }
-
-    // 先找出全国下一期 pending（draw_id 比 completed 大），稍后删除
+    // 先找出全国下一期 pending（draw_id 比 completed 大），稍后取消，避免出现两个 pending
     const nextPending = await findNationalPendingDraw(drawRepo);
     const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
 
-    // 三步写入用事务包裹，避免中途失败留下 "订单已重置但 draw 仍 completed" 或 "两个 pending 共存" 等不一致状态
+    // 强制回滚：把最近已开奖期恢复到未开奖状态，清除中奖/兑奖字段，供管理员立刻改号码后重新开奖。
     await this.dataSource.transaction(async (manager) => {
-      // 重置已结算订单（status 2/3）回 status=1，清除结算字段
+      // 重置已付款/已开奖/已中奖订单回 status=1，清除结算和兑奖字段
       await manager
         .createQueryBuilder()
         .update(Order)
-        .set({ status: 1, win_amount: 0, win_breakdown: null, settled_at: null, updated_at: new Date() } as any)
-        .where('draw_id = :did AND status IN (2, 3)', { did: completed.draw_id })
+        .set({
+          status: 1,
+          win_amount: 0,
+          win_breakdown: null,
+          settled_at: null,
+          redeemed_at: null,
+          updated_at: new Date(),
+        } as any)
+        .where('draw_id = :did AND status IN (1, 2, 3)', { did: completed.draw_id })
         .execute();
 
       // 恢复 draw 到 pending
@@ -939,11 +858,12 @@ export class DrawController {
         status: 'pending',
         winning_numbers: '',
         archived_at: null,
+        main_shop_archived: false,
       } as any);
 
-      // 删除自动创建的下一期 pending（避免出现两个 pending）
+      // 取消自动创建的下一期 pending（避免出现两个 pending，同时不留下孤儿订单）
       if (shouldDeleteNext) {
-        await manager.delete(Draw, nextPending!.draw_id);
+        await manager.update(Draw, nextPending!.draw_id, { status: 'canceled' } as any);
       }
     });
 
@@ -958,7 +878,7 @@ export class DrawController {
 }
 
 /**
- * 管理员Controller（开奖等，需管理员密钥）
+ * 管理员Controller（开奖等，需管理员账号）
  */
 @Controller('admin')
 @UseGuards(AdminTokenGuard)
@@ -968,37 +888,9 @@ export class AdminController {
   constructor(private readonly dataSource: DataSource) {}
 
   /**
-   * POST /api/admin/clear-settlement - 清空开奖结算（当前期转入历史）
-   * 不需要 X-Admin-Token（AdminGuard 白名单放行），但必须是登录的商家（Bearer token 有效）
-   */
-  @Post('clear-settlement')
-  async clearSettlement(@Req() req: Request) {
-    // 要求 Bearer token 有效（防止未登录的匿名调用归档当期数据）
-    requireValidBearerToken(req);
-
-    const drawRepo = this.dataSource.getRepository(Draw);
-    // 仅归档全国 NACIONAL completed draws，不要影响店内 TICA/NICA 历史
-    const result = await drawRepo
-      .createQueryBuilder()
-      .update(Draw)
-      .set({ archived_at: new Date() } as any)
-      .where('status IN (:...statuses) AND archived_at IS NULL', { statuses: ['COMPLETED', 'completed'] })
-      .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
-      .andWhere('shop_id IS NULL')
-      .execute();
-    if (!result.affected || result.affected === 0) {
-      throw new NotFoundException('暂无已开奖期，无需清空');
-    }
-    return {
-      success: true,
-      message: `已清空开奖结算，共归档 ${result.affected} 期`,
-    };
-  }
-
-  /**
    * 删除所有 draw_id 为空的历史订单（危险操作，仅用于清理旧脏数据）
    * POST /api/admin/cleanup-null-draw-orders
-   * 需要管理员密钥（AdminTokenGuard）
+   * 需要管理员账号（AdminTokenGuard）
    */
   @Post('cleanup-null-draw-orders')
   async cleanupNullDrawOrders() {

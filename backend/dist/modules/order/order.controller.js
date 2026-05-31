@@ -54,6 +54,7 @@ const typeorm_1 = require("typeorm");
 const order_entity_1 = require("../../entities/order.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
 const shop_binding_entity_1 = require("../../entities/shop-binding.entity");
+const user_entity_1 = require("../../entities/user.entity");
 async function findShopByNumber(shopRepo, number) {
     const byPrimary = await shopRepo.findOne({ where: { shop_number: number } });
     if (byPrimary)
@@ -715,6 +716,9 @@ let ShopController = ShopController_1 = class ShopController {
         if (!tokenUserId) {
             throw new common_2.UnauthorizedException('请先登录');
         }
+        const user = await this.dataSource.getRepository(user_entity_1.User).findOne({ where: { user_id: tokenUserId } });
+        if (user && user.role === 'admin')
+            return;
         const shopRepo = this.dataSource.getRepository(shop_entity_1.Shop);
         const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
         if (!shop) {

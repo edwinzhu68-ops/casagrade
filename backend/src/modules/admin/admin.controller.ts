@@ -194,6 +194,53 @@ export class AdminController {
   }
 
   /**
+   * GET /api/admin/current-period-stats - 总后台顶部统计
+   * 订单数/销售额统计当前 pending 期；店铺数固定统计上一期 completed 期。
+   * 店铺数只统计上一期有非取消订单的店铺；销售额只统计已付款/已开奖/已中奖订单。
+   */
+  @Get('current-period-stats')
+  async getCurrentPeriodStats() {
+    const summarize = async (drawId: number) => this.orderRepo.createQueryBuilder('o')
+      .select('COUNT(*)', 'total_orders')
+      .addSelect('COUNT(DISTINCT o.shop_id)', 'shop_count')
+      .addSelect('SUM(CASE WHEN o.status IN (1, 2, 3) THEN 1 ELSE 0 END)', 'paid_orders')
+      .addSelect('SUM(CASE WHEN o.status IN (1, 2, 3) THEN o.amount ELSE 0 END)', 'total_sales')
+      .where('o.draw_id = :drawId', { drawId })
+      .andWhere('o.status != :canceled', { canceled: -1 })
+      .andWhere('(o.lottery_type = :lt OR o.lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .getRawOne();
+
+    const currentDraw = await this.drawRepo.createQueryBuilder('d')
+      .where('LOWER(d.status) = :status', { status: 'pending' })
+      .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('d.shop_id IS NULL')
+      .orderBy('d.draw_id', 'DESC')
+      .getOne();
+
+    const previousDraw = await this.drawRepo.createQueryBuilder('d')
+      .where('LOWER(d.status) = :status', { status: 'completed' })
+      .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('d.shop_id IS NULL')
+      .orderBy('d.draw_id', 'DESC')
+      .getOne();
+
+    const currentRow = currentDraw ? await summarize(currentDraw.draw_id) : null;
+    const previousRow = previousDraw ? await summarize(previousDraw.draw_id) : null;
+
+    return {
+      success: true,
+      drawId: currentDraw?.draw_id ?? null,
+      drawSource: currentDraw ? 'pending' : null,
+      shopCountDrawId: previousDraw?.draw_id ?? null,
+      shopCountDrawSource: previousDraw ? 'latest-completed' : null,
+      shop_count: Number(previousRow?.shop_count || 0),
+      total_orders: Number(currentRow?.total_orders || 0),
+      paid_orders: Number(currentRow?.paid_orders || 0),
+      total_sales: Number(currentRow?.total_sales || 0),
+    };
+  }
+
+  /**
    * DELETE /api/admin/accounts/:accountNumber - 删除账号及其店铺（店号释放回随机池）
    */
   @Delete('accounts/:accountNumber')
@@ -571,30 +618,6 @@ export class AdminController {
   }
 
   /**
-   * POST /api/admin/archive-main-shop - 手动归档大庄管理中心数据
-   * 效果等同于开奖次日 09:00 自动归档：sub-shop-data 切换到下一期
-   */
-  @Post('archive-main-shop')
-  async archiveMainShop() {
-    const completed = await this.drawRepo.findOne({
-      where: { status: In(['completed', 'COMPLETED']) },
-      order: { draw_id: 'DESC' },
-    });
-    if (!completed) {
-      return { success: false, message: '没有已完成的期次可归档' };
-    }
-    if ((completed as any).main_shop_archived) {
-      return { success: false, message: '大庄数据已经归档过了' };
-    }
-    await this.drawRepo.update(completed.draw_id, {
-      main_shop_archived: true,
-      // 同步设置 archived_at，使大庄历史与结算历史、result 历史保持一致
-      archived_at: (completed as any).archived_at ?? new Date(),
-    } as any);
-    return { success: true, message: `已归档第 ${completed.draw_id} 期大庄数据` };
-  }
-
-  /**
    * GET /api/admin/logs - 获取错误日志（最近 100 行）
    * GET /api/admin/logs?lines=50 - 指定行数
    */
@@ -619,4 +642,3 @@ export class AdminController {
     return { success: true, logs: content, date: today };
   }
 }
-

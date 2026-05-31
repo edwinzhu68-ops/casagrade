@@ -129,7 +129,7 @@ export class DatabaseInitService implements OnModuleInit {
 
   /**
    * 启动时根据 ADMIN_ACCOUNT env 自动把该账号的 role 设为 'admin'。
-   * 让你（平台方）登录后即可操作 admin 接口，无需再用 X-Admin-Token 密钥。
+   * 让你（平台方）登录后即可操作 admin 接口。
    * 未设 env 或找不到账号时静默跳过，不影响启动。
    */
   private async bootstrapAdminAccount(): Promise<void> {

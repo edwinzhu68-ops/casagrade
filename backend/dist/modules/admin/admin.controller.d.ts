@@ -40,6 +40,17 @@ export declare class AdminController {
             sub_shop_count: number;
         }[];
     }>;
+    getCurrentPeriodStats(): Promise<{
+        success: boolean;
+        drawId: number;
+        drawSource: string;
+        shopCountDrawId: number;
+        shopCountDrawSource: string;
+        shop_count: number;
+        total_orders: number;
+        paid_orders: number;
+        total_sales: number;
+    }>;
     deleteAccount(accountNumber: string, req?: any): Promise<{
         success: boolean;
         message: string;
@@ -109,10 +120,6 @@ export declare class AdminController {
             total_payout: number;
             net_profit: number;
         }[];
-    }>;
-    archiveMainShop(): Promise<{
-        success: boolean;
-        message: string;
     }>;
     getLogs(lines?: string): Promise<{
         success: boolean;

@@ -4,6 +4,7 @@ import { DataSource, Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Shop } from '../../entities/shop.entity';
 import { ShopBinding } from '../../entities/shop-binding.entity';
+import { User } from '../../entities/user.entity';
 
 /** 按店号查找店铺，同时检查主号和别名（避免全表扫描） */
 async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Promise<Shop | null> {
@@ -767,6 +768,8 @@ export class ShopController {
     if (!tokenUserId) {
       throw new UnauthorizedException('请先登录');
     }
+    const user = await this.dataSource.getRepository(User).findOne({ where: { user_id: tokenUserId } });
+    if (user && user.role === 'admin') return;
     const shopRepo = this.dataSource.getRepository(Shop);
     const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
     if (!shop) {

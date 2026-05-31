@@ -196,6 +196,42 @@ let AdminController = AdminController_1 = class AdminController {
             }),
         };
     }
+    async getCurrentPeriodStats() {
+        const summarize = async (drawId) => this.orderRepo.createQueryBuilder('o')
+            .select('COUNT(*)', 'total_orders')
+            .addSelect('COUNT(DISTINCT o.shop_id)', 'shop_count')
+            .addSelect('SUM(CASE WHEN o.status IN (1, 2, 3) THEN 1 ELSE 0 END)', 'paid_orders')
+            .addSelect('SUM(CASE WHEN o.status IN (1, 2, 3) THEN o.amount ELSE 0 END)', 'total_sales')
+            .where('o.draw_id = :drawId', { drawId })
+            .andWhere('o.status != :canceled', { canceled: -1 })
+            .andWhere('(o.lottery_type = :lt OR o.lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .getRawOne();
+        const currentDraw = await this.drawRepo.createQueryBuilder('d')
+            .where('LOWER(d.status) = :status', { status: 'pending' })
+            .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('d.shop_id IS NULL')
+            .orderBy('d.draw_id', 'DESC')
+            .getOne();
+        const previousDraw = await this.drawRepo.createQueryBuilder('d')
+            .where('LOWER(d.status) = :status', { status: 'completed' })
+            .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('d.shop_id IS NULL')
+            .orderBy('d.draw_id', 'DESC')
+            .getOne();
+        const currentRow = currentDraw ? await summarize(currentDraw.draw_id) : null;
+        const previousRow = previousDraw ? await summarize(previousDraw.draw_id) : null;
+        return {
+            success: true,
+            drawId: currentDraw?.draw_id ?? null,
+            drawSource: currentDraw ? 'pending' : null,
+            shopCountDrawId: previousDraw?.draw_id ?? null,
+            shopCountDrawSource: previousDraw ? 'latest-completed' : null,
+            shop_count: Number(previousRow?.shop_count || 0),
+            total_orders: Number(currentRow?.total_orders || 0),
+            paid_orders: Number(currentRow?.paid_orders || 0),
+            total_sales: Number(currentRow?.total_sales || 0),
+        };
+    }
     async deleteAccount(accountNumber, req) {
         const account = (accountNumber || '').trim();
         if (!account)
@@ -461,23 +497,6 @@ let AdminController = AdminController_1 = class AdminController {
         }));
         return { history };
     }
-    async archiveMainShop() {
-        const completed = await this.drawRepo.findOne({
-            where: { status: (0, typeorm_2.In)(['completed', 'COMPLETED']) },
-            order: { draw_id: 'DESC' },
-        });
-        if (!completed) {
-            return { success: false, message: '没有已完成的期次可归档' };
-        }
-        if (completed.main_shop_archived) {
-            return { success: false, message: '大庄数据已经归档过了' };
-        }
-        await this.drawRepo.update(completed.draw_id, {
-            main_shop_archived: true,
-            archived_at: completed.archived_at ?? new Date(),
-        });
-        return { success: true, message: `已归档第 ${completed.draw_id} 期大庄数据` };
-    }
     async getLogs(lines = '100') {
         const logDir = path.join(__dirname, '..', '..', 'logs');
         const today = new Date().toISOString().split('T')[0];
@@ -513,6 +532,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "getAllShops", null);
+__decorate([
+    (0, common_1.Get)('current-period-stats'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "getCurrentPeriodStats", null);
 __decorate([
     (0, common_1.Delete)('accounts/:accountNumber'),
     __param(0, (0, common_1.Param)('accountNumber')),
@@ -599,12 +624,6 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "drawHistory", null);
-__decorate([
-    (0, common_1.Post)('archive-main-shop'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], AdminController.prototype, "archiveMainShop", null);
 __decorate([
     (0, common_1.Get)('logs'),
     __param(0, (0, common_1.Query)('lines')),

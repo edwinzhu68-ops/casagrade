@@ -49,7 +49,6 @@ const typeorm_1 = require("typeorm");
 const user_entity_1 = require("../entities/user.entity");
 const ADMIN_PUBLIC_PATHS = new Set([
     '/api/admin/health',
-    '/api/admin/clear-settlement',
 ]);
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
 function parseUserIdFromBearer(auth) {
@@ -90,16 +89,6 @@ let AdminTokenGuard = class AdminTokenGuard {
             const user = await this.dataSource.getRepository(user_entity_1.User).findOne({ where: { user_id: userId } });
             if (user && user.role === 'admin')
                 return true;
-        }
-        const adminTokenEnv = process.env.ADMIN_TOKEN;
-        if (adminTokenEnv && adminTokenEnv !== '') {
-            const hdr = req.headers['x-admin-token'];
-            if (typeof hdr === 'string' && hdr.length === adminTokenEnv.length) {
-                const a = Buffer.from(hdr, 'utf8');
-                const b = Buffer.from(adminTokenEnv, 'utf8');
-                if (crypto.timingSafeEqual(a, b))
-                    return true;
-            }
         }
         throw new common_1.UnauthorizedException('需要管理员账号登录');
     }
