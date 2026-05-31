@@ -2669,7 +2669,7 @@
               drawAtEl.textContent = _payCustomP || ((_pNoPay != null && String(_pNoPay).trim() !== '') ? ('#' + _pNoPay) : '--');
             } else {
               if (payDrawLabel) payDrawLabel.textContent = 'Lotería Sorteo';
-              var dateStr = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
+              var dateStr = (lastBetStatus && lastBetStatus.currentPeriodDate) ? lastBetStatus.currentPeriodDate : (document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '');
               drawAtEl.textContent = (dateStr && dateStr !== '--') ? dateStr : '--';
             }
           }
@@ -3403,7 +3403,7 @@
               drawAtEl2.textContent = _confCustomP || ((_pNoConf != null && String(_pNoConf).trim() !== '') ? ('#' + _pNoConf) : '--');
             } else {
               if (confDrawLabel) confDrawLabel.textContent = 'Lotería Sorteo';
-              var periodDate = document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '';
+              var periodDate = (lastBetStatus && lastBetStatus.currentPeriodDate) ? lastBetStatus.currentPeriodDate : (document.getElementById('client-period-date') ? document.getElementById('client-period-date').textContent : '');
               drawAtEl2.textContent = (periodDate && periodDate !== '--') ? periodDate : '--';
             }
           }
