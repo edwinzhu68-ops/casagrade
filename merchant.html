@@ -86,7 +86,7 @@
         <div class="text-6xl mb-4">🧾</div>
         <h1 class="text-2xl font-bold" data-i18n="login_title">门店收银工作台</h1>
         <p class="text-gray-400 mt-2" data-i18n="login_subtitle">账号（字母+数字）或店号（纯数字），密码相同</p>
-        <p class="text-gray-500 text-xs mt-3 leading-relaxed" data-i18n="login_hint_cashier">登录后可见：扫码收款、代客下单（当场收款）、开奖结算等入口。</p>
+        <p class="text-gray-500 text-xs mt-3 leading-relaxed" data-i18n="login_hint_cashier">登录后可见：扫码收款、下单（当场收款）、开奖结算等入口。</p>
       </div>
 
       <input type="text" id="merchant-account" placeholder="账号或店号（任选其一）" value=""
@@ -1009,6 +1009,13 @@
         billete_limit_label: 'Billete 每号最多',
         limit_unit: '张',
         limit_hint: '0 = 无限制',
+        palet_limit_label: 'Palet 每号最多',
+        settings_group_business: '店铺经营',
+        settings_group_security: '账户安全',
+        settings_group_device: '设备与显示',
+        hide_sales_title: '🙈 隐藏销售额',
+        hide_sales_desc: '开启后所有销售额显示为 ***',
+        email_verify_pwd_placeholder: '当前密码（验证用）',
         chance_price_label: 'Chance 单价',
         billete_price_label: 'Billete 单价',
         btn_save: '保存',
@@ -1336,6 +1343,13 @@
         billete_limit_label: 'Billete máx. por número',
         limit_unit: 'unid.',
         limit_hint: '0 = sin límite',
+        palet_limit_label: 'Palet máx. por número',
+        settings_group_business: 'Negocio',
+        settings_group_security: 'Seguridad',
+        settings_group_device: 'Dispositivo y pantalla',
+        hide_sales_title: '🙈 Ocultar ventas',
+        hide_sales_desc: 'Al activar, todas las ventas se muestran como ***',
+        email_verify_pwd_placeholder: 'Contraseña actual (verificación)',
         chance_price_label: 'Precio Chance',
         billete_price_label: 'Precio Billete',
         btn_save: 'Guardar',
@@ -1694,6 +1708,8 @@
       if (newPwd2 && MERCHANT_T[lang].pwd_confirm_placeholder) newPwd2.placeholder = MERCHANT_T[lang].pwd_confirm_placeholder;
       var settingsEmail = document.getElementById('settings-email');
       if (settingsEmail && MERCHANT_T[lang].email_new_placeholder) settingsEmail.placeholder = MERCHANT_T[lang].email_new_placeholder;
+      var settingsEmailCurPwd = document.getElementById('settings-email-cur-pwd');
+      if (settingsEmailCurPwd && MERCHANT_T[lang].email_verify_pwd_placeholder) settingsEmailCurPwd.placeholder = MERCHANT_T[lang].email_verify_pwd_placeholder;
       var shopNumEl = document.getElementById('shop-number');
       if (shopNumEl && currentShop) shopNumEl.textContent = currentShop.shop_number;
       else if (shopNumEl && MERCHANT_T[lang].shop_not_set) shopNumEl.textContent = MERCHANT_T[lang].shop_not_set;
@@ -2065,6 +2081,13 @@
       } catch (e) {}
     }
 
+    // null-safe 回填限额输入框：限额 input 现位于设置弹窗（脚本之后才解析的 DOM），
+    // 缓存恢复等同步路径执行时元素可能尚不存在，直接 .value= 会抛错并中断后续初始化。
+    function _setLimitVal(id, v) {
+      var el = document.getElementById(id);
+      if (el) el.value = (v != null ? v : '');
+    }
+
     function tryRestoreMerchantFromCache() {
       try {
         var raw = localStorage.getItem(MERCHANT_LAST_SHOP_JSON_KEY);
@@ -2079,12 +2102,12 @@
         showSubscriptionExpiry(s);
         limits.chance = s.limit_chance != null ? Number(s.limit_chance) : null;
         limits.billete = s.limit_billete != null ? Number(s.limit_billete) : null;
-        document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
-        document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
-        document.getElementById('tica-limit-chance').value = s.tica_limit_chance != null ? s.tica_limit_chance : '';
-        document.getElementById('tica-limit-palet').value = s.tica_limit_palet != null ? s.tica_limit_palet : '';
-        document.getElementById('nica-limit-chance').value = s.nica_limit_chance != null ? s.nica_limit_chance : '';
-        document.getElementById('nica-limit-palet').value = s.nica_limit_palet != null ? s.nica_limit_palet : '';
+        _setLimitVal('limit-chance', limits.chance);
+        _setLimitVal('limit-billete', limits.billete);
+        _setLimitVal('tica-limit-chance', s.tica_limit_chance);
+        _setLimitVal('tica-limit-palet', s.tica_limit_palet);
+        _setLimitVal('nica-limit-chance', s.nica_limit_chance);
+        _setLimitVal('nica-limit-palet', s.nica_limit_palet);
         syncLocalLotteryFeatureCheckboxes();
         applyMerchantLang();
         loadDashboard();
@@ -2143,12 +2166,12 @@
             showSubscriptionExpiry(currentShop);
             limits.chance = currentShop.limit_chance != null ? Number(currentShop.limit_chance) : null;
             limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
-            document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
-            document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
-            document.getElementById('tica-limit-chance').value = currentShop.tica_limit_chance != null ? currentShop.tica_limit_chance : '';
-            document.getElementById('tica-limit-palet').value = currentShop.tica_limit_palet != null ? currentShop.tica_limit_palet : '';
-            document.getElementById('nica-limit-chance').value = currentShop.nica_limit_chance != null ? currentShop.nica_limit_chance : '';
-            document.getElementById('nica-limit-palet').value = currentShop.nica_limit_palet != null ? currentShop.nica_limit_palet : '';
+            _setLimitVal('limit-chance', limits.chance);
+            _setLimitVal('limit-billete', limits.billete);
+            _setLimitVal('tica-limit-chance', currentShop.tica_limit_chance);
+            _setLimitVal('tica-limit-palet', currentShop.tica_limit_palet);
+            _setLimitVal('nica-limit-chance', currentShop.nica_limit_chance);
+            _setLimitVal('nica-limit-palet', currentShop.nica_limit_palet);
             syncLocalLotteryFeatureCheckboxes();
             document.getElementById('page-login').classList.add('hidden');
             document.getElementById('page-cashier').classList.remove('hidden');
@@ -2422,8 +2445,8 @@
         // 加载限额（从店铺数据读取，null = 无限制）
         limits.chance = currentShop.limit_chance != null ? Number(currentShop.limit_chance) : null;
         limits.billete = currentShop.limit_billete != null ? Number(currentShop.limit_billete) : null;
-        document.getElementById('limit-chance').value = limits.chance != null ? limits.chance : '';
-        document.getElementById('limit-billete').value = limits.billete != null ? limits.billete : '';
+        _setLimitVal('limit-chance', limits.chance);
+        _setLimitVal('limit-billete', limits.billete);
         syncLocalLotteryFeatureCheckboxes();
         document.getElementById('page-login').classList.add('hidden');
         document.getElementById('page-cashier').classList.remove('hidden');
@@ -7545,7 +7568,7 @@
 
         <!-- ── 店铺经营 ── -->
         <div class="space-y-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1">店铺经营</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1" data-i18n="settings_group_business">店铺经营</p>
 
           <!-- 充值卡密 -->
           <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
@@ -7595,33 +7618,33 @@
             </div>
             <div id="tica-limits-section" class="hidden grid grid-cols-2 gap-3">
               <div>
-                <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+                <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
                 <div class="flex items-center">
                   <input type="number" id="tica-limit-chance" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
-                  <span class="ml-1 text-gray-400">张</span>
+                  <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
                 </div>
               </div>
               <div>
-                <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+                <p class="text-xs text-gray-400 mb-1" data-i18n="palet_limit_label">Palet 每号最多</p>
                 <div class="flex items-center">
                   <input type="number" id="tica-limit-palet" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
-                  <span class="ml-1 text-gray-400">张</span>
+                  <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
                 </div>
               </div>
             </div>
             <div id="nica-limits-section" class="hidden grid grid-cols-2 gap-3">
               <div>
-                <p class="text-xs text-gray-400 mb-1">Chance 每号最多</p>
+                <p class="text-xs text-gray-400 mb-1" data-i18n="chance_limit_label">Chance 每号最多</p>
                 <div class="flex items-center">
                   <input type="number" id="nica-limit-chance" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
-                  <span class="ml-1 text-gray-400">张</span>
+                  <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
                 </div>
               </div>
               <div>
-                <p class="text-xs text-gray-400 mb-1">Palet 每号最多</p>
+                <p class="text-xs text-gray-400 mb-1" data-i18n="palet_limit_label">Palet 每号最多</p>
                 <div class="flex items-center">
                   <input type="number" id="nica-limit-palet" class="w-full text-center py-2 bg-black/25 border border-white/10 rounded-xl font-mono text-sm focus:border-green-500 focus:outline-none" />
-                  <span class="ml-1 text-gray-400">张</span>
+                  <span class="ml-1 text-gray-400" data-i18n="limit_unit">张</span>
                 </div>
               </div>
             </div>
@@ -7632,7 +7655,7 @@
 
         <!-- ── 账户安全 ── -->
         <div class="space-y-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1">账户安全</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1" data-i18n="settings_group_security">账户安全</p>
 
           <!-- 修改密码 -->
           <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
@@ -7667,7 +7690,7 @@
 
         <!-- ── 设备与显示 ── -->
         <div class="space-y-3">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1">设备与显示</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 px-1" data-i18n="settings_group_device">设备与显示</p>
 
           <!-- 蓝牙热敏打印 -->
           <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
@@ -7699,13 +7722,13 @@
           <!-- 隐藏销售额 -->
           <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-bold">🙈 隐藏销售额</p>
+              <p class="text-sm font-bold" data-i18n="hide_sales_title">🙈 隐藏销售额</p>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" id="hide-sales-toggle" class="sr-only peer" onchange="onHideSalesToggle(this.checked)">
                 <div class="w-11 h-6 bg-gray-600 peer-checked:bg-green-600 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
               </label>
             </div>
-            <p class="text-xs text-gray-500 mt-1">开启后所有销售额显示为 ***</p>
+            <p class="text-xs text-gray-500 mt-1" data-i18n="hide_sales_desc">开启后所有销售额显示为 ***</p>
           </div>
         </div>
 
