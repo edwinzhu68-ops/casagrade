@@ -15,6 +15,7 @@ var DrawController_1, AdminController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminController = exports.DrawController = void 0;
 const common_1 = require("@nestjs/common");
+const billete_payout_1 = require("../settlement/billete-payout");
 const typeorm_1 = require("typeorm");
 const draw_entity_1 = require("../../entities/draw.entity");
 const order_entity_1 = require("../../entities/order.entity");
@@ -48,33 +49,6 @@ function shopChanceRates(shop) {
     return [r1, r2, r3];
 }
 const CHANCE_RATE_DEFAULT = [14, 3, 2];
-function calcBilletePrizeForOneDraw(betNum, winRaw, qty, prizeIndex, exactRates = [2000, 600, 300]) {
-    const originalLen = winRaw.replace(/\D/g, '').length;
-    if (qty <= 0 || originalLen < 2)
-        return 0;
-    const b = betNum.slice(-4).padStart(4, '0');
-    const wDigits = winRaw.replace(/\D/g, '');
-    const w = (wDigits.length > 4 ? wDigits.slice(-4) : wDigits).padStart(4, '0');
-    if (originalLen < 4) {
-        if (b.substring(2, 4) === w.substring(2, 4))
-            return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
-        return 0;
-    }
-    if (b === w)
-        return exactRates[prizeIndex] * qty;
-    if (b.substring(0, 3) === w.substring(0, 3))
-        return BILLETE_RATE_DEFAULT.first3[prizeIndex] * qty;
-    if (b.substring(1, 4) === w.substring(1, 4))
-        return BILLETE_RATE_DEFAULT.last3[prizeIndex] * qty;
-    let sum = 0;
-    if (b.substring(0, 2) === w.substring(0, 2))
-        sum += BILLETE_RATE_DEFAULT.first2[prizeIndex];
-    if (b.substring(2, 4) === w.substring(2, 4))
-        return (sum + BILLETE_RATE_DEFAULT.last2[prizeIndex]) * qty;
-    if (b.substring(3, 4) === w.substring(3, 4))
-        sum += BILLETE_RATE_DEFAULT.last1[prizeIndex];
-    return sum * qty;
-}
 async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero) {
     const win1 = String(primer ?? '').replace(/\D/g, '');
     const win2 = String(segundo ?? '').replace(/\D/g, '');
@@ -105,44 +79,14 @@ async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero)
                 let matchInfo = '';
                 const numLen = num.replace(/\D/g, '').length;
                 if (numLen >= 4) {
-                    const betNum = num.slice(-4).padStart(4, '0');
-                    const isGordito = win2.length <= 2 && win3.length <= 2;
-                    const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0, exactRates);
-                    const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1, exactRates);
-                    const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2, exactRates);
-                    lineWin = win1Val + win2Val + win3Val;
-                    const matches = [];
-                    if (win1Val > 0)
-                        matches.push('头奖');
-                    if (win2Val > 0)
-                        matches.push('二奖');
-                    if (win3Val > 0)
-                        matches.push('三奖');
-                    if (matches.length > 0)
-                        matchInfo = matches.join('+');
+                    const r = (0, billete_payout_1.calcBilleteLineWin)(num, win1, win2, win3, qty, exactRates);
+                    lineWin = r.payout;
+                    matchInfo = r.matches.join(', ');
                 }
                 else if (numLen >= 2) {
-                    const betCh = num.slice(-2).padStart(2, '0');
-                    let winVal = 0;
-                    const matchedRates = [];
-                    if (betCh === ch1) {
-                        winVal += chanceRates[0] * qty;
-                        matchInfo += (matchInfo ? '+' : '') + '头奖';
-                        matchedRates.push(chanceRates[0]);
-                    }
-                    if (betCh === ch2) {
-                        winVal += chanceRates[1] * qty;
-                        matchInfo += (matchInfo ? '+' : '') + '二奖';
-                        matchedRates.push(chanceRates[1]);
-                    }
-                    if (betCh === ch3) {
-                        winVal += chanceRates[2] * qty;
-                        matchInfo += (matchInfo ? '+' : '') + '三奖';
-                        matchedRates.push(chanceRates[2]);
-                    }
-                    lineWin = winVal;
-                    if (matchInfo && matchedRates.length > 0)
-                        matchInfo += `(${matchedRates.join('+')})`;
+                    const r = (0, billete_payout_1.calcChanceLineWin)(num, win1, win2, win3, qty, chanceRates);
+                    lineWin = r.payout;
+                    matchInfo = r.matches.join(', ');
                 }
                 totalWin += lineWin;
                 winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });

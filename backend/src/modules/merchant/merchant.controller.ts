@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Delete, Patch, Body, Param, Query, Inject, Logger, Req, UnauthorizedException, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { isTokenTimeValid } from '../../utils/token-expiry';
 import { DataSource, In, IsNull, Not } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { Shop } from '../../entities/shop.entity';
@@ -54,9 +55,9 @@ setInterval(() => {
 // ─── Token 工具（HMAC-SHA256 签名） ─────────────────────────────────────────
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
 
-/** 创建签名 Token：base64(userId:account).hmac32 */
+/** 创建签名 Token：base64(userId:account:iat).hmac32（iat=签发时间，用于过期校验） */
 function createSignedToken(userId: number, accountNumber: string): string {
-  const payload = Buffer.from(`${userId}:${accountNumber}`).toString('base64');
+  const payload = Buffer.from(`${userId}:${accountNumber}:${Date.now()}`).toString('base64');
   const sig = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
   return `${payload}.${sig}`;
 }
@@ -83,11 +84,13 @@ function parseSignedToken(token: string): { userId: number; accountNumber: strin
 
   try {
     const decoded = Buffer.from(payload, 'base64').toString('utf8');
-    const colonIdx = decoded.indexOf(':');
-    if (colonIdx < 1) return null;
-    const userId = parseInt(decoded.slice(0, colonIdx), 10);
-    const accountNumber = decoded.slice(colonIdx + 1);
+    // 格式 userId:account[:iat]；account 为字母数字不含冒号，按 ':' 切分安全
+    const parts = decoded.split(':');
+    if (parts.length < 2) return null;
+    const userId = parseInt(parts[0], 10);
+    const accountNumber = parts[1];
     if (!userId || isNaN(userId)) return null;
+    if (!isTokenTimeValid(parts[2])) return null; // 过期 / 旧 token 超宽限期
     return { userId, accountNumber, signed: true };
   } catch { return null; }
 }

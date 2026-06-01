@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Patch, Delete, Param, Body, Inject, Logger, Query, Req, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { isTokenTimeValid } from '../../utils/token-expiry';
 import { Request } from 'express';
 import { DataSource, Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
@@ -41,10 +42,12 @@ function parseOrderToken(token: string): number | null {
   } catch { return null; }
   try {
     const decoded = Buffer.from(payload, 'base64').toString('utf8');
-    const colonIdx = decoded.indexOf(':');
-    if (colonIdx < 1) return null;
-    const userId = parseInt(decoded.slice(0, colonIdx), 10);
-    return isNaN(userId) ? null : userId;
+    const parts = decoded.split(':');
+    if (parts.length < 2) return null;
+    const userId = parseInt(parts[0], 10);
+    if (!userId || isNaN(userId)) return null;
+    if (!isTokenTimeValid(parts[2])) return null; // 过期 / 旧 token 超宽限期
+    return userId;
   } catch { return null; }
 }
 
@@ -688,6 +691,30 @@ export class OrderController implements OnModuleInit {
     }
     if (order.shop_id !== body.shopId) {
       throw new BadRequestException('店号不匹配：该订单属于其他店铺，不能在本店兑奖');
+    }
+    // 归属校验（IDOR 防御）：调用者必须是该店 owner / 其大庄 owner / admin，
+    // 否则任意已登录商家拿到他店中奖单号即可越权兑奖（标记已兑），造成资金纠纷。
+    // 放行范围与 ShopController.requireShopOwner 一致，确保不误伤自营/大庄/管理员正常流程。
+    {
+      const shopRepoAuth = this.dataSource.getRepository(Shop);
+      const shopOfOrder = await shopRepoAuth.findOne({ where: { shop_id: order.shop_id } });
+      if (!shopOfOrder) {
+        throw new UnauthorizedException('无权操作该店铺的订单');
+      }
+      const opUser = await this.dataSource.getRepository(User).findOne({ where: { user_id: tokenUserId } });
+      let allowed = (opUser && opUser.role === 'admin') || (shopOfOrder as any).owner_id === tokenUserId;
+      if (!allowed) {
+        const binding = await this.dataSource.getRepository(ShopBinding).findOne({
+          where: { sub_shop_id: order.shop_id, status: 'active' },
+        });
+        if (binding) {
+          const mainShop = await shopRepoAuth.findOne({ where: { shop_id: binding.main_shop_id } });
+          if (mainShop && (mainShop as any).owner_id === tokenUserId) allowed = true;
+        }
+      }
+      if (!allowed) {
+        throw new UnauthorizedException('无权操作其他店铺的订单');
+      }
     }
     if (order.status !== 3) {
       throw new BadRequestException(order.status === 1 ? '尚未开奖，无法兑奖' : '该订单未中奖或状态异常');

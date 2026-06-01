@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Inject, Logger, UseGuards } from '@nestjs/common';
+import { calcBilleteLineWin, calcChanceLineWin } from '../settlement/billete-payout';
 import { DataSource, Repository } from 'typeorm';
 import { Draw } from '../../entities/draw.entity';
 import { Order } from '../../entities/order.entity';
@@ -56,38 +57,6 @@ function shopChanceRates(shop: Shop | null): [number, number, number] {
  */
 const CHANCE_RATE_DEFAULT: [number, number, number] = [14, 3, 2];
 
-/**
- * 单个奖级计算：从高到低只取最高匹配档，返回 该档对应奖级的赔率×数量。
- * prizeIndex: 0=一等奖 1=二等奖 2=三等奖
- * 匹配顺序：4位 → 前3 → 后3 → 前2 → 后2 → 后1。
- */
-function calcBilletePrizeForOneDraw(
-  betNum: string,
-  winRaw: string,
-  qty: number,
-  prizeIndex: 0 | 1 | 2,
-  exactRates: [number, number, number] = [2000, 600, 300],
-): number {
-  const originalLen = winRaw.replace(/\D/g, '').length;
-  if (qty <= 0 || originalLen < 2) return 0;
-  const b = betNum.slice(-4).padStart(4, '0');
-  const wDigits = winRaw.replace(/\D/g, '');
-  const w = (wDigits.length > 4 ? wDigits.slice(-4) : wDigits).padStart(4, '0');
-  // 奖号不足4位（如2位数）：只比后两位，不做精确/前三/后三等高档比较
-  if (originalLen < 4) {
-    if (b.substring(2, 4) === w.substring(2, 4)) return BILLETE_RATE_DEFAULT.last2[prizeIndex] * qty;
-    return 0;
-  }
-  if (b === w) return exactRates[prizeIndex] * qty;
-  if (b.substring(0, 3) === w.substring(0, 3)) return BILLETE_RATE_DEFAULT.first3[prizeIndex] * qty;
-  if (b.substring(1, 4) === w.substring(1, 4)) return BILLETE_RATE_DEFAULT.last3[prizeIndex] * qty;
-  // 前两位和最后一位可叠加（如83xx中前两位3x + xxx4中最后一位1x = 4x）
-  let sum = 0;
-  if (b.substring(0, 2) === w.substring(0, 2)) sum += BILLETE_RATE_DEFAULT.first2[prizeIndex];
-  if (b.substring(2, 4) === w.substring(2, 4)) return (sum + BILLETE_RATE_DEFAULT.last2[prizeIndex]) * qty;
-  if (b.substring(3, 4) === w.substring(3, 4)) sum += BILLETE_RATE_DEFAULT.last1[prizeIndex];
-  return sum * qty;
-}
 
 /**
  * 开奖完成后结算「本期的已付款订单」：订单创建时已带 draw_id = 待开奖期 id，这里按 draw_id = 当前完成期 筛选并结算
@@ -137,31 +106,15 @@ async function settleOrdersForDraw(
         // 按号码位数区分规则：4位是Billete，2位是Chance（不再按game_type字段区分）
         const numLen = num.replace(/\D/g, '').length;
         if (numLen >= 4) {
-          // Billete：
-          // - 普通开奖（二三奖均为4位）：三个奖都参与，各取最高档，结果相加
-          // - GORDITO（二三奖为2位）：只与头奖比对
-          const betNum = num.slice(-4).padStart(4, '0');
-          const isGordito = win2.length <= 2 && win3.length <= 2;
-          const win1Val = calcBilletePrizeForOneDraw(betNum, win1, qty, 0, exactRates);
-          const win2Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win2, qty, 1, exactRates);
-          const win3Val = isGordito ? 0 : calcBilletePrizeForOneDraw(betNum, win3, qty, 2, exactRates);
-          lineWin = win1Val + win2Val + win3Val;
-          // 记录匹配档位
-          const matches: string[] = [];
-          if (win1Val > 0) matches.push('头奖');
-          if (win2Val > 0) matches.push('二奖');
-          if (win3Val > 0) matches.push('三奖');
-          if (matches.length > 0) matchInfo = matches.join('+');
+          // Billete（统一走 billete-payout 唯一真源，避免多份实现漂移）
+          const r = calcBilleteLineWin(num, win1, win2, win3, qty, exactRates);
+          lineWin = r.payout;
+          matchInfo = r.matches.join(', ');
         } else if (numLen >= 2) {
-          // Chance：取后2位，命中多档时赔率叠加；match 字符串只列出"实际命中"档的赔率（避免误显示成三档全中）
-          const betCh = num.slice(-2).padStart(2, '0');
-          let winVal = 0;
-          const matchedRates: number[] = [];
-          if (betCh === ch1) { winVal += chanceRates[0] * qty; matchInfo += (matchInfo ? '+' : '') + '头奖'; matchedRates.push(chanceRates[0]); }
-          if (betCh === ch2) { winVal += chanceRates[1] * qty; matchInfo += (matchInfo ? '+' : '') + '二奖'; matchedRates.push(chanceRates[1]); }
-          if (betCh === ch3) { winVal += chanceRates[2] * qty; matchInfo += (matchInfo ? '+' : '') + '三奖'; matchedRates.push(chanceRates[2]); }
-          lineWin = winVal;
-          if (matchInfo && matchedRates.length > 0) matchInfo += `(${matchedRates.join('+')})`;
+          // Chance（统一走 billete-payout 唯一真源）
+          const r = calcChanceLineWin(num, win1, win2, win3, qty, chanceRates);
+          lineWin = r.payout;
+          matchInfo = r.matches.join(', ');
         }
         totalWin += lineWin;
         winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });

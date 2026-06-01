@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Patch, Post, Query, Req } from '@nestjs/common';
+import { isTokenTimeValid } from '../../utils/token-expiry';
 import { Request } from 'express';
 import * as crypto from 'crypto';
 import { badBilingual, unauthorizedBilingual } from '../../utils/api-bilingual';
@@ -22,10 +23,12 @@ function parseOrderToken(token: string): number | null {
   }
   try {
     const decoded = Buffer.from(payload, 'base64').toString('utf8');
-    const colonIdx = decoded.indexOf(':');
-    if (colonIdx < 1) return null;
-    const userId = parseInt(decoded.slice(0, colonIdx), 10);
-    return isNaN(userId) ? null : userId;
+    const parts = decoded.split(':');
+    if (parts.length < 2) return null;
+    const userId = parseInt(parts[0], 10);
+    if (!userId || isNaN(userId)) return null;
+    if (!isTokenTimeValid(parts[2])) return null; // 过期 / 旧 token 超宽限期
+    return userId;
   } catch {
     return null;
   }

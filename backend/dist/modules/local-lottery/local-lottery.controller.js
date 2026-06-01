@@ -48,6 +48,7 @@ var _a, _b, _c, _d;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LocalLotteryController = void 0;
 const common_1 = require("@nestjs/common");
+const token_expiry_1 = require("../../utils/token-expiry");
 const express_1 = require("express");
 const crypto = __importStar(require("crypto"));
 const api_bilingual_1 = require("../../utils/api-bilingual");
@@ -73,11 +74,15 @@ function parseOrderToken(token) {
     }
     try {
         const decoded = Buffer.from(payload, 'base64').toString('utf8');
-        const colonIdx = decoded.indexOf(':');
-        if (colonIdx < 1)
+        const parts = decoded.split(':');
+        if (parts.length < 2)
             return null;
-        const userId = parseInt(decoded.slice(0, colonIdx), 10);
-        return isNaN(userId) ? null : userId;
+        const userId = parseInt(parts[0], 10);
+        if (!userId || isNaN(userId))
+            return null;
+        if (!(0, token_expiry_1.isTokenTimeValid)(parts[2]))
+            return null;
+        return userId;
     }
     catch {
         return null;

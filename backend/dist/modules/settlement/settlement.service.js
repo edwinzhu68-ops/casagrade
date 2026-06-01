@@ -15,6 +15,7 @@ var SettlementService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SettlementService = void 0;
 const common_1 = require("@nestjs/common");
+const billete_payout_1 = require("./billete-payout");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const order_entity_1 = require("../../entities/order.entity");
@@ -330,120 +331,12 @@ let SettlementService = SettlementService_1 = class SettlementService {
         return { matches, totalPayout };
     }
     calculateBilletePayout(num, winning, qty, exactRates = [2000, 600, 300]) {
-        const paddedNum = num.slice(-4).padStart(4, '0');
-        const p = winning.primer;
-        const s = winning.segundo;
-        const t = winning.tercero;
-        const primerNorm = p.length >= 4 ? p.slice(-4).padStart(4, '0') : null;
-        const segundoNorm = s.length >= 4 ? s.slice(-4).padStart(4, '0') : null;
-        const terceroNorm = t.length >= 4 ? t.slice(-4).padStart(4, '0') : null;
-        const isGordito = (s?.length ?? 0) <= 2 && (t?.length ?? 0) <= 2;
-        const matches = [];
-        let totalPayout = 0;
-        if (primerNorm) {
-            if (paddedNum === primerNorm) {
-                matches.push(`头奖四位 ${paddedNum} x${exactRates[0]}`);
-                totalPayout += exactRates[0] * qty;
-            }
-            else if (paddedNum.slice(0, 3) === primerNorm.slice(0, 3)) {
-                matches.push(`头奖前三位 x50`);
-                totalPayout += 50 * qty;
-            }
-            else if (paddedNum.slice(1, 4) === primerNorm.slice(1, 4)) {
-                matches.push(`头奖后三位 x50`);
-                totalPayout += 50 * qty;
-            }
-            else {
-                if (paddedNum.slice(0, 2) === primerNorm.slice(0, 2)) {
-                    matches.push(`头奖前两位 x3`);
-                    totalPayout += 3 * qty;
-                }
-                if (paddedNum.slice(2, 4) === primerNorm.slice(2, 4)) {
-                    matches.push(`头奖后两位 x3`);
-                    totalPayout += 3 * qty;
-                }
-                else if (paddedNum.slice(-1) === primerNorm.slice(-1)) {
-                    matches.push(`头奖最后一位 x1`);
-                    totalPayout += 1 * qty;
-                }
-            }
-        }
-        else {
-            if (paddedNum.slice(-2) === p.slice(-2).padStart(2, '0')) {
-                matches.push(`头奖后两位 ${p} x3`);
-                totalPayout += 3 * qty;
-            }
-        }
-        if (segundoNorm) {
-            if (paddedNum === segundoNorm) {
-                matches.push(`二奖四位 ${paddedNum} x${exactRates[1]}`);
-                totalPayout += exactRates[1] * qty;
-            }
-            else if (paddedNum.slice(0, 3) === segundoNorm.slice(0, 3)) {
-                matches.push(`二奖前三位 x20`);
-                totalPayout += 20 * qty;
-            }
-            else if (paddedNum.slice(1, 4) === segundoNorm.slice(1, 4)) {
-                matches.push(`二奖后三位 x20`);
-                totalPayout += 20 * qty;
-            }
-            else if (paddedNum.slice(2, 4) === segundoNorm.slice(2, 4)) {
-                matches.push(`二奖后两位 x2`);
-                totalPayout += 2 * qty;
-            }
-        }
-        else if (!isGordito) {
-            if (paddedNum.slice(-2) === s.slice(-2).padStart(2, '0')) {
-                matches.push(`二奖后两位 ${s} x2`);
-                totalPayout += 2 * qty;
-            }
-        }
-        if (terceroNorm) {
-            if (paddedNum === terceroNorm) {
-                matches.push(`三奖四位 ${paddedNum} x${exactRates[2]}`);
-                totalPayout += exactRates[2] * qty;
-            }
-            else if (paddedNum.slice(0, 3) === terceroNorm.slice(0, 3)) {
-                matches.push(`三奖前三位 x10`);
-                totalPayout += 10 * qty;
-            }
-            else if (paddedNum.slice(1, 4) === terceroNorm.slice(1, 4)) {
-                matches.push(`三奖后三位 x10`);
-                totalPayout += 10 * qty;
-            }
-            else if (paddedNum.slice(2, 4) === terceroNorm.slice(2, 4)) {
-                matches.push(`三奖后两位 x1`);
-                totalPayout += 1 * qty;
-            }
-        }
-        else if (!isGordito) {
-            if (paddedNum.slice(-2) === t.slice(-2).padStart(2, '0')) {
-                matches.push(`三奖后两位 ${t} x1`);
-                totalPayout += 1 * qty;
-            }
-        }
-        return { matches, totalPayout };
+        const r = (0, billete_payout_1.calcBilleteLineWin)(num, winning.primer, winning.segundo, winning.tercero, qty, exactRates);
+        return { matches: r.matches, totalPayout: r.payout };
     }
     calculateChancePayout(num, winning, quantity, rates = [14, 3, 2]) {
-        const paddedNum = num.padStart(2, '0');
-        const primerLast2 = winning.primer.slice(-2);
-        const segundoLast2 = winning.segundo.slice(-2);
-        const terceroLast2 = winning.tercero.slice(-2);
-        const matches = [];
-        let totalPayout = 0;
-        if (paddedNum === primerLast2) {
-            matches.push(`头奖后两位 ${paddedNum} x${rates[0]}`);
-            totalPayout += rates[0] * quantity;
-        }
-        if (paddedNum === segundoLast2) {
-            matches.push(`二奖后两位 ${paddedNum} x${rates[1]}`);
-            totalPayout += rates[1] * quantity;
-        }
-        if (paddedNum === terceroLast2) {
-            matches.push(`三奖后两位 ${paddedNum} x${rates[2]}`);
-            totalPayout += rates[2] * quantity;
-        }
-        return { matches, totalPayout };
+        const r = (0, billete_payout_1.calcChanceLineWin)(num, winning.primer, winning.segundo, winning.tercero, quantity, rates);
+        return { matches: r.matches, totalPayout: r.payout };
     }
     parseDrawResult(draw) {
         const raw = draw.winning_numbers;

@@ -49,6 +49,7 @@ var _a, _b, _c, _d, _e, _f;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BetStatusController = exports.ShopController = exports.OrderController = void 0;
 const common_1 = require("@nestjs/common");
+const token_expiry_1 = require("../../utils/token-expiry");
 const express_1 = require("express");
 const typeorm_1 = require("typeorm");
 const order_entity_1 = require("../../entities/order.entity");
@@ -92,11 +93,15 @@ function parseOrderToken(token) {
     }
     try {
         const decoded = Buffer.from(payload, 'base64').toString('utf8');
-        const colonIdx = decoded.indexOf(':');
-        if (colonIdx < 1)
+        const parts = decoded.split(':');
+        if (parts.length < 2)
             return null;
-        const userId = parseInt(decoded.slice(0, colonIdx), 10);
-        return isNaN(userId) ? null : userId;
+        const userId = parseInt(parts[0], 10);
+        if (!userId || isNaN(userId))
+            return null;
+        if (!(0, token_expiry_1.isTokenTimeValid)(parts[2]))
+            return null;
+        return userId;
     }
     catch {
         return null;
@@ -600,6 +605,28 @@ let OrderController = OrderController_1 = class OrderController {
         }
         if (order.shop_id !== body.shopId) {
             throw new common_1.BadRequestException('店号不匹配：该订单属于其他店铺，不能在本店兑奖');
+        }
+        {
+            const shopRepoAuth = this.dataSource.getRepository(shop_entity_1.Shop);
+            const shopOfOrder = await shopRepoAuth.findOne({ where: { shop_id: order.shop_id } });
+            if (!shopOfOrder) {
+                throw new common_2.UnauthorizedException('无权操作该店铺的订单');
+            }
+            const opUser = await this.dataSource.getRepository(user_entity_1.User).findOne({ where: { user_id: tokenUserId } });
+            let allowed = (opUser && opUser.role === 'admin') || shopOfOrder.owner_id === tokenUserId;
+            if (!allowed) {
+                const binding = await this.dataSource.getRepository(shop_binding_entity_1.ShopBinding).findOne({
+                    where: { sub_shop_id: order.shop_id, status: 'active' },
+                });
+                if (binding) {
+                    const mainShop = await shopRepoAuth.findOne({ where: { shop_id: binding.main_shop_id } });
+                    if (mainShop && mainShop.owner_id === tokenUserId)
+                        allowed = true;
+                }
+            }
+            if (!allowed) {
+                throw new common_2.UnauthorizedException('无权操作其他店铺的订单');
+            }
         }
         if (order.status !== 3) {
             throw new common_1.BadRequestException(order.status === 1 ? '尚未开奖，无法兑奖' : '该订单未中奖或状态异常');

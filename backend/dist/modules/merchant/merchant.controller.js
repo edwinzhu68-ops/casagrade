@@ -48,6 +48,7 @@ var MerchantController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MerchantController = void 0;
 const common_1 = require("@nestjs/common");
+const token_expiry_1 = require("../../utils/token-expiry");
 const typeorm_1 = require("typeorm");
 const user_entity_1 = require("../../entities/user.entity");
 const shop_entity_1 = require("../../entities/shop.entity");
@@ -94,7 +95,7 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
 function createSignedToken(userId, accountNumber) {
-    const payload = Buffer.from(`${userId}:${accountNumber}`).toString('base64');
+    const payload = Buffer.from(`${userId}:${accountNumber}:${Date.now()}`).toString('base64');
     const sig = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
     return `${payload}.${sig}`;
 }
@@ -118,12 +119,14 @@ function parseSignedToken(token) {
     }
     try {
         const decoded = Buffer.from(payload, 'base64').toString('utf8');
-        const colonIdx = decoded.indexOf(':');
-        if (colonIdx < 1)
+        const parts = decoded.split(':');
+        if (parts.length < 2)
             return null;
-        const userId = parseInt(decoded.slice(0, colonIdx), 10);
-        const accountNumber = decoded.slice(colonIdx + 1);
+        const userId = parseInt(parts[0], 10);
+        const accountNumber = parts[1];
         if (!userId || isNaN(userId))
+            return null;
+        if (!(0, token_expiry_1.isTokenTimeValid)(parts[2]))
             return null;
         return { userId, accountNumber, signed: true };
     }
