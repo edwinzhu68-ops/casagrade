@@ -6,245 +6,79 @@
   <title>casagrade · Guía</title>
   <link rel="stylesheet" href="customer.css"><script>window.tailwind={config:{}};</script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,800;0,9..144,900;1,9..144,500&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@600;700;900&display=swap');
-
-    :root{
-      --ivory:#f5efe2; --ivory-2:#ece2cf; --paper:#fffdf7; --paper-2:#fbf6ec;
-      --ink:#211f18; --ink-soft:#6a6657; --ink-faint:#9c947f;
-      --emerald:#0c5b3c; --emerald-2:#0f7a50; --emerald-bright:#15a06a;
-      --gold:#a9842f; --gold-2:#c9a23f; --gold-soft:#e7d39a;
-      --line:rgba(60,50,25,.12); --line-soft:rgba(60,50,25,.07);
-      --shadow:0 1px 2px rgba(40,33,14,.05), 0 14px 40px -18px rgba(40,33,14,.28);
-      --shadow-lg:0 2px 6px rgba(40,33,14,.07), 0 34px 70px -28px rgba(40,33,14,.42);
-      --font-display:'Fraunces','Noto Serif SC',serif;
-      --font-body:'Noto Sans SC',-apple-system,system-ui,sans-serif;
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+    body { font-family: 'Noto Sans SC', sans-serif; background: #f3f4f6; }
+    .mock { background: #111827; border-radius: 14px; overflow: hidden; font-size: 12px; }
+    .mock-bar { background: #1f2937; padding: 6px 10px; border-bottom: 1px solid #374151; display: flex; align-items: center; gap: 6px; }
+    .mock-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .step-wrap { position: relative; padding-bottom: 8px; }
+    .step-wrap:not(:last-child)::after {
+      content: ''; position: absolute; left: 22px; top: 52px; bottom: -8px;
+      width: 2px; background: linear-gradient(to bottom, #16a34a60, transparent);
     }
-
-    *{ -webkit-tap-highlight-color:transparent; }
-    body{
-      font-family:var(--font-body); color:var(--ink);
-      background:
-        radial-gradient(1100px 620px at 12% -8%, #ffffff 0%, transparent 55%),
-        radial-gradient(900px 600px at 92% 4%, #fbf4e3 0%, transparent 50%),
-        linear-gradient(178deg, var(--ivory) 0%, var(--ivory-2) 100%);
-      background-attachment:fixed;
-    }
-    /* 纸纹颗粒 */
-    body::before{
-      content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.05; mix-blend-mode:multiply;
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    }
-    body>*{ position:relative; z-index:1; }
-
-    h1,h2,h3,.font-display{ font-family:var(--font-display); letter-spacing:-.01em; }
-    .brand-word{ font-family:var(--font-display); font-weight:800; letter-spacing:-.02em; }
-
-    /* 章节速览导航 */
-    .chap-nav{ -ms-overflow-style:none; scrollbar-width:none; }
-    .chap-nav::-webkit-scrollbar{ display:none; }
-    .chap-pill{
-      font-size:12px; font-weight:700; white-space:nowrap; padding:6px 13px; border-radius:999px;
-      color:var(--ink-soft); background:rgba(255,253,247,.7); border:1px solid var(--line);
-      transition:all .25s ease; cursor:pointer; backdrop-filter:blur(6px);
-    }
-    .chap-pill:hover{ color:var(--emerald); border-color:var(--emerald); }
-    .chap-pill.active{ color:#fff; background:linear-gradient(135deg,var(--emerald-2),var(--emerald)); border-color:transparent; box-shadow:0 6px 16px -6px rgba(12,91,60,.6); }
-
-    /* HERO */
-    .hero{ position:relative; overflow:hidden;
-      background:
-        radial-gradient(120% 120% at 0% 0%, #143b2b 0%, transparent 55%),
-        radial-gradient(120% 130% at 100% 10%, #0c2c20 0%, transparent 60%),
-        linear-gradient(160deg,#0b2a1f 0%,#09231a 60%,#071c15 100%);
-    }
-    .hero::after{ content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
-      background:
-        radial-gradient(2px 2px at 20% 30%, rgba(231,211,154,.5), transparent),
-        radial-gradient(1.5px 1.5px at 70% 22%, rgba(231,211,154,.4), transparent),
-        radial-gradient(1.5px 1.5px at 85% 60%, rgba(231,211,154,.35), transparent),
-        radial-gradient(2px 2px at 35% 70%, rgba(231,211,154,.3), transparent);
-    }
-    .hero-ring{ position:absolute; border-radius:50%; border:1px solid rgba(231,211,154,.14); pointer-events:none; }
-    .gold-text{ background:linear-gradient(95deg,#f4e2ad,#d8b15a 55%,#b58a3a); -webkit-background-clip:text; background-clip:text; color:transparent; }
-
-    /* 价格卡 */
-    .price-card{ background:rgba(255,255,255,.06); border:1px solid rgba(231,211,154,.22); border-radius:18px; transition:transform .3s ease, border-color .3s ease; }
-    .price-card:hover{ transform:translateY(-3px); border-color:rgba(231,211,154,.5); }
-    .price-card.featured{ background:linear-gradient(180deg,rgba(231,211,154,.16),rgba(231,211,154,.04)); border-color:rgba(231,211,154,.55); }
-
-    /* 通用浅色卡升级 */
-    .bg-white.rounded-2xl{ background:var(--paper) !important; border:1px solid var(--line) !important; box-shadow:var(--shadow); }
-    .surface{ background:var(--paper); border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); }
-
-    /* 深色展示卡（设备/规格）精修 */
-    .bg-gray-900.rounded-2xl{ box-shadow:var(--shadow-lg); }
-
-    /* 模拟界面截图 */
-    .mock{ background:#0f1722; border-radius:16px; overflow:hidden; font-size:12px; box-shadow:0 18px 44px -22px rgba(20,30,20,.55), 0 0 0 1px rgba(255,255,255,.04) inset; }
-    .mock-bar{ background:#172230; padding:6px 10px; border-bottom:1px solid #25323f; display:flex; align-items:center; gap:6px; }
-    .mock-dot{ width:6px; height:6px; border-radius:50%; }
-
-    /* 步骤序号 + 连接线 */
-    .step-wrap{ position:relative; padding-bottom:8px; }
-    .step-wrap:not(:last-child)::after{
-      content:''; position:absolute; left:21px; top:54px; bottom:-10px; width:2px;
-      background:linear-gradient(to bottom, rgba(169,132,47,.55), rgba(12,91,60,.25), transparent);
-    }
-    .step-wrap > div:first-child{
-      background:linear-gradient(145deg,var(--emerald-2),var(--emerald)) !important;
-      box-shadow:0 8px 20px -8px rgba(12,91,60,.7), 0 0 0 4px rgba(255,253,247,.85), 0 0 0 5px var(--line);
-      font-family:var(--font-display); position:relative; z-index:2;
-    }
-
-    /* 章节标签 */
-    .section-label{
-      font-family:var(--font-display); font-size:12px; font-weight:700; letter-spacing:.04em;
-      padding:5px 15px; border-radius:999px; display:inline-block; margin-bottom:18px;
-      background:linear-gradient(135deg, rgba(12,91,60,.1), rgba(169,132,47,.12));
-      color:var(--emerald); border:1px solid var(--line); text-transform:none;
-    }
-    h3.font-bold{ color:var(--ink); }
-
-    /* 更新日志时间线 */
-    .cl-track{ position:relative; }
-    .cl-item{ position:relative; padding-left:30px; }
-    .cl-item::before{ content:''; position:absolute; left:9px; top:6px; bottom:-14px; width:2px; background:linear-gradient(to bottom, rgba(169,132,47,.5), rgba(169,132,47,.08)); }
-    .cl-item:last-child::before{ display:none; }
-    .cl-dot{ position:absolute; left:2px; top:3px; width:16px; height:16px; border-radius:50%; background:#1c2a1f; border:2px solid var(--gold-2); box-shadow:0 0 0 4px rgba(169,132,47,.14); }
-    .cl-item.latest .cl-dot{ background:var(--gold-2); box-shadow:0 0 0 4px rgba(169,132,47,.28); }
-
-    /* CTA 按钮微光 */
-    .btn-shine{ position:relative; overflow:hidden; }
-    .btn-shine::after{ content:''; position:absolute; top:0; left:-120%; width:60%; height:100%; transform:skewX(-20deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent); }
-    .btn-shine:hover::after{ animation:shine .9s ease; }
-    @keyframes shine{ to{ left:140%; } }
-
-    /* 滚动渐入 */
-    .reveal{ opacity:0; transform:translateY(26px); transition:opacity .7s cubic-bezier(.16,.84,.44,1), transform .7s cubic-bezier(.16,.84,.44,1); }
-    .reveal.in{ opacity:1; transform:none; }
-    @media (prefers-reduced-motion:reduce){ .reveal{ opacity:1 !important; transform:none !important; transition:none; } }
-
-    /* ── 工具类补齐：这些类不在预编译 customer.css 中，需显式定义 ── */
-    .pt-\[92px\]{ padding-top:92px; }
-    .top-12{ top:3rem; }
-    .z-40{ z-index:40; }
-    .text-\[34px\]{ font-size:34px; }
-    .leading-\[1\.12\]{ line-height:1.12; }
-    .pb-11{ padding-bottom:2.75rem; }
-    .mt-7{ margin-top:1.75rem; }
-    .mb-14{ margin-bottom:3.5rem; }
-    .mr-0\.5{ margin-right:.125rem; }
-    .ml-0\.5{ margin-left:.125rem; }
-    .p-7{ padding:1.75rem; }
-    .px-7{ padding-left:1.75rem; padding-right:1.75rem; }
-    .px-3\.5{ padding-left:.875rem; padding-right:.875rem; }
-    .py-3\.5{ padding-top:.875rem; padding-bottom:.875rem; }
-    .gap-2\.5{ gap:.625rem; }
-    .-top-2\.5{ top:-.625rem; }
-    .h-9{ height:2.25rem; }
-    .w-9{ width:2.25rem; }
-    .overflow-x-auto{ overflow-x:auto; }
-    .transition-transform{ transition-property:transform; transition-timing-function:cubic-bezier(.4,0,.2,1); transition-duration:.2s; }
-    .hover\:-translate-y-0\.5:hover{ transform:translateY(-2px); }
-    .text-amber-950{ color:#451a03; }
-    .text-green-100\/80{ color:rgba(220,252,231,.8); }
-    .text-green-200\/70{ color:rgba(187,247,208,.7); }
-    .ring-1{ box-shadow:0 0 0 1px var(--tw-ring,rgba(0,0,0,.06)); }
-    .ring-amber-500\/30{ --tw-ring:rgba(245,158,11,.3); }
-
-    @media print{
-      body::before, .no-print, .chap-nav-wrap{ display:none !important; }
-      body{ background:#fff !important; }
-      .reveal{ opacity:1 !important; transform:none !important; }
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .12em;
+      text-transform: uppercase; padding: 2px 10px; border-radius: 999px;
+      display: inline-block; margin-bottom: 14px;
     }
   </style>
 </head>
 <body>
 
   <!-- 顶栏 -->
-  <div class="fixed top-0 left-0 right-0 z-50 flex items-center h-12 px-4 no-print"
-    style="background:rgba(247,242,231,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);">
+  <div class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200 flex items-center h-12 px-4 no-print">
     <button onclick="toggleLang()" id="lang-btn"
-      class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition-colors"
-      style="background:rgba(255,253,247,.9);border:1px solid var(--line);color:var(--ink);">
+      class="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 rounded-full px-3 py-1.5 text-sm font-bold text-gray-700 transition-colors">
       <span id="lang-flag">🇵🇦</span><span id="lang-label">Español</span>
     </button>
-    <span class="brand-word absolute left-1/2 -translate-x-1/2 text-base" style="color:var(--emerald);">casagrade</span>
+    <span class="absolute left-1/2 -translate-x-1/2 font-black text-gray-800 text-sm tracking-wide">casagrade</span>
     <div class="flex items-center gap-2 ml-auto">
       <a href="https://wa.me/68040864" target="_blank" rel="noopener noreferrer"
-        class="flex items-center gap-1 text-white text-xs font-bold rounded-full px-3 py-1.5 transition-colors shadow-sm"
-        style="background:linear-gradient(135deg,#1bb866,#0f9a52);">
+        class="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-full px-3 py-1.5 transition-colors shadow-sm">
         <span>💬</span>
         <span data-zh="接软件设计开发" data-es="Desarrollo de software">接软件设计开发</span>
       </a>
-      <a href="merchant.html" class="text-sm font-semibold" style="color:var(--ink-soft);" data-zh="← 老板端" data-es="← Panel">← 老板端</a>
+      <a href="merchant.html" class="text-gray-400 hover:text-gray-700 text-sm" data-zh="← 老板端" data-es="← Panel">← 老板端</a>
     </div>
   </div>
 
-  <!-- 章节速览导航 -->
-  <div class="chap-nav-wrap fixed top-12 left-0 right-0 z-40 no-print"
-    style="background:rgba(247,242,231,.78);backdrop-filter:blur(10px);border-bottom:1px solid var(--line-soft);">
-    <div class="chap-nav max-w-2xl mx-auto flex items-center gap-2 px-4 py-2 overflow-x-auto">
-      <span class="text-[11px] font-bold shrink-0 mr-0.5" style="color:var(--gold);" data-zh="目录" data-es="Índice">目录</span>
-      <button class="chap-pill" data-chap="0" onclick="gotoChap(0)"><span data-zh="① 开始" data-es="① Inicio">① 开始</span></button>
-      <button class="chap-pill" data-chap="1" onclick="gotoChap(1)"><span data-zh="② 下单" data-es="② Pedidos">② 下单</span></button>
-      <button class="chap-pill" data-chap="2" onclick="gotoChap(2)"><span data-zh="③ 收款" data-es="③ Cobros">③ 收款</span></button>
-      <button class="chap-pill" data-chap="3" onclick="gotoChap(3)"><span data-zh="④ 管理" data-es="④ Gestión">④ 管理</span></button>
-      <button class="chap-pill" data-chap="4" onclick="gotoChap(4)"><span data-zh="⑤ 结算" data-es="⑤ Sorteo">⑤ 结算</span></button>
-      <button class="chap-pill" onclick="openChangelog()" style="margin-left:auto;"><span data-zh="🆕 更新" data-es="🆕 Novedades">🆕 更新</span></button>
-    </div>
-  </div>
-
-  <div class="pt-[92px]">
+  <div class="pt-12">
 
   <!-- Hero -->
-  <div class="hero text-white px-5 pt-12 pb-11 text-center">
-    <div class="hero-ring" style="width:460px;height:460px;top:-180px;left:50%;margin-left:-230px;"></div>
-    <div class="hero-ring" style="width:680px;height:680px;top:-290px;left:50%;margin-left:-340px;"></div>
-    <div class="relative max-w-md mx-auto">
-      <span class="inline-flex items-center gap-2 text-[11px] font-bold tracking-wide rounded-full px-3.5 py-1.5 mb-5"
-        style="background:rgba(231,211,154,.1);border:1px solid rgba(231,211,154,.3);color:var(--gold-soft);"
-        data-zh="支持 Lotería · TICA · NICA" data-es="Compatible con Lotería · TICA · NICA">支持 Lotería · TICA · NICA</span>
-      <h1 class="text-[34px] leading-[1.12] font-extrabold" style="font-family:var(--font-display);">
-        <span data-zh="店里不打单" data-es="Sin tickets en tienda">店里不打单</span><br>
-        <span class="gold-text" data-zh="门口不排队" data-es="sin cola en la puerta">门口不排队</span>
-      </h1>
-      <p class="text-green-100/80 text-sm mt-4 leading-relaxed max-w-xs mx-auto" data-zh="客人在家下单 · 老板确认收款 · 店里零痕迹" data-es="El cliente pide desde casa · tú confirmas en el móvil · sin rastros en tu tienda">客人在家下单 · 老板确认收款 · 店里零痕迹</p>
+  <div class="bg-gradient-to-br from-gray-900 via-gray-800 to-green-900 text-white px-5 py-10 text-center">
+    <div class="text-4xl mb-3">🛡️</div>
+    <h1 class="text-2xl font-black leading-tight" data-zh="店里不打单，门口不排队" data-es="Sin tickets en tienda, sin cola en la puerta">店里不打单，门口不排队</h1>
+    <p class="text-gray-300 text-sm mt-2 leading-relaxed max-w-xs mx-auto" data-zh="客人在家下单 · 老板确认收款 · 店里零痕迹" data-es="El cliente pide desde casa · tú confirmas en el móvil · sin rastros en tu tienda">客人在家下单 · 老板确认收款 · 店里零痕迹</p>
+    <p class="text-green-200 text-sm sm:text-base mt-2.5 font-semibold tracking-wide max-w-md mx-auto" data-zh="支持 Lotería · TICA · NICA" data-es="Compatible con Lotería · TICA · NICA">支持 Lotería · TICA · NICA</p>
+    <div class="mt-5 inline-block bg-green-500/20 border border-green-500/40 rounded-2xl px-6 py-3">
+      <p class="text-green-300 font-black text-base" data-zh="📱 一部手机管全店" data-es="📱 Gestiona todo desde un móvil">📱 一部手机管全店</p>
+      <p class="text-green-400/80 text-xs mt-1" data-zh="联网版 · 随时看每台机器销售数据 · 开奖自动结算" data-es="Versión en red · datos en tiempo real · liquidación automática">联网版 · 随时看每台机器销售数据 · 开奖自动结算</p>
+    </div>
 
-      <div class="mt-6 inline-flex flex-col items-center rounded-2xl px-7 py-4"
-        style="background:rgba(255,255,255,.05);border:1px solid rgba(231,211,154,.18);">
-        <p class="font-black text-base text-white" data-zh="📱 一部手机管全店" data-es="📱 Gestiona todo desde un móvil">📱 一部手机管全店</p>
-        <p class="text-green-200/70 text-xs mt-1" data-zh="联网版 · 随时看每台机器销售数据 · 开奖自动结算" data-es="Versión en red · datos en tiempo real · liquidación automática">联网版 · 随时看每台机器销售数据 · 开奖自动结算</p>
+    <!-- 定价 -->
+    <div class="mt-6 max-w-xs mx-auto">
+      <div class="bg-yellow-400 text-yellow-900 rounded-2xl px-5 py-2.5 mb-3">
+        <p class="font-black text-base" data-zh="🎉 注册免费试用一个月" data-es="🎉 Regístrate y prueba gratis 1 mes">🎉 注册免费试用一个月</p>
       </div>
-
-      <!-- 定价 -->
-      <div class="mt-7">
-        <div class="inline-flex items-center gap-2 rounded-full px-5 py-2 mb-4"
-          style="background:linear-gradient(135deg,#f4e2ad,#d8b15a);color:#5b430f;box-shadow:0 10px 26px -10px rgba(216,177,90,.6);">
-          <span class="font-black text-sm" data-zh="🎉 注册免费试用一个月" data-es="🎉 Regístrate y prueba gratis 1 mes">🎉 注册免费试用一个月</span>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="bg-white/10 border border-white/20 rounded-xl px-2 py-3">
+          <p class="text-yellow-400 text-[10px] font-bold mb-1" data-zh="月卡" data-es="Mensual">月卡</p>
+          <p class="text-white font-black text-lg">$50</p>
+          <p class="text-red-400 text-[10px] font-bold" data-zh="=$50/月" data-es="=$50/mes">=$50/月</p>
         </div>
-        <div class="grid grid-cols-3 gap-2.5 text-center">
-          <div class="price-card px-2 py-4">
-            <p class="text-[10px] font-bold mb-1.5" style="color:var(--gold-soft);" data-zh="月卡" data-es="Mensual">月卡</p>
-            <p class="text-white font-black text-xl" style="font-family:var(--font-display);">$50</p>
-            <p class="text-[10px] font-bold mt-0.5" style="color:rgba(231,211,154,.7);" data-zh="$50/月" data-es="$50/mes">$50/月</p>
-          </div>
-          <div class="price-card px-2 py-4">
-            <p class="text-[10px] font-bold mb-1.5" style="color:var(--gold-soft);" data-zh="半年卡" data-es="Semestral">半年卡</p>
-            <p class="text-white font-black text-xl" style="font-family:var(--font-display);">$240</p>
-            <p class="text-[10px] font-bold mt-0.5" style="color:rgba(231,211,154,.7);" data-zh="$40/月" data-es="$40/mes">$40/月</p>
-          </div>
-          <div class="price-card featured relative px-2 py-4">
-            <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full whitespace-nowrap"
-              style="background:linear-gradient(135deg,#f4e2ad,#d8b15a);color:#5b430f;" data-zh="最超值" data-es="Mejor valor">最超值</span>
-            <p class="text-[10px] font-bold mb-1.5" style="color:var(--gold-soft);" data-zh="年卡" data-es="Anual">年卡</p>
-            <p class="text-white font-black text-xl" style="font-family:var(--font-display);">$420</p>
-            <p class="text-[10px] font-bold mt-0.5" style="color:#7be0a8;" data-zh="$35/月" data-es="$35/mes">$35/月</p>
-          </div>
+        <div class="bg-white/10 border border-white/20 rounded-xl px-2 py-3">
+          <p class="text-yellow-400 text-[10px] font-bold mb-1" data-zh="半年卡" data-es="Semestral">半年卡</p>
+          <p class="text-white font-black text-lg">$240</p>
+          <p class="text-red-400 text-[10px] font-bold" data-zh="=$40/月" data-es="=$40/mes">=$40/月</p>
         </div>
-        <div class="mt-3 rounded-xl px-4 py-2.5" style="background:rgba(231,211,154,.08);border:1px solid rgba(231,211,154,.22);">
-          <p class="font-bold text-sm" style="color:var(--gold-soft);" data-zh="🏢 大庄团购还有专属优惠" data-es="🏢 Descuento especial para distribuidores">🏢 大庄团购还有专属优惠</p>
+        <div class="bg-white/10 border border-white/20 rounded-xl px-2 py-3">
+          <p class="text-yellow-400 text-[10px] font-bold mb-1" data-zh="年卡" data-es="Anual">年卡</p>
+          <p class="text-white font-black text-lg">$420</p>
+          <p class="text-red-400 text-[10px] font-bold" data-zh="=$35/月" data-es="=$35/mes">=$35/月</p>
         </div>
+      </div>
+      <div class="mt-2 bg-amber-500/20 border border-amber-400/50 rounded-xl px-4 py-2.5 text-center">
+        <p class="text-amber-300 font-black text-sm" data-zh="🏢 大庄团购还有专属优惠" data-es="🏢 Descuento especial para distribuidores">🏢 大庄团购还有专属优惠</p>
       </div>
     </div>
   </div>
@@ -276,18 +110,17 @@
   </div>
 
   <!-- 更新公告 -->
-  <div class="max-w-2xl mx-auto px-4 mt-4">
+  <div class="max-w-2xl mx-auto px-4 mt-3">
     <button onclick="openChangelog()"
-      class="surface w-full px-4 py-3.5 text-left flex items-center gap-3 transition-transform hover:-translate-y-0.5">
-      <div class="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-base"
-        style="background:linear-gradient(145deg,var(--emerald-2),var(--emerald));color:#fff;box-shadow:0 8px 18px -8px rgba(12,91,60,.6);">🆕</div>
+      class="w-full bg-gray-900 border border-gray-700 hover:border-gray-500 rounded-2xl px-4 py-3 text-left flex items-center gap-3 transition-colors group">
+      <div class="shrink-0 w-8 h-8 bg-green-600/20 border border-green-500/40 rounded-xl flex items-center justify-center text-sm">🆕</div>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
-          <span class="text-[11px] font-black px-2 py-0.5 rounded-full" style="background:rgba(169,132,47,.16);color:var(--gold);">v2.4</span>
-          <span class="text-[10px]" style="color:var(--ink-faint);">2026-05-31</span>
-          <span class="ml-auto text-[10px] font-bold" style="color:var(--emerald);" data-zh="查看全部更新 →" data-es="Ver todo →">查看全部更新 →</span>
+          <span class="text-green-400 text-xs font-bold">v2.2</span>
+          <span class="text-gray-500 text-[10px]">2026-04-29</span>
+          <span class="ml-auto text-gray-500 text-[10px] group-hover:text-gray-300 transition-colors" data-zh="查看全部更新 →" data-es="Ver todo →">查看全部更新 →</span>
         </div>
-        <p class="text-xs mt-0.5 truncate" style="color:var(--ink-soft);" data-zh="下单秒级确认 · 页面秒开 · 全新界面皮肤 · 多设备实时" data-es="Pedido al instante · carga veloz · nueva interfaz · multi-dispositivo">下单秒级确认 · 页面秒开 · 全新界面皮肤 · 多设备实时</p>
+        <p class="text-gray-300 text-xs mt-0.5 truncate" data-zh="订单秒级到账 · 跨期搜单 · 自定义期号 · 备注贯通" data-es="Pedidos al instante · búsqueda multi-sorteo · período personalizado · notas unificadas">订单秒级到账 · 跨期搜单 · 自定义期号 · 备注贯通</p>
       </div>
     </button>
   </div>
@@ -301,42 +134,12 @@
       </div>
       <div class="overflow-y-auto flex-1 px-4 py-3 space-y-3">
 
-        <!-- v2.4 -->
-        <div class="bg-gray-800 rounded-xl p-3 ring-1 ring-amber-500/30">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="bg-amber-500 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full">v2.4</span>
-            <span class="text-gray-500 text-[10px]">2026-05-31</span>
-            <span class="ml-auto bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full" data-zh="最新" data-es="Último">最新</span>
-          </div>
-          <p class="text-white text-xs font-bold mb-1.5" data-zh="⚡ 极速体验 · 下单秒级确认 · 页面秒开" data-es="⚡ Experiencia veloz · pedido al instante · carga rápida">⚡ 极速体验 · 下单秒级确认 · 页面秒开</p>
-          <ul class="space-y-1.5">
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-amber-400 shrink-0">→</span><span data-zh="下单秒级确认：点 Confirmar 即时反馈，去掉多余校验请求、统计改后台刷新，确认下单不再卡顿" data-es="Confirmar al instante: respuesta inmediata al tocar, sin verificaciones extra ni recargas que bloqueen; ya no se congela">下单秒级确认：点 Confirmar 即时反馈，统计后台刷新，不再卡顿</span></li>
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-purple-400 shrink-0">→</span><span data-zh="页面秒开：全站改用预编译样式，打开页面告别白屏卡顿，加载明显更快" data-es="Carga veloz: estilos precompilados en todo el sitio, las páginas abren al instante sin pantalla en blanco">页面秒开：全站预编译样式，告别白屏卡顿，加载更快</span></li>
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">→</span><span data-zh="升级一键下载：APP 升级提示新增「下载更新」直链，点一下直接下载新版，不用再找网页" data-es="Actualizar con un toque: el aviso de la APP trae enlace directo «Descargar», sin buscar la web">升级一键下载：APP 升级提示新增「下载更新」直链按钮</span></li>
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-green-400 shrink-0">→</span><span data-zh="修复电子单 Lotería 开奖日期偶尔显示 “--” 的问题" data-es="Corregido: la fecha de sorteo Lotería en el ticket digital ya no muestra «--»">修复电子单 Lotería 开奖日期偶尔显示 “--” 的问题</span></li>
-          </ul>
-        </div>
-
-        <!-- v2.3 -->
-        <div class="bg-gray-800 rounded-xl p-3">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v2.3</span>
-            <span class="text-gray-500 text-[10px]">2026-05-30</span>
-          </div>
-          <p class="text-white text-xs font-bold mb-1.5" data-zh="🎨 全新界面皮肤 · 多设备实时 · 安全加固" data-es="🎨 Nueva interfaz · tiempo real multi-dispositivo · seguridad reforzada">🎨 全新界面皮肤 · 多设备实时 · 安全加固</p>
-          <ul class="space-y-1.5">
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-purple-400 shrink-0">→</span><span data-zh="全新界面皮肤：顾客端象牙浅色、老板端深色高级皮肤，整体更精致耐看" data-es="Nueva apariencia: tema marfil claro para el cliente y tema oscuro premium para el comerciante, más refinado">全新界面皮肤：顾客端象牙浅色、老板端深色高级皮肤，更精致耐看</span></li>
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-blue-400 shrink-0">→</span><span data-zh="设置面板重做：功能分组 + 统一卡片，销售限额移入设置页，收银台更清爽" data-es="Ajustes rediseñados: agrupados en tarjetas; los límites de venta pasaron a Ajustes y la caja queda más limpia">设置面板重做：功能分组 + 统一卡片，限额移入设置，收银台更清爽</span></li>
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-purple-400 shrink-0">→</span><span data-zh="多设备实时同步：同账号多台设备，开奖号和销售数据实时一致，无需刷新" data-es="Sincronización en tiempo real: varios dispositivos con la misma cuenta ven el sorteo y las ventas al instante, sin recargar">多设备实时同步：开奖号和销售数据多设备实时一致，无需刷新</span></li>
-            <li class="text-gray-300 text-xs flex gap-1.5"><span class="text-green-400 shrink-0">→</span><span data-zh="安全全面加固：强化登录鉴权、防注入与越权访问、敏感信息脱敏，账号和数据更安全" data-es="Seguridad reforzada: autenticación más estricta, defensa contra inyección y accesos indebidos, datos sensibles protegidos">安全全面加固：登录鉴权强化、防注入越权、敏感信息脱敏</span></li>
-          </ul>
-        </div>
-
         <!-- v2.2 -->
         <div class="bg-gray-800 rounded-xl p-3">
           <div class="flex items-center gap-2 mb-2">
-            <span class="bg-gray-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v2.2</span>
+            <span class="bg-green-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">v2.2</span>
             <span class="text-gray-500 text-[10px]">2026-04-29</span>
+            <span class="ml-auto bg-green-600/20 text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full" data-zh="最新" data-es="Último">最新</span>
           </div>
           <p class="text-white text-xs font-bold mb-1.5" data-zh="⚡ 订单秒级到账 · 跨期搜单 · 自定义期号" data-es="⚡ Pedidos al instante · búsqueda multi-sorteo · período personalizado">⚡ 订单秒级到账 · 跨期搜单 · 自定义期号</p>
           <ul class="space-y-1.5">
@@ -1435,23 +1238,12 @@
   </div>
 
   <!-- Footer -->
-  <div class="max-w-2xl mx-auto px-4 mt-8 mb-14 text-center">
-    <div class="hero rounded-3xl p-7 text-white relative overflow-hidden">
-      <div class="hero-ring" style="width:380px;height:380px;top:-210px;left:50%;margin-left:-190px;"></div>
-      <p class="brand-word gold-text text-3xl relative">casagrade</p>
-      <p class="text-green-100/80 text-sm mt-2 relative" data-zh="让彩票生意更简单、更安全、更赚钱" data-es="Tu negocio de lotería: más simple, más seguro, más rentable">让彩票生意更简单、更安全、更赚钱</p>
-      <div class="flex items-center justify-center gap-2.5 mt-5 relative flex-wrap">
-        <a href="javascript:void(0)" onclick="window.open('https://casagrade.com/download/lottery-merchant.apk?v='+Date.now(),'_blank')"
-          class="btn-shine text-xs font-bold rounded-full px-4 py-2.5" style="background:linear-gradient(135deg,#f4e2ad,#d8b15a);color:#5b430f;"
-          data-zh="⬇️ 下载老板端 APP" data-es="⬇️ Descargar APP comerciante">⬇️ 下载老板端 APP</a>
-        <a href="https://wa.me/68040864" target="_blank" rel="noopener noreferrer"
-          class="text-xs font-bold rounded-full px-4 py-2.5" style="background:rgba(255,255,255,.08);border:1px solid rgba(231,211,154,.28);color:var(--gold-soft);"
-          data-zh="💬 联系我们" data-es="💬 Contáctanos">💬 联系我们</a>
-      </div>
+  <div class="max-w-2xl mx-auto px-4 mt-6 mb-12 text-center">
+    <div class="bg-gradient-to-r from-green-700 to-green-500 rounded-2xl p-5 text-white">
+      <p class="font-black text-xl">casagrade</p>
+      <p class="text-green-100 text-xs mt-1" data-zh="让彩票生意更简单、更安全、更赚钱" data-es="Tu negocio de lotería: más simple, más seguro, más rentable">让彩票生意更简单、更安全、更赚钱</p>
     </div>
-    <button onclick="window.print()" class="no-print mt-4 px-6 py-2 rounded-xl text-sm font-semibold"
-      style="background:var(--paper);border:1px solid var(--line);color:var(--ink-soft);"
-      data-zh="🖨️ 打印 / 保存 PDF" data-es="🖨️ Imprimir / Guardar PDF">🖨️ 打印 / 保存 PDF</button>
+    <button onclick="window.print()" class="no-print mt-4 px-6 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl text-gray-600 text-sm font-medium" data-zh="🖨️ 打印 / 保存 PDF" data-es="🖨️ Imprimir / Guardar PDF">🖨️ 打印 / 保存 PDF</button>
   </div>
 
   </div><!-- end pt-12 wrapper -->
@@ -1497,40 +1289,7 @@
       document.getElementById('modal-changelog').classList.add('hidden');
     }
 
-    // 章节速览：点击平滑滚动到对应章节（避开顶栏 + 章节导航高度）
-    function gotoChap(i) {
-      var labels = document.querySelectorAll('.section-label');
-      if (!labels[i]) return;
-      var y = labels[i].getBoundingClientRect().top + window.pageYOffset - 104;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    }
-
-    // 章节导航高亮 + 滚动渐入（不支持时安全降级为始终可见）
-    function initGuideMotion() {
-      var labels = document.querySelectorAll('.section-label');
-      var pills = document.querySelectorAll('.chap-pill[data-chap]');
-      if ('IntersectionObserver' in window) {
-        if (labels.length && pills.length) {
-          var chapObs = new IntersectionObserver(function (entries) {
-            entries.forEach(function (e) {
-              if (!e.isIntersecting) return;
-              var idx = Array.prototype.indexOf.call(labels, e.target);
-              pills.forEach(function (p) { p.classList.toggle('active', +p.dataset.chap === idx); });
-            });
-          }, { rootMargin: '-110px 0px -70% 0px' });
-          labels.forEach(function (l) { chapObs.observe(l); });
-        }
-        var revealEls = Array.prototype.slice.call(document.querySelectorAll('.max-w-2xl.mx-auto')).slice(2);
-        revealEls.forEach(function (el) { el.classList.add('reveal'); });
-        var revObs = new IntersectionObserver(function (entries) {
-          entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); revObs.unobserve(e.target); } });
-        }, { rootMargin: '0px 0px -8% 0px' });
-        revealEls.forEach(function (el) { revObs.observe(el); });
-      }
-    }
-
     applyLang();
-    initGuideMotion();
   </script>
 </body>
 </html>

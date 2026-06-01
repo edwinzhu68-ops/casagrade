@@ -969,6 +969,15 @@
     const MERCHANT_T = {
       zh: {
         lang_switch_title: '切换为西班牙语',
+        draw_date_edit_title: '修正当期开奖日期',
+        draw_date_edit_hint: '仅当 Lotería 官方改期、系统未及时更新时使用。修改后本店所有打印小票、电子票、顾客下单页都将显示此日期，下一期开奖后自动失效。',
+        draw_date_edit_server: '系统当前日期',
+        draw_date_edit_label: '设为',
+        draw_date_edit_active: '当前已自定义',
+        draw_date_edit_reset: '恢复默认',
+        btn_cancel: '取消',
+        poster_title: '店铺宣传海报',
+        poster_desc: '客户扫码直接进入您的店铺下单，无需输入店号',
         login_title: '门店收银工作台',
         login_subtitle: '使用账号或店号登录',
         login_account_placeholder: '账号或店号',
@@ -1303,6 +1312,15 @@
       },
       es: {
         lang_switch_title: 'Cambiar a español',
+        draw_date_edit_title: 'Corregir fecha del sorteo actual',
+        draw_date_edit_hint: 'Úsalo solo si la Lotería cambió la fecha oficial y el sistema no se actualizó a tiempo. Tras guardar, esta fecha aparecerá en todos los recibos impresos, tickets digitales y en la página del cliente; se anula automáticamente tras el siguiente sorteo.',
+        draw_date_edit_server: 'Fecha actual del sistema',
+        draw_date_edit_label: 'Establecer en',
+        draw_date_edit_active: 'Personalizada actual',
+        draw_date_edit_reset: 'Restaurar',
+        btn_cancel: 'Cancelar',
+        poster_title: 'Póster de tu tienda',
+        poster_desc: 'El cliente escanea el código y entra directo a tu tienda para pedir, sin escribir el número de tienda',
         login_title: 'Caja de ventas',
         login_subtitle: 'Inicia sesión con tu cuenta o número de tienda',
         login_account_placeholder: 'Cuenta o número de tienda',
@@ -2042,11 +2060,12 @@
     // 订单显示用中奖金额：优先用后端 win_amount；仅当 win_amount 为 0 时用 win_breakdown 之和兜底
     function getOrderWinAmount(order) {
       var w = Number(order && order.win_amount);
-      if (w === 0) {
+      if (!(w > 0)) {
         var b = order && order.win_breakdown;
         if (Array.isArray(b) && b.length > 0) {
           return b.reduce(function (s, i) { return s + (Number(i.win || i.payout) || 0); }, 0);
         }
+        return 0;
       }
       return w;
     }
@@ -2341,10 +2360,10 @@
         const registeredAccount = data.accountNumber || account;
         localStorage.setItem(REGISTERED_ACCOUNT_KEY, registeredAccount);
         closeRegisterModal();
-        var msg = (data.message || '注册成功') + '\n\n';
-        msg += '账号（字母+数字）：' + registeredAccount + '\n';
-        msg += '店号（纯数字）：' + (data.shop_number || '') + '\n\n';
-        msg += '两者均可登录，密码相同。请牢记。';
+        var msg = (data.message || (getMerchantLang() === 'zh' ? '注册成功' : 'Registro exitoso')) + '\n\n';
+        msg += (getMerchantLang() === 'zh' ? '账号（字母+数字）：' : 'Cuenta (letras+números): ') + registeredAccount + '\n';
+        msg += (getMerchantLang() === 'zh' ? '店号（纯数字）：' : 'N° tienda (solo números): ') + (data.shop_number || '') + '\n\n';
+        msg += (getMerchantLang() === 'zh' ? '两者均可登录，密码相同。请牢记。' : 'Ambos sirven para iniciar sesión con la misma contraseña. Guárdalos bien.');
         showToast(msg, 'success');
         // 注册成功后提示添加到桌面
         setTimeout(() => triggerMerchantPwaInstall(), 400);
@@ -4259,12 +4278,12 @@
         return '<div class="bg-gray-700 rounded-xl p-3 flex justify-between items-center">' +
           '<div onclick="viewOrder(\'' + safeFull + '\')" class="flex-1 cursor-pointer">' +
           orderPendingLotteryBadgeHtml(order) +
-          '<span class="font-mono font-bold text-sm">单号 ' + orderLast4(fullNum) + '</span>' +
+          '<span class="font-mono font-bold text-sm">' + (getMerchantLang() === 'zh' ? '单号 ' : 'N° ') + orderLast4(fullNum) + '</span>' +
           (_note ? '<span class="text-yellow-300 text-xs ml-1">（' + esc(_note) + '）</span>' : '') +
-          '<span class="text-gray-400 ml-2 text-xs">' + numLen + '个号</span></div>' +
+          '<span class="text-gray-400 ml-2 text-xs">' + numLen + (getMerchantLang() === 'zh' ? '个号' : ' núm.') + '</span></div>' +
           '<div class="text-right">' +
           '<span class="text-base font-bold text-orange-400">' + Number(order.amount || 0).toFixed(2) + '</span>' +
-          '<button onclick="quickConfirm(\'' + safeFull + '\')" class="ml-2 bg-orange-500 hover:bg-orange-600 px-4 py-1.5 rounded-lg text-sm font-bold">确认</button>' +
+          '<button onclick="quickConfirm(\'' + safeFull + '\')" class="ml-2 bg-orange-500 hover:bg-orange-600 px-4 py-1.5 rounded-lg text-sm font-bold">' + (getMerchantLang() === 'zh' ? '确认' : 'Cobrar') + '</button>' +
           '</div></div>';
       }
 
@@ -4747,6 +4766,8 @@
         var isEtEnabled = etToggle && etToggle.checked;
         // 互斥模式：电子单开→只出电子单；电子单关→只出纸单
         if (!isEtEnabled) {
+          // 打印阶段把 Confirmar 文案改成"打印中…"，让最多 8 秒的蓝牙等待变成可感知进度而非卡死
+          try { setCashierSubmitProcessing(true, getMerchantLang() === 'zh' ? '打印中…' : 'Imprimiendo…'); } catch (eP) {}
           // 打印加 8 秒超时，防止 BLE 写入卡死导致 cashierOrderBusy 永远为 true
           await Promise.race([
             autoPrintOrder(freshOrder),
@@ -4766,7 +4787,9 @@
       }
       // 下单成功后重置弹窗状态，继续接待下一个客人（不关闭弹窗）
       void openCashierOrderModal();
-      await loadDashboard();
+      // 统计后台刷新即可（页面有 1 秒轮询 loadDashboard），不要 await：
+      // 否则确认下单按钮会一直卡到 syncShopOrders + 多个 fetch + 渲染全部跑完才恢复。
+      void loadDashboard();
     }
 
     // ── 电子单弹窗 ─────────────────────────────────────────────
@@ -5179,18 +5202,14 @@
         showToast(getMerchantLang() === 'zh' ? '本店未开通 NICA' : 'NICA no disponible', 'warning');
         return;
       }
-      var betData2 = {};
-      try {
-        var betRes2 = await fetch(API_BASE + '/api/bet-status?shopId=' + encodeURIComponent(currentShop.shop_id), { cache: 'no-store' });
-        if (betRes2.ok) betData2 = await betRes2.json().catch(function () { return {}; });
-      } catch (eBet2) {}
-      if (!merchantCashierCanPlace(wb, betData2)) {
+      // 停售预检：同样改用缓存快照，避免超限裁剪后再次下单又卡一次网络请求。
+      var snap2 = cashierLastBetSnap;
+      if (snap2 && typeof snap2 === 'object' && !merchantCashierCanPlace(wb, snap2)) {
         showToast(t('cashier_stop_sale'), 'warning');
         return;
       }
       cashierOrderBusy = true;
-      var submitBtn2 = document.getElementById('btn-cashier-submit');
-      if (submitBtn2) submitBtn2.disabled = true;
+      setCashierSubmitProcessing(true);
       try {
         await cashierPostOrdersAndConfirm(wb);
       } catch (errOt) {
@@ -5198,7 +5217,7 @@
         showToast(errOt.message || t('alert_request_fail'), 'error');
       } finally {
         cashierOrderBusy = false;
-        if (submitBtn2) submitBtn2.disabled = false;
+        setCashierSubmitProcessing(false);
       }
     }
 
@@ -5279,6 +5298,23 @@
       } catch (eO2) {}
     }
 
+    // 下单按钮处理态：同时控制九宫格内 Confirmar(kb-btn-submit) 与合计区确认下单(btn-cashier-submit)。
+    // on=true：点击瞬间禁用并把 Confirmar 文案改成处理中/打印中，给即时反馈；on=false：恢复文案并按行数决定可点。
+    function setCashierSubmitProcessing(on, statusText) {
+      var kb = document.getElementById('kb-btn-submit');
+      var main = document.getElementById('btn-cashier-submit');
+      if (on) {
+        var busyText = statusText || (getMerchantLang() === 'zh' ? '处理中…' : 'Procesando…');
+        if (kb) { kb.disabled = true; kb.textContent = busyText; }
+        if (main) main.disabled = true;
+      } else {
+        var canSubmit = merchantCashierLines.length > 0;
+        var label = getMerchantLang() === 'zh' ? '确认下单' : 'Confirmar';
+        if (kb) { kb.disabled = !canSubmit; kb.textContent = label; }
+        if (main) main.disabled = false;
+      }
+    }
+
     async function submitMerchantCashierOrder() {
       if (!currentShop || cashierOrderBusy) return;
       if (merchantCashierLines.length === 0) {
@@ -5297,20 +5333,17 @@
         return;
       }
 
-      var betData = {};
-      try {
-        var betRes = await fetch(API_BASE + '/api/bet-status?shopId=' + encodeURIComponent(currentShop.shop_id), { cache: 'no-store' });
-        if (betRes.ok) betData = await betRes.json().catch(function () { return {}; });
-      } catch (eBet) {}
-
-      if (!merchantCashierCanPlace(wb, betData)) {
+      // 停售预检：用已缓存的 bet 快照（开窗时已拉取 + 弹窗内每 30 秒刷新），不再每次下单都发一次慢请求。
+      // cashierLastBetSnap 始终是合法对象（默认允许下单），真停售时快照会反映；服务端 POST /api/orders 仍是权威校验。
+      var snap = cashierLastBetSnap;
+      if (snap && typeof snap === 'object' && !merchantCashierCanPlace(wb, snap)) {
         showToast(t('cashier_stop_sale'), 'warning');
         return;
       }
 
+      // 立即进入处理态：点击瞬间给"Confirmar"反馈，并闭合重复提交窗口（busy 在首个 await 前置位）。
       cashierOrderBusy = true;
-      var submitBtn = document.getElementById('btn-cashier-submit');
-      if (submitBtn) submitBtn.disabled = true;
+      setCashierSubmitProcessing(true);
       try {
         await cashierPostOrdersAndConfirm(wb);
       } catch (err) {
@@ -5318,13 +5351,16 @@
         showToast(err.message || t('alert_request_fail'), 'error');
       } finally {
         cashierOrderBusy = false;
-        if (submitBtn) submitBtn.disabled = false;
+        setCashierSubmitProcessing(false);
       }
     }
 
     // 快速确认
+    var _quickConfirmBusy = {};
     async function quickConfirm(orderId) {
       if (!currentShop) return;
+      if (_quickConfirmBusy[orderId]) return; // 防同一单重复点击导致重复确认收款 + 重复出票
+      _quickConfirmBusy[orderId] = true;
       try {
         const res = await fetch(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}/confirm`, {
           method: 'POST',
@@ -5357,6 +5393,8 @@
       } catch (err) {
         console.error(err);
         showToast(err.message || t('alert_confirm_fail'), 'error');
+      } finally {
+        delete _quickConfirmBusy[orderId];
       }
     }
 
@@ -5557,7 +5595,7 @@
     function confirmDeleteOrder() {
       if (!currentOrder) return;
       var num = currentOrder.order_number || currentOrder.orderNumber || '';
-      document.getElementById('delete-confirm-order-id').textContent = '单号：' + num;
+      document.getElementById('delete-confirm-order-id').textContent = (getMerchantLang() === 'zh' ? '单号：' : 'N°: ') + num;
       document.getElementById('modal-delete-confirm').classList.remove('hidden');
     }
 
@@ -7296,7 +7334,7 @@
       const show = expires && (expired || daysLeft <= 14); // 有到期日 且（已过期 或 剩余≤14天）才显示
       const dateStr = expires ? fmtDate(expires) : '-----';
       const text = t('subscription_expires').replace('{date}', dateStr)
-        + (expired ? '（已过期）' : daysLeft !== null && daysLeft <= 14 ? `（剩 ${daysLeft} 天）` : '');
+        + (expired ? (getMerchantLang() === 'zh' ? '（已过期）' : ' (vencido)') : daysLeft !== null && daysLeft <= 14 ? (getMerchantLang() === 'zh' ? `（剩 ${daysLeft} 天）` : ` (quedan ${daysLeft} d)`) : '');
       for (const id of ['subscription-expires', 'subscription-expires-modal']) {
         const el = document.getElementById(id);
         if (!el) continue;

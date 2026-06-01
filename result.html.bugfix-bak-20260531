@@ -1149,12 +1149,11 @@
     // 订单显示用中奖金额：优先用后端 win_amount；仅当 win_amount 为 0 时用 win_breakdown 之和兜底
     function getOrderWinAmount(order) {
       var w = Number(order && order.win_amount);
-      if (!(w > 0)) {
+      if (w === 0) {
         var breakdown = order && order.win_breakdown;
         if (Array.isArray(breakdown) && breakdown.length > 0) {
           return breakdown.reduce(function (sum, item) { return sum + (Number(item.win || item.payout) || 0); }, 0);
         }
-        return 0;
       }
       return w;
     }
