@@ -5496,15 +5496,13 @@
       var isRedeemed = !!(order.redeemed_at && order.redeemed_at !== '' && order.redeemed_at !== 'null');
       var isWonNotRedeemed = isWon && !isRedeemed;
       var isSettledNoWin = (order.status === 2 || order.status === 'settled') && !isWon;
-      // 重新下单 = 复制同号码再下一单，对任意非取消订单都有意义；未开奖(待付款/已付款)也允许，
-      // 方便回头客在开奖前买同号。仅"已中奖未兑"例外（优先引导先兑奖，避免漏兑）。
-      var canReorder = isPending || isPaid || isSettledNoWin || (isWon && isRedeemed);
+      var canReorder = isSettledNoWin || (isWon && isRedeemed);
       var canModifyOrder = isPending || isPaid;
 
-      // 已中奖未兑：只显示兑奖按钮（不显示重下，先引导兑奖）
+      // 已中奖未兑：只显示兑奖按钮
       // 未中奖(settled)：显示重新下单
       // 已兑奖：显示"已兑奖"状态提示 + 重新下单
-      // 待付款/已付款：正常显示所有操作按钮 + 重新下单（未开奖也能一键复制同号码再下一单）
+      // 待付款/已付款：正常显示所有操作按钮
       document.getElementById('modal-btn-confirm-pay').classList.toggle('hidden', !isPending);
       document.getElementById('modal-btn-redeem').classList.toggle('hidden', !isWonNotRedeemed);
       document.getElementById('modal-btn-whatsapp').classList.toggle('hidden', isWonNotRedeemed || isSettledNoWin || (isWon && isRedeemed));
