@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>总后台 - 管理</title>
+  <link rel="stylesheet" href="operator.css"><script>window.tailwind={config:{}};</script>
+  <!-- ====== Operator 深色皮肤·实装(操作端;整段删除即回原样) ====== -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    var Gd={50:'#f7eccb',100:'#eedca0',200:'#e3c878',300:'#efd58f',400:'#e0bf6a',500:'#caa23f',600:'#b8902e',700:'#8f6f1f',800:'#6b520f',900:'#4d3b0b'};
+    tailwind.config={theme:{extend:{colors:{
+      green:{50:'#e9faf1',100:'#c9f3dd',200:'#9be9c2',300:'#63dca0',400:'#35e8a0',500:'#21b574',600:'#179a60',700:'#0f7849',800:'#0c5d3a',900:'#0a4a2f'},
+      amber:Gd, orange:Gd, yellow:Gd,
+      red:{50:'#fbeae6',100:'#f6cfc6',200:'#eda493',300:'#eb9a8c',400:'#e0705e',500:'#d4513f',600:'#bb4231',700:'#9a3526',800:'#742518',900:'#511a11'}
+    }, fontFamily:{sans:['Inter','PingFang SC','Microsoft YaHei','system-ui','sans-serif']}}}}
+  </script>
+  <style>
+    body{ background:radial-gradient(900px 520px at 50% -180px, rgba(53,232,160,.10), transparent 60%), linear-gradient(180deg,#15151b,#0d0d11) !important;
+      font-family:'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif; }
+    .bg-gray-800{ background:#1b1a20 !important; box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 16px 36px -24px rgba(0,0,0,.8); }
+    .shadow-lg{ box-shadow:0 16px 38px -20px rgba(0,0,0,.7) !important; }
+    #shop-number{ color:#e9cf86 !important; text-shadow:0 0 16px rgba(233,200,115,.25); }
+    .rounded-2xl{ border-radius:20px !important; } .rounded-xl{ border-radius:14px !important; }
+    button,[role=button]{ transition:transform .08s ease, filter .15s ease !important; }
+  </style>
+  <!-- ====== /Operator 皮肤·实装 ====== -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .hidden { display: none !important; }
+    [id^="modal-"]:not(.hidden) { animation: _m-bg .18s ease-out both; }
+    [id^="modal-"]:not(.hidden) > div:first-child { animation: _m-in .2s cubic-bezier(.34,1.4,.64,1) both; }
+    @keyframes _m-bg { from{opacity:0}to{opacity:1} }
+    @keyframes _m-in { from{opacity:0;transform:scale(.92) translateY(12px)}to{opacity:1;transform:none} }
+    button,[role="button"]{transition:transform .1s,opacity .1s;-webkit-tap-highlight-color:transparent}
+    button:active,[role="button"]:active{transform:scale(.96);opacity:.85}
+    @keyframes drawReadyPulse {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(74,222,128,0.7); }
+      50% { opacity: 0.92; transform: scale(1.01); box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  
+  <!-- 登录页 -->
+  <div id="page-login" class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-800 rounded-3xl shadow-2xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <div class="text-6xl mb-4">⚙️</div>
+        <h1 class="text-2xl font-bold">总后台</h1>
+        <p class="text-gray-400 mt-2">管理员登录</p>
+      </div>
+      
+      <input type="text" id="admin-account" placeholder="账号"
+        class="w-full text-center text-xl py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-green-500 focus:outline-none mb-3" />
+      
+      <input type="password" id="admin-password" placeholder="密码"
+        class="w-full text-center text-xl py-3 border-2 border-gray-600 rounded-xl bg-gray-700 focus:border-green-500 focus:outline-none mb-6" />
+      
+      <button onclick="login()" class="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-xl">
+        登录
+      </button>
+    </div>
+  </div>
+
+  <!-- 总后台主页 -->
+  <div id="page-admin" class="hidden min-h-screen pb-20">
+    <header class="bg-gray-800 p-3 sticky top-0 z-10">
+      <div class="max-w-4xl mx-auto flex justify-between items-center">
+        <div>
+          <h1 class="font-bold text-lg">⚙️ 总后台</h1>
+          <p class="text-xs text-gray-400">全部店铺销售监控</p>
+        </div>
+        <button onclick="logout()" class="text-gray-400 text-sm">退出</button>
+      </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto p-3 space-y-3">
+      <!-- 总体统计 -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-4 text-center">
+          <p class="text-sm opacity-80">店铺数</p>
+          <p class="text-3xl font-bold" id="total-shops">0</p>
+        </div>
+        <div class="bg-gradient-to-r from-green-600 to-green-500 rounded-2xl p-4 text-center">
+          <p class="text-sm opacity-80">当期订单数</p>
+          <p class="text-3xl font-bold" id="total-orders">0</p>
+        </div>
+        <div class="bg-gradient-to-r from-yellow-600 to-yellow-500 rounded-2xl p-4 text-center">
+          <p class="text-sm opacity-80">当期销售额（已付）</p>
+          <p class="text-3xl font-bold" id="total-sales">$0</p>
+        </div>
+      </div>
+
+      <!-- 历史期次总订单数 / 销售额 -->
+      <div class="flex justify-end mt-1">
+        <button onclick="openHistoryModal()" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg">
+          查看历史期次汇总
+        </button>
+      </div>
+
+      <!-- Firebase 拉取 + 手动开奖 -->
+      <div class="bg-gray-800 rounded-2xl p-4 mb-4">
+        <div class="border-gray-600">
+          <h3 class="font-bold mb-2 text-sm">🔥 Firebase 开奖（巴拿马官方）</h3>
+          <p class="text-xs text-gray-400 mb-2">拉取一次：直接填入 1/2/3 奖号码，日期不填（在下方手动开奖处用 YYYY-MM-DD 单独填）。「开始轮询」= 开奖日到点后每隔一段时间自动拉取，拉取到完整号码后会自动填入。</p>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <button onclick="fetchFirebaseDraw()" class="bg-amber-600 hover:bg-amber-500 py-2 px-3 rounded-lg font-bold text-sm">
+              拉取一次
+            </button>
+            <button id="btn-start-poll" onclick="toggleFirebasePoll()" class="bg-purple-600 hover:bg-purple-500 py-2 px-3 rounded-lg font-bold text-sm">
+              开始轮询
+            </button>
+            <button id="btn-stop-poll" onclick="stopFirebasePoll()" class="hidden bg-gray-600 hover:bg-gray-500 py-2 px-3 rounded-lg font-bold text-sm">
+              停止轮询
+            </button>
+            <button id="btn-confirm-firebase" onclick="fillFirebaseIntoManualDraw()" class="flex-1 bg-green-600 hover:bg-green-500 py-2 rounded-lg font-bold text-sm hidden">
+              填入手动开奖
+            </button>
+          </div>
+          <div id="firebase-draw-result" class="hidden text-sm bg-gray-900/60 rounded-lg p-3 space-y-1 font-mono mb-4">
+            <div><span class="text-gray-400">Fecha del Sorteo (参考)</span> <span id="fb-date"></span></div>
+            <div><span class="text-gray-400">Hora del Sorteo</span> <span id="fb-hora"></span></div>
+            <div><span class="text-gray-400">Tipo de Sorteo</span> <span id="fb-type"></span></div>
+            <div><span class="text-gray-400">Primer Premio</span> <span id="fb-primer" class="text-green-300 font-bold"></span></div>
+            <div><span class="text-gray-400">Segundo Premio</span> <span id="fb-segundo" class="text-green-300 font-bold"></span></div>
+            <div><span class="text-gray-400">Tercer Premio</span> <span id="fb-tercero" class="text-green-300 font-bold"></span></div>
+            <div><span class="text-gray-400">Letras</span> <span id="fb-letras"></span></div>
+            <!-- 准备开奖提示：日期匹配今天且号码未出时显示 -->
+            <div id="fb-preparing" class="hidden mt-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-yellow-300 text-xs text-center"></div>
+          </div>
+        </div>
+
+        <div class="border-t border-gray-600 pt-4 mt-2">
+          <h3 class="font-bold mb-2 text-sm">🎰 手动开奖</h3>
+          <div class="flex items-center gap-2 mb-2">
+            <p id="confirmed-draw-status" class="text-xs text-gray-400">系统开奖时间：--（巴拿马时间）</p>
+            <span id="manual-override-badge" class="hidden text-xs bg-yellow-500 text-black font-bold px-1.5 py-0.5 rounded">手动覆盖</span>
+          </div>
+          <!-- 回滚后警告横幅 -->
+          <div id="rollback-warning" class="hidden bg-red-900 border border-red-500 rounded-lg px-4 py-3 mb-3 flex items-center justify-between">
+            <span class="text-red-200 font-bold text-sm">⚠️ 已回滚！请立即修改开奖号码后重新发送</span>
+            <button onclick="document.getElementById('rollback-warning').classList.add('hidden')" class="text-red-400 hover:text-white text-lg ml-3">×</button>
+          </div>
+          <p class="text-xs text-gray-400 mb-2">默认下次周三 15:00；节假日顺延时请修改日期/时间，轮询将按你填的日期时间执行。</p>
+          <div class="grid grid-cols-4 gap-2 mb-3">
+            <div>
+              <p class="text-xs text-gray-400 mb-1">开奖日期</p>
+              <div class="space-y-1.5">
+                <div class="flex items-center bg-gray-700 rounded-lg font-mono py-1.5 px-2 gap-0">
+                  <input type="text" id="draw-date-dd" maxlength="2" inputmode="numeric" placeholder="DD"
+                    class="w-7 text-center bg-transparent focus:bg-gray-600 rounded focus:outline-none" />
+                  <span class="text-gray-500 select-none text-xs">/</span>
+                  <input type="text" id="draw-date-mm" maxlength="2" inputmode="numeric" placeholder="MM"
+                    class="w-7 text-center bg-transparent focus:bg-gray-600 rounded focus:outline-none" />
+                  <span class="text-gray-500 select-none text-xs">/</span>
+                  <input type="text" id="draw-date-yyyy" maxlength="4" inputmode="numeric" placeholder="YYYY"
+                    class="w-12 text-center bg-transparent focus:bg-gray-600 rounded focus:outline-none" />
+                </div>
+                <input type="time" id="draw-time" value="15:00"
+                  class="w-full text-center py-1.5 bg-gray-700 rounded-lg font-mono" onchange="saveNextDrawDefault()" />
+              </div>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1">1奖</p>
+              <input type="text" id="draw-1st" maxlength="5" placeholder="2/4/5位"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1">2奖</p>
+              <input type="text" id="draw-2nd" maxlength="5" placeholder="2/4/5位"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+            </div>
+            <div>
+              <p class="text-xs text-gray-400 mb-1">3奖</p>
+              <input type="text" id="draw-3rd" maxlength="5" placeholder="2/4/5位"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+            </div>
+          </div>
+          <button onclick="confirmManualDraw()" class="w-full bg-red-600 hover:bg-red-500 active:scale-95 py-5 rounded-2xl font-bold text-2xl tracking-wide shadow-lg shadow-red-900/50 transition-transform mb-3">
+            🔴 发送开奖结果
+          </button>
+          <div class="space-y-3">
+            <button onclick="sendDrawTime()" class="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 py-5 rounded-2xl font-bold text-2xl tracking-wide shadow-lg shadow-blue-900/40 transition-transform">
+              📅 修改开奖时间
+            </button>
+            <button onclick="rollbackDraw()" class="w-full bg-orange-700 hover:bg-orange-600 active:scale-95 py-5 rounded-2xl font-bold text-2xl tracking-wide shadow-lg shadow-orange-900/40 transition-transform">
+              ↩️ 回滚开奖
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 店号系统 -->
+      <div class="bg-gray-800 rounded-2xl p-4 space-y-4">
+        <h2 class="font-bold">🏪 店号系统</h2>
+
+        <!-- 账户（注册新账号） -->
+        <div>
+          <p class="text-sm font-semibold text-gray-300 mb-2">账户</p>
+          <div class="flex flex-wrap gap-2 items-end">
+            <div class="flex-1 min-w-[80px]">
+              <p class="text-xs text-gray-400 mb-1">店号（数字）</p>
+              <input type="text" id="reg-shop-number" placeholder="如 1 或 88888" maxlength="9" inputmode="numeric"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+            </div>
+            <div class="flex-1 min-w-[100px]">
+              <p class="text-xs text-gray-400 mb-1">账号（字母+数字）</p>
+              <input type="text" id="reg-account" placeholder="如 tienda1" maxlength="32"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg" />
+            </div>
+            <button onclick="adminRegister()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-sm">
+              注册
+            </button>
+          </div>
+          <p id="reg-result" class="text-sm mt-2 hidden"></p>
+        </div>
+
+        <!-- 分配店号 -->
+        <div class="border-t border-gray-700 pt-4">
+          <p class="text-sm font-semibold text-gray-300 mb-2">分配店号</p>
+          <p class="text-xs text-gray-400 mb-2">给已有账号更换主店号。</p>
+          <div class="flex flex-wrap gap-2 items-end">
+            <div class="flex-1 min-w-[120px]">
+              <p class="text-xs text-gray-400 mb-1">账号</p>
+              <input type="text" id="assign-account" placeholder="已注册的账号"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg" />
+            </div>
+            <div class="flex-1 min-w-[100px]">
+              <p class="text-xs text-gray-400 mb-1">店号</p>
+              <input type="text" id="assign-shop-number" placeholder="如 1 或 88888" maxlength="9"
+                class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono" />
+            </div>
+            <button onclick="assignShop()" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold text-sm">
+              分配
+            </button>
+          </div>
+          <p id="assign-result" class="text-sm mt-2 hidden"></p>
+        </div>
+      </div>
+
+      <!-- 注册成功弹窗 -->
+      <div id="modal-reg-success" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
+          <h3 class="font-bold text-lg mb-4 text-center">✅ 注册成功</h3>
+          <div class="bg-gray-900 rounded-xl p-4 space-y-3 font-mono text-sm mb-4">
+            <div class="flex justify-between items-center gap-3">
+              <span class="text-gray-400 shrink-0">账号</span>
+              <span id="cred-account" class="text-white font-bold truncate"></span>
+            </div>
+            <div class="flex justify-between items-center gap-3">
+              <span class="text-gray-400 shrink-0">店号</span>
+              <span id="cred-shop" class="text-red-400 font-bold"></span>
+            </div>
+            <div class="flex justify-between items-center gap-3">
+              <span class="text-gray-400 shrink-0">密码</span>
+              <span id="cred-password" class="text-yellow-300 font-bold tracking-widest"></span>
+            </div>
+          </div>
+          <button onclick="copyCredentials()" class="w-full py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold mb-2">
+            📋 复制账号信息
+          </button>
+          <button onclick="document.getElementById('modal-reg-success').classList.add('hidden')"
+            class="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-xl text-sm text-gray-300">
+            关闭
+          </button>
+        </div>
+      </div>
+
+
+      <!-- 重置密码 + 生成卡密 -->
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div class="bg-gray-800 rounded-2xl p-4">
+          <h2 class="font-bold text-sm mb-3">🔑 重置商家密码</h2>
+          <div class="space-y-2">
+            <input type="text" id="reset-shop-number" placeholder="店号"
+              class="w-full text-center py-2 bg-gray-700 rounded-lg font-mono text-sm" />
+            <input type="text" id="reset-new-password" placeholder="新密码（至少4位）"
+              class="w-full text-center py-2 bg-gray-700 rounded-lg text-sm" />
+            <button onclick="resetPassword()" class="w-full bg-yellow-600 hover:bg-yellow-500 py-2 rounded-lg font-bold text-sm">
+              重置密码
+            </button>
+            <p id="reset-result" class="text-xs text-center hidden"></p>
+          </div>
+        </div>
+        <div class="bg-gray-800 rounded-2xl p-4 flex flex-col items-center justify-center gap-3 text-center">
+          <div class="text-3xl">🎫</div>
+          <p class="text-sm font-bold">卡密管理</p>
+          <p class="text-xs text-gray-400">生成、查看、管理月卡/年卡</p>
+          <a href="cards.html" class="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded-lg font-bold text-sm block">
+            进入卡密管理 →
+          </a>
+        </div>
+      </div>
+
+      <!-- 店铺销售明细和全部店铺总销售已移除 -->
+
+      <!-- 系统运行状态 -->
+      <div class="bg-gray-800 rounded-2xl p-4 space-y-3">
+        <h3 class="font-bold text-sm">系统运行状态</h3>
+        <div id="system-health" class="space-y-1 text-[11px]">
+          <p class="text-gray-500 text-xs">正在检查 API / 数据库 状态...</p>
+        </div>
+      </div>
+
+      <!-- 店铺列表（折叠） -->
+      <div class="bg-gray-800 rounded-2xl p-4">
+        <button onclick="toggleShopListPanel()" class="w-full flex items-center justify-between gap-3">
+          <h2 class="font-bold text-sm shrink-0">🏪 店铺总数据</h2>
+          <div class="flex items-center gap-4 font-mono">
+            <div class="text-center">
+              <div class="text-[10px] text-gray-400 leading-none mb-0.5">总订单</div>
+              <div id="platform-total-orders" class="text-xl font-black text-white leading-none">—</div>
+            </div>
+            <div class="text-center">
+              <div class="text-[10px] text-gray-400 leading-none mb-0.5">总销售额</div>
+              <div id="platform-total-sales" class="text-xl font-black text-green-400 leading-none">—</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 text-gray-400 shrink-0">
+            <span id="shop-list-toggle-text" class="text-xs">展开</span>
+            <span id="shop-list-toggle-icon" class="text-lg">▸</span>
+          </div>
+        </button>
+        <div id="shop-list-panel" class="hidden mt-3">
+          <!-- 搜索框 -->
+          <div class="mb-2">
+            <input id="shop-search" type="text" placeholder="搜索店号 / 账号…" oninput="onShopSearch()"
+              class="w-full bg-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none" />
+          </div>
+          <!-- 排序控制 -->
+          <div class="flex gap-2 mb-2 text-xs flex-wrap">
+            <span class="text-gray-400">排序：</span>
+            <button onclick="setShopSort('shop_number')" id="sort-btn-shop_number" class="px-2 py-0.5 rounded bg-blue-600 text-white">店号</button>
+            <button onclick="setShopSort('account_number')" id="sort-btn-account_number" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300">账号</button>
+            <button onclick="setShopSort('total_orders')" id="sort-btn-total_orders" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300">订单数</button>
+            <button onclick="setShopSort('total_sales')" id="sort-btn-total_sales" class="px-2 py-0.5 rounded bg-gray-700 text-gray-300">销售额</button>
+            <button onclick="editAllShopsExpiry()" class="ml-auto px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white">📅 全部续期</button>
+            <button onclick="loadShopList()" class="ml-1 px-2 py-0.5 rounded bg-gray-600 hover:bg-gray-500 text-gray-300">刷新</button>
+            <button onclick="openLogsModal()" class="ml-1 px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white">📜 日志</button>
+          </div>
+          <div id="shop-list-table" class="space-y-1.5 text-xs">
+            <p class="text-gray-500 text-center py-4">点击刷新加载</p>
+          </div>
+          <!-- 分页控制 -->
+          <div id="shop-pagination" class="hidden flex items-center justify-between mt-2 text-xs text-gray-400">
+            <span id="shop-page-info"></span>
+            <div class="flex gap-1">
+              <button onclick="shopPageChange(-1)" id="shop-btn-prev" class="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">◀ 上一页</button>
+              <button onclick="shopPageChange(1)"  id="shop-btn-next" class="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">下一页 ▶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 历史期次汇总弹窗 -->
+  <div id="modal-history" class="hidden fixed inset-0 bg-black/70 z-50 overflow-y-auto">
+    <div class="min-h-screen p-4 flex items-center justify-center" onclick="if(event.target===this)closeHistoryModal()">
+      <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-2xl">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-lg font-bold">历史期次汇总（全部店铺）</h2>
+          <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white text-lg">✕</button>
+        </div>
+        <p class="text-xs text-gray-400 mb-2">每期总订单数与总销售额，数据归档后永久保留。</p>
+        <div id="history-table" class="text-xs">
+          <p class="text-gray-500 text-center py-4">加载中...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 店铺详情弹窗 -->
+  <div id="modal-shop" class="hidden fixed inset-0 bg-black/70 z-50 overflow-y-auto">
+    <div class="min-h-screen p-4 flex items-center justify-center" onclick="if(event.target===this)closeModal()">
+      <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-lg">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold" id="shop-detail-title">店铺详情</h2>
+          <button onclick="closeModal()" class="text-gray-400">✕</button>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-3 mb-4 text-center">
+          <div class="bg-gray-700 rounded-lg p-3">
+            <p class="text-xs text-gray-400">订单</p>
+            <p class="text-xl font-bold" id="shop-orders">0</p>
+          </div>
+          <div class="bg-gray-700 rounded-lg p-3">
+            <p class="text-xs text-gray-400">已付</p>
+            <p class="text-xl font-bold text-green-400" id="shop-paid">$0</p>
+          </div>
+          <div class="bg-gray-700 rounded-lg p-3">
+            <p class="text-xs text-gray-400">未付</p>
+            <p class="text-xl font-bold text-orange-400" id="shop-unpaid">$0</p>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <h4 class="font-bold mb-2">Chance 销售</h4>
+          <div id="shop-chance" class="space-y-1 max-h-32 overflow-y-auto text-sm"></div>
+        </div>
+
+        <div>
+          <h4 class="font-bold mb-2">Billete 销售</h4>
+          <div id="shop-billete" class="space-y-1 max-h-32 overflow-y-auto text-sm"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 日期格式化：DD-MM-YYYY
+    function fmtDate(d) {
+      if (!d) return '';
+      const date = new Date(d);
+      if (isNaN(date.getTime())) return String(d).slice(0, 10);
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yy = date.getFullYear();
+      return `${dd}-${mm}-${yy}`;
+    }
+    // YYYY-MM-DD → DD-MM-YYYY（用于写入文字输入框显示）
+    function isoToDDMMYYYY(s) {
+      if (!s) return '';
+      const p = String(s).trim().split('-');
+      if (p.length === 3 && /^\d{4}$/.test(p[0]))
+        return `${p[2].padStart(2,'0')}-${p[1].padStart(2,'0')}-${p[0]}`;
+      return s; // 已经是 DD-MM-YYYY 或未知格式，原样返回
+    }
+    // DD-MM-YYYY → YYYY-MM-DD（用于 API 调用拼接 ISO 时间字符串）
+    function ddmmyyyyToISO(s) {
+      if (!s) return '';
+      const p = String(s).trim().split('-');
+      if (p.length === 3 && /^\d{4}$/.test(p[2]))
+        return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+      return s; // 已经是 YYYY-MM-DD 或未知格式，原样返回
+    }
+    // 读取三段日期输入框，返回 "DD-MM-YYYY" 或空字符串
+    function getDrawDate() {
+      const dd   = (document.getElementById('draw-date-dd')   || {}).value || '';
+      const mm   = (document.getElementById('draw-date-mm')   || {}).value || '';
+      const yyyy = (document.getElementById('draw-date-yyyy') || {}).value || '';
+      if (!dd || !mm || !yyyy) return '';
+      return `${dd.padStart(2,'0')}-${mm.padStart(2,'0')}-${yyyy}`;
+    }
+    // 将 DD-MM-YYYY 或 YYYY-MM-DD 写入三段输入框
+    function setDrawDate(s) {
+      if (!s) return;
+      const norm = isoToDDMMYYYY(String(s).trim()); // 统一转成 DD-MM-YYYY
+      const p = norm.split('-');
+      if (p.length !== 3) return;
+      const ddEl   = document.getElementById('draw-date-dd');
+      const mmEl   = document.getElementById('draw-date-mm');
+      const yyyyEl = document.getElementById('draw-date-yyyy');
+      if (ddEl)   ddEl.value   = p[0];
+      if (mmEl)   mmEl.value   = p[1];
+      if (yyyyEl) yyyyEl.value = p[2];
+    }
+    // 三段输入框：自动跳转 & 触发保存
+    document.addEventListener('DOMContentLoaded', function () {
+      function segInput(el, nextId, prevId) {
+        el.addEventListener('input', function () {
+          this.value = this.value.replace(/\D/g, '');
+          if (this.value.length >= parseInt(this.getAttribute('maxlength'), 10) && nextId) {
+            const next = document.getElementById(nextId);
+            if (next) { next.focus(); next.select(); }
+          }
+          saveNextDrawDefault();
+        });
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Backspace' && this.value === '' && prevId) {
+            e.preventDefault();
+            const prev = document.getElementById(prevId);
+            if (prev) { prev.focus(); prev.select(); }
+          }
+        });
+      }
+      segInput(document.getElementById('draw-date-dd'),   'draw-date-mm',   null);
+      segInput(document.getElementById('draw-date-mm'),   'draw-date-yyyy', 'draw-date-dd');
+      segInput(document.getElementById('draw-date-yyyy'), null,             'draw-date-mm');
+    });
+
+    const API_BASE = 'https://api.casagrade.com';
+
+    let authToken = localStorage.getItem('lottery_token') || null;
+
+    // ── 自定义 Toast 提示 ────────────────────────────────────
+    let _toastTimer = null;
+    function showToast(msg, type) {
+      let el = document.getElementById('_toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = '_toast';
+        el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;max-width:90vw;pointer-events:none;transition:opacity 0.3s';
+        document.body.appendChild(el);
+      }
+      const colors = { success: 'bg-green-700 border-green-500', error: 'bg-red-800 border-red-600', info: 'bg-gray-700 border-gray-500', warning: 'bg-yellow-800 border-yellow-600' };
+      const c = colors[type || 'info'] || colors.info;
+      el.innerHTML = '<div class="' + c + ' border text-white text-sm px-5 py-3 rounded-2xl shadow-2xl font-bold">' + msg + '</div>';
+      el.style.opacity = '1';
+      if (_toastTimer) clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(function () { el.style.opacity = '0'; }, 3000);
+    }
+
+    // ── 自定义 Confirm 弹窗 ──────────────────────────────────
+    function showConfirm(msg, onConfirm) {
+      let el = document.getElementById('_confirm');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = '_confirm';
+        el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px';
+        document.body.appendChild(el);
+      }
+      el.innerHTML = '<div class="bg-gray-800 border border-gray-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl">' +
+        '<p id="_confirm-msg" class="text-sm text-gray-200 mb-5 text-center leading-relaxed whitespace-pre-line"></p>' +
+        '<div class="flex gap-3">' +
+        '<button id="_confirm-cancel" class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-xl font-bold text-sm">取消</button>' +
+        '<button id="_confirm-ok" class="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-sm">确认</button>' +
+        '</div></div>';
+      document.getElementById('_confirm-msg').textContent = msg;
+      el.classList.remove('hidden');
+      el.style.display = 'flex';
+      document.getElementById('_confirm-cancel').onclick = function () { el.style.display = 'none'; };
+      document.getElementById('_confirm-ok').onclick = function () { el.style.display = 'none'; onConfirm(); };
+      el.onclick = function (e) { if (e.target === el) el.style.display = 'none'; };
+    }
+
+    /** HTML 转义工具：所有 innerHTML 插值必须经过此函数，防止 XSS */
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    /** 嵌入 HTML 内联事件（onclick 等）作为 JS 字符串字面量；安全方式 = JSON 序列化后再 HTML 转义 */
+    function jsAttr(v) {
+      return esc(JSON.stringify(String(v == null ? '' : v)));
+    }
+
+    function getAdminHeaders(includeAuth) {
+      // 总后台只使用管理员账号登录后的 Bearer token。
+      // includeAuth 参数保留兼容但不再生效——旧调用方传 false 也会带 Bearer
+      const h = { 'Content-Type': 'application/json' };
+      if (authToken) h['Authorization'] = 'Bearer ' + authToken;
+      return h;
+    }
+
+    function generatePassword() {
+      const letters = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+      const digits  = '23456789';
+      let pwd = '';
+      for (let i = 0; i < 4; i++) pwd += letters[Math.floor(Math.random() * letters.length)];
+      for (let i = 0; i < 4; i++) pwd += digits[Math.floor(Math.random() * digits.length)];
+      return pwd.split('').sort(() => Math.random() - 0.5).join('');
+    }
+
+    function copyCredentials() {
+      const account  = document.getElementById('cred-account').textContent;
+      const shop     = document.getElementById('cred-shop').textContent;
+      const password = document.getElementById('cred-password').textContent;
+      const text = `账号：${account}\n店号：${shop}\n密码：${password}`;
+      navigator.clipboard.writeText(text).then(function() {
+        showToast('已复制', 'success');
+      }).catch(function() {
+        showToast('复制失败，请手动复制', 'warning');
+      });
+    }
+
+    async function adminRegister() {
+      const account  = (document.getElementById('reg-account').value || '').trim();
+      const shopNum  = (document.getElementById('reg-shop-number').value || '').trim();
+      const resultEl = document.getElementById('reg-result');
+      resultEl.classList.add('hidden');
+      if (!account) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = 'text-sm mt-2 text-red-400';
+        resultEl.textContent = '请填写账号';
+        return;
+      }
+      if (!shopNum || !/^\d{1,9}$/.test(shopNum)) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = 'text-sm mt-2 text-red-400';
+        resultEl.textContent = '请填写有效店号（1-9位数字）';
+        return;
+      }
+      const password = generatePassword();
+      try {
+        // Step 1：注册账号（只建用户，不建店铺）
+        const r1 = await fetch(`${API_BASE}/api/merchant/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountNumber: account, password, passwordConfirm: password })
+        });
+        const d1 = await r1.json();
+        if (!r1.ok || !d1.success) {
+          resultEl.classList.remove('hidden');
+          resultEl.className = 'text-sm mt-2 text-red-400';
+          resultEl.textContent = d1.message || d1.error || '注册失败';
+          return;
+        }
+        // Step 2：分配管理员指定店号
+        const r2 = await fetch(`${API_BASE}/api/admin/assign-shop`, {
+          method: 'POST',
+          headers: getAdminHeaders(false),
+          body: JSON.stringify({ shopNumber: shopNum, accountNumber: account })
+        });
+        const d2 = await r2.json();
+        if (!r2.ok || !d2.success) {
+          resultEl.classList.remove('hidden');
+          resultEl.className = 'text-sm mt-2 text-red-400';
+          resultEl.textContent = `账号已注册，但店号分配失败：${d2.message || d2.error || ''}`;
+          return;
+        }
+        // 成功：弹窗显示凭证
+        document.getElementById('cred-account').textContent  = account;
+        document.getElementById('cred-shop').textContent     = shopNum;
+        document.getElementById('cred-password').textContent = password;
+        document.getElementById('modal-reg-success').classList.remove('hidden');
+        document.getElementById('reg-account').value    = '';
+        document.getElementById('reg-shop-number').value = '';
+        loadData();
+      } catch (e) {
+        resultEl.classList.remove('hidden');
+        resultEl.className = 'text-sm mt-2 text-red-400';
+        resultEl.textContent = '请求失败：' + (e.message || e);
+      }
+    }
+
+    async function assignShop() {
+      const sn = (document.getElementById('assign-shop-number').value || '').trim();
+      const account = (document.getElementById('assign-account').value || '').trim();
+      const resultEl = document.getElementById('assign-result');
+      if (!sn) {
+        resultEl.classList.remove('hidden');
+        resultEl.classList.add('text-red-400');
+        resultEl.textContent = '请输入店号';
+        return;
+      }
+      if (!/^\d{1,9}$/.test(sn)) {
+        resultEl.classList.remove('hidden');
+        resultEl.classList.add('text-red-400');
+        resultEl.textContent = '店号须为 1-9 位数字';
+        return;
+      }
+      if (!account) {
+        resultEl.classList.remove('hidden');
+        resultEl.classList.add('text-red-400');
+        resultEl.textContent = '请输入买家账号';
+        return;
+      }
+      resultEl.classList.add('hidden');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/assign-shop`, {
+          method: 'POST',
+          headers: getAdminHeaders(false),
+          body: JSON.stringify({ shopNumber: sn, accountNumber: account })
+        });
+        const data = await res.json();
+        resultEl.classList.remove('hidden');
+        if (res.ok && data.success) {
+          resultEl.classList.remove('text-red-400');
+          resultEl.classList.add('text-green-400');
+          resultEl.textContent = data.message || '分配成功';
+          document.getElementById('assign-shop-number').value = '';
+          document.getElementById('assign-account').value = '';
+          loadData();
+        } else {
+          resultEl.classList.add('text-red-400');
+          resultEl.textContent = data.message || data.error || '分配失败';
+        }
+      } catch (e) {
+        resultEl.classList.remove('hidden');
+        resultEl.classList.add('text-red-400');
+        resultEl.textContent = '请求失败: ' + (e.message || e);
+      }
+    }
+
+    const NEXT_DRAW_DEFAULT_KEY = 'lottery_next_draw_default';
+    const CONFIRMED_DRAW_RECORD_KEY = 'lottery_confirmed_draw_record';
+
+    // 计算下一个周三或周日（两者中最近的）
+    function getNextWedOrSun() {
+      const now = new Date();
+      const day = now.getDay(); // 0=Sun, 3=Wed
+      const daysToWed = ((3 - day + 7) % 7) || 7;
+      const daysToSun = ((0 - day + 7) % 7) || 7;
+      const next = new Date(now);
+      next.setDate(now.getDate() + Math.min(daysToWed, daysToSun));
+      const d = String(next.getDate()).padStart(2, '0');
+      const m = String(next.getMonth() + 1).padStart(2, '0');
+      const y = next.getFullYear();
+      return `${d}-${m}-${y}`;
+    }
+
+    function setConfirmedDrawRecord(date, time, drawId) {
+      try {
+        localStorage.setItem(CONFIRMED_DRAW_RECORD_KEY, JSON.stringify({ date, time, drawId: drawId || null }));
+      } catch (e) {}
+      const el = document.getElementById('confirmed-draw-status');
+      const periodStr = drawId ? ` · 第 ${drawId} 期` : '';
+      if (el) el.textContent = `系统开奖时间：${date} ${time}（巴拿马时间）${periodStr}`;
+    }
+    let firebasePollTimer = null;
+
+    // 计算“下次周三 15:00”（本地时间）；若今天已是周三且未到 15:00 则用今天
+    function getNextWednesday15() {
+      const now = new Date();
+      const wed = new Date(now);
+      const need = (3 - (now.getDay() + 7) % 7) % 7; // 0=今天周三, 1=明天周四→+4天到下周三
+      let days = need;
+      if (need === 0 && (now.getHours() > 14 || (now.getHours() === 14 && now.getMinutes() >= 0))) days = 7;
+      wed.setDate(now.getDate() + days);
+      wed.setHours(15, 0, 0, 0);
+      return wed;
+    }
+
+    // 将后端日期字符串转为 input type="date" 需要的 YYYY-MM-DD
+    function normalizeDrawDateToYMD(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      const s = String(raw).trim();
+      const parts = s.split(/[-/]/).filter(Boolean);
+      if (parts.length !== 3) return null;
+      const a = parts[0], b = parts[1], c = parts[2];
+      if (/^\d{4}$/.test(a) && /^\d{1,2}$/.test(b) && /^\d{1,2}$/.test(c)) {
+        return a + '-' + b.padStart(2, '0') + '-' + c.padStart(2, '0');
+      }
+      if (/^\d{1,2}$/.test(a) && /^\d{1,2}$/.test(b) && /^\d{4}$/.test(c)) {
+        return c + '-' + b.padStart(2, '0') + '-' + a.padStart(2, '0');
+      }
+      return null;
+    }
+
+    // 初始化开奖日期/时间：
+    // 1）优先用 /api/bet-status 返回的 confirmedDrawDay/confirmedDrawTime（系统真实认定的开奖时间，巴拿马时区）+ 本地最近一次你填的时间
+    // 2）其次用 /api/draw/pending 的 draw_date/draw_time
+    // 3）再其次用本地保存或 “下次周三 15:00”
+    async function initDrawDefaults() {
+      const timeInput = document.getElementById('draw-time');
+      if (!timeInput) return;
+
+      // Step 1: 尝试用 bet-status 的 confirmedDrawDay / confirmedDrawTime
+      try {
+        let savedTime = null;
+        try {
+          const savedRaw = localStorage.getItem(NEXT_DRAW_DEFAULT_KEY);
+          if (savedRaw) {
+            const o = JSON.parse(savedRaw);
+            if (o && o.time) savedTime = String(o.time);
+          }
+        } catch (e) {}
+
+        const bsRes = await fetch(API_BASE + '/api/bet-status');
+        if (bsRes.ok) {
+          const bs = await bsRes.json();
+          const day = bs.confirmedDrawDay || bs.currentPeriodDate || null; // DD-MM-YYYY
+          // 时间优先顺序：接口里的 confirmedDrawTime > 本地保存的 time > 现有 input > 默认 15:00
+          let time = bs.confirmedDrawTime || savedTime || timeInput.value || '15:00';
+          if (day) {
+            const parts = String(day).trim().split(/[-/]/);
+            if (parts.length === 3) {
+              const d = parts[0], m = parts[1], y = parts[2];
+              if (/^\d{4}$/.test(y) && /^\d{1,2}$/.test(m) && /^\d{1,2}$/.test(d)) {
+                setDrawDate(`${d.padStart(2,'0')}-${m.padStart(2,'0')}-${y}`);
+                pendingDrawDate = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; // YYYY-MM-DD
+                timeInput.value = time && String(time).trim() ? String(time).slice(0,5) : '15:00';
+                try {
+                  localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: getDrawDate(), time: timeInput.value }));
+                } catch (e) {}
+                return;
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Step 2: 退回到 /api/draw/pending
+      try {
+        const res = await fetch(API_BASE + '/api/draw/pending');
+        const data = res.ok ? await res.json() : {};
+        const draw = data.draw || data;
+        const rawDate = draw.draw_date || draw.drawDate || null;
+        const dateStr = rawDate ? String(rawDate) : null;
+        const timeStr = draw.drawTime || draw.draw_time || draw.time;
+        // 显示/隐藏手动覆盖 badge
+        const badge = document.getElementById('manual-override-badge');
+        if (badge) {
+          if (draw.isManualOverride) { badge.classList.remove('hidden'); }
+          else { badge.classList.add('hidden'); }
+        }
+        if (dateStr) {
+          const ymd = normalizeDrawDateToYMD(dateStr);
+          if (ymd) {
+            setDrawDate(ymd);
+            pendingDrawDate = ymd; // 记录当期开奖日期，用于与 Firebase 结果比对
+            timeInput.value = (timeStr && String(timeStr).trim()) ? String(timeStr).slice(0, 5) : '15:00';
+            try {
+              localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: getDrawDate(), time: timeInput.value }));
+            } catch (e) {}
+            return;
+          }
+        }
+      } catch (e) {}
+      try {
+        const saved = localStorage.getItem(NEXT_DRAW_DEFAULT_KEY);
+        if (saved) {
+          const o = JSON.parse(saved);
+          if (o.date) setDrawDate(o.date);
+          if (o.time) timeInput.value = o.time;
+          return;
+        }
+      } catch (e) {}
+      try {
+        const r = await fetch(API_BASE + '/api/draw/next-date');
+        if (r.ok) {
+          const o = await r.json();
+          if (o.date) { setDrawDate(o.date); timeInput.value = o.time || '15:00'; return; }
+        }
+      } catch (e) {}
+    }
+
+    // 手动修改日期/时间时保存，便于顺延后按此时间轮询
+    function saveNextDrawDefault() {
+      const timeInput = document.getElementById('draw-time');
+      if (!timeInput) return;
+      try {
+        localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: getDrawDate(), time: timeInput.value }));
+      } catch (e) {}
+    }
+
+    // 检查是否已登录
+    if (!authToken) {
+      document.getElementById('page-login').classList.remove('hidden');
+      document.getElementById('page-admin').classList.add('hidden');
+    } else {
+      document.getElementById('page-login').classList.add('hidden');
+      document.getElementById('page-admin').classList.remove('hidden');
+      initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); checkAutoStartPoll(); });
+    }
+    let allOrders = [];
+    let allShops = [];
+    // 当期订单（基于待开奖期 draw_id，与老板端/结算页逻辑一致）
+    let currentPeriodOrders = [];
+    let currentPeriodStats = null;
+    let historyCache = null;
+
+    // 登录
+    async function login() {
+      const account = document.getElementById('admin-account').value;
+      const password = document.getElementById('admin-password').value;
+      
+      if (!account || !password) {
+        showToast('请输入账号和密码', 'warning');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/merchant/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountNumber: account, password })
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || data.error || '登录失败');
+        
+        authToken = data.token;
+        localStorage.setItem('lottery_token', authToken);
+        
+        document.getElementById('page-login').classList.add('hidden');
+        document.getElementById('page-admin').classList.remove('hidden');
+        
+        initDrawDefaults().then(function () { loadData(); refreshConfirmedDrawStatus(); checkAutoStartPoll(); });
+      } catch (err) {
+        showToast(err.message || '登录失败', 'error');
+      }
+    }
+
+    function logout() {
+      authToken = null;
+      localStorage.removeItem('lottery_token');
+      document.getElementById('admin-password').value = '';
+      document.getElementById('page-admin').classList.add('hidden');
+      document.getElementById('page-login').classList.remove('hidden');
+    }
+
+    // 刷新数据
+    async function refreshData() {
+      await loadData();
+      refreshConfirmedDrawStatus();
+      showToast('已刷新', 'success');
+    }
+
+    // 手动开奖（发送开奖结果）
+    async function manualDraw() {
+      const drawDate = getDrawDate();
+      const drawClock = document.getElementById('draw-time').value || '15:00';
+      const billete = document.getElementById('draw-1st').value.trim();
+      const segundas = document.getElementById('draw-2nd').value.trim();
+      const terceras = document.getElementById('draw-3rd').value.trim();
+      
+      if (!drawDate) {
+        showToast('请选择开奖日期', 'warning');
+        return;
+      }
+
+      const drawTime = ddmmyyyyToISO(drawDate) + 'T' + drawClock + ':00';
+
+      const dig = (s) => (s || '').replace(/\D/g, '');
+      const b = dig(billete), s = dig(segundas), t = dig(terceras);
+      if (!b || !s || !t) {
+        showToast('请填写 1、2、3 奖号码', 'warning');
+        return;
+      }
+      if (b.length < 1 || s.length < 1 || t.length < 1) {
+        showToast('每个奖项至少 1 位数字', 'warning');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/manual`, {
+          method: 'POST',
+          headers: getAdminHeaders(false),
+          body: JSON.stringify({ billete: b, segundas: s, terceras: t, drawTime })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          showToast('✅ 开奖成功！1奖: ' + b + '  2奖: ' + s + '  3奖: ' + t, 'success');
+          document.getElementById('rollback-warning').classList.add('hidden');
+          // 时机2：开奖成功 → 自动计算下一个周三或周日更新系统记录
+          setConfirmedDrawRecord(getNextWedOrSun(), '15:00');
+          initDrawDefaults().catch(function () {});
+          loadData();
+        } else {
+          showToast(data.message || data.error || '开奖失败', 'error');
+        }
+      } catch (err) {
+        showToast('开奖失败: ' + err.message, 'error');
+      }
+    }
+
+    let lastFirebaseDraw = null;
+    let pendingDrawDate = null; // YYYY-MM-DD，来自 /api/draw/pending
+    let autoStartPollDone = false; // 本次会话只自动触发一次
+
+    // 将号码格式化为 4 位，不足用 - 占位（逐位公布时用）
+    function pad4Display(x) {
+      const s = (x == null ? '' : String(x)).replace(/\D/g, '');
+      if (s.length >= 4) return s.slice(-4);
+      return s + '-'.repeat(4 - s.length);
+    }
+
+    // 解析 Firebase 返回的开奖日期；支持多种字段和格式（含 "11-03-2026"、"Fecha del Sorteo 11-03-2026"、YYYY-MM-DD 等）
+    function getFetchedDateRaw(d) {
+      const s = (d.drawDate || d.fecha || d.fechaDelSorteo || d.date || '').toString().trim();
+      return s || null;
+    }
+
+    function parseFetchedDrawDate(dateStr) {
+      if (!(dateStr || '').trim()) return null;
+      const s = String(dateStr).trim();
+      // 优先：后端返回的 "11-03-2026"（DD-MM-YYYY），避免被误判
+      const ddmmyy = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+      if (ddmmyy) return new Date(parseInt(ddmmyy[3], 10), parseInt(ddmmyy[2], 10) - 1, parseInt(ddmmyy[1], 10));
+      // 或字符串内任意位置的 DD-MM-YYYY
+      const ddmmyy2 = s.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+      if (ddmmyy2) return new Date(parseInt(ddmmyy2[3], 10), parseInt(ddmmyy2[2], 10) - 1, parseInt(ddmmyy2[1], 10));
+      // YYYY-MM-DD
+      const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return new Date(parseInt(iso[1], 10), parseInt(iso[2], 10) - 1, parseInt(iso[3], 10));
+      return null;
+    }
+
+    // 是否为“本期”（开奖日已过且是今天或未来）。拉取到的日期早于今天，或等于今天但还没到 15:00，都算上一期
+    function isCurrentPeriodDraw(fetchedDate) {
+      if (!fetchedDate || !(fetchedDate instanceof Date) || isNaN(fetchedDate.getTime())) return false;
+      const now = new Date();
+      const dDay = new Date(fetchedDate.getFullYear(), fetchedDate.getMonth(), fetchedDate.getDate()).getTime();
+      const tDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      if (dDay < tDay) return false; // 过去日期 → 上一期
+      if (dDay > tDay) return true;  // 未来日期 → 本期
+      // 同一天：已过 15:00 才算本期
+      return now.getHours() > 15 || (now.getHours() === 15 && now.getMinutes() >= 0);
+    }
+
+    // 判断三奖是否已全部开出：
+    // - GORDITO（drawType 含 GORDITO，或二三奖已出且均≤2位）：头奖≥4位，二三奖≥2位
+    // - 其他：头奖位数决定要求（头奖5位→三奖都要5位；头奖4位→三奖都要4位）
+    function isFirebaseDrawComplete(d) {
+      if (!d) return false;
+      const raw = (x) => (x == null ? '' : String(x));
+      const digits = (x) => raw(x).replace(/\D/g, '');
+      const hasDash = (x) => raw(x).includes('-');
+      // 任意一奖包含 - 号，说明官网还未开完
+      if (hasDash(d.primer) || hasDash(d.segundo) || hasDash(d.tercero)) return false;
+      const p = digits(d.primer), s = digits(d.segundo), t = digits(d.tercero);
+      const type = (d.drawType || '').toUpperCase();
+      // GORDITO 判断：
+      // 主判断：drawType 含 GORDITO
+      // 兜底：头奖≥4位 + 二奖已出且≤2位 + 三奖已出现至少1位
+      // （三奖开始出现说明二奖已开完，二奖是2位可确认为 GORDITO）
+      const isGordito = type.includes('GORDITO') ||
+        (p.length >= 4 && s.length > 0 && s.length <= 2 && t.length >= 1);
+      if (isGordito) return p.length >= 4 && s.length >= 2 && t.length >= 2;
+      // 普通开奖：头奖位数决定要求
+      const req = p.length >= 5 ? 5 : 4;
+      return p.length >= req && s.length >= req && t.length >= req;
+    }
+
+    // 取原始数字写入表单（不强制 4 位）：后端按原始位数存储
+    function rawDigits(x) {
+      return (x == null ? '' : String(x)).replace(/\D/g, '');
+    }
+
+    function orderStatusValue(o) {
+      return typeof o?.status === 'string' ? o.status.toLowerCase() : o?.status;
+    }
+
+    function isCanceledOrder(o) {
+      const s = orderStatusValue(o);
+      return s === 'canceled' || s === -1;
+    }
+
+    function isPaidOrder(o) {
+      const s = orderStatusValue(o);
+      return s === 'paid' || s === 'settled' || s === 'won' || s === 1 || s === 2 || s === 3;
+    }
+
+    function isPendingOrder(o) {
+      const s = orderStatusValue(o);
+      return s === 'pending' || s === 0;
+    }
+
+    // 把 Firebase 返回的 "DD-MM-YYYY" 或 "DD/MM/YYYY" 转为 "YYYY-MM-DD"
+    function fbDateToYMD(s) {
+      if (!s) return null;
+      const parts = String(s).trim().split(/[-\/]/);
+      if (parts.length !== 3) return null;
+      const [d, m, y] = parts.map(Number);
+      if (!y || y < 2000 || !m || !d) return null;
+      return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+
+    function applyFirebaseToUI(d, fillForm) {
+      lastFirebaseDraw = d;
+      function _set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+      function _show(id) { var el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
+      function _hide(id) { var el = document.getElementById(id); if (el) el.classList.add('hidden'); }
+      _set('fb-date', d.drawDate || '—');
+      _set('fb-hora', d.drawHora || '—');
+      const _s = String(d.segundo || '').replace(/\D/g, '');
+      const _p = String(d.primer  || '').replace(/\D/g, '');
+      const _t = String(d.tercero || '').replace(/\D/g, '');
+      const detectedGordito = _p.length >= 4 && _s.length > 0 && _s.length <= 2 && _t.length >= 1;
+      const displayType = detectedGordito && !(d.drawType || '').toUpperCase().includes('GORDITO')
+        ? (d.drawType ? d.drawType + ' (GORDITO检测)' : 'GORDITO检测')
+        : (d.drawType || '—');
+      _set('fb-type', displayType);
+      _set('fb-primer', d.primer !== '' && d.primer != null ? String(d.primer) : '----');
+      _set('fb-segundo', d.segundo !== '' && d.segundo != null ? String(d.segundo) : '----');
+      _set('fb-tercero', d.tercero !== '' && d.tercero != null ? String(d.tercero) : '----');
+      _set('fb-letras', (d.letras || '—').toString());
+      _show('firebase-draw-result');
+
+      const preparingEl = document.getElementById('fb-preparing');
+      const panamaTodayYMD = (function() {
+        const now = new Date(Date.now() - 5 * 3600 * 1000);
+        return `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`;
+      })();
+      const complete = isFirebaseDrawComplete(d);
+      const manualDrawYMD = fbDateToYMD(getDrawDate());
+      const formDateIsToday = manualDrawYMD === panamaTodayYMD;
+      const readyForManualDraw = complete && formDateIsToday;
+      if (formDateIsToday && !complete) {
+        const type = (d.drawType || '').toUpperCase();
+        const exp = d.expectedDigits || {};
+        const digitHint = type === 'GORDITO'         ? `1奖${exp.p||4}位 · 2奖${exp.s||2}位 · 3奖${exp.t||2}位` :
+                          type === 'EXTRAORDINARIA'  ? `三奖各${exp.p||5}位` :
+                                                       `三奖各${exp.p||4}位`;
+        if (preparingEl) { preparingEl.textContent = `🕐 今日开奖 · ${d.drawType || type} · 预计 ${digitHint} · 号码未出`; preparingEl.classList.remove('hidden'); }
+      } else if (complete && !formDateIsToday) {
+        if (preparingEl) { preparingEl.textContent = `⚠️ 已拉到完整号码，但手动开奖日期是 ${manualDrawYMD || '无'}，不是今天 ${panamaTodayYMD}，已阻止自动填入`; preparingEl.classList.remove('hidden'); }
+      } else {
+        if (preparingEl) preparingEl.classList.add('hidden');
+      }
+      if (readyForManualDraw) _show('btn-confirm-firebase');
+      else _hide('btn-confirm-firebase');
+
+      // 开奖就绪逻辑：必须是完整号码，且总后台手动开奖日期是今天。
+      const banner = document.getElementById('draw-ready-banner');
+      if (readyForManualDraw && pendingDrawDate) {
+        // 自动填入号码
+        document.getElementById('draw-1st').value = rawDigits(d.primer) || '';
+        document.getElementById('draw-2nd').value = rawDigits(d.segundo) || '';
+        document.getElementById('draw-3rd').value = rawDigits(d.tercero) || '';
+        saveNextDrawDefault();
+        // 显示横幅
+        const type = (d.drawType || '').toUpperCase();
+        var readyNumsEl = document.getElementById('draw-ready-numbers');
+        if (readyNumsEl) readyNumsEl.textContent = `${type}  1️⃣ ${d.primer}  2️⃣ ${d.segundo}  3️⃣ ${d.tercero}`;
+        if (banner) banner.classList.remove('hidden');
+        // 停止轮询（号码已到，无需继续）
+        if (firebasePollTimer) stopFirebasePoll();
+        // 弹窗提醒发送开奖结果
+        var alert1 = document.getElementById('alert-draw-1st');
+        var alert2 = document.getElementById('alert-draw-2nd');
+        var alert3 = document.getElementById('alert-draw-3rd');
+        if (alert1) alert1.textContent = rawDigits(d.primer) || d.primer;
+        if (alert2) alert2.textContent = rawDigits(d.segundo) || d.segundo;
+        if (alert3) alert3.textContent = rawDigits(d.tercero) || d.tercero;
+        var alertModal = document.getElementById('modal-draw-complete-alert');
+        if (alertModal) alertModal.classList.remove('hidden');
+        // 滚动到横幅位置提醒用户
+        if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      } else {
+        if (banner) banner.classList.add('hidden');
+      }
+
+      // 拉取一次后只填入号码，不填日期（日期在手动开奖处用 YYYY-MM-DD 单独填）
+      if (!fillForm) return;
+      if (readyForManualDraw) {
+        document.getElementById('draw-1st').value = rawDigits(d.primer) || '';
+        document.getElementById('draw-2nd').value = rawDigits(d.segundo) || '';
+        document.getElementById('draw-3rd').value = rawDigits(d.tercero) || '';
+      }
+      saveNextDrawDefault();
+    }
+
+    async function fetchFirebaseDraw(fillForm) {
+      if (fillForm === undefined) fillForm = true;
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/fetch-firebase`, { headers: getAdminHeaders(false) });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || json.error || '拉取失败');
+        if (!json.success || !json.data) throw new Error('数据格式异常');
+        applyFirebaseToUI(json.data, fillForm);
+      } catch (err) {
+        if (fillForm) showToast('拉取 Firebase 开奖失败: ' + err.message, 'error');
+      }
+    }
+
+
+    function isScheduledDrawTimePassed() {
+      const dateInput = getDrawDate();
+      const timeInput = document.getElementById('draw-time').value || '15:00';
+      if (!dateInput) return false;
+      const [d, m, y] = dateInput.split('-').map(Number);
+      const [hh, mm] = timeInput.split(':').map(s => parseInt(s, 10) || 0);
+      const scheduled = new Date(y, m - 1, d, hh, mm, 0);
+      return new Date() >= scheduled;
+    }
+
+    function toggleFirebasePoll() {
+      if (firebasePollTimer) { stopFirebasePoll(); return; }
+      if (!isScheduledDrawTimePassed()) {
+        showToast('当前未到开奖日期时间，请先确认或修改后再开始轮询', 'warning');
+        return;
+      }
+      firebasePollTimer = setInterval(function () {
+        fetchFirebaseDraw(false);
+      }, 12000);
+      document.getElementById('btn-start-poll').classList.add('hidden');
+      document.getElementById('btn-stop-poll').classList.remove('hidden');
+      fetchFirebaseDraw(false);
+    }
+
+    function stopFirebasePoll() {
+      if (firebasePollTimer) clearInterval(firebasePollTimer);
+      firebasePollTimer = null;
+      document.getElementById('btn-start-poll').classList.remove('hidden');
+      document.getElementById('btn-stop-poll').classList.add('hidden');
+    }
+
+    // 自动开始轮询：当前巴拿马时间在 pendingDraw 开奖时间 +5min 到 +5h 之间时自动开启
+    function checkAutoStartPoll() {
+      if (autoStartPollDone || firebasePollTimer) return;
+      if (!pendingDrawDate) return; // 还没拿到待开奖期，不处理
+
+      // 读取手动开奖处填的时间（HH:mm）
+      const drawTimeStr = (document.getElementById('draw-time').value || '15:00').slice(0, 5);
+      const [dh, dm] = drawTimeStr.split(':').map(Number);
+
+      // pendingDrawDate 是 YYYY-MM-DD（本地/巴拿马日期）
+      const [py, pmo, pd] = pendingDrawDate.split('-').map(Number);
+
+      // 巴拿马时间 = UTC-5
+      const panamaNow = new Date(Date.now() - 5 * 3600 * 1000);
+      const nowY = panamaNow.getUTCFullYear();
+      const nowMo = panamaNow.getUTCMonth() + 1;
+      const nowD = panamaNow.getUTCDate();
+      const nowH = panamaNow.getUTCHours();
+      const nowMin = panamaNow.getUTCMinutes();
+
+      // 今天（巴拿马）是否就是开奖日
+      if (nowY !== py || nowMo !== pmo || nowD !== pd) return;
+
+      // 距开奖时间的分钟数（+5min 起、+5h 内）
+      const minutesSinceDraw = (nowH - dh) * 60 + (nowMin - dm);
+      if (minutesSinceDraw < 5 || minutesSinceDraw >= 300) return;
+
+      autoStartPollDone = true;
+      firebasePollTimer = setInterval(function () {
+        fetchFirebaseDraw(false);
+      }, 12000);
+      document.getElementById('btn-start-poll').classList.add('hidden');
+      document.getElementById('btn-stop-poll').classList.remove('hidden');
+      showToast('🔄 已自动开启 Firebase 轮询（开奖时间 +5min）', 'success');
+      fetchFirebaseDraw(false); // 立即拉一次
+    }
+
+    // 将 Firebase 拉取到的三组号码填入手动开奖（只填号码，不填日期）
+    function fillFirebaseIntoManualDraw() {
+      if (!lastFirebaseDraw) {
+        showToast('请先拉取 Firebase 开奖数据', 'warning');
+        return;
+      }
+      if (!isFirebaseDrawComplete(lastFirebaseDraw)) {
+        const type = (lastFirebaseDraw.drawType || '').toUpperCase();
+        const msg = type === 'GORDITO' ? 'GORDITO 需 1奖≥4 位、2/3奖≥2 位'
+          : type === 'EXTRAORDINARIA' ? 'EXTRAORDINARIA 需三奖均≥5 位'
+          : '需三奖均≥4 位（MIERCOLITO/DOMINICAL）';
+        showToast('请先拉取到完整三组号码。' + msg, 'warning');
+        return;
+      }
+      const panamaTodayYMD = (function() {
+        const now = new Date(Date.now() - 5 * 3600 * 1000);
+        return `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`;
+      })();
+      const manualDrawYMD = fbDateToYMD(getDrawDate());
+      if (manualDrawYMD !== panamaTodayYMD) {
+        showToast(`手动开奖日期不是今天，已阻止填入（表单日期: ${manualDrawYMD || '无'}，今天: ${panamaTodayYMD}）`, 'warning');
+        return;
+      }
+      document.getElementById('draw-1st').value = rawDigits(lastFirebaseDraw.primer) || '';
+      document.getElementById('draw-2nd').value = rawDigits(lastFirebaseDraw.segundo) || '';
+      document.getElementById('draw-3rd').value = rawDigits(lastFirebaseDraw.tercero) || '';
+      saveNextDrawDefault();
+    }
+
+    // 加载数据
+    async function loadData() {
+      try {
+        // 获取所有店铺（管理员接口，返回全部）
+        const shopsRes = await fetch(`${API_BASE}/api/admin/shops`, {
+          headers: getAdminHeaders(true)
+        });
+        const shopsData = await shopsRes.json();
+        allShops = shopsData.shops || [];
+        
+        // 获取所有订单
+        const allOrdersData = [];
+        for (const shop of allShops) {
+          const res = await fetch(`${API_BASE}/api/shop/${shop.shop_id}/orders?limit=20000`, {
+            headers: getAdminHeaders(true)
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          (data.orders || []).forEach(o => o.shop_number = shop.shop_number);
+          allOrdersData.push(...(data.orders || []));
+        }
+        allOrders = allOrdersData;
+
+        // 计算当期订单（按待开奖期 draw_id，逻辑与老板端一致）
+        try {
+          const pendingRes = await fetch(`${API_BASE}/api/draw/pending`);
+          const pendingData = pendingRes.ok ? await pendingRes.json() : {};
+          const pendingDrawId = pendingData.draw && (pendingData.draw.drawId != null || pendingData.draw.draw_id != null)
+            ? (pendingData.draw.drawId != null ? pendingData.draw.drawId : pendingData.draw.draw_id)
+            : null;
+          if (pendingDrawId != null) {
+            currentPeriodOrders = allOrders.filter(o => o.draw_id == pendingDrawId);
+          } else {
+            // 没有pending期时，显示最新一期已开奖的订单（而不是空）
+            try {
+              const latestRes = await fetch(`${API_BASE}/api/draw/latest`);
+              const latestData = await latestRes.json().catch(() => ({}));
+              const latestDrawId = latestData.draw && (latestData.draw.drawId != null || latestData.draw.draw_id != null)
+                ? (latestData.draw.drawId != null ? latestData.draw.drawId : latestData.draw.draw_id)
+                : null;
+              if (latestDrawId != null) {
+                currentPeriodOrders = allOrders.filter(o => o.draw_id == latestDrawId);
+              } else {
+                currentPeriodOrders = [];
+              }
+            } catch (e) {
+              console.error('load latest draw orders failed', e);
+              currentPeriodOrders = [];
+            }
+          }
+        } catch (e) {
+          console.error('load current period orders failed', e);
+          currentPeriodOrders = [];
+        }
+
+        try {
+          const statsRes = await fetch(`${API_BASE}/api/admin/current-period-stats`, {
+            headers: getAdminHeaders(true)
+          });
+          const statsData = statsRes.ok ? await statsRes.json() : null;
+          currentPeriodStats = statsData && statsData.success ? statsData : null;
+        } catch (e) {
+          console.error('load current period stats failed', e);
+          currentPeriodStats = null;
+        }
+        
+        // 计算统计数据
+        calculateStats();
+        renderTotalSales();
+        loadSystemHealth();
+        loadShopList();
+        // 店铺对比图表不自动刷新，按按钮触发即可
+        
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 店铺对比：按时间段加载 Top N 店铺销售/利润
+    // 系统运行状态：简单检查 API / 数据库
+    async function loadSystemHealth() {
+      const el = document.getElementById('system-health');
+      if (!el) return;
+      el.innerHTML = '<p class="text-gray-500 text-xs">正在检查...</p>';
+      try {
+        const pingRes = await fetch(`${API_BASE}/api/draw/latest`);
+        const pingOk = pingRes.ok;
+        const pingData = await pingRes.json().catch(() => ({}));
+
+        // 预留一个 /api/admin/health 接口（由新后端实现），用于返回 db / queue 状态
+        let health = null;
+        try {
+          const healthRes = await fetch(`${API_BASE}/api/admin/health`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+          health = await healthRes.json();
+        } catch (_) {
+          // ignore
+        }
+
+        const dbOk = health && health.db === 'ok';
+        const queueOk = health && health.queue === 'ok';
+
+        el.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400">后端 API 连接</span>
+            <span class="${pingOk ? 'text-green-400' : 'text-red-400'} text-xs">
+              ${pingOk ? '正常' : '异常'}
+            </span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400">数据库</span>
+            <span class="${dbOk ? 'text-green-400' : 'text-yellow-400'} text-xs">
+              ${dbOk ? '正常' : '未知'}
+            </span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400">队列 / 定时任务</span>
+            <span class="${queueOk ? 'text-green-400' : 'text-yellow-400'} text-xs">
+              ${queueOk ? '正常' : '未知'}
+            </span>
+          </div>
+        `;
+      } catch (e) {
+        console.error(e);
+        el.innerHTML = '<p class="text-red-400 text-xs">系统状态检测失败</p>';
+      }
+    }
+
+    // 统计
+    function calculateStats() {
+      if (currentPeriodStats) {
+        document.getElementById('total-shops').textContent = Number(currentPeriodStats.shop_count || 0);
+        document.getElementById('total-orders').textContent = Number(currentPeriodStats.total_orders || 0);
+        document.getElementById('total-sales').textContent = '$' + Number(currentPeriodStats.total_sales || 0).toFixed(0);
+        return;
+      }
+      // 当期订单基于 currentPeriodOrders；销售额只统计已付款订单（兼容数字和字符串状态）
+      const activeCurrent = currentPeriodOrders.filter(o => !isCanceledOrder(o));
+      const paidCurrent = activeCurrent.filter(isPaidOrder);
+      const usedShopIds = new Set(activeCurrent
+        .map(o => o.shop_id)
+        .filter(v => v != null));
+      document.getElementById('total-shops').textContent = usedShopIds.size;
+      document.getElementById('total-orders').textContent = activeCurrent.length;
+      document.getElementById('total-sales').textContent = '$' + paidCurrent.reduce((s, o) => s + Number(o.amount || 0), 0).toFixed(0);
+    }
+
+    // 仅修改开奖时间（不强制要求填开奖号码）
+    async function sendDrawTime() {
+      const drawDate = getDrawDate();
+      const drawClock = document.getElementById('draw-time').value || '15:00';
+      if (!drawDate) {
+        showToast('请选择开奖日期', 'warning');
+        return;
+      }
+      const drawTime = ddmmyyyyToISO(drawDate) + 'T' + drawClock + ':00';
+      try {
+        const res = await fetch(`${API_BASE}/api/draw/time`, {
+          method: 'POST',
+          headers: getAdminHeaders(false),
+          body: JSON.stringify({ drawTime })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('✅ 已修改开奖时间：' + drawTime, 'success');
+          try {
+            localStorage.setItem(NEXT_DRAW_DEFAULT_KEY, JSON.stringify({ date: drawDate, time: drawClock }));
+          } catch (e) {}
+          // 时机1：修改开奖时间 → 更新系统记录
+          setConfirmedDrawRecord(drawDate, drawClock, data.drawId || null);
+          // 显示手动覆盖 badge
+          const badge = document.getElementById('manual-override-badge');
+          if (badge) badge.classList.remove('hidden');
+        } else {
+          showToast(data.error || '修改开奖时间失败', 'error');
+        }
+      } catch (err) {
+        showToast('修改开奖时间失败: ' + err.message, 'error');
+      }
+    }
+
+    // 始终从 API 获取当前 pending draw 显示
+    async function refreshConfirmedDrawStatus() {
+      const el = document.getElementById('confirmed-draw-status');
+      if (!el) return;
+      // 直接从 API 获取
+      try {
+        const res = await fetch(API_BASE + '/api/draw/pending');
+        const data = res.ok ? await res.json() : {};
+        const draw = data.draw || {};
+        const rawDate = draw.drawDate || draw.draw_date || null;
+        const rawTime = draw.drawTime || draw.draw_time || null;
+        const rawDrawId = draw.drawId || draw.draw_id || null;
+        if (rawDate && rawTime) {
+          // drawDate 是 DD-MM-YYYY，time 取前5位 HH:mm
+          const timeStr = String(rawTime).slice(0, 5);
+          // 同步写入 localStorage，下次不需要再请求
+          setConfirmedDrawRecord(rawDate, timeStr, rawDrawId);
+          return;
+        }
+        // 无待开奖期（已开奖，等待次日07:00创建下一期）→ 显示最近已完成期
+        const latestRes = await fetch(API_BASE + '/api/draw/latest');
+        const latestData = latestRes.ok ? await latestRes.json() : {};
+        const latest = latestData.draw || {};
+        const latestId = latest.drawId || latest.draw_id || null;
+        if (latestId) {
+          el.textContent = `已开奖 · 第 ${latestId} 期（等待次日07:00创建下一期）`;
+          return;
+        }
+      } catch (e) {}
+      el.textContent = '系统开奖时间：--（巴拿马时间）';
+    }
+
+    // 根据店号渲染 Chance / Billete 销售明细（样式参考老板端）
+    function loadShopSales() {
+      const input = document.getElementById('admin-shop-number');
+      const chanceGrid = document.getElementById('admin-chance-grid');
+      const billeteGrid = document.getElementById('admin-billete-grid');
+      const shopNumber = (input.value || '').trim();
+
+      if (!shopNumber) {
+        showToast('请输入店号', 'warning');
+        return;
+      }
+
+      const shop = allShops.find(s =>
+        String(s.shop_number) === shopNumber ||
+        (s.shop_aliases || []).includes(shopNumber)
+      );
+      if (!shop) {
+        showToast('未找到该店号的店铺', 'warning');
+        chanceGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-10 text-center">未找到该店号</p>';
+        billeteGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-4 text-center">未找到该店号</p>';
+        return;
+      }
+
+      // 只看该店铺的已付款订单
+      const paidOrders = allOrders.filter(o => o.shop_id === shop.shop_id && isPaidOrder(o));
+
+      const chanceCount = {};
+      const billeteCount = {};
+
+      paidOrders.forEach(order => {
+        if (order.numbers) {
+          order.numbers.forEach(n => {
+            if (order.game_type === 'CHANCE') {
+              const key = n.n.toString().slice(-2).padStart(2, '0');
+              chanceCount[key] = (chanceCount[key] || 0) + n.q;
+            } else if (order.game_type === 'BILLETE') {
+              const key = n.n.toString().slice(-4).padStart(4, '0');
+              billeteCount[key] = (billeteCount[key] || 0) + n.q;
+            }
+          });
+        }
+      });
+
+      // Chance 00-99 网格（用老板端的样式）
+      const entries = [];
+      for (let i = 0; i < 100; i++) {
+        const num = i.toString().padStart(2, '0');
+        const qty = chanceCount[num] || 0;
+        entries.push([num, qty]);
+      }
+      const sortedByQty = entries.slice().sort((a, b) => {
+        if (b[1] === a[1]) return Number(a[0]) - Number(b[0]);
+        return b[1] - a[1];
+      });
+
+      chanceGrid.className = 'grid grid-cols-10 gap-1 text-[11px]';
+      chanceGrid.innerHTML = '';
+      entries.sort((a, b) => Number(a[0]) - Number(b[0])).forEach(([num, qty]) => {
+        const rank = sortedByQty.findIndex(([n]) => n === num);
+        let qtyColorClass = 'text-gray-500';
+        if (qty > 0) {
+          qtyColorClass = 'text-green-300';
+          if (rank < 20) qtyColorClass = 'text-red-400';
+          else if (rank < 40) qtyColorClass = 'text-yellow-300';
+          else if (rank < 60) qtyColorClass = 'text-green-300';
+        }
+        const div = document.createElement('div');
+        div.className = 'text-center py-1.5 rounded font-mono bg-gray-700/40';
+        div.innerHTML = `<div class="font-bold text-xs">${esc(num)}</div><div class="text-[10px] ${qtyColorClass}">${Number(qty) || 0}</div>`;
+        chanceGrid.appendChild(div);
+      });
+
+      // Billete 0000-9999 网格（只显示卖出的，样式同老板端）
+      const billeteEntries = Object.entries(billeteCount).filter(([_, q]) => q > 0);
+      billeteEntries.sort((a, b) => Number(a[0]) - Number(b[0]));
+
+      billeteGrid.className = 'grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto';
+      if (billeteEntries.length === 0) {
+        billeteGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-4 text-center">暂无 Billete 销售</p>';
+      } else {
+        billeteGrid.innerHTML = billeteEntries.map(([num, qty], index) => {
+          let qtyColorClass = 'text-gray-500';
+          if (qty > 0) {
+            qtyColorClass = 'text-green-300';
+          }
+          return `
+            <div class="text-center py-2 rounded font-mono bg-gray-700/40">
+              <div class="font-bold text-sm">${esc(num)}</div>
+              <div class="text-[11px] ${qtyColorClass}">${Number(qty) || 0}</div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // 全部店铺总销售数据（样式和老板端销售明细类似）
+    function renderTotalSales() {
+      const chanceTotalGrid = document.getElementById('admin-chance-total');
+      const billeteTotalGrid = document.getElementById('admin-billete-total');
+      if (!chanceTotalGrid || !billeteTotalGrid) return;
+
+      // 只统计已付款订单
+      const paidOrders = allOrders.filter(isPaidOrder);
+
+      const chanceCount = {};
+      const billeteCount = {};
+
+      paidOrders.forEach(order => {
+        if (order.numbers) {
+          order.numbers.forEach(n => {
+            if (order.game_type === 'CHANCE') {
+              const key = n.n.toString().slice(-2).padStart(2, '0');
+              chanceCount[key] = (chanceCount[key] || 0) + n.q;
+            } else if (order.game_type === 'BILLETE') {
+              const key = n.n.toString().slice(-4).padStart(4, '0');
+              billeteCount[key] = (billeteCount[key] || 0) + n.q;
+            }
+          });
+        }
+      });
+
+      // Chance 00-99 总销售
+      const entries = [];
+      for (let i = 0; i < 100; i++) {
+        const num = i.toString().padStart(2, '0');
+        const qty = chanceCount[num] || 0;
+        entries.push([num, qty]);
+      }
+      const sortedByQty = entries.slice().sort((a, b) => {
+        if (b[1] === a[1]) return Number(a[0]) - Number(b[0]);
+        return b[1] - a[1];
+      });
+
+      chanceTotalGrid.className = 'grid grid-cols-10 gap-1 text-[11px]';
+      chanceTotalGrid.innerHTML = '';
+      entries.sort((a, b) => Number(a[0]) - Number(b[0])).forEach(([num, qty]) => {
+        const rank = sortedByQty.findIndex(([n]) => n === num);
+        let qtyColorClass = 'text-gray-500';
+        if (qty > 0) {
+          qtyColorClass = 'text-green-300';
+          if (rank < 20) qtyColorClass = 'text-red-400';
+          else if (rank < 40) qtyColorClass = 'text-yellow-300';
+          else if (rank < 60) qtyColorClass = 'text-green-300';
+        }
+        const div = document.createElement('div');
+        div.className = 'text-center py-1.5 rounded font-mono bg-gray-700/40';
+        div.innerHTML = `<div class="font-bold text-xs">${esc(num)}</div><div class="text-[10px] ${qtyColorClass}">${Number(qty) || 0}</div>`;
+        chanceTotalGrid.appendChild(div);
+      });
+
+      // Billete 总销售：按销量从高到低排列，只显示卖出过的号码
+      const billeteEntries = Object.entries(billeteCount).filter(([_, q]) => q > 0);
+      billeteEntries.sort((a, b) => {
+        if (b[1] === a[1]) return Number(a[0]) - Number(b[0]);
+        return b[1] - a[1];
+      });
+
+      billeteTotalGrid.className = 'grid grid-cols-4 gap-1 text-[11px] max-h-48 overflow-y-auto';
+      if (billeteEntries.length === 0) {
+        billeteTotalGrid.innerHTML = '<p class="text-gray-500 text-xs col-span-4 text-center">暂无 Billete 销售</p>';
+      } else {
+        billeteTotalGrid.innerHTML = billeteEntries.map(([num, qty]) => {
+          let qtyColorClass = 'text-gray-500';
+          if (qty > 0) {
+            qtyColorClass = 'text-green-300';
+          }
+          return `
+            <div class="text-center py-2 rounded font-mono bg-gray-700/40">
+              <div class="font-bold text-sm">${esc(num)}</div>
+              <div class="text-[11px] ${qtyColorClass}">${Number(qty) || 0}</div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+// 查看店铺详情
+    function viewShop(shopId) {
+      const shop = allShops.find(s => s.shop_id === shopId);
+      const orders = allOrders.filter(o => o.shop_id === shopId);
+      const paidOrders = orders.filter(isPaidOrder);
+      const unpaidOrders = orders.filter(isPendingOrder);
+      
+      document.getElementById('shop-detail-title').textContent = `店铺 ${shop.shop_number}`;
+      document.getElementById('shop-orders').textContent = orders.length;
+      document.getElementById('shop-paid').textContent = '$' + paidOrders.reduce((s, o) => s + o.amount, 0).toFixed(2);
+      document.getElementById('shop-unpaid').textContent = '$' + unpaidOrders.reduce((s, o) => s + o.amount, 0).toFixed(2);
+      
+      // Chance销售
+      const chanceCount = {};
+      paidOrders.filter(o => o.game_type === 'CHANCE').forEach(o => {
+        o.numbers.forEach(n => {
+          chanceCount[n.n] = (chanceCount[n.n] || 0) + n.q;
+        });
+      });
+      const chanceSorted = Object.entries(chanceCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      document.getElementById('shop-chance').innerHTML = chanceSorted.length ?
+        chanceSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${esc(num)}</span><span>${Number(qty) || 0}张</span></div>`).join('') :
+        '<p class="text-gray-500">暂无</p>';
+      
+      // Billete销售
+      const billeteCount = {};
+      paidOrders.filter(o => o.game_type === 'BILLETE').forEach(o => {
+        o.numbers.forEach(n => {
+          billeteCount[n.n] = (billeteCount[n.n] || 0) + n.q;
+        });
+      });
+      const billeteSorted = Object.entries(billeteCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      document.getElementById('shop-billete').innerHTML = billeteSorted.length ?
+        billeteSorted.map(([num, qty]) => `<div class="flex justify-between"><span class="font-mono">${esc(num)}</span><span>${Number(qty) || 0}张</span></div>`).join('') :
+        '<p class="text-gray-500">暂无</p>';
+      
+      document.getElementById('modal-shop').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-shop').classList.add('hidden');
+    }
+
+    // 历史期次弹窗：查看每期总订单数和销售额
+    async function openHistoryModal() {
+      const modal = document.getElementById('modal-history');
+      const table = document.getElementById('history-table');
+      if (!modal || !table) return;
+      modal.classList.remove('hidden');
+      table.innerHTML = '<p class="text-gray-500 text-center py-4">加载中...</p>';
+      try {
+        if (!historyCache) {
+          const res = await fetch(`${API_BASE}/api/admin/draw-history?limit=100`, {
+            headers: getAdminHeaders(true),
+          });
+          const data = await res.json();
+          historyCache = data.history || [];
+        }
+        if (!historyCache.length) {
+          table.innerHTML = '<p class="text-gray-500 text-center py-4">暂无历史数据</p>';
+          return;
+        }
+        const rows = historyCache.map((h) => {
+          const date = h.draw_date ? fmtDate(h.draw_date) : '--';
+          const id = h.draw_id != null ? h.draw_id : '--';
+          const orders = h.order_count != null ? h.order_count : '--';
+          const sales = (h.total_sales != null ? Number(h.total_sales) : 0).toFixed(2);
+          const payout = h.total_payout != null ? Number(h.total_payout).toFixed(2) : '--';
+          const net = h.net_profit != null ? Number(h.net_profit).toFixed(2) : '--';
+          return `
+            <tr class="border-t border-gray-700">
+              <td class="px-2 py-1 text-center font-mono">${id}</td>
+              <td class="px-2 py-1 text-center font-mono">${date}</td>
+              <td class="px-2 py-1 text-center">${orders}</td>
+              <td class="px-2 py-1 text-right font-mono">$${sales}</td>
+              <td class="px-2 py-1 text-right font-mono text-emerald-300">$${payout}</td>
+              <td class="px-2 py-1 text-right font-mono ${Number(net) >= 0 ? 'text-green-300' : 'text-red-300'}">$${net}</td>
+            </tr>
+          `;
+        }).join('');
+        table.innerHTML = `
+          <div class="overflow-x-auto">
+            <table class="min-w-full border border-gray-700 rounded-lg overflow-hidden">
+              <thead class="bg-gray-900 text-gray-300">
+                <tr>
+                  <th class="px-2 py-1 text-center">期次ID</th>
+                  <th class="px-2 py-1 text-center">开奖日期</th>
+                  <th class="px-2 py-1 text-center">总订单数</th>
+                  <th class="px-2 py-1 text-right">总销售额</th>
+                  <th class="px-2 py-1 text-right">总返奖</th>
+                  <th class="px-2 py-1 text-right">净利润</th>
+                </tr>
+              </thead>
+              <tbody class="bg-gray-800">
+                ${rows}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (e) {
+        console.error(e);
+        table.innerHTML = '<p class="text-red-400 text-center py-4">加载失败，请稍后重试</p>';
+      }
+    }
+
+    function closeHistoryModal() {
+      const modal = document.getElementById('modal-history');
+      if (modal) modal.classList.add('hidden');
+    }
+
+
+    // 店铺列表
+    let shopListData = [];
+    let shopSortKey = 'shop_number';
+    let shopSortAsc = true;
+
+    function toggleShopListPanel() {
+      const panel = document.getElementById('shop-list-panel');
+      const icon  = document.getElementById('shop-list-toggle-icon');
+      const text  = document.getElementById('shop-list-toggle-text');
+      const open  = panel.classList.toggle('hidden');
+      icon.textContent = open ? '▸' : '▾';
+      text.textContent = open ? '展开' : '关闭';
+      if (!open && shopListData.length === 0) loadShopList();
+    }
+
+    const SHOP_PAGE_SIZE = 50;
+    let shopCurrentPage = 0;
+    let shopSearchQuery = '';
+
+    function onShopSearch() {
+      shopSearchQuery = (document.getElementById('shop-search')?.value || '').trim().toLowerCase();
+      shopCurrentPage = 0;
+      renderShopList();
+    }
+
+    function shopPageChange(delta) {
+      shopCurrentPage += delta;
+      renderShopList();
+    }
+
+    function setShopSort(key) {
+      if (shopSortKey === key) { shopSortAsc = !shopSortAsc; }
+      else { shopSortKey = key; shopSortAsc = true; }
+      shopCurrentPage = 0;
+      document.querySelectorAll('[id^="sort-btn-"]').forEach(b => b.className = 'px-2 py-0.5 rounded bg-gray-700 text-gray-300');
+      document.getElementById('sort-btn-' + key).className = 'px-2 py-0.5 rounded bg-blue-600 text-white';
+      renderShopList();
+    }
+
+    function renderShopList() {
+      const el = document.getElementById('shop-list-table');
+      // 更新平台汇总
+      const platformOrders = shopListData.reduce((s, x) => s + (x.total_orders || 0), 0);
+      const platformSales  = shopListData.reduce((s, x) => s + (x.total_sales  || 0), 0);
+      const toEl = document.getElementById('platform-total-orders');
+      const tsEl = document.getElementById('platform-total-sales');
+      if (toEl) toEl.textContent = platformOrders;
+      if (tsEl) tsEl.textContent = Math.round(platformSales);
+      if (!shopListData.length) { el.innerHTML = '<p class="text-gray-500 text-center py-4">暂无店铺</p>'; return; }
+      // 搜索过滤
+      const filtered = shopSearchQuery
+        ? shopListData.filter(s =>
+            String(s.shop_number || '').includes(shopSearchQuery) ||
+            String(s.account_number || '').toLowerCase().includes(shopSearchQuery))
+        : shopListData;
+      // 排序
+      const sorted = filtered.slice().sort((a, b) => {
+        const av = a[shopSortKey] ?? '';
+        const bv = b[shopSortKey] ?? '';
+        const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return shopSortAsc ? cmp : -cmp;
+      });
+      // 分页
+      const totalPages = Math.ceil(sorted.length / SHOP_PAGE_SIZE);
+      shopCurrentPage = Math.max(0, Math.min(shopCurrentPage, totalPages - 1));
+      const pageData = sorted.slice(shopCurrentPage * SHOP_PAGE_SIZE, (shopCurrentPage + 1) * SHOP_PAGE_SIZE);
+      // 更新分页控件
+      const pag = document.getElementById('shop-pagination');
+      if (sorted.length > SHOP_PAGE_SIZE) {
+        pag.classList.remove('hidden');
+        document.getElementById('shop-page-info').textContent =
+          `第 ${shopCurrentPage + 1} / ${totalPages} 页，共 ${sorted.length} 家`;
+        document.getElementById('shop-btn-prev').disabled = shopCurrentPage === 0;
+        document.getElementById('shop-btn-next').disabled = shopCurrentPage >= totalPages - 1;
+      } else {
+        pag.classList.add('hidden');
+      }
+      el.innerHTML = pageData.map(s => {
+        const acct = s.account_number || '—';
+        const regDate = s.registered_at ? new Date(s.registered_at).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '—';
+        const inactive = s.inactive_periods ?? 0;
+        const inactiveTag = inactive >= 3
+          ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${inactive >= 10 ? 'bg-red-900/60 text-red-300' : 'bg-yellow-900/60 text-yellow-300'}">${inactive}期未下单</span>`
+          : '';
+        // 订阅到期日
+        const expiry = s.subscription_expires_at ? new Date(s.subscription_expires_at) : null;
+        const now = new Date();
+        const expired = expiry && expiry < now;
+        const daysLeft = expiry ? Math.ceil((expiry - now) / 86400000) : null;
+        const expiryStr = expiry ? fmtDate(expiry) : '无';
+        const expiryColor = expired ? 'text-red-400 font-bold' : (daysLeft !== null && daysLeft <= 14 ? 'text-yellow-400' : 'text-gray-400');
+        const expiryLabel = expired ? `${expiryStr}（已过期）` : (daysLeft !== null && daysLeft <= 14 ? `${expiryStr}（剩${daysLeft}天）` : expiryStr);
+        // ISO日期用于input[date]默认值
+        const expiryISO = expiry ? expiry.toISOString().slice(0,10) : '';
+        // 小庄绑定数量
+        const subCount = s.sub_shop_count || 0;
+        const subTag = subCount > 0
+          ? `<button onclick="toggleSubShops(${Number(s.shop_id)}, this)" class="px-1.5 py-0.5 rounded text-[10px] bg-purple-900/50 hover:bg-purple-800 text-purple-300">小庄 ${Number(subCount)} 家 ▸</button>`
+          : '';
+        const addSubBtn = `<button onclick="adminBatchCreateSubs(${Number(s.shop_id)},${jsAttr(s.shop_number)})" class="px-1.5 py-0.5 rounded text-[10px] bg-green-900/50 hover:bg-green-800 text-green-300">+注册小庄</button>`;
+        return `
+          <div class="bg-gray-700/50 rounded-lg px-3 py-2 space-y-1" id="shop-row-${Number(s.shop_id)}">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-mono font-bold text-white w-16 shrink-0">${esc(s.shop_number)}</span>
+              <span class="text-gray-300 truncate">${esc(acct)}</span>
+              <span class="text-gray-500 text-[11px] shrink-0">${esc(regDate)}</span>
+              ${inactiveTag}
+              ${subTag}
+              ${addSubBtn}
+              <button onclick="confirmDeleteAccount(${jsAttr(acct)},${jsAttr(s.shop_number)})"
+                class="ml-auto px-2 py-0.5 rounded text-[10px] bg-red-900/50 hover:bg-red-800 text-red-300">删除</button>
+            </div>
+            <div class="flex gap-4 text-gray-400 flex-wrap items-center">
+              <span>订单 <span class="text-white font-mono">${Number(s.total_orders) || 0}</span></span>
+              <span>销售额 <span class="text-green-400 font-mono">${Math.round(Number(s.total_sales) || 0)}</span></span>
+              <span class="${expiryColor} text-[11px]">到期 ${esc(expiryLabel)}</span>
+              <button onclick="editShopExpiry(${Number(s.shop_id)},${jsAttr(expiryISO)})"
+                class="px-2 py-0.5 rounded text-[10px] bg-blue-900/50 hover:bg-blue-800 text-blue-300">改到期日</button>
+            </div>
+            <!-- 小庄展开列表（默认隐藏） -->
+            <div id="sub-list-${Number(s.shop_id)}" class="hidden mt-1 pl-2 border-l-2 border-purple-700/40 space-y-1"></div>
+          </div>`;
+      }).join('');
+    }
+
+    async function loadShopList() {
+      const el = document.getElementById('shop-list-table');
+      el.innerHTML = '<p class="text-gray-500 text-center py-4">加载中...</p>';
+      try {
+        const res  = await fetch(`${API_BASE}/api/admin/shops`, { headers: getAdminHeaders(true) });
+        const data = await res.json();
+        const shops = data.shops || [];
+        // 附加前端已有的订单统计
+        shopListData = shops.map(s => {
+          const shopOrders = allOrders.filter(o => o.shop_id === s.shop_id && isPaidOrder(o));
+          return {
+            ...s,
+            total_orders: shopOrders.length,
+            total_sales:  shopOrders.reduce((sum, o) => sum + Number(o.amount || 0), 0),
+          };
+        });
+        renderShopList();
+      } catch (e) {
+        el.innerHTML = '<p class="text-red-400 text-center py-4">加载失败</p>';
+      }
+    }
+
+    async function toggleSubShops(shopId, btn) {
+      const el = document.getElementById(`sub-list-${shopId}`);
+      if (!el) return;
+      const isOpen = !el.classList.contains('hidden');
+      if (isOpen) {
+        el.classList.add('hidden');
+        btn.textContent = btn.textContent.replace('▾', '▸');
+        return;
+      }
+      btn.textContent = btn.textContent.replace('▸', '▾') ;
+      el.innerHTML = '<p class="text-gray-500 text-[11px] py-1">加载中…</p>';
+      el.classList.remove('hidden');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/shops/${shopId}/sub-shops`, { headers: getAdminHeaders(true) });
+        const data = await res.json();
+        const subs = data.sub_shops || [];
+        if (!subs.length) { el.innerHTML = '<p class="text-gray-500 text-[11px] py-1">暂无小庄</p>'; return; }
+        // 批量续期按钮
+        const batchBtn = `<button onclick="batchSubExpiry(${Number(shopId)})" class="text-[10px] px-2 py-0.5 rounded bg-purple-700 hover:bg-purple-600 text-white ml-auto">📅 批量续期</button>`;
+        el.innerHTML = `<div class="flex items-center mb-1">${batchBtn}</div>` + subs.map(s => {
+          const expiry = s.subscription_expires_at ? new Date(s.subscription_expires_at) : null;
+          const now = new Date();
+          const expired = expiry && expiry < now;
+          const expiryStr = expiry ? fmtDate(expiry) : '无';
+          const color = expired ? 'text-red-400' : 'text-gray-400';
+          const expiryISO = expiry ? expiry.toISOString().slice(0,10) : '';
+          return `<div class="flex items-center gap-2 text-[11px] bg-gray-800/60 rounded px-2 py-1">
+            <span class="font-mono text-purple-300 w-16 shrink-0">${esc(s.shop_number)}</span>
+            <span class="${color} flex-1">到期 ${esc(expiryStr)}${expired ? '（已过期）':''}</span>
+            <button onclick="editShopExpiry(${Number(s.shop_id)},${jsAttr(expiryISO)})" class="text-blue-400 hover:text-blue-200">改</button>
+          </div>`;
+        }).join('');
+      } catch (e) { el.innerHTML = '<p class="text-red-400 text-[11px] py-1">加载失败</p>'; }
+    }
+
+    async function adminBatchCreateSubs(mainShopId, shopNumber) {
+      const countStr = prompt(`为大庄 ${shopNumber} 批量注册小庄，请输入数量（无上限）：`, '1');
+      if (countStr === null) return;
+      const count = parseInt(countStr);
+      if (isNaN(count) || count < 1) { showToast('请输入有效数量', 'error'); return; }
+      if (!confirm(`确定为大庄 ${shopNumber} 注册 ${count} 个小庄？`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/merchant/binding/batch-create-subs`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(true), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mainShopId, count, adminOverride: true }),
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message || data.error || '注册失败', 'error'); return; }
+        const created = data.created || [];
+        const lines = created.map(c => `店号:${c.shopNumber}  账号:${c.account}  密码:${c.password}`).join('\n');
+        showToast(`✅ 成功注册 ${created.length} 个小庄`, 'success');
+        alert(`注册成功！共 ${created.length} 个：\n\n${lines}`);
+        loadShopList();
+      } catch (e) {
+        showToast('请求失败：' + e.message, 'error');
+      }
+    }
+
+    async function batchSubExpiry(mainShopId) {
+      const input = prompt('为该大庄及其【全部小庄】统一设置到期日（YYYY-MM-DD），留空=清除限制：',
+        new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10));
+      if (input === null) return;
+      const trimmed = input.trim();
+      if (trimmed !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) { showToast('日期格式错误', 'error'); return; }
+      // 先获取小庄列表
+      const res = await fetch(`${API_BASE}/api/admin/shops/${mainShopId}/sub-shops`, { headers: getAdminHeaders(true) });
+      const data = await res.json();
+      const ids = [mainShopId, ...(data.sub_shops || []).map(s => s.shop_id)];
+      if (ids.length <= 1) { showToast('该大庄暂无小庄', 'error'); return; }
+      if (!confirm(`确定为大庄及其 ${ids.length - 1} 家小庄（共 ${ids.length} 家）统一设置到期日「${trimmed || '无限制'}」？`)) return;
+      await applyShopSubscription(ids, trimmed || null);
+      // 刷新展开的小庄列表
+      const el = document.getElementById(`sub-list-${mainShopId}`);
+      if (el && !el.classList.contains('hidden')) {
+        const btn = el.closest('[id^="shop-row-"]')?.querySelector('button[onclick*="toggleSubShops"]');
+        // 重新加载
+        el.innerHTML = '<p class="text-gray-500 text-[11px] py-1">刷新中…</p>';
+        setTimeout(() => toggleSubShops(mainShopId, btn || {}), 500);
+      }
+    }
+
+    async function editShopExpiry(shopId, currentISO) {
+      const defaultVal = currentISO || new Date().toISOString().slice(0, 10);
+      const input = prompt(`设置到期日期（格式 YYYY-MM-DD），留空则清除限制：`, defaultVal);
+      if (input === null) return; // 取消
+      const trimmed = input.trim();
+      if (trimmed !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        showToast('日期格式错误，请用 YYYY-MM-DD', 'error'); return;
+      }
+      await applyShopSubscription([shopId], trimmed || null);
+    }
+
+    async function editAllShopsExpiry() {
+      const input = prompt('为【全部店铺】设置到期日期（格式 YYYY-MM-DD），留空则清除所有限制：',
+        new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10));
+      if (input === null) return;
+      const trimmed = input.trim();
+      if (trimmed !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        showToast('日期格式错误，请用 YYYY-MM-DD', 'error'); return;
+      }
+      const ids = shopListData.map(s => s.shop_id).filter(Boolean);
+      if (!ids.length) { showToast('暂无店铺数据，请先刷新', 'error'); return; }
+      if (!confirm(`确定将 ${ids.length} 家店铺的到期日统一设为「${trimmed || '无限制'}」？`)) return;
+      await applyShopSubscription(ids, trimmed || null);
+    }
+
+    async function applyShopSubscription(shopIds, expiresAt) {
+      let ok = 0, fail = 0;
+      for (const id of shopIds) {
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/shops/${id}/subscription`, {
+            method: 'PATCH',
+            headers: { ...getAdminHeaders(true), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expires_at: expiresAt }),
+          });
+          const data = await res.json();
+          data.success ? ok++ : fail++;
+        } catch { fail++; }
+      }
+      showToast(fail === 0
+        ? (shopIds.length === 1 ? `到期日已设为 ${expiresAt || '无限制'}` : `全部 ${ok} 家店铺已更新`)
+        : `完成：${ok} 成功 / ${fail} 失败`, fail === 0 ? 'success' : 'error');
+      loadShopList();
+    }
+
+    async function toggleShopStatus(shopId, newStatus) {
+      try {
+        const res  = await fetch(`${API_BASE}/api/admin/shops/${shopId}/status`, {
+          method: 'PATCH',
+          headers: getAdminHeaders(true),
+          body: JSON.stringify({ status: newStatus }),
+        });
+        const data = await res.json();
+        if (data.success) loadShopList();
+        else showToast(data.message || '操作失败', 'error');
+      } catch (e) { showToast('操作失败', 'error'); }
+    }
+
+    function confirmDeleteAccount(accountNumber, shopNumber) {
+      if (!accountNumber || accountNumber === '—') { showToast('该店铺无关联账号', 'warning'); return; }
+      showConfirm(`确认删除账号「${accountNumber}」（店号 ${shopNumber}）？\n删除后店号释放回随机池，无法恢复。`, async function () {
+        try {
+          const res  = await fetch(`${API_BASE}/api/admin/accounts/${encodeURIComponent(accountNumber)}`, {
+            method: 'DELETE',
+            headers: getAdminHeaders(true),
+          });
+          const data = await res.json();
+          if (data.success) { showToast(data.message || '已删除', 'success'); loadShopList(); loadData(); }
+          else showToast(data.message || data.error || '删除失败', 'error');
+        } catch (e) { showToast('请求失败', 'error'); }
+      });
+    }
+
+    // 重置密码
+    async function resetPassword() {
+      const sn = document.getElementById('reset-shop-number').value.trim();
+      const pwd = document.getElementById('reset-new-password').value.trim();
+      const resultEl = document.getElementById('reset-result');
+      resultEl.classList.remove('hidden', 'text-green-400', 'text-red-400');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/reset-password`, {
+          method: 'POST',
+          headers: getAdminHeaders(true),
+          body: JSON.stringify({ shopNumber: sn, newPassword: pwd }),
+        });
+        const data = await res.json();
+        resultEl.classList.remove('hidden');
+        if (data.success) {
+          resultEl.classList.add('text-green-400');
+          resultEl.textContent = data.message;
+          document.getElementById('reset-new-password').value = '';
+        } else {
+          resultEl.classList.add('text-red-400');
+          resultEl.textContent = data.message || data.error || '重置失败';
+        }
+      } catch (e) {
+        resultEl.classList.remove('hidden');
+        resultEl.classList.add('text-red-400');
+        resultEl.textContent = '请求失败';
+      }
+    }
+
+    // 生成卡密
+    async function generateCards() {
+      const type = document.getElementById('card-type').value;
+      const count = parseInt(document.getElementById('card-count').value) || 1;
+      const resultEl = document.getElementById('card-result');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/generate-cards`, {
+          method: 'POST',
+          headers: getAdminHeaders(true),
+          body: JSON.stringify({ type, count }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          resultEl.classList.remove('hidden');
+          const label = type === 'monthly' ? '月卡' : '年卡';
+          resultEl.innerHTML = data.codes.map(c => `<div class="text-green-300">[${esc(label)}] ${esc(c)}</div>`).join('');
+        } else {
+          showToast(data.message || '生成失败', 'error');
+        }
+      } catch (e) { showToast('请求失败', 'error'); }
+    }
+
+    // 开奖结果确认弹窗
+    function confirmManualDraw() {
+      const drawDate = getDrawDate();
+      const drawClock = document.getElementById('draw-time').value || '15:00';
+      const b = (document.getElementById('draw-1st').value || '').replace(/\D/g, '');
+      const s = (document.getElementById('draw-2nd').value || '').replace(/\D/g, '');
+      const t = (document.getElementById('draw-3rd').value || '').replace(/\D/g, '');
+      if (!drawDate) { showToast('请选择开奖日期', 'warning'); return; }
+      if (!b || !s || !t) { showToast('请填写 1、2、3 奖号码', 'warning'); return; }
+      document.getElementById('confirm-draw-date').textContent = drawDate + ' ' + drawClock;
+      document.getElementById('confirm-draw-1st').textContent = b;
+      document.getElementById('confirm-draw-2nd').textContent = s;
+      document.getElementById('confirm-draw-3rd').textContent = t;
+      document.getElementById('modal-draw-confirm').classList.remove('hidden');
+    }
+
+    document.getElementById('modal-draw-confirm').addEventListener('click', function(e) {
+      if (e.target === this) this.classList.add('hidden');
+    });
+
+    // 回滚开奖
+    async function rollbackDraw() {
+      showConfirm('确定要回滚最近一次开奖吗？\n系统会把上一期恢复为「未开奖」状态，清除开奖号码、中奖金额和兑奖记录。\n回滚后请立刻修改开奖号码，然后点击「发送开奖结果」。', async function () {
+        try {
+          const res = await fetch(`${API_BASE}/api/draw/rollback`, {
+            method: 'POST',
+            headers: getAdminHeaders(true),
+          });
+          const data = await res.json();
+          if (data.success) {
+            document.getElementById('rollback-warning').classList.remove('hidden');
+            document.getElementById('draw-1st').focus();
+            document.getElementById('draw-1st').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            initDrawDefaults().catch(function () {});
+            loadData();
+          } else {
+            showToast(data.error || '回滚失败', 'error');
+          }
+        } catch (err) {
+          showToast('回滚失败: ' + err.message, 'error');
+        }
+      });
+    }
+  </script>
+
+  <!-- 轮询检测到开奖完成提醒弹窗 -->
+  <div id="modal-draw-complete-alert" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+      <div class="text-4xl mb-3">🎉</div>
+      <h2 class="text-lg font-bold mb-1">开奖完成</h2>
+      <p class="text-xs text-gray-400 mb-4">轮询检测到开奖号码已全部出炉，请发送开奖结果</p>
+      <div class="bg-gray-900 rounded-xl p-4 mb-5 font-mono space-y-2 text-left">
+        <div class="flex justify-between items-center">
+          <span class="text-yellow-400 font-bold">🥇 头奖</span>
+          <span id="alert-draw-1st" class="text-yellow-300 text-xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-300 font-bold">🥈 二奖</span>
+          <span id="alert-draw-2nd" class="text-gray-200 text-xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-orange-400 font-bold">🥉 三奖</span>
+          <span id="alert-draw-3rd" class="text-orange-300 text-xl font-bold tracking-widest"></span>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('modal-draw-complete-alert').classList.add('hidden')"
+          class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-xl font-bold text-sm">稍后</button>
+        <button onclick="document.getElementById('modal-draw-complete-alert').classList.add('hidden'); confirmManualDraw();"
+          class="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-bold text-sm">立即发送开奖结果</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 发送开奖结果确认弹窗 -->
+  <div id="modal-draw-confirm" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+      <h2 class="text-lg font-bold text-center mb-1">确认开奖号码</h2>
+      <p class="text-xs text-gray-400 text-center mb-4">请再次核对，发送后将立即结算所有订单</p>
+      <div class="bg-gray-900 rounded-xl p-4 space-y-3 mb-5 font-mono">
+        <div class="flex justify-between items-center">
+          <span class="text-gray-400 text-sm">开奖时间</span>
+          <span id="confirm-draw-date" class="text-white text-sm"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-yellow-400 font-bold">🥇 头奖</span>
+          <span id="confirm-draw-1st" class="text-yellow-300 text-2xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-300 font-bold">🥈 二奖</span>
+          <span id="confirm-draw-2nd" class="text-gray-200 text-2xl font-bold tracking-widest"></span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-orange-400 font-bold">🥉 三奖</span>
+          <span id="confirm-draw-3rd" class="text-orange-300 text-2xl font-bold tracking-widest"></span>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('modal-draw-confirm').classList.add('hidden')"
+          class="flex-1 py-3 bg-gray-600 hover:bg-gray-500 rounded-xl font-bold">取消</button>
+        <button onclick="document.getElementById('modal-draw-confirm').classList.add('hidden'); manualDraw();"
+          class="flex-1 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold">确认发送</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 错误日志弹窗 -->
+  <div id="modal-logs" class="hidden fixed inset-0 bg-black/70 z-50 overflow-y-auto">
+    <div class="min-h-screen p-4 flex items-center justify-center" onclick="if(event.target===this)closeLogsModal()">
+      <div class="bg-gray-800 rounded-2xl p-4 w-full max-w-4xl" style="max-height: 80vh;">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-lg font-bold">📜 错误日志</h3>
+          <button onclick="closeLogsModal()" class="text-gray-400 hover:text-white text-xl">✕</button>
+        </div>
+        <div class="flex gap-2 mb-3">
+          <button onclick="loadLogs(50)" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">最近50行</button>
+          <button onclick="loadLogs(100)" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">最近100行</button>
+          <button onclick="loadLogs(200)" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">最近200行</button>
+          <button onclick="loadLogs()" class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-sm">刷新</button>
+        </div>
+        <pre id="logs-content" class="bg-gray-900 p-3 rounded-lg text-xs overflow-auto" style="max-height: 60vh; white-space: pre-wrap; word-break: break-all;"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 打开日志弹窗
+    function openLogsModal() {
+      document.getElementById('modal-logs').classList.remove('hidden');
+      loadLogs(100);
+    }
+
+    // 关闭日志弹窗
+    function closeLogsModal() {
+      document.getElementById('modal-logs').classList.add('hidden');
+    }
+
+    // 加载日志
+    async function loadLogs(lines = 100) {
+      const content = document.getElementById('logs-content');
+      content.textContent = '加载中...';
+      try {
+        const res = await fetch(API_BASE + '/api/admin/logs?lines=' + lines, {
+          headers: getAdminHeaders(true)
+        });
+        const data = await res.json();
+        if (data.success) {
+          content.textContent = data.logs || '暂无日志';
+        } else {
+          content.textContent = 'Error: ' + data.error;
+        }
+      } catch (e) {
+        content.textContent = 'Failed: ' + e.message;
+      }
+    }
+  </script>
+</body>
+</html>

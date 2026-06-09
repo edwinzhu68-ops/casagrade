@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>casagrade 地推传单</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans SC', sans-serif; background: #e5e7eb; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+
+    /* A4 页面 */
+    #flyer {
+      width: 210mm;
+      min-height: 297mm;
+      background: #fff;
+      padding: 12mm 14mm 10mm;
+      display: flex;
+      flex-direction: column;
+    }
+
+    @media print {
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .no-print { display: none !important; }
+      #flyer { box-shadow: none !important; border: none !important; margin: 0; padding: 10mm 12mm 8mm; }
+      @page { size: A4; margin: 0; }
+    }
+
+    /* 标题区 */
+    .header { text-align: center; margin-bottom: 6mm; }
+    .header h1 { font-size: 28pt; font-weight: 900; color: #111; letter-spacing: 0.05em; line-height: 1.2; }
+    .header .sub { font-size: 13pt; color: #555; margin-top: 2mm; }
+    .header .brand { font-size: 11pt; color: #16a34a; font-weight: 700; margin-top: 1.5mm; letter-spacing: 0.1em; }
+
+    /* 安全警告横幅 */
+    .safety-banner {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      color: #fff;
+      border-radius: 4mm;
+      padding: 5mm 6mm;
+      margin-bottom: 5mm;
+      text-align: center;
+    }
+    .safety-banner .icon { font-size: 22pt; }
+    .safety-banner h2 { font-size: 16pt; font-weight: 900; margin: 1mm 0; }
+    .safety-banner p { font-size: 10pt; opacity: 0.92; line-height: 1.5; }
+
+    /* 功能卡片网格 */
+    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin-bottom: 5mm; }
+    .feat {
+      border: 0.4mm solid #e5e7eb;
+      border-radius: 3mm;
+      padding: 3.5mm 4mm;
+      display: flex;
+      align-items: flex-start;
+      gap: 3mm;
+    }
+    .feat .icon { font-size: 18pt; flex-shrink: 0; line-height: 1; }
+    .feat .title { font-size: 10pt; font-weight: 900; color: #111; line-height: 1.3; }
+    .feat .desc { font-size: 8pt; color: #666; line-height: 1.4; margin-top: 0.5mm; }
+    .feat.highlight { background: #f0fdf4; border-color: #86efac; }
+
+    /* 对比表 */
+    .compare { width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 9pt; }
+    .compare th { background: #111; color: #fff; padding: 2.5mm 4mm; font-weight: 900; font-size: 10pt; }
+    .compare td { padding: 2.5mm 4mm; border-bottom: 0.3mm solid #e5e7eb; }
+    .compare .old { background: #fef2f2; color: #b91c1c; }
+    .compare .new { background: #f0fdf4; color: #15803d; font-weight: 700; }
+
+    /* 定价区 */
+    .pricing {
+      background: linear-gradient(135deg, #111827, #1e3a5f);
+      color: #fff;
+      border-radius: 4mm;
+      padding: 5mm 6mm;
+      margin-bottom: 5mm;
+      text-align: center;
+    }
+    .pricing h3 { font-size: 14pt; font-weight: 900; margin-bottom: 3mm; }
+    .pricing .free { font-size: 18pt; font-weight: 900; color: #fbbf24; }
+    .pricing .plans { display: flex; justify-content: center; gap: 5mm; margin-top: 3mm; }
+    .pricing .plan {
+      background: rgba(255,255,255,0.1);
+      border: 0.4mm solid rgba(255,255,255,0.25);
+      border-radius: 3mm;
+      padding: 3mm 5mm;
+      min-width: 22mm;
+    }
+    .pricing .plan .label { font-size: 8pt; color: #93c5fd; font-weight: 700; }
+    .pricing .plan .price { font-size: 14pt; font-weight: 900; }
+    .pricing .plan .per { font-size: 7pt; color: #fca5a5; font-weight: 700; }
+
+    /* 底部联系 */
+    .footer {
+      margin-top: auto;
+      background: #f8fafc;
+      border: 0.4mm solid #e2e8f0;
+      border-radius: 4mm;
+      padding: 4mm 6mm;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .footer .contact { font-size: 9pt; color: #333; line-height: 1.6; }
+    .footer .contact strong { font-size: 11pt; }
+    .footer .qr-placeholder {
+      width: 25mm;
+      height: 25mm;
+      border: 0.5mm dashed #94a3b8;
+      border-radius: 2mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7pt;
+      color: #94a3b8;
+      text-align: center;
+    }
+
+    .section-title {
+      font-size: 11pt;
+      font-weight: 900;
+      color: #111;
+      margin-bottom: 2.5mm;
+      padding-left: 1mm;
+      border-left: 1.2mm solid #16a34a;
+      padding-left: 3mm;
+    }
+
+    .priority-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 5mm;
+      height: 5mm;
+      background: #16a34a;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 8pt;
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="no-print" style="margin-bottom:15px; display:flex; gap:10px;">
+    <button onclick="window.print()" style="background:#16a34a; color:#fff; border:none; padding:10px 24px; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer;">打印 A4 传单</button>
+    <button onclick="window.close()" style="background:#666; color:#fff; border:none; padding:10px 24px; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer;">返回</button>
+  </div>
+
+  <div id="flyer" class="shadow-lg" style="box-shadow: 0 4px 24px rgba(0,0,0,0.15); border-radius: 2mm;">
+
+    <!-- 标题 -->
+    <div class="header">
+      <h1>彩票数字化管理系统</h1>
+      <div class="sub">一部手机管全店 · 支持 Loteria / TICA / NICA</div>
+      <div class="brand">CASAGRADE.COM</div>
+    </div>
+
+    <!-- 安全第一 -->
+    <div class="safety-banner">
+      <div class="icon">🛡️</div>
+      <h2>装了这套系统，安全等级直接拉满</h2>
+      <p>店里不打单、不存票根、门口不排队、查不到任何东西 —— 这是装系统最大的价值</p>
+    </div>
+
+    <!-- 功能重要性排序 -->
+    <div class="section-title">功能一览（按重要性排序）</div>
+    <div class="features">
+
+      <div class="feat highlight">
+        <div><span class="priority-num">1</span></div>
+        <div>
+          <div class="title">🛡️ 零痕迹经营</div>
+          <div class="desc">不打单、不存票根、门口不聚人。手机APP操作，店里查不到任何东西。<b>这是最核心的价值。</b></div>
+        </div>
+      </div>
+
+      <div class="feat highlight">
+        <div><span class="priority-num">2</span></div>
+        <div>
+          <div class="title">🧾 代客下单（收款台）</div>
+          <div class="desc">客人报号码，老板在APP里输入，确认收款。九宫格快捷输入，10秒一单。</div>
+        </div>
+      </div>
+
+      <div class="feat highlight">
+        <div><span class="priority-num">3</span></div>
+        <div>
+          <div class="title">📊 自动结算 + 利润报表</div>
+          <div class="desc">开奖后系统自动算：销售额、中奖赔付、净利润。近20期历史一键查，不用自己算账。</div>
+        </div>
+      </div>
+
+      <div class="feat highlight">
+        <div><span class="priority-num">4</span></div>
+        <div>
+          <div class="title">🖨️ 蓝牙打印小票</div>
+          <div class="desc">连蓝牙热敏打印机，收款后自动出票。小票带二维码，客人可扫码兑奖。</div>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div><span class="priority-num">5</span></div>
+        <div>
+          <div class="title">📱 客人扫码自助下单</div>
+          <div class="desc">客人在家扫二维码选号下单，你收到通知确认收款。门口不排队。</div>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div><span class="priority-num">6</span></div>
+        <div>
+          <div class="title">⚙️ 自定义赔率 / 限额</div>
+          <div class="desc">每个号码最多卖多少张可设上限，各奖项赔率独立配置，风险可控。</div>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div><span class="priority-num">7</span></div>
+        <div>
+          <div class="title">📲 电子单 WhatsApp 转发</div>
+          <div class="desc">下单后一键生成电子单图片，直接转发WhatsApp给客人，不用打印也有凭据。</div>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div><span class="priority-num">8</span></div>
+        <div>
+          <div class="title">🏢 大庄多店管理</div>
+          <div class="desc">绑定下属门店，所有人的销售额汇总一屏看完，自动结算佣金。</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 以前 vs 现在 -->
+    <div class="section-title">装了 vs 没装</div>
+    <table class="compare">
+      <tr>
+        <th style="width:50%;">❌ 没装系统</th>
+        <th style="width:50%;">✅ 装了 casagrade</th>
+      </tr>
+      <tr>
+        <td class="old">😓 手写单据，写错重来，被查到就是证据</td>
+        <td class="new">✅ 零纸张、零痕迹，手机里删了就没了</td>
+      </tr>
+      <tr>
+        <td class="old">😓 门口排长队，邻居都知道你在做什么</td>
+        <td class="new">✅ 客人在家下单，门口没有人</td>
+      </tr>
+      <tr>
+        <td class="old">😓 每期开奖自己拿计算器算账，算错赔钱</td>
+        <td class="new">✅ 系统秒结算，销售/赔付/利润自动出</td>
+      </tr>
+      <tr>
+        <td class="old">😓 客人说中奖了但单子找不到，扯皮</td>
+        <td class="new">✅ 扫二维码一秒核实，中没中一目了然</td>
+      </tr>
+      <tr>
+        <td class="old">😓 一个号码一个号码手打，忙的时候出错</td>
+        <td class="new">✅ 九宫格快捷输入，10秒完成一单</td>
+      </tr>
+    </table>
+
+    <!-- 定价 -->
+    <div class="pricing">
+      <h3>🎉 推广期免费试用</h3>
+      <div class="free">先免费用，满意了再买卡</div>
+      <div class="plans">
+        <div class="plan">
+          <div class="label">月卡</div>
+          <div class="price">$50</div>
+          <div class="per">$50/月</div>
+        </div>
+        <div class="plan">
+          <div class="label">半年卡</div>
+          <div class="price">$240</div>
+          <div class="per">$40/月</div>
+        </div>
+        <div class="plan" style="border-color: #fbbf24;">
+          <div class="label" style="color:#fbbf24;">年卡 推荐</div>
+          <div class="price">$420</div>
+          <div class="per">$35/月</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部联系 -->
+    <div class="footer">
+      <div class="contact">
+        <strong>联系安装 / 咨询</strong><br>
+        📱 WhatsApp: <b>6804-0864</b><br>
+        🌐 网站: <b>www.casagrade.com</b><br>
+        📲 下载APP后输入店号即可使用
+      </div>
+      <div class="qr-placeholder">
+        扫码加<br>WhatsApp
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // 生成 WhatsApp 联系二维码
+    (function() {
+      var qrEl = document.querySelector('.qr-placeholder');
+      if (!qrEl) return;
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      s.onload = function() {
+        qrEl.innerHTML = '';
+        qrEl.style.border = 'none';
+        new QRCode(qrEl, {
+          text: 'https://wa.me/50768040864',
+          width: 90,
+          height: 90,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      };
+      document.head.appendChild(s);
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>casagrade · 宣传图</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script>window.html2canvas || document.write('<script src="libs/html2canvas.min.js"><\/script>')</script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans SC', 'PingFang SC', sans-serif; background: #1a1a2e; display: flex; flex-direction: column; align-items: center; padding: 20px; gap: 16px; }
+
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .toolbar button {
+      padding: 10px 22px; border-radius: 12px; border: none; font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    .btn-save { background: #16a34a; color: #fff; }
+    .btn-save:hover { background: #15803d; }
+
+    /* ── 海报主体 750×1334 ── */
+    #poster {
+      width: 375px;
+      min-height: 667px;
+      background: linear-gradient(160deg, #0f172a 0%, #0c2340 40%, #0d3322 100%);
+      border-radius: 20px;
+      overflow: hidden;
+      position: relative;
+      color: #fff;
+      padding: 32px 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* 背景装饰圆 */
+    #poster::before {
+      content: '';
+      position: absolute; top: -60px; right: -60px;
+      width: 220px; height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #16a34a30, transparent 70%);
+      pointer-events: none;
+    }
+    #poster::after {
+      content: '';
+      position: absolute; bottom: -40px; left: -40px;
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #1d4ed830, transparent 70%);
+      pointer-events: none;
+    }
+
+    .brand {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: #16a34a;
+      box-shadow: 0 0 8px #16a34a;
+    }
+    .brand-name { font-size: 13px; font-weight: 700; color: #86efac; letter-spacing: .1em; text-transform: uppercase; }
+
+    .hero { text-align: center; padding: 4px 0; }
+    .hero-emoji { font-size: 48px; line-height: 1; margin-bottom: 12px; display: block; }
+    .hero-title { font-size: 26px; font-weight: 900; line-height: 1.25; letter-spacing: .02em; }
+    .hero-title span { color: #4ade80; }
+    .hero-sub { font-size: 13px; color: #94a3b8; margin-top: 10px; line-height: 1.7; }
+
+    /* 亮点标签 */
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .tag {
+      padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15); color: #e2e8f0;
+    }
+    .tag.green { background: #16a34a20; border-color: #16a34a60; color: #4ade80; }
+    .tag.blue  { background: #1d4ed820; border-color: #1d4ed860; color: #93c5fd; }
+    .tag.amber { background: #d9770620; border-color: #d9770660; color: #fcd34d; }
+
+    /* 特性列表 */
+    .features { display: flex; flex-direction: column; gap: 10px; }
+    .feat {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .feat-icon { font-size: 22px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+    .feat-text {}
+    .feat-title { font-size: 13px; font-weight: 700; color: #f1f5f9; line-height: 1.3; }
+    .feat-desc  { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.5; }
+
+    /* 分割线 */
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent); }
+
+    /* 底部 CTA */
+    .cta { background: linear-gradient(135deg, #16a34a, #059669); border-radius: 16px; padding: 16px 18px; text-align: center; }
+    .cta-title { font-size: 14px; font-weight: 900; margin-bottom: 6px; }
+    .cta-url { font-size: 13px; font-weight: 700; color: #d1fae5; letter-spacing: .02em; margin-bottom: 4px; }
+    .cta-hint { font-size: 11px; color: #bbf7d0; opacity: .8; }
+
+    /* 价格 */
+    .price-row { display: flex; gap: 8px; }
+    .price-card {
+      flex: 1; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px; padding: 10px 6px; text-align: center;
+    }
+    .price-label { font-size: 10px; color: #fbbf24; font-weight: 700; margin-bottom: 4px; }
+    .price-val   { font-size: 18px; font-weight: 900; color: #fff; line-height: 1; }
+    .price-sub   { font-size: 9px; color: #f87171; font-weight: 700; margin-top: 2px; }
+
+    .free-badge {
+      background: linear-gradient(90deg, #ca8a04, #d97706);
+      border-radius: 10px; padding: 8px 14px; text-align: center;
+      font-size: 13px; font-weight: 900; color: #fff;
+    }
+
+    .watermark {
+      text-align: center; font-size: 10px; color: #475569; font-weight: 500; margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <button class="btn-save" onclick="savePoster()">📸 保存图片（发朋友圈）</button>
+  </div>
+
+  <div id="poster">
+    <!-- 品牌 -->
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <span class="brand-name">casagrade</span>
+    </div>
+
+    <!-- Hero -->
+    <div class="hero">
+      <span class="hero-emoji">🛡️</span>
+      <div class="hero-title">彩票店<span>数字化</span>管理<br>一部手机全搞定</div>
+      <div class="hero-sub">客人在家下单 · 老板手机确认收款<br>店里零痕迹 · 门口不排队</div>
+    </div>
+
+    <!-- 标签 -->
+    <div class="tags">
+      <span class="tag green">✅ Lotería</span>
+      <span class="tag green">✅ TICA</span>
+      <span class="tag green">✅ NICA</span>
+      <span class="tag blue">📱 安卓 APP</span>
+      <span class="tag amber">🖨️ 蓝牙打印</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 特性 -->
+    <div class="features">
+      <div class="feat">
+        <span class="feat-icon">📲</span>
+        <div class="feat-text">
+          <div class="feat-title">客人自助下单，告别手打时代</div>
+          <div class="feat-desc">扫码选号下单，老板一键确认，全程不超过10秒</div>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">🛡️</span>
+        <div class="feat-text">
+          <div class="feat-title">极大降低风险</div>
+          <div class="feat-desc">店里不打单不存票根，门口不聚人，查不到任何东西</div>
+        </div>
+      </div>
+      <div class="feat">
+        <span class="feat-icon">📊</span>
+        <div class="feat-text">
+          <div class="feat-title">联网管理，实时数据</div>
+          <div class="feat-desc">销售额、中奖单、利润一目了然，开奖自动结算</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 价格 -->
+    <div>
+      <div class="free-badge">🎉 推广期免费试用</div>
+      <div class="price-row" style="margin-top:10px">
+        <div class="price-card">
+          <div class="price-label">月卡</div>
+          <div class="price-val">$50</div>
+          <div class="price-sub">=$50/月</div>
+        </div>
+        <div class="price-card">
+          <div class="price-label">半年卡</div>
+          <div class="price-val">$240</div>
+          <div class="price-sub">=$40/月</div>
+        </div>
+        <div class="price-card">
+          <div class="price-label">年卡</div>
+          <div class="price-val">$420</div>
+          <div class="price-sub">=$35/月</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta">
+      <div class="cta-title">📱 立即免费体验</div>
+      <div class="cta-url">www.casagrade.com</div>
+      <div class="cta-hint">老板端 · 客户端 · 安卓 APP 均可下载</div>
+    </div>
+
+  </div>
+
+  <script>
+    async function savePoster() {
+      var btn = document.querySelector('.btn-save');
+      btn.textContent = '⏳ 生成中...';
+      btn.disabled = true;
+      try {
+        var canvas = await html2canvas(document.getElementById('poster'), {
+          scale: 3,
+          useCORS: true,
+          backgroundColor: null,
+          logging: false
+        });
+        var link = document.createElement('a');
+        link.download = 'casagrade_promo.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      } catch(e) {
+        alert('生成失败，请截图保存');
+      } finally {
+        btn.textContent = '📸 保存图片（发朋友圈）';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

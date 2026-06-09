@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <!-- 皇家蓝背景 -->
+    <radialGradient id="bg" cx="40%" cy="35%" r="75%">
+      <stop offset="0%"   stop-color="#1a3a6e"/>
+      <stop offset="55%"  stop-color="#0f2350"/>
+      <stop offset="100%" stop-color="#060d20"/>
+    </radialGradient>
+
+    <!-- 拉丝金属金 -->
+    <linearGradient id="metalGold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#f5e27a"/>
+      <stop offset="20%"  stop-color="#c8952a"/>
+      <stop offset="45%"  stop-color="#f0d060"/>
+      <stop offset="65%"  stop-color="#a87020"/>
+      <stop offset="85%"  stop-color="#e8c84a"/>
+      <stop offset="100%" stop-color="#c09030"/>
+    </linearGradient>
+
+    <!-- 金边环渐变 -->
+    <linearGradient id="goldRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#f5e27a"/>
+      <stop offset="25%"  stop-color="#c8952a"/>
+      <stop offset="50%"  stop-color="#f0d060"/>
+      <stop offset="75%"  stop-color="#a87020"/>
+      <stop offset="100%" stop-color="#f5e27a"/>
+    </linearGradient>
+
+    <!-- 极淡高光 -->
+    <radialGradient id="shine" cx="35%" cy="30%" r="50%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <circle cx="250" cy="250" r="250" fill="url(#bg)"/>
+  <circle cx="250" cy="250" r="250" fill="url(#shine)"/>
+
+  <!-- 暗纹数字 -->
+  <text x="60"  y="185" font-family="Impact" font-size="120" fill="#ffffff" opacity="0.03">88</text>
+  <text x="280" y="420" font-family="Impact" font-size="100" fill="#ffffff" opacity="0.03">23</text>
+  <text x="140" y="410" font-family="Impact" font-size="90"  fill="#ffffff" opacity="0.02">01</text>
+
+  <!-- 金边外圈 -->
+  <circle cx="250" cy="250" r="238" fill="none" stroke="url(#goldRing)" stroke-width="3"/>
+  <circle cx="250" cy="250" r="230" fill="none" stroke="url(#goldRing)" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- 阴影层 -->
+  <text x="252" y="297" text-anchor="middle" font-family="Impact" font-size="80"
+    fill="#000000" opacity="0.3" letter-spacing="5"
+    transform="translate(250,295) scale(0.96,1) translate(-250,-295)">CASAGRADE</text>
+
+  <!-- 主文字：金属金 -->
+  <text x="250" y="295" text-anchor="middle" font-family="Impact" font-size="80"
+    fill="url(#metalGold)" letter-spacing="5"
+    stroke="url(#metalGold)" stroke-width="1" paint-order="stroke"
+    transform="translate(250,295) scale(0.96,1) translate(-250,-295)">CASAGRADE</text>
+
+</svg>
