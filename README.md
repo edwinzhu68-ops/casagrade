@@ -1,72 +1,141 @@
-# Casagrade — Lottery Platform Monorepo
+# Casagrade Platform
 
-巴拿马彩票（Lotería / TICA / NICA）无纸化下单 · 收款 · 结算平台。
-
-本仓库为 **monorepo** 整合，把原先分散在 5 个独立仓库的应用归并管理。
-**历史 commit 已通过 `git subtree add --no-squash` 完整保留**——每个子目录的 `git log` 仍能看到原始开发轨迹。
+A modular commerce platform for number-based draw games, covering end-to-end flows from order placement to settlement, with mobile clients, a backend service, and supporting web tooling.
 
 ---
 
-## 📁 目录结构
+## Overview
 
-```
-casagrade/
-├── apps/
-│   ├── customer-app/       用户端（投注者）  ← edwinzhu68-ops/lottery-customer-app
-│   ├── merchant-app/       商户端（投注站）  ← edwinzhu68-ops/lottery-merchant-app
-│   ├── pos/                POS 收银端（前端展示）← edwinzhu68-ops/casagrade-pos
-│   └── preview/            Web 预览 / H5       ← edwinzhu68-ops/lottery-preview
-└── services/
-    └── lottery-system/     核心后端（TS）      ← edwinzhu68-ops/lottery-system
-```
+Casagrade is a multi-tenant, multi-device commerce stack built around periodic number draws. It ships as a monorepo with five co-located applications that share a single backend.
 
-## 🔗 原始仓库（保留不动，本仓仅做镜像合并）
-
-| 子目录 | 原仓库 | 主语言 |
+| Layer | Technology | Role |
 |---|---|---|
-| `apps/customer-app` | edwinzhu68-ops/lottery-customer-app | Java |
-| `apps/merchant-app` | edwinzhu68-ops/lottery-merchant-app | Java |
-| `apps/pos` | edwinzhu68-ops/casagrade-pos | HTML |
-| `apps/preview` | edwinzhu68-ops/lottery-preview | HTML |
-| `services/lottery-system` | edwinzhu68-ops/lottery-system | TypeScript |
+| Backend | NestJS · TypeORM · SQLite/TypeORM | Order, draw, settlement, identity, multi-tenant isolation |
+| Merchant App | Capacitor + Android | Operator-side terminal (Bluetooth peripherals, barcode scanner, native share) |
+| Customer App | Capacitor + Android | Player-facing mobile client |
+| POS / Web Frontend | Static HTML + Node Express | Operator dashboard, marketing pages, result pages |
+| Preview / Tooling | Node + Express | Local proxy, static asset serving, dev preview |
 
-## 🧩 子项目说明
+---
 
-| 子目录 | 来源 package | 技术栈 | 说明 |
-|---|---|---|---|
-| `services/lottery-system` | — (TS backend) | TypeScript + Node | 核心后端：订单 / 收款 / 结算 / 期次管理；多设备同步；TICA/NICA 开奖乐观锁 |
-| `apps/merchant-app` | `lottery-merchant-app@1.0.0` | Capacitor + Android (Java) | 投注站商户端（老板侧） |
-| `apps/customer-app` | `lottery-customer-app@1.0.0` | Capacitor + Android (Java) | C 端用户 App（投注者） |
-| `apps/pos` | — (静态 HTML) | HTML/CSS/JS | POS 收银前端展示 |
-| `apps/preview` | `lottery-preview@1.0.0` | Node + 前端 | Web H5 预览 / 营销展示 |
+## Capabilities
 
-> 注：每个子目录的 `git log -- <path>` 仍能完整看到原仓库的开发历史。  
-> 比如 `git log -- services/lottery-system` 会显示 189 个原始 commit。
+### Order & Settlement
+- Order creation, confirmation, cancellation, and soft-delete lifecycle
+- Multi-device order sync with delta endpoints
+- Periodic settlement with chain-rule payout, idempotent roll-forward, and audit trail
+- Multi-tenant data isolation by shop
 
-## 📜 历史保留方式
+### Draw Management
+- Scheduled and manual draw entry
+- Optimistic locking on draw publication to prevent concurrent settlement races
+- Result publishing with automatic next-draw queuing
+- Configurable draw dates and archival windows
 
-本仓使用 `git subtree add --no-squash` 合并 5 个原仓库，每个原仓库的 commit 全部按时间顺序进入新仓历史。
-顶部可见 5 个 "Add 'xxx/' from commit 'xxx'" 的 merge commit，作为子目录的引入标记。
+### Identity & Access
+- Username / password authentication (bcryptjs)
+- Bearer-token authorization on sensitive endpoints
+- Session management with concurrent-device limits
+- Admin accounts with separate login path
+- Rate limiting on registration and account-enumeration defenses
 
-如需追溯某个功能的原始 PR / commit，可以这样查：
+### Licensing
+- Time-bound activation codes (30 / 180 / 365 day variants)
+- Atomic activation with collision handling
+- Trial-period auto-grant on registration
 
-```bash
-# 看 lottery-system 的所有历史
-git log -- services/lottery-system
+### Multi-tenant Configuration
+- Per-shop payout multipliers (per-tier)
+- Per-shop chain-rule odds
+- Per-game enable / disable toggles
+- Independent quota and limit configuration per game type
 
-# 看 merchant-app 在 5 月之后的修改
-git log --since="2026-05-01" -- apps/merchant-app
+### Operator Tooling (Merchant App)
+- Native barcode scanning via Capacitor
+- Bluetooth Low Energy peripheral integration
+- Native share and app-launcher bridges
+- Local filesystem persistence
+
+### Customer Experience (Customer App)
+- Ticket viewing and result lookup
+- Native Android WebView wrapper
+
+### Web Surfaces (POS / Preview)
+- Operator dashboard with multi-screen layout
+- Customer-facing result pages
+- Marketing flyers and posters
+- Local Express proxy for development
+
+### Operations
+- Automated backups (daily snapshot pattern)
+- Audit log for sensitive admin actions
+- Notification dispatch via SMTP (nodemailer)
+- TypeORM migrations for schema evolution
+
+---
+
+## Repository Layout
+
+```
+.
+├── services/
+│   └── lottery-system/        Backend (NestJS)
+│       ├── backend/           Source, migrations, scripts
+│       ├── frontend/          Auxiliary web UI
+│       └── migrations/        SQL migrations
+├── apps/
+│   ├── merchant-app/          Operator Android client
+│   ├── customer-app/          Player Android client
+│   ├── pos/                   Static POS / dashboard pages
+│   └── preview/               Preview proxy + dev tooling
+├── .gitignore
+└── README.md
 ```
 
-## 🚧 状态
+Each top-level subdirectory is an independently buildable / deployable unit. Cross-cutting changes can be made in a single PR while preserving per-component release cadence.
 
-- ✅ 5 个仓库已合并（历史 commit 完整保留）
-- ✅ 原仓库未做任何修改
-- 🚧 各子项目仍可独立 build / deploy
-- 🚧 跨项目重构 / CI 统一 尚待规划
+---
+
+## Backend Module Map
+
+```
+backend/src/
+├── modules/
+│   ├── admin/             Admin account, cleanup, audit
+│   ├── draw/              Draw scheduling and publication
+│   ├── local-lottery/     Local game variant logic
+│   ├── merchant/          Merchant / shop management
+│   ├── order/             Order lifecycle (create, confirm, cancel, sync)
+│   └── settlement/        Payout computation and rolling settlement
+├── entities/              TypeORM entities (User, Shop, Order, Draw, Session, CardCode, ShopBinding)
+├── guards/                Auth guards
+├── services/              Shared services
+└── utils/                 Helpers
+```
+
+---
+
+## Quick Reference
+
+| Task | Command |
+|---|---|
+| Install backend deps | `cd services/lottery-system/backend && npm install` |
+| Run backend in dev | `npm run start:dev` |
+| Build backend | `npm run build` |
+| Sync Capacitor app | `cd apps/merchant-app && npm run sync` |
+| Open Android project | `npm run open` (in either Android app) |
+| Run preview server | `cd apps/preview && npm start` |
+
+---
+
+## Status
+
+- Backend, mobile clients, and web tooling are feature-complete for the current product scope
+- Per-component deployment continues to be independent
+- Cross-component refactoring and unified CI are planned
 
 ---
 
 ## License
 
-Private / Internal use only unless stated otherwise.
+Internal use unless stated otherwise.
