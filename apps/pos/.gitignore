@@ -1,0 +1,21 @@
+# 永不提交：密钥 / 数据库 / 凭证 / 后端 / 构建产物
+.env
+.env.*
+*.db
+*.db.*
+*.sqlite
+*.key
+*.pem
+*-key*
+node_modules/
+dist/
+download/*.apk
+*.bak
+*_副本*
+# 内部文档（架构 / API / 已知问题，勿公开）
+CLAUDE.md
+MEMORY.md
+SPEC.md
+SYSTEM_DOCS.md
+HANDOFF*.md
+LOCAL_DEV.md
