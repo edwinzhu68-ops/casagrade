@@ -1,0 +1,1719 @@
+import { Controller, Post, Get, Patch, Delete, Param, Body, Inject, Logger, Query, Req, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { isTokenTimeValid } from '../../utils/token-expiry';
+import { Request } from 'express';
+import { DataSource, Repository } from 'typeorm';
+import { Order } from '../../entities/order.entity';
+import { Shop } from '../../entities/shop.entity';
+import { ShopBinding } from '../../entities/shop-binding.entity';
+import { User } from '../../entities/user.entity';
+
+/** 按店号查找店铺，同时检查主号和别名（避免全表扫描） */
+async function findShopByNumber(shopRepo: Repository<Shop>, number: string): Promise<Shop | null> {
+  const byPrimary = await shopRepo.findOne({ where: { shop_number: number } });
+  if (byPrimary) return byPrimary;
+  // simple-json 别名数组存储为 ["123","456"]，用 LIKE + 引号确保精确匹配，不加载全表
+  const safe = number.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  return shopRepo
+    .createQueryBuilder('s')
+    .where(`s.shop_aliases LIKE :pattern`, { pattern: `%"${safe}"%` })
+    .getOne() ?? null;
+}
+import { Draw } from '../../entities/draw.entity';
+import { DrawDayService } from '../draw/draw-day.service';
+import { LocalLotteryService } from '../local-lottery/local-lottery.service';
+import { findNationalLastCompletedDraw, findNationalPendingDraw, findShopPendingLocalDraw, findShopLastCompletedLocalDraw } from '../../utils/draw-queries';
+import { withShopLock } from '../../utils/shop-order-lock';
+import * as crypto from 'crypto';
+import { UnauthorizedException } from '@nestjs/common';
+
+const TOKEN_SECRET = () => process.env.TOKEN_SECRET || 'lottery-token-secret-change-in-prod';
+
+/** 解析并验证签名 token，返回 userId；验证失败返回 null */
+function parseOrderToken(token: string): number | null {
+  if (!token) return null;
+  const lastDot = token.lastIndexOf('.');
+  if (lastDot <= 0) return null;
+  const payload = token.slice(0, lastDot);
+  const sig = token.slice(lastDot + 1);
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET()).update(payload).digest('hex').slice(0, 32);
+  try {
+    const a = Buffer.from(sig), b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  } catch { return null; }
+  try {
+    const decoded = Buffer.from(payload, 'base64').toString('utf8');
+    const parts = decoded.split(':');
+    if (parts.length < 2) return null;
+    const userId = parseInt(parts[0], 10);
+    if (!userId || isNaN(userId)) return null;
+    if (!isTokenTimeValid(parts[2])) return null; // 过期 / 旧 token 超宽限期
+    return userId;
+  } catch { return null; }
+}
+
+interface CreateOrderDto {
+  shopId?: number;
+  shop_id?: number;
+  /** TICA / NICA：走店内彩种下单（与 POST /api/local-lottery/orders 同逻辑，便于只暴露了 /api/orders 的网关） */
+  lotteryKind?: 'TICA' | 'NICA';
+  numbers: { n: string; q: number }[];
+  amount: number;
+  gameType?: string;
+  game_type?: string;
+  clientId?: string;
+  ipAddress?: string;
+  idempotency_key?: string;
+}
+
+@Controller('orders')
+export class OrderController implements OnModuleInit {
+  private readonly logger = new Logger(OrderController.name);
+
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly localLotteryService: LocalLotteryService,
+  ) {}
+
+  async onModuleInit() {
+    const qr = this.dataSource.createQueryRunner();
+    for (const sql of [
+      `ALTER TABLE orders ADD COLUMN idempotency_key VARCHAR(64)`,
+    ]) {
+      try { await qr.query(sql); } catch {}
+    }
+    await qr.release();
+  }
+
+  /**
+   * POST /api/orders - 顾客下单
+   * 兼容前端格式；IP 优先从请求头/连接取真实 IP（统计用）
+   */
+  @Post()
+  async createOrder(@Body() dto: CreateOrderDto, @Req() req: Request) {
+    const kind = dto.lotteryKind;
+    if (kind === 'TICA' || kind === 'NICA') {
+      return this.localLotteryService.createOrder(
+        {
+          shopId: dto.shopId ?? dto.shop_id,
+          lotteryKind: kind,
+          numbers: dto.numbers,
+          amount: dto.amount,
+          gameType: dto.gameType || dto.game_type,
+          clientId: dto.clientId,
+          ipAddress: dto.ipAddress,
+          idempotency_key: dto.idempotency_key,
+        },
+        req,
+      );
+    }
+
+    const shopId = dto.shopId ?? dto.shop_id;
+    const numbers = dto.numbers;
+    const amount = Number(dto.amount);
+    const gameTypeValue = dto.gameType || dto.game_type;
+    const clientId = dto.clientId;
+    const dtoIp = dto.ipAddress;
+    const ipAddress =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.ip ||
+      (req.socket && req.socket.remoteAddress) ||
+      dtoIp ||
+      '127.0.0.1';
+
+    if (shopId == null || Number.isNaN(Number(shopId))) {
+      throw new BadRequestException('缺少店铺ID');
+    }
+    if (!Array.isArray(numbers) || numbers.length === 0 || numbers.length > 500) {
+      throw new BadRequestException('号码列表无效或超过500条');
+    }
+    if (Number.isNaN(amount) || amount <= 0 || amount > 100000) {
+      throw new BadRequestException('金额无效');
+    }
+    for (const item of numbers) {
+      if (typeof item.n !== 'string' || item.n.length > 10 || typeof item.q !== 'number' || item.q < 1 || item.q > 999) {
+        throw new BadRequestException('号码或数量格式无效');
+      }
+    }
+
+    // 0a. 金额后端验算：按 numbers 重新计算期望金额，防止前端篡改
+    const BILLETE_PRICE = 1.00;
+    const CHANCE_PRICE  = 0.25;
+    let expectedAmount = 0;
+    for (const item of numbers) {
+      const numLen = String(item.n).replace(/\D/g, '').length;
+      const price  = numLen >= 4 ? BILLETE_PRICE : CHANCE_PRICE;
+      expectedAmount += price * Number(item.q);
+    }
+    expectedAmount = Math.round(expectedAmount * 100) / 100;
+    if (Math.abs(expectedAmount - amount) > 0.01) {
+      throw new BadRequestException(`金额不符：期望 $${expectedAmount}，实际 $${amount}`);
+    }
+
+    // 0b. 幂等校验：同一 idempotency_key + shop_id + draw_id 已存在则直接返回原订单
+    const idempotencyKey = (dto.idempotency_key || '').trim().substring(0, 64) || null;
+    if (idempotencyKey) {
+      const orderRepo0 = this.dataSource.getRepository(Order);
+      const existing = await orderRepo0
+        .createQueryBuilder('o')
+        .where('o.idempotency_key = :k', { k: idempotencyKey })
+        .andWhere('o.shop_id = :s', { s: Number(shopId) })
+        .andWhere('(o.lottery_type IS NULL OR o.lottery_type = :nac)', { nac: 'NACIONAL' })
+        .andWhere('o.status != :canceled', { canceled: -1 })
+        .getOne();
+      if (existing) {
+        this.logger.log(`幂等重复请求，返回已有订单 #${existing.order_number}`);
+        return {
+          order_id: existing.order_id,
+          order_number: existing.order_number,
+          order_hash: existing.order_hash,
+          verification_code: existing.verification_code,
+          amount: existing.amount,
+          status: existing.status,
+          created_at: existing.created_at,
+          _idempotent: true,
+        };
+      }
+    }
+
+    // 1. 检查店铺是否存在
+    const shop = await this.dataSource.getRepository(Shop).findOne({
+      where: { shop_id: Number(shopId) },
+    });
+
+    if (!shop) {
+      throw new NotFoundException('店铺不存在');
+    }
+
+    if (shop.status !== 'active') {
+      throw new BadRequestException('店铺已停业');
+    }
+
+    // 订阅到期拦截：null 视为未充值，同样拒绝下单
+    const expiresAt = (shop as any).subscription_expires_at;
+    if (!expiresAt || new Date(expiresAt) < new Date()) {
+      throw new BadRequestException('Su suscripción ha vencido o no está activa. Contacte al administrador para renovar.');
+    }
+
+    // Lotería 关闭时禁止下单
+    if ((shop as any).loteria_enabled === false) {
+      throw new BadRequestException('Lotería 已关闭，无法下单');
+    }
+
+    // 2. 获取当前全国待开奖期次（不含店内 TICA/NICA）
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const currentDraw = await findNationalPendingDraw(drawRepo);
+
+    // 无待开奖期 → 停售（次日07:00自动创建）
+    if (!currentDraw) {
+      throw new BadRequestException('当前处于停售期，暂停下单');
+    }
+
+    // 2a. 服务端停售窗口验证（开奖时刻 到 次日07:00，拒绝下单）
+    if (currentDraw) {
+      const timeStr = String(currentDraw.draw_time || '').trim();
+      let drawHour = -1, drawMin = 0;
+      let dy: number, dm: number, dd: number;
+      if (timeStr.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+        // ISO 格式：2026-03-18T15:00:00
+        const iso = timeStr.substring(0, 10);
+        dy = parseInt(iso.slice(0, 4), 10);
+        dm = parseInt(iso.slice(5, 7), 10);
+        dd = parseInt(iso.slice(8, 10), 10);
+        const dt = new Date(timeStr);
+        if (!isNaN(dt.getTime())) { drawHour = dt.getHours(); drawMin = dt.getMinutes(); }
+      } else {
+        // HH:mm 或 HH:mm:ss 格式：从 draw_date 字段取日期
+        const parts = timeStr.split(':').map(Number);
+        if (parts.length >= 2 && !isNaN(parts[0])) { drawHour = parts[0]; drawMin = parts[1] || 0; }
+        const rawDate = String((currentDraw as any).draw_date || '').slice(0, 10);
+        if (rawDate && /^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+          dy = parseInt(rawDate.slice(0, 4), 10);
+          dm = parseInt(rawDate.slice(5, 7), 10);
+          dd = parseInt(rawDate.slice(8, 10), 10);
+        } else { drawHour = -1; } // 无法解析日期则跳过
+      }
+      if (drawHour >= 0) {
+        const panama = getPanamaNow();
+        const todayStr = `${String(panama.d).padStart(2,'0')}-${String(panama.m).padStart(2,'0')}-${panama.y}`;
+        const confirmedDrawDay = `${String(dd).padStart(2,'0')}-${String(dm).padStart(2,'0')}-${dy}`;
+        const drawDateISO2 = `${dy}-${String(dm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+        const todayISO2 = `${panama.y}-${String(panama.m).padStart(2,'0')}-${String(panama.d).padStart(2,'0')}`;
+        const totalMins = panama.h * 60 + panama.min;
+        const drawMins = drawHour * 60 + drawMin;
+        const stopStart = drawMins; // 开奖时停售（与 bet-status 一致）
+        const RESUME = 7 * 60;
+
+        const drawDateObj2 = new Date(`${drawDateISO2}T12:00:00`);
+        drawDateObj2.setDate(drawDateObj2.getDate() + 1);
+        const dayAfterISO2 = `${drawDateObj2.getFullYear()}-${String(drawDateObj2.getMonth()+1).padStart(2,'0')}-${String(drawDateObj2.getDate()).padStart(2,'0')}`;
+
+        const inStop =
+          (drawDateISO2 === todayISO2 && totalMins >= stopStart) ||
+          (dayAfterISO2 === todayISO2 && totalMins < RESUME);
+
+        if (inStop) {
+          throw new BadRequestException('当前处于开奖窗口期，暂停下单');
+        }
+      }
+    }
+
+    // 2b. 每号限额校验 + 订单写入，用 per-shop mutex 串行化，防并发超卖
+    const limitChance = (shop as any).limit_chance as number | null;
+    const limitBillete = (shop as any).limit_billete as number | null;
+
+    return withShopLock(Number(shopId), async () => {
+      if (currentDraw && (limitChance != null || limitBillete != null)) {
+        // 用数据库聚合统计每个号码的已售总量（在锁内执行，读到的是最新值）
+        const dbType = (this.dataSource.options as any).type as string;
+        let soldRows: { num: string; qty: string }[] = [];
+        if (dbType === 'postgres') {
+          soldRows = await this.dataSource.query(
+            `SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+             FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+             WHERE draw_id = $1 AND shop_id = $2 AND status != -1
+             GROUP BY item->>'n'`,
+            [currentDraw.draw_id, Number(shopId)],
+          );
+        } else {
+          soldRows = await this.dataSource.query(
+            `SELECT json_extract(value, '$.n') AS num,
+                    SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+             FROM orders, json_each(numbers)
+             WHERE draw_id = ? AND shop_id = ? AND status != -1
+             GROUP BY json_extract(value, '$.n')`,
+            [currentDraw.draw_id, Number(shopId)],
+          );
+        }
+        const soldMap: Record<string, number> = Object.fromEntries(
+          soldRows.map(r => [r.num, Number(r.qty)]),
+        );
+
+        const overLimitItems: Array<{ n: string | number; alreadySold: number; limit: number }> = [];
+        for (const item of numbers) {
+          const numStr = String(item.n).replace(/\D/g, '');
+          const isBillete = numStr.length >= 4;
+          const limit = isBillete ? limitBillete : limitChance;
+          if (limit == null) continue;
+          const alreadySold = soldMap[item.n] || 0;
+          if (alreadySold + item.q > limit) {
+            overLimitItems.push({ n: item.n, alreadySold, limit });
+          }
+        }
+        if (overLimitItems.length > 0) {
+          throw new BadRequestException({ message: '部分号码超出限额', overLimitItems });
+        }
+      }
+
+      // 3. 生成订单号和hash
+      const orderNumber = this.generateOrderNumber();
+      const orderHash = crypto.createHash('sha256').update(orderNumber + Date.now()).digest('hex').substring(0, 64);
+
+      // 4. 生成核销码（5位数字）
+      const verificationCode = this.generateVerificationCode();
+
+      // 5. 创建订单
+      const orderRepo = this.dataSource.getRepository(Order);
+      const orderData: any = {
+        order_number: orderNumber,
+        order_hash: orderHash,
+        shop_id: Number(shopId),
+        numbers,
+        amount,
+        game_type: gameTypeValue,
+        lottery_type: 'NACIONAL',
+        status: 0,
+        verification_code: verificationCode,
+        customer_info: { clientId },
+        ip_address: ipAddress,
+        draw_id: currentDraw?.draw_id || null,
+      };
+      if (idempotencyKey) orderData.idempotency_key = idempotencyKey;
+      const order = orderRepo.create(orderData) as unknown as Order;
+
+      await orderRepo.save(order);
+
+      this.logger.log(`订单创建: #${orderNumber}, 店铺: ${shopId}, 金额: $${amount}`);
+
+      return {
+        order_id: order.order_id,
+        order_number: order.order_number,
+        order_hash: order.order_hash,
+        draw_id: order.draw_id ?? null,
+        drawId: order.draw_id ?? null,
+        verification_code: order.verification_code,
+        amount: order.amount,
+        status: 0,
+        created_at: order.created_at,
+      };
+    });
+  }
+
+  /**
+   * DELETE /api/orders/:orderNumber - 彻底删除订单（老板端操作，不可撤回）
+   * 必须提供 body.shopId 且该店铺必须是订单归属店铺，防止跨店删单。
+   */
+  @Delete(':orderNumber')
+  async deleteOrder(
+    @Param('orderNumber') orderNumber: string,
+    @Body() body: { shopId?: number },
+    @Req() req: Request,
+  ) {
+    const shopId = body?.shopId != null ? Number(body.shopId) : undefined;
+    if (!shopId || isNaN(shopId)) {
+      throw new BadRequestException('缺少 shopId');
+    }
+
+    // 验证 Authorization token，确认操作者身份
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    // 验证 token 持有者是否是该店铺的 owner
+    const shop = await this.dataSource.getRepository(Shop).findOne({ where: { shop_id: shopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+
+    const orderRepo = this.dataSource.getRepository(Order);
+    const order = await orderRepo.findOne({ where: { order_number: orderNumber } });
+    if (!order) throw new NotFoundException('订单不存在');
+
+    // 必须是本店订单，防止跨店删单
+    if (order.shop_id !== shopId) {
+      throw new BadRequestException('无权删除其他店铺的订单');
+    }
+
+    // 已结算/已中奖订单不允许删除（防止规避账目），已付款可以删除
+    if (order.status === 2 || order.status === 3) {
+      throw new BadRequestException('已结算或已中奖的订单不允许删除');
+    }
+
+    // 软删除（status=-1）代替物理删除。
+    // 原因：物理 .remove() 后增量同步（WHERE updated_at >= since）永远查不到被删订单，
+    // 其他手机的 ordersById 里这条单残留在 pending 列表，UI 永远不消失。
+    // 软删后 updated_at 变化 → 其他手机增量同步拉到 status=-1 → 前端 filter 排除 → UI 同步消失。
+    const nowTs = new Date();
+    const prevStatus = order.status;
+    await orderRepo.update(order.order_id, {
+      status: -1,
+      canceled_at: nowTs,
+      updated_at: nowTs,
+    } as any);
+    this.logger.log(`订单删除(软): #${order.order_number}, 店铺: ${shopId}, 原状态: ${prevStatus}`);
+    return { success: true, message: '订单已删除' };
+  }
+
+  /**
+   * PATCH /api/orders/:orderNumber - 店主修改订单号码与数量（原单更新，不换单号；金额后端按票价重算）
+   * 仅待付款(0)/已付款(1)且未开奖结算；已结算(2)、已中奖(3)不可改。须登录且为店铺 owner。
+   */
+  @Patch(':orderNumber')
+  async patchOrder(
+    @Param('orderNumber') orderNumber: string,
+    @Body() body: { shopId?: number; numbers?: { n: string; q: number }[] },
+    @Req() req: Request,
+  ) {
+    const shopId = body?.shopId != null ? Number(body.shopId) : undefined;
+    if (!shopId || isNaN(shopId)) {
+      throw new BadRequestException('缺少 shopId');
+    }
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+
+    const numbers = body.numbers;
+    if (!Array.isArray(numbers) || numbers.length === 0 || numbers.length > 500) {
+      throw new BadRequestException('号码列表无效或超过500条');
+    }
+    for (const item of numbers) {
+      if (typeof item.n !== 'string' || item.n.length > 10 || typeof item.q !== 'number' || item.q < 1 || item.q > 999) {
+        throw new BadRequestException('号码或数量格式无效');
+      }
+    }
+
+    const BILLETE_PRICE = 1.0;
+    const CHANCE_PRICE = 0.25;
+    let amount = 0;
+    for (const item of numbers) {
+      const numLen = String(item.n).replace(/\D/g, '').length;
+      const price = numLen >= 4 ? BILLETE_PRICE : CHANCE_PRICE;
+      amount += price * Number(item.q);
+    }
+    amount = Math.round(amount * 100) / 100;
+    if (Number.isNaN(amount) || amount <= 0 || amount > 100000) {
+      throw new BadRequestException('金额无效');
+    }
+
+    const orderRepo = this.dataSource.getRepository(Order);
+    const orderPre = await orderRepo.findOne({ where: { order_number: orderNumber } });
+    if (!orderPre) throw new NotFoundException('订单不存在');
+    if (orderPre.shop_id !== shopId) {
+      throw new BadRequestException('无权操作其他店铺的订单');
+    }
+
+    const ltPre = String((orderPre as any).lottery_type || 'NACIONAL').toUpperCase();
+    if (ltPre === 'TICA' || ltPre === 'NICA') {
+      return this.localLotteryService.updateMerchantOrderLines(orderNumber, shopId, numbers, tokenUserId);
+    }
+
+    const limitChance = (shop as any).limit_chance as number | null;
+    const limitBillete = (shop as any).limit_billete as number | null;
+
+    return withShopLock(shopId, async () => {
+      const fresh = await orderRepo.findOne({ where: { order_number: orderNumber } });
+      if (!fresh) throw new NotFoundException('订单不存在');
+      if (fresh.shop_id !== shopId) {
+        throw new BadRequestException('无权操作其他店铺的订单');
+      }
+      const lt2 = String((fresh as any).lottery_type || 'NACIONAL').toUpperCase();
+      if (lt2 === 'TICA' || lt2 === 'NICA') {
+        return this.localLotteryService.updateMerchantOrderLines(orderNumber, shopId, numbers, tokenUserId);
+      }
+      if (fresh.status !== 0 && fresh.status !== 1) {
+        throw new BadRequestException('仅待付款或已付款（未开奖结算）的订单可修改');
+      }
+
+      if (fresh.draw_id != null && (limitChance != null || limitBillete != null)) {
+        const dbType = (this.dataSource.options as any).type as string;
+        let soldRows: { num: string; qty: string }[] = [];
+        if (dbType === 'postgres') {
+          soldRows = await this.dataSource.query(
+            `SELECT item->>'n' AS num, SUM((item->>'q')::int) AS qty
+             FROM orders, jsonb_array_elements(numbers::jsonb) AS item
+             WHERE draw_id = $1 AND shop_id = $2 AND status != -1 AND order_id <> $3
+             GROUP BY item->>'n'`,
+            [fresh.draw_id, fresh.shop_id, fresh.order_id],
+          );
+        } else {
+          soldRows = await this.dataSource.query(
+            `SELECT json_extract(value, '$.n') AS num,
+                    SUM(CAST(json_extract(value, '$.q') AS INTEGER)) AS qty
+             FROM orders, json_each(numbers)
+             WHERE draw_id = ? AND shop_id = ? AND status != -1 AND order_id != ?
+             GROUP BY json_extract(value, '$.n')`,
+            [fresh.draw_id, fresh.shop_id, fresh.order_id],
+          );
+        }
+        const soldMap: Record<string, number> = Object.fromEntries(
+          soldRows.map(r => [r.num, Number(r.qty)]),
+        );
+        const overLimitItems: Array<{ n: string | number; alreadySold: number; limit: number }> = [];
+        for (const item of numbers) {
+          const numStr = String(item.n).replace(/\D/g, '');
+          const isBillete = numStr.length >= 4;
+          const limit = isBillete ? limitBillete : limitChance;
+          if (limit == null) continue;
+          const alreadySold = soldMap[item.n] || 0;
+          if (alreadySold + item.q > limit) {
+            overLimitItems.push({ n: item.n, alreadySold, limit });
+          }
+        }
+        if (overLimitItems.length > 0) {
+          throw new BadRequestException({ message: '部分号码超出限额', overLimitItems });
+        }
+      }
+
+      const gameType = inferMerchantPatchGameType(numbers);
+      await orderRepo.update(fresh.order_id, {
+        numbers,
+        amount,
+        game_type: gameType,
+        win_amount: 0,
+        win_breakdown: null,
+        updated_at: new Date(),
+      } as any);
+
+      this.logger.log(`订单修改: #${fresh.order_number}, 店铺: ${shopId}, 新金额: $${amount}`);
+      return {
+        success: true,
+        order_number: fresh.order_number,
+        amount,
+        numbers,
+        game_type: gameType,
+        lottery_type: 'NACIONAL',
+      };
+    });
+  }
+
+  /**
+   * GET /api/orders/:orderNumber - 查询订单
+   */
+  @Get(':orderNumber')
+  async getOrder(@Param('orderNumber') orderNumber: string) {
+    const order = await this.dataSource.getRepository(Order).findOne({
+      where: { order_number: orderNumber },
+      relations: ['shop', 'draw'],
+    });
+
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+
+    const statusMap: { [key: number]: string } = {
+      0: 'pending',
+      1: 'paid',
+      2: 'settled',
+      3: 'won',
+      [-1]: 'canceled',
+    };
+
+    return {
+      order_id: order.order_id,
+      order_number: order.order_number,
+      order_hash: order.order_hash,
+      amount: order.amount,
+      numbers: order.numbers,
+      game_type: order.game_type,
+      lottery_type: (order as any).lottery_type ?? 'NACIONAL',
+      status: statusMap[order.status] || 'pending',
+      draw_id: order.draw_id ?? null,
+      drawId: order.draw_id ?? null,
+      verification_code: order.verification_code,
+      shop_id: order.shop_id,
+      shopId: order.shop_id,
+      shopNumber: order.shop?.shop_number,
+      win_amount: order.win_amount,
+      win_breakdown: (order as any).win_breakdown ?? null,
+      redeemed_at: (order as any).redeemed_at ?? null,
+      note: (order as any).note ?? null,
+      draw_date: order.draw?.draw_date ?? null,
+      created_at: order.created_at,
+      paid_at: order.paid_at,
+    };
+  }
+
+  /**
+   * POST /api/orders/:orderNumber/confirm - 老板确认收款
+   */
+  @Post(':orderNumber/confirm')
+  async confirmOrder(@Param('orderNumber') orderNumber: string, @Body() body: { shopId: number; note?: string }, @Req() req: any) {
+    // 鉴权：验证 Bearer token
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+    const orderRepo = this.dataSource.getRepository(Order);
+    const order = await orderRepo.findOne({
+      where: { order_number: orderNumber },
+    });
+
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+
+    // 归属校验：token 的 userId 必须是订单所属店铺的 owner
+    // 防止商家 A 拿到商家 B 的订单号后恶意 confirm（强把未付款单标为 paid 骚扰 B 店）
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shopOfOrder = await shopRepo.findOne({ where: { shop_id: order.shop_id } });
+    if (!shopOfOrder || (shopOfOrder as any).owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作其他店铺的订单');
+    }
+
+    if (order.status !== 0) {
+      if (order.status === 1) {
+        return { success: true, message: '订单已确认付款' };
+      }
+      throw new BadRequestException('订单状态不是待支付');
+    }
+
+    // 若订单没有归属期（draw_id 为空），归入当前待开奖期，以便老板端「本期订单」正确统计
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const orderLt = String((order as any).lottery_type || 'NACIONAL').toUpperCase();
+    const currentNational = await findNationalPendingDraw(drawRepo);
+    const nowTs = new Date();
+    const updatePayload: any = {
+      status: 1, // Paid
+      paid_at: nowTs,
+      updated_at: nowTs, // TypeORM @UpdateDateColumn 对 .update() 不生效，必须手动写
+    };
+    if (body.note != null) updatePayload.note = String(body.note).slice(0, 200);
+    if (
+      order.draw_id == null &&
+      currentNational?.draw_id != null &&
+      (orderLt === 'NACIONAL' || orderLt === '')
+    ) {
+      updatePayload.draw_id = currentNational.draw_id;
+    }
+
+    await orderRepo.update(order.order_id, updatePayload);
+
+    this.logger.log(`订单确认: #${order.order_number}, 店铺: ${body.shopId}`);
+
+    return {
+      success: true,
+      order_id: order.order_id,
+      order_number: order.order_number,
+      status: 'paid',
+    };
+  }
+
+  /**
+   * POST /api/orders/:orderNumber/redeem - 老板兑奖
+   * 校验：订单存在、店号匹配（不能拿其他店的兑奖单到本店兑）、已中奖、未兑奖。
+   */
+  @Post(':orderNumber/redeem')
+  async redeemOrder(
+    @Param('orderNumber') orderNumber: string,
+    @Body() body: { shopId: number },
+    @Req() req: any,
+  ) {
+    // 鉴权：验证 Bearer token
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+    const orderRepo = this.dataSource.getRepository(Order);
+    const order = await orderRepo.findOne({
+      where: { order_number: orderNumber },
+    });
+
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+    if (order.shop_id !== body.shopId) {
+      throw new BadRequestException('店号不匹配：该订单属于其他店铺，不能在本店兑奖');
+    }
+    // 归属校验（IDOR 防御）：调用者必须是该店 owner / 其大庄 owner / admin，
+    // 否则任意已登录商家拿到他店中奖单号即可越权兑奖（标记已兑），造成资金纠纷。
+    // 放行范围与 ShopController.requireShopOwner 一致，确保不误伤自营/大庄/管理员正常流程。
+    {
+      const shopRepoAuth = this.dataSource.getRepository(Shop);
+      const shopOfOrder = await shopRepoAuth.findOne({ where: { shop_id: order.shop_id } });
+      if (!shopOfOrder) {
+        throw new UnauthorizedException('无权操作该店铺的订单');
+      }
+      const opUser = await this.dataSource.getRepository(User).findOne({ where: { user_id: tokenUserId } });
+      let allowed = (opUser && opUser.role === 'admin') || (shopOfOrder as any).owner_id === tokenUserId;
+      if (!allowed) {
+        const binding = await this.dataSource.getRepository(ShopBinding).findOne({
+          where: { sub_shop_id: order.shop_id, status: 'active' },
+        });
+        if (binding) {
+          const mainShop = await shopRepoAuth.findOne({ where: { shop_id: binding.main_shop_id } });
+          if (mainShop && (mainShop as any).owner_id === tokenUserId) allowed = true;
+        }
+      }
+      if (!allowed) {
+        throw new UnauthorizedException('无权操作其他店铺的订单');
+      }
+    }
+    if (order.status !== 3) {
+      throw new BadRequestException(order.status === 1 ? '尚未开奖，无法兑奖' : '该订单未中奖或状态异常');
+    }
+    // 原子操作：WHERE redeemed_at IS NULL，防止并发双击导致重复兑奖
+    const nowTs2 = new Date();
+    const redeemResult = await orderRepo
+      .createQueryBuilder()
+      .update(Order)
+      .set({ redeemed_at: nowTs2, updated_at: nowTs2 } as any)
+      .where('order_id = :id AND redeemed_at IS NULL', { id: order.order_id })
+      .execute();
+
+    if (!redeemResult.affected || redeemResult.affected === 0) {
+      throw new BadRequestException('该订单已兑奖，请勿重复操作');
+    }
+
+    this.logger.log(`兑奖完成: #${order.order_number}, 店铺: ${body.shopId}, 金额: $${order.win_amount}`);
+
+    return {
+      success: true,
+      order_number: order.order_number,
+      win_amount: Number(order.win_amount),
+      message: '兑奖成功',
+    };
+  }
+
+  /**
+   * 生成订单号 (时间戳+随机数)
+   */
+  private generateOrderNumber(): string {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.floor(1000 + Math.random() * 9000);
+    return `${timestamp}${random}`;
+  }
+
+  /**
+   * 生成5位核销码
+   */
+  private generateVerificationCode(): string {
+    return Math.floor(10000 + Math.random() * 90000).toString();
+  }
+}
+
+function inferMerchantPatchGameType(numbers: { n: string; q: number }[]): string {
+  let hasB = false;
+  let hasC = false;
+  for (const item of numbers) {
+    const numLen = String(item.n).replace(/\D/g, '').length;
+    if (numLen >= 4) hasB = true;
+    else hasC = true;
+  }
+  if (hasB && hasC) return 'MIXTO';
+  if (hasB) return 'BILLETE';
+  return 'CHANCE';
+}
+
+/**
+ * 店铺Controller - 处理店铺相关接口
+ */
+@Controller('shop')
+export class ShopController {
+  private readonly logger = new Logger(ShopController.name);
+
+  constructor(private readonly dataSource: DataSource) {}
+
+  /**
+   * 校验请求方是否有权访问 shopId 的订单（基于 Bearer token）。
+   * 通过条件之一即放行：
+   *   1) tokenUserId == shop.owner_id（自己的店）
+   *   2) shopId 是某个 mainShop 的 active 子店，且 tokenUserId == mainShop.owner_id（大庄看小庄）
+   * 失败抛 UnauthorizedException，防止匿名/越权拉取他店订单（IDOR 防御）。
+   */
+  private async requireShopOwner(req: any, shopId: number): Promise<void> {
+    const authHeader = (req?.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+    const user = await this.dataSource.getRepository(User).findOne({ where: { user_id: tokenUserId } });
+    if (user && user.role === 'admin') return;
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: shopId } });
+    if (!shop) {
+      throw new UnauthorizedException('无权查看该店铺数据');
+    }
+    if (shop.owner_id === tokenUserId) return;
+    // 大庄绑定路径：如果 tokenUser 是 shopId 所属 active main_shop 的 owner，则放行
+    const binding = await this.dataSource.getRepository(ShopBinding).findOne({
+      where: { sub_shop_id: shopId, status: 'active' },
+    });
+    if (binding) {
+      const mainShop = await shopRepo.findOne({ where: { shop_id: binding.main_shop_id } });
+      if (mainShop && mainShop.owner_id === tokenUserId) return;
+    }
+    throw new UnauthorizedException('无权查看该店铺数据');
+  }
+
+  /**
+   * GET /api/shop/orders?shopId=&limit= — 收银台拉订单列表（静态路径，绝不与 :shopNumber 冲突）
+   */
+  @Get('orders')
+  async listShopOrdersByQuery(
+    @Query('shopId') shopId: string,
+    @Query('limit') limit: string = '100',
+    @Query('status') status?: string,
+    @Query('suffix') suffix?: string,
+    @Query('drawId') drawId?: string,
+    @Query('lotteryKind') lotteryKind?: string,
+    @Req() req?: any,
+  ) {
+    const id = parseInt(String(shopId || '').trim(), 10);
+    if (!shopId || isNaN(id) || id <= 0) {
+      throw new BadRequestException('缺少或无效的 shopId');
+    }
+    await this.requireShopOwner(req, id);
+    return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
+  }
+
+  /**
+   * GET /api/shop/orders-sync?shopId=&since=<ISO>&drawId=<optional>
+   *   — 增量同步：返回 updated_at > since 的订单（含取消），支持超大订单量
+   *   - 无 limit / 无截断（按 updated_at 水位线天然收窄）
+   *   - 首次调用传 since='' 或 '1970-01-01'，返回 drawId 内全量 + 跨期未兑奖中奖单
+   *   - 后续轮询传上一次返回的 serverTime
+   *   - 返回 canceled 订单（status=-1），前端据此从缓存移除
+   */
+  @Get('orders-sync')
+  async syncShopOrders(
+    @Query('shopId') shopId: string,
+    @Query('since') since: string = '',
+    @Query('drawId') drawId?: string,
+    @Query('lotteryKind') lotteryKind?: string,
+    @Query('winnerOnly') winnerOnly?: string,
+    @Req() req?: any,
+  ) {
+    const id = parseInt(String(shopId || '').trim(), 10);
+    if (!shopId || isNaN(id) || id <= 0) {
+      throw new BadRequestException('缺少或无效的 shopId');
+    }
+    await this.requireShopOwner(req, id);
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const orderRepo = this.dataSource.getRepository(Order);
+
+    let shop = await shopRepo.findOne({ where: { shop_id: id } });
+    if (!shop) {
+      shop = await shopRepo.findOne({ where: { shop_number: String(id) } as any });
+    }
+    if (!shop) {
+      throw new NotFoundException('店铺不存在');
+    }
+
+    // winnerOnly=1：只拉中奖单（status=3），用于开奖瞬间前端"本地标 loser + 拉 winner"策略
+    // 一次开奖大店可能有几万 loser 变化，此参数让前端跳过这一大波，只拉几百条中奖单
+    const isWinnerOnly = winnerOnly === '1' || winnerOnly === 'true';
+
+    // since 有值 → 纯增量；since 为空 → 首次加载
+    const isInitialLoad = !(since && since.trim());
+    let sinceDate: Date = new Date(0);
+    if (!isInitialLoad) {
+      const parsed = new Date(since);
+      sinceDate = isNaN(parsed.getTime()) ? new Date(0) : parsed;
+    }
+
+    // 基础查询：本店
+    const q = orderRepo.createQueryBuilder('order')
+      .where('order.shop_id = :shopId', { shopId: shop.shop_id })
+      .orderBy('order.updated_at', 'ASC');
+
+    if (isWinnerOnly) {
+      // 只拉中奖单。配合 drawId 精确到某期；不传 drawId 则拉全部中奖单
+      q.andWhere('order.status = 3');
+      if (drawId && Number(drawId) > 0) {
+        q.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
+      }
+      if (!isInitialLoad) {
+        // >= 保证同 ms 并列订单不被漏（客户端 ordersById.set 天然去重）
+        q.andWhere('order.updated_at >= :since', { since: sinceDate });
+      }
+    } else if (isInitialLoad) {
+      // 首次加载：只取「当期 + 上期 + 未兑奖中奖单」
+      // - 当期 pending：NACIONAL 共享 + 本店 TICA + 本店 NICA
+      // - 上期 completed：NACIONAL + 本店 TICA + 本店 NICA（用于结算展示）
+      // - 未兑奖中奖单：status=3 AND redeemed_at IS NULL（跨期保留，老板随时兑）
+      const drawRepo = this.dataSource.getRepository(Draw);
+      const drawIds: number[] = [];
+      const [nacPending, nacCompleted, ticaPending, ticaCompleted, nicaPending, nicaCompleted] = await Promise.all([
+        findNationalPendingDraw(drawRepo),
+        findNationalLastCompletedDraw(drawRepo),
+        findShopPendingLocalDraw(drawRepo, shop.shop_id, 'TICA'),
+        findShopLastCompletedLocalDraw(drawRepo, shop.shop_id, 'TICA'),
+        findShopPendingLocalDraw(drawRepo, shop.shop_id, 'NICA'),
+        findShopLastCompletedLocalDraw(drawRepo, shop.shop_id, 'NICA'),
+      ]);
+      for (const d of [nacPending, nacCompleted, ticaPending, ticaCompleted, nicaPending, nicaCompleted]) {
+        if (d && d.draw_id != null) drawIds.push(d.draw_id);
+      }
+
+      if (drawIds.length > 0) {
+        q.andWhere(
+          '(order.draw_id IN (:...drawIds) OR (order.status = 3 AND order.redeemed_at IS NULL))',
+          { drawIds },
+        );
+      } else {
+        // 没有任何 pending/completed draw（极端：全归档后），只拉未兑奖中奖单
+        q.andWhere('(order.status = 3 AND order.redeemed_at IS NULL)');
+      }
+    } else {
+      // 增量：>= 保证同 ms 并列订单不被漏（客户端 ordersById.set 天然去重）
+      q.andWhere('order.updated_at >= :since', { since: sinceDate });
+    }
+
+    if (drawId && Number(drawId) > 0) {
+      // drawId 过滤：只同步当期 + 未关联 draw_id 的最近待付款（可能还没分配 draw）
+      q.andWhere('(order.draw_id = :drawId OR order.draw_id IS NULL)', { drawId: Number(drawId) });
+    }
+
+    const lk = (lotteryKind || '').toString().toUpperCase();
+    if (lk === 'TICA' || lk === 'NICA') {
+      q.andWhere('order.lottery_type = :lk', { lk });
+    } else if (lk === 'NACIONAL') {
+      q.andWhere('(order.lottery_type = :nac OR order.lottery_type IS NULL)', { nac: 'NACIONAL' });
+    }
+
+    const orders = await q.getMany();
+
+    // serverTime 下次作为 since 用。必须是"本次返回里最大的 updated_at"，不能用 new Date()。
+    // 原因：`new Date()` 在 query 之前取，这期间新写入的订单 updated_at 可能 > 原 since 但 <= new Date()，
+    // 被本次查询返回后 serverTime 又推得更晚，下次 `>= since` 也错过那些 edge 值。
+    // 用"本批最大 updated_at"能保证下次 `>= since` 严格不漏。
+    let nextSinceIso: string;
+    if (orders.length > 0) {
+      const last: any = orders[orders.length - 1]; // ORDER BY updated_at ASC
+      const stamp = last.updated_at || last.created_at;
+      nextSinceIso = new Date(stamp).toISOString();
+    } else {
+      // 空返回：保持原 since 不推进（下次继续等）；首次加载空返回时退化为 epoch，下次仍走首次加载
+      nextSinceIso = isInitialLoad ? new Date(0).toISOString() : sinceDate.toISOString();
+    }
+
+    const statusMap: { [key: number]: string } = {
+      0: 'pending', 1: 'paid', 2: 'settled', 3: 'won', [-1]: 'canceled',
+    };
+
+    // ── 同账号多端同步（单店内）：本接口 1 秒一次的轮询通道里附带本店 ──
+    //   1) 完整 shop 快照（限额/赔率/开关/订阅/自定义期号…）
+    //   2) TICA/NICA 当前 pending 期（含 winning_numbers，刚开过的话）
+    //   3) TICA/NICA 最近一期 completed 的开奖号
+    // 跨店隔离：上面 q.where('order.shop_id') 与 requireShopOwner 已强约束
+    const drawRepoForSync = this.dataSource.getRepository(Draw);
+    const [ticaPendNow, ticaLastNow, nicaPendNow, nicaLastNow] = await Promise.all([
+      findShopPendingLocalDraw(drawRepoForSync, shop.shop_id, 'TICA'),
+      findShopLastCompletedLocalDraw(drawRepoForSync, shop.shop_id, 'TICA'),
+      findShopPendingLocalDraw(drawRepoForSync, shop.shop_id, 'NICA'),
+      findShopLastCompletedLocalDraw(drawRepoForSync, shop.shop_id, 'NICA'),
+    ]);
+    const parseWinningTriple = (raw: any): { n1: string; n2: string; n3: string } | null => {
+      if (!raw) return null;
+      try {
+        const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!w || typeof w !== 'object') return null;
+        const pad = (v: any) => String(v ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0');
+        const n1 = pad(w.n1), n2 = pad(w.n2), n3 = pad(w.n3);
+        if (!/^\d{2}$/.test(n1) || !/^\d{2}$/.test(n2) || !/^\d{2}$/.test(n3)) return null;
+        return { n1, n2, n3 };
+      } catch { return null; }
+    };
+    const fmtDraw = (d: any) => d ? {
+      draw_id: d.draw_id,
+      period_no: d.period_no ?? null,
+      status: d.status,
+      winning_numbers: parseWinningTriple(d.winning_numbers),
+    } : null;
+
+    return {
+      shop_id: shop.shop_id,
+      shopId: shop.shop_id,
+      shopNumber: shop.shop_number,
+      shopName: shop.shop_name,
+      serverTime: nextSinceIso,
+      since: sinceDate.toISOString(),
+      count: orders.length,
+      // 单店多端同步：完整 shop 字段（已过滤敏感字段：本表本就无密码/token）
+      shop: {
+        shop_id: shop.shop_id,
+        shop_number: shop.shop_number,
+        shop_name: shop.shop_name,
+        status: shop.status,
+        commission_rate: shop.commission_rate,
+        limit_chance: (shop as any).limit_chance ?? null,
+        limit_billete: (shop as any).limit_billete ?? null,
+        tica_limit_chance: (shop as any).tica_limit_chance ?? null,
+        tica_limit_palet: (shop as any).tica_limit_palet ?? null,
+        nica_limit_chance: (shop as any).nica_limit_chance ?? null,
+        nica_limit_palet: (shop as any).nica_limit_palet ?? null,
+        tica_custom_period: (shop as any).tica_custom_period ?? null,
+        nica_custom_period: (shop as any).nica_custom_period ?? null,
+        national_custom_draw_date: (shop as any).national_custom_draw_date ?? null,
+        national_custom_draw_id: (shop as any).national_custom_draw_id ?? null,
+        loteria_enabled: (shop as any).loteria_enabled ?? true,
+        tica_enabled: (shop as any).tica_enabled ?? false,
+        nica_enabled: (shop as any).nica_enabled ?? false,
+        accepting_tica_orders: (shop as any).accepting_tica_orders ?? true,
+        accepting_nica_orders: (shop as any).accepting_nica_orders ?? true,
+        rate_billete_1: (shop as any).rate_billete_1 ?? null,
+        rate_billete_2: (shop as any).rate_billete_2 ?? null,
+        rate_billete_3: (shop as any).rate_billete_3 ?? null,
+        rate_chance_1: (shop as any).rate_chance_1 ?? null,
+        rate_chance_2: (shop as any).rate_chance_2 ?? null,
+        rate_chance_3: (shop as any).rate_chance_3 ?? null,
+        chain_1_2: (shop as any).chain_1_2,
+        chain_1_3: (shop as any).chain_1_3,
+        chain_2_1: (shop as any).chain_2_1,
+        chain_2_3: (shop as any).chain_2_3,
+        chain_3_1: (shop as any).chain_3_1,
+        chain_3_2: (shop as any).chain_3_2,
+        tica_chance_1: (shop as any).tica_chance_1 ?? null,
+        tica_chance_2: (shop as any).tica_chance_2 ?? null,
+        tica_chance_3: (shop as any).tica_chance_3 ?? null,
+        nica_chain_1_2: (shop as any).nica_chain_1_2 ?? null,
+        nica_chain_1_3: (shop as any).nica_chain_1_3 ?? null,
+        nica_chain_2_1: (shop as any).nica_chain_2_1 ?? null,
+        nica_chain_2_3: (shop as any).nica_chain_2_3 ?? null,
+        nica_chain_3_1: (shop as any).nica_chain_3_1 ?? null,
+        nica_chain_3_2: (shop as any).nica_chain_3_2 ?? null,
+        nica_chance_1: (shop as any).nica_chance_1 ?? null,
+        nica_chance_2: (shop as any).nica_chance_2 ?? null,
+        nica_chance_3: (shop as any).nica_chance_3 ?? null,
+        subscription_expires_at: (shop as any).subscription_expires_at ?? null,
+        updated_at: (shop as any).updated_at ?? null,
+      },
+      // 当期 TICA/NICA pending 期次（pending 期 winning_numbers 必为 null）
+      currentLocalDraws: {
+        TICA: fmtDraw(ticaPendNow),
+        NICA: fmtDraw(nicaPendNow),
+      },
+      // 最近一期 completed 的 TICA/NICA：用于多端实时显示已录入的开奖号
+      previousLocalDraws: {
+        TICA: fmtDraw(ticaLastNow),
+        NICA: fmtDraw(nicaLastNow),
+      },
+      orders: orders.map(order => ({
+        order_id: order.order_id,
+        shop_id: order.shop_id,
+        order_number: order.order_number,
+        order_hash: order.order_hash,
+        numbers: order.numbers,
+        amount: order.amount,
+        game_type: order.game_type,
+        lottery_type: (order as any).lottery_type ?? 'NACIONAL',
+        status: statusMap[order.status] || 'pending',
+        draw_id: order.draw_id ?? null,
+        win_amount: order.win_amount,
+        win_breakdown: (order as any).win_breakdown ?? null,
+        redeemed_at: (order as any).redeemed_at ?? null,
+        canceled_at: (order as any).canceled_at ?? null,
+        note: (order as any).note ?? null,
+        verification_code: order.verification_code,
+        created_at: order.created_at,
+        updated_at: (order as any).updated_at ?? null,
+        paid_at: order.paid_at,
+      })),
+    };
+  }
+
+  /** 内部：按店铺数字 ID 查订单列表（与 GET :shopId/orders 同逻辑） */
+  private async buildShopOrdersList(
+    shopIdNum: number,
+    limit: string,
+    status?: string,
+    suffix?: string,
+    drawId?: string,
+    lotteryKind?: string,
+  ) {
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const orderRepo = this.dataSource.getRepository(Order);
+
+    let shop = await shopRepo.findOne({ where: { shop_id: shopIdNum } });
+    if (!shop) {
+      // shopId 为纯数字但找不到时，尝试按 shop_number（店号）查找
+      shop = await shopRepo.findOne({ where: { shop_number: String(shopIdNum) } as any });
+    }
+    if (!shop) {
+      throw new NotFoundException('店铺不存在');
+    }
+
+    const query = orderRepo.createQueryBuilder('order')
+      .where('order.shop_id = :shopId', { shopId: shop.shop_id })
+      .orderBy('order.created_at', 'DESC');
+
+    if (drawId && Number(drawId) > 0) {
+      query.andWhere('order.draw_id = :drawId', { drawId: Number(drawId) });
+    }
+
+    const lk = (lotteryKind || '').toString().toUpperCase();
+    if (lk === 'TICA' || lk === 'NICA') {
+      query.andWhere('order.lottery_type = :lotteryTypeFilter', { lotteryTypeFilter: lk });
+    } else if (lk === 'NACIONAL') {
+      query.andWhere('(order.lottery_type = :nac OR order.lottery_type IS NULL)', { nac: 'NACIONAL' });
+    }
+
+    if (status) {
+      const statusMap: { [key: string]: number } = {
+        'pending': 0,
+        'paid': 1,
+        'settled': 2,
+        'won': 3,
+      };
+      if (statusMap[status] !== undefined) {
+        query.andWhere('order.status = :status', { status: statusMap[status] });
+      }
+    }
+
+    if (suffix && suffix.trim()) {
+      const safe = String(suffix.trim()).replace(/%/g, '\\%').replace(/_/g, '\\_');
+      query.andWhere('order.order_number LIKE :suffixPattern', { suffixPattern: '%' + safe });
+      // 状态/已兑奖过滤交给上游 status 参数 + 客户端按需过滤；suffix 只负责后缀匹配
+      // merchant.html 收银台兑奖搜索显式带 status=won 并过滤 redeemed_at，不受影响
+    }
+
+    let orders = await query.getMany();
+
+
+    const statusMap: { [key: number]: string } = {
+      0: 'pending',
+      1: 'paid',
+      2: 'settled',
+      3: 'won',
+      [-1]: 'canceled',
+    };
+
+    return {
+      shop_id: shop.shop_id,
+      shopId: shop.shop_id,
+      shopNumber: shop.shop_number,
+      shopName: shop.shop_name,
+      orders: orders.map(order => ({
+        order_id: order.order_id,
+        shop_id: order.shop_id,
+        order_number: order.order_number,
+        order_hash: order.order_hash,
+        numbers: order.numbers,
+        amount: order.amount,
+        game_type: order.game_type,
+        lottery_type: (order as any).lottery_type ?? 'NACIONAL',
+        status: statusMap[order.status] || 'pending',
+        draw_id: order.draw_id ?? null,
+        win_amount: order.win_amount,
+        win_breakdown: (order as any).win_breakdown ?? null,
+        redeemed_at: (order as any).redeemed_at ?? null,
+        note: (order as any).note ?? null,
+        verification_code: order.verification_code,
+        created_at: order.created_at,
+        paid_at: order.paid_at,
+      })),
+    };
+  }
+
+  /**
+   * PATCH /api/shop/:shopId/limits - 保存每号销售限额
+   */
+  @Patch(':shopId/limits')
+  async updateShopLimits(
+    @Param('shopId') shopId: string,
+    @Body()
+    body: {
+      limitChance?: number | null;
+      limitBillete?: number | null;
+      /** TICA 独立限额 */
+      ticaLimitChance?: number | null;
+      ticaLimitPalet?: number | null;
+      /** NICA 独立限额 */
+      nicaLimitChance?: number | null;
+      nicaLimitPalet?: number | null;
+      /** TICA 自定义期号 */
+      ticaCustomPeriod?: string | null;
+      /** NICA 自定义期号 */
+      nicaCustomPeriod?: string | null;
+      /** 顾客端是否展示 TICA（与 local-lottery/shop-settings 同效，便于未挂载 LocalLottery 模块的环境） */
+      ticaEnabled?: boolean;
+      nicaEnabled?: boolean;
+      loteriaEnabled?: boolean;
+    },
+    @Req() req: Request,
+  ) {
+    const parsedShopId = parseInt(shopId, 10);
+    if (isNaN(parsedShopId)) throw new BadRequestException('shopId 无效');
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+    if (body.limitChance !== undefined) (shop as any).limit_chance = body.limitChance || null;
+    if (body.limitBillete !== undefined) (shop as any).limit_billete = body.limitBillete || null;
+    if (body.ticaLimitChance !== undefined) (shop as any).tica_limit_chance = body.ticaLimitChance || null;
+    if (body.ticaLimitPalet !== undefined) (shop as any).tica_limit_palet = body.ticaLimitPalet || null;
+    if (body.nicaLimitChance !== undefined) (shop as any).nica_limit_chance = body.nicaLimitChance || null;
+    if (body.nicaLimitPalet !== undefined) (shop as any).nica_limit_palet = body.nicaLimitPalet || null;
+    if (body.ticaCustomPeriod !== undefined) (shop as any).tica_custom_period = body.ticaCustomPeriod || null;
+    if (body.nicaCustomPeriod !== undefined) (shop as any).nica_custom_period = body.nicaCustomPeriod || null;
+    if (body.ticaEnabled !== undefined) shop.tica_enabled = !!body.ticaEnabled;
+    if (body.nicaEnabled !== undefined) shop.nica_enabled = !!body.nicaEnabled;
+    if (body.loteriaEnabled !== undefined) (shop as any).loteria_enabled = !!body.loteriaEnabled;
+    await shopRepo.save(shop);
+    return {
+      success: true,
+      limit_chance: (shop as any).limit_chance,
+      limit_billete: (shop as any).limit_billete,
+      tica_limit_chance: (shop as any).tica_limit_chance,
+      tica_limit_palet: (shop as any).tica_limit_palet,
+      nica_limit_chance: (shop as any).nica_limit_chance,
+      nica_limit_palet: (shop as any).nica_limit_palet,
+      tica_custom_period: (shop as any).tica_custom_period,
+      nica_custom_period: (shop as any).nica_custom_period,
+      loteria_enabled: (shop as any).loteria_enabled,
+      tica_enabled: shop.tica_enabled,
+      nica_enabled: shop.nica_enabled,
+    };
+  }
+
+  /**
+   * PATCH /api/shop/:shopId/rates - 保存店铺自定义赔率
+   */
+  @Patch(':shopId/rates')
+  async updateShopRates(
+    @Param('shopId') shopId: string,
+    @Body()
+    body: {
+      rateBillete1?: number | null;
+      rateBillete2?: number | null;
+      rateBillete3?: number | null;
+      rateChance1?: number | null;
+      rateChance2?: number | null;
+      rateChance3?: number | null;
+      ticaChance1?: number | null;
+      ticaChance2?: number | null;
+      ticaChance3?: number | null;
+      chain12?: number | null;
+      chain13?: number | null;
+      chain21?: number | null;
+      chain23?: number | null;
+      chain31?: number | null;
+      chain32?: number | null;
+      nicaChain12?: number | null;
+      nicaChain13?: number | null;
+      nicaChain21?: number | null;
+      nicaChain23?: number | null;
+      nicaChain31?: number | null;
+      nicaChain32?: number | null;
+      nicaChance1?: number | null;
+      nicaChance2?: number | null;
+      nicaChance3?: number | null;
+    },
+    @Req() req: Request,
+  ) {
+    const parsedShopId = parseInt(shopId, 10);
+    if (isNaN(parsedShopId)) throw new BadRequestException('shopId 无效');
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+
+    // 上限 100000 防误填天文数字（业务最大默认 2000，留 50× 安全裕度防超付/退款风暴）
+    const RATE_MAX = 100000;
+    const toRate = (v: number | null | undefined, def: number) => {
+      const n = Number(v);
+      return v != null && isFinite(n) && n > 0 && n <= RATE_MAX ? n : null;
+    };
+    const toChainRate = (v: number | null | undefined) => {
+      const n = Number(v);
+      return v != null && isFinite(n) && n >= 0 && n <= RATE_MAX ? n : null;
+    };
+    if (body.rateBillete1 !== undefined) (shop as any).rate_billete_1 = toRate(body.rateBillete1, 2000);
+    if (body.rateBillete2 !== undefined) (shop as any).rate_billete_2 = toRate(body.rateBillete2, 600);
+    if (body.rateBillete3 !== undefined) (shop as any).rate_billete_3 = toRate(body.rateBillete3, 300);
+    if (body.rateChance1 !== undefined) (shop as any).rate_chance_1 = toRate(body.rateChance1, 14);
+    if (body.rateChance2 !== undefined) (shop as any).rate_chance_2 = toRate(body.rateChance2, 3);
+    if (body.rateChance3 !== undefined) (shop as any).rate_chance_3 = toRate(body.rateChance3, 2);
+    // TICA 独立 Chance 赔率（与 Lotería 解耦）
+    if (body.ticaChance1 !== undefined) (shop as any).tica_chance_1 = toRate(body.ticaChance1, 14);
+    if (body.ticaChance2 !== undefined) (shop as any).tica_chance_2 = toRate(body.ticaChance2, 3);
+    if (body.ticaChance3 !== undefined) (shop as any).tica_chance_3 = toRate(body.ticaChance3, 2);
+    if (body.chain12 !== undefined) (shop as any).chain_1_2 = toChainRate(body.chain12);
+    if (body.chain13 !== undefined) (shop as any).chain_1_3 = toChainRate(body.chain13);
+    if (body.chain21 !== undefined) (shop as any).chain_2_1 = toChainRate(body.chain21);
+    if (body.chain23 !== undefined) (shop as any).chain_2_3 = toChainRate(body.chain23);
+    if (body.chain31 !== undefined) (shop as any).chain_3_1 = toChainRate(body.chain31);
+    if (body.chain32 !== undefined) (shop as any).chain_3_2 = toChainRate(body.chain32);
+    // NICA 独立赔率
+    if (body.nicaChain12 !== undefined) (shop as any).nica_chain_1_2 = toChainRate(body.nicaChain12);
+    if (body.nicaChain13 !== undefined) (shop as any).nica_chain_1_3 = toChainRate(body.nicaChain13);
+    if (body.nicaChain21 !== undefined) (shop as any).nica_chain_2_1 = toChainRate(body.nicaChain21);
+    if (body.nicaChain23 !== undefined) (shop as any).nica_chain_2_3 = toChainRate(body.nicaChain23);
+    if (body.nicaChain31 !== undefined) (shop as any).nica_chain_3_1 = toChainRate(body.nicaChain31);
+    if (body.nicaChain32 !== undefined) (shop as any).nica_chain_3_2 = toChainRate(body.nicaChain32);
+    if (body.nicaChance1 !== undefined) (shop as any).nica_chance_1 = toRate(body.nicaChance1, 14);
+    if (body.nicaChance2 !== undefined) (shop as any).nica_chance_2 = toRate(body.nicaChance2, 3);
+    if (body.nicaChance3 !== undefined) (shop as any).nica_chance_3 = toRate(body.nicaChance3, 2);
+    await shopRepo.save(shop);
+    return {
+      success: true,
+      rate_billete_1: (shop as any).rate_billete_1,
+      rate_billete_2: (shop as any).rate_billete_2,
+      rate_billete_3: (shop as any).rate_billete_3,
+      rate_chance_1: (shop as any).rate_chance_1,
+      rate_chance_2: (shop as any).rate_chance_2,
+      rate_chance_3: (shop as any).rate_chance_3,
+      tica_chance_1: (shop as any).tica_chance_1,
+      tica_chance_2: (shop as any).tica_chance_2,
+      tica_chance_3: (shop as any).tica_chance_3,
+      chain_1_2: (shop as any).chain_1_2,
+      chain_1_3: (shop as any).chain_1_3,
+      chain_2_1: (shop as any).chain_2_1,
+      chain_2_3: (shop as any).chain_2_3,
+      chain_3_1: (shop as any).chain_3_1,
+      chain_3_2: (shop as any).chain_3_2,
+      nica_chain_1_2: (shop as any).nica_chain_1_2,
+      nica_chain_1_3: (shop as any).nica_chain_1_3,
+      nica_chain_2_1: (shop as any).nica_chain_2_1,
+      nica_chain_2_3: (shop as any).nica_chain_2_3,
+      nica_chain_3_1: (shop as any).nica_chain_3_1,
+      nica_chain_3_2: (shop as any).nica_chain_3_2,
+      nica_chance_1: (shop as any).nica_chance_1,
+      nica_chance_2: (shop as any).nica_chance_2,
+      nica_chance_3: (shop as any).nica_chance_3,
+    };
+  }
+
+  /**
+   * GET /api/shop/:shopId/orders - 获取店铺订单列表（兼容旧链接）
+   */
+  @Get(':shopId/orders')
+  async getShopOrders(
+    @Param('shopId') shopId: string,
+    @Query('limit') limit: string = '100',
+    @Query('status') status?: string,
+    @Query('suffix') suffix?: string,
+    @Query('drawId') drawId?: string,
+    @Query('lotteryKind') lotteryKind?: string,
+    @Req() req?: any,
+  ) {
+    const id = parseInt(String(shopId || '').trim(), 10);
+    if (isNaN(id) || id <= 0) {
+      throw new BadRequestException('无效的 shopId');
+    }
+    await this.requireShopOwner(req, id);
+    return this.buildShopOrdersList(id, limit, status, suffix, drawId, lotteryKind);
+  }
+
+  /**
+   * PATCH /api/shop/:shopId/national-draw-date - 老板修改全国 Lotería 当期开奖日期（应急修正）
+   * body: { drawDate: 'YYYY-MM-DD' } 设置；{ drawDate: null } 清除恢复默认
+   * 后端自动绑定到当前 pending drawId，下期自动失效。
+   */
+  @Patch(':shopId/national-draw-date')
+  async updateShopNationalDrawDate(
+    @Param('shopId') shopId: string,
+    @Body() body: { drawDate?: string | null },
+    @Req() req: Request,
+  ) {
+    const parsedShopId = parseInt(shopId, 10);
+    if (isNaN(parsedShopId)) throw new BadRequestException('shopId 无效');
+
+    const authHeader = (req.headers?.['authorization'] || '') as string;
+    const raw = authHeader.replace(/^\s*bearer\s+/i, '').trim();
+    const tokenUserId = parseOrderToken(raw);
+    if (!tokenUserId) {
+      throw new UnauthorizedException('请先登录');
+    }
+
+    const shopRepo = this.dataSource.getRepository(Shop);
+    const shop = await shopRepo.findOne({ where: { shop_id: parsedShopId } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (shop.owner_id !== tokenUserId) {
+      throw new UnauthorizedException('无权操作此店铺');
+    }
+
+    const incoming = body?.drawDate;
+    if (incoming == null || (typeof incoming === 'string' && incoming.trim() === '')) {
+      // 清除自定义
+      (shop as any).national_custom_draw_date = null;
+      (shop as any).national_custom_draw_id = null;
+      await shopRepo.save(shop);
+      return {
+        success: true,
+        national_custom_draw_date: null,
+        national_custom_draw_id: null,
+      };
+    }
+
+    if (typeof incoming !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(incoming)) {
+      throw new BadRequestException('drawDate 格式必须为 YYYY-MM-DD');
+    }
+    // 校验是有效日期（防 2026-13-32 这种）
+    const probe = new Date(`${incoming}T12:00:00Z`);
+    if (isNaN(probe.getTime()) || probe.toISOString().slice(0, 10) !== incoming) {
+      throw new BadRequestException('drawDate 不是有效日期');
+    }
+
+    // 后端查当前 pending drawId 作为绑定值，避免前端缓存陈旧
+    const drawRepo = this.dataSource.getRepository(Draw);
+    const pendingDraw = await findNationalPendingDraw(drawRepo);
+    if (!pendingDraw) {
+      throw new BadRequestException('当前无待开奖期，无法设置自定义日期');
+    }
+
+    (shop as any).national_custom_draw_date = incoming;
+    (shop as any).national_custom_draw_id = pendingDraw.draw_id;
+    await shopRepo.save(shop);
+    return {
+      success: true,
+      national_custom_draw_date: incoming,
+      national_custom_draw_id: pendingDraw.draw_id,
+    };
+  }
+
+  /**
+   * GET /api/shop/:shopNumber - 通过店号查询店铺（单段，放在 orders/limits 之后）
+   */
+  @Get(':shopNumber')
+  async getShopByNumber(@Param('shopNumber') shopNumber: string) {
+    const shop = await findShopByNumber(this.dataSource.getRepository(Shop), shopNumber);
+
+    if (!shop) {
+      throw new NotFoundException('店铺不存在');
+    }
+
+    return {
+      shop: {
+        shop_id: shop.shop_id,
+        shop_number: shop.shop_number,
+        shop_name: shop.shop_name,
+        status: shop.status,
+        commission_rate: shop.commission_rate,
+        limit_chance: (shop as any).limit_chance ?? null,
+        limit_billete: (shop as any).limit_billete ?? null,
+        tica_limit_chance: (shop as any).tica_limit_chance ?? null,
+        tica_limit_palet: (shop as any).tica_limit_palet ?? null,
+        nica_limit_chance: (shop as any).nica_limit_chance ?? null,
+        nica_limit_palet: (shop as any).nica_limit_palet ?? null,
+        tica_custom_period: (shop as any).tica_custom_period ?? null,
+        nica_custom_period: (shop as any).nica_custom_period ?? null,
+        national_custom_draw_date: (shop as any).national_custom_draw_date ?? null,
+        national_custom_draw_id: (shop as any).national_custom_draw_id ?? null,
+        loteria_enabled: (shop as any).loteria_enabled !== false,
+        tica_enabled: !!(shop as any).tica_enabled,
+        nica_enabled: !!(shop as any).nica_enabled,
+        accepting_tica_orders: (shop as any).accepting_tica_orders !== false,
+        accepting_nica_orders: (shop as any).accepting_nica_orders !== false,
+      },
+    };
+  }
+}
+
+/** 巴拿马时区名，用于 15:00 停售、15:00-16:00 开奖窗口判断 */
+const PANAMA_TZ = 'America/Panama';
+
+/** 取当前巴拿马时间的年/月/日/时/分 */
+function getPanamaNow(): { y: number; m: number; d: number; h: number; min: number } {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PANAMA_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
+  let h = get('hour');
+  const min = get('minute');
+  // Intl.DateTimeFormat(hour12:false) 在部分环境/午夜边界会返回 24:xx 而非 00:xx，导致 totalMins 误判停售窗口
+  if (h === 24) h = 0;
+  return { y: get('year'), m: get('month'), d: get('day'), h, min };
+}
+
+/**
+ * 下注状态Controller
+ * 本期由总后台开奖决定：不按日期停售，有待开奖期即可下单；总后台发送开奖后进入下一期。
+ */
+@Controller('bet-status')
+export class BetStatusController {
+  private readonly logger = new Logger(BetStatusController.name);
+
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly drawDayService: DrawDayService,
+  ) {}
+
+  /**
+   * GET /api/bet-status - 获取下注状态（轮询用）
+   * 仅根据是否存在待开奖期返回 canBet；当前期数供前端显示。
+   */
+  /** 从 draw 解析出 DD-MM-YYYY */
+  private static formatDrawPeriodDate(draw: Draw): string {
+    const timeStr = String(draw.draw_time || '').trim();
+    if (timeStr && timeStr.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+      const iso = timeStr.substring(0, 10);
+      const y = iso.slice(0, 4), m = iso.slice(5, 7), d = iso.slice(8, 10);
+      return `${d}-${m}-${y}`;
+    }
+    const rawDate = draw.draw_date;
+    if (rawDate) {
+      const d = typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(String(rawDate))
+        ? new Date(String(rawDate).substring(0, 10) + 'T12:00:00Z')
+        : new Date(rawDate as any);
+      const dd = d.getUTCDate(), mm = d.getUTCMonth() + 1, yy = d.getUTCFullYear();
+      return `${String(dd).padStart(2, '0')}-${String(mm).padStart(2, '0')}-${yy}`;
+    }
+    const fallback = new Date();
+    return `${String(fallback.getDate()).padStart(2, '0')}-${String(fallback.getMonth() + 1).padStart(2, '0')}-${fallback.getFullYear()}`;
+  }
+
+  @Get()
+  async getBetStatus(@Query('shopId') shopId: string) {
+    const drawRepo = this.dataSource.getRepository(Draw);
+    // 仅全国 Lotería：优先 pending，没有则最新 completed
+    let draw = await findNationalPendingDraw(drawRepo);
+    if (!draw) {
+      draw = await drawRepo
+        .createQueryBuilder('d')
+        .where('d.status = :s', { s: 'completed' })
+        .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+        .andWhere('(d.shop_id IS NULL)')
+        .orderBy('d.draw_id', 'DESC')
+        .getOne();
+    }
+
+    let canBet = true;
+    let minutesUntilDraw: number | undefined;
+    let currentPeriodDate: string | null = null; // 当前期数，供用户端显示
+    let isDrawWindow = false;
+
+    let confirmedDrawDay: string | null = null;
+    let confirmedDrawTime: string | null = null;
+
+    if (draw) {
+      // 当前期数 = 待开奖的 draw 的日期；优先从 draw_time 的 ISO 解析（总后台发送的 2026-03-15T15:00:00）
+      const timeStr = String(draw.draw_time || '15:00').trim();
+      let dy: number; let dm: number; let dd: number;
+      if (timeStr.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(timeStr)) {
+        const iso = timeStr.substring(0, 10);
+        dy = parseInt(iso.slice(0, 4), 10);
+        dm = parseInt(iso.slice(5, 7), 10);
+        dd = parseInt(iso.slice(8, 10), 10);
+      } else {
+        const rawDate = draw.draw_date;
+        if (rawDate) {
+          const d = typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(String(rawDate))
+            ? new Date(String(rawDate).substring(0, 10) + 'T12:00:00Z')
+            : new Date(rawDate as any);
+          dy = d.getUTCFullYear(); dm = d.getUTCMonth() + 1; dd = d.getUTCDate();
+        } else {
+          const d = new Date();
+          dy = d.getFullYear(); dm = d.getMonth() + 1; dd = d.getDate();
+        }
+      }
+      currentPeriodDate = `${String(dd).padStart(2, '0')}-${String(dm).padStart(2, '0')}-${dy}`;
+
+      // 应急修正：若该店为当前 pending drawId 设置了自定义开奖日期，覆盖给客户端显示
+      // 仅影响 currentPeriodDate（顾客端展示），不影响 confirmedDrawDay/停售窗口（仍按真实 Draw 走）
+      const shopIdNum = parseInt(String(shopId || '').trim(), 10);
+      if (!isNaN(shopIdNum) && shopIdNum > 0) {
+        const shopRepo = this.dataSource.getRepository(Shop);
+        const shop = await shopRepo.findOne({ where: { shop_id: shopIdNum } });
+        const cd = (shop as any)?.national_custom_draw_date;
+        const cid = (shop as any)?.national_custom_draw_id;
+        if (cd && cid != null && Number(cid) === Number(draw.draw_id) && /^\d{4}-\d{2}-\d{2}$/.test(String(cd))) {
+          const iso = String(cd);
+          currentPeriodDate = `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`;
+        }
+      }
+
+      let drawHour = 15;
+      let drawMin = 0;
+      if (timeStr.includes('T')) {
+        const dt = new Date(timeStr);
+        if (!isNaN(dt.getTime())) {
+          drawHour = dt.getHours();
+          drawMin = dt.getMinutes();
+        }
+      } else {
+        const parts = timeStr.split(':').map(Number);
+        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          drawHour = parts[0];
+          drawMin = parts[1];
+        }
+      }
+
+      // 根据实际 draw_time 判断停售窗口：draw_time 到 次日07:00
+      // 同时将「系统认定的开奖日与时间」暴露给前端显示
+      const confirmedDrawMins = drawHour * 60 + drawMin;
+      confirmedDrawDay = `${String(dd).padStart(2, '0')}-${String(dm).padStart(2, '0')}-${dy}`;
+      confirmedDrawTime = `${String(drawHour).padStart(2, '0')}:${String(drawMin).padStart(2, '0')}`;
+      const panama = getPanamaNow();
+      const todayStr = `${String(panama.d).padStart(2, '0')}-${String(panama.m).padStart(2, '0')}-${panama.y}`;
+      const totalMins = panama.h * 60 + panama.min;
+
+      const drawDateISO = `${dy}-${String(dm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+      const todayISO = `${panama.y}-${String(panama.m).padStart(2, '0')}-${String(panama.d).padStart(2, '0')}`;
+      const stopSaleStart = confirmedDrawMins; // 开奖时停售
+      const RESUME_MINS = 7 * 60; // 次日 07:00 恢复
+
+      // 次日日期（YYYY-MM-DD）
+      const drawDateObj = new Date(`${drawDateISO}T12:00:00`);
+      drawDateObj.setDate(drawDateObj.getDate() + 1);
+      const dayAfterISO = `${drawDateObj.getFullYear()}-${String(drawDateObj.getMonth() + 1).padStart(2, '0')}-${String(drawDateObj.getDate()).padStart(2, '0')}`;
+
+      // 停售窗口：开奖日 draw_time 起，到次日 07:00 止
+      const inStopWindow =
+        (drawDateISO === todayISO && totalMins >= stopSaleStart) ||
+        (dayAfterISO === todayISO && totalMins < RESUME_MINS);
+
+      if (inStopWindow) {
+        canBet = false;
+        isDrawWindow = true;
+        minutesUntilDraw = undefined;
+      } else {
+        canBet = true;
+        isDrawWindow = false;
+        minutesUntilDraw = (drawDateISO === todayISO && totalMins < stopSaleStart)
+          ? Math.max(0, stopSaleStart - totalMins)
+          : undefined;
+      }
+    } else {
+      // 无待开奖期（已发结果，等待次日07:00创建下一期）→ 停售
+      const lastCompleted = await findNationalLastCompletedDraw(drawRepo);
+      if (lastCompleted) {
+        currentPeriodDate = BetStatusController.formatDrawPeriodDate(lastCompleted);
+      }
+      canBet = false;
+      isDrawWindow = true;
+    }
+
+    let stopSellAt: number | undefined;
+    if (minutesUntilDraw !== undefined) {
+      stopSellAt = Date.now() + minutesUntilDraw * 60 * 1000;
+    }
+
+    const base = {
+      status: 'ok' as const,
+      canBet,
+      minutesUntilDraw,
+      stopSellAt,
+      currentPeriodDate,
+      isDrawWindow,
+      confirmedDrawDay,
+      confirmedDrawTime,
+    };
+
+    if (!shopId) {
+      return base;
+    }
+
+    const sid = parseInt(shopId, 10);
+    const shopRow = await this.dataSource.getRepository(Shop).findOne({ where: { shop_id: sid } });
+    const localFlags = shopRow
+      ? {
+          loteriaEnabled: (shopRow as any).loteria_enabled !== false,
+          ticaEnabled: !!shopRow.tica_enabled,
+          nicaEnabled: !!shopRow.nica_enabled,
+          acceptingTicaOrders: shopRow.accepting_tica_orders !== false,
+          acceptingNicaOrders: shopRow.accepting_nica_orders !== false,
+        }
+      : {
+          loteriaEnabled: true,
+          ticaEnabled: false,
+          nicaEnabled: false,
+          acceptingTicaOrders: false,
+          acceptingNicaOrders: false,
+        };
+
+    return {
+      ...base,
+      ...localFlags,
+      shop_id: sid,
+      shopId: sid,
+    };
+  }
+}

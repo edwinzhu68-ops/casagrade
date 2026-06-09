@@ -1,0 +1,736 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+var DrawController_1, AdminController_1;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AdminController = exports.DrawController = void 0;
+const common_1 = require("@nestjs/common");
+const billete_payout_1 = require("../settlement/billete-payout");
+const typeorm_1 = require("typeorm");
+const draw_entity_1 = require("../../entities/draw.entity");
+const order_entity_1 = require("../../entities/order.entity");
+const shop_entity_1 = require("../../entities/shop.entity");
+const admin_token_guard_1 = require("../../guards/admin-token.guard");
+const draw_day_service_1 = require("./draw-day.service");
+const draw_queries_1 = require("../../utils/draw-queries");
+const draw_period_no_1 = require("../../utils/draw-period-no");
+const BILLETE_RATE_DEFAULT = {
+    exact: [2000, 600, 300],
+    first3: [50, 20, 10],
+    last3: [50, 20, 10],
+    first2: [3, 0, 0],
+    last2: [3, 2, 1],
+    last1: [1, 0, 0],
+};
+function shopExactRates(shop) {
+    if (!shop)
+        return [2000, 600, 300];
+    const r1 = shop.rate_billete_1 != null ? Number(shop.rate_billete_1) : 2000;
+    const r2 = shop.rate_billete_2 != null ? Number(shop.rate_billete_2) : 600;
+    const r3 = shop.rate_billete_3 != null ? Number(shop.rate_billete_3) : 300;
+    return [r1, r2, r3];
+}
+function shopChanceRates(shop) {
+    if (!shop)
+        return [14, 3, 2];
+    const r1 = shop.rate_chance_1 != null ? Number(shop.rate_chance_1) : 14;
+    const r2 = shop.rate_chance_2 != null ? Number(shop.rate_chance_2) : 3;
+    const r3 = shop.rate_chance_3 != null ? Number(shop.rate_chance_3) : 2;
+    return [r1, r2, r3];
+}
+const CHANCE_RATE_DEFAULT = [14, 3, 2];
+async function settleOrdersForDraw(dataSource, drawId, primer, segundo, tercero) {
+    const win1 = String(primer ?? '').replace(/\D/g, '');
+    const win2 = String(segundo ?? '').replace(/\D/g, '');
+    const win3 = String(tercero ?? '').replace(/\D/g, '');
+    const ch1 = win1.slice(-2).padStart(2, '0');
+    const ch2 = win2.slice(-2).padStart(2, '0');
+    const ch3 = win3.slice(-2).padStart(2, '0');
+    const orders = await dataSource.getRepository(order_entity_1.Order).find({
+        where: { status: 1, draw_id: drawId },
+    });
+    const shopIds = [...new Set(orders.map(o => o.shop_id))];
+    const shops = shopIds.length > 0
+        ? await dataSource.getRepository(shop_entity_1.Shop).findByIds(shopIds)
+        : [];
+    const shopMap = new Map(shops.map(s => [s.shop_id, s]));
+    await dataSource.transaction(async (manager) => {
+        for (const order of orders) {
+            let totalWin = 0;
+            const numbers = order.numbers || [];
+            const winBreakdown = [];
+            const shop = shopMap.get(order.shop_id) ?? null;
+            const exactRates = shopExactRates(shop);
+            const chanceRates = shopChanceRates(shop);
+            for (const bet of numbers) {
+                const num = String(bet.n ?? '');
+                const qty = Number(bet.q) || 0;
+                let lineWin = 0;
+                let matchInfo = '';
+                const numLen = num.replace(/\D/g, '').length;
+                if (numLen >= 4) {
+                    const r = (0, billete_payout_1.calcBilleteLineWin)(num, win1, win2, win3, qty, exactRates);
+                    lineWin = r.payout;
+                    matchInfo = r.matches.join(', ');
+                }
+                else if (numLen >= 2) {
+                    const r = (0, billete_payout_1.calcChanceLineWin)(num, win1, win2, win3, qty, chanceRates);
+                    lineWin = r.payout;
+                    matchInfo = r.matches.join(', ');
+                }
+                totalWin += lineWin;
+                winBreakdown.push({ n: num, q: qty, win: lineWin, match: matchInfo || undefined });
+            }
+            const newStatus = totalWin > 0 ? 3 : 2;
+            const nowTs = new Date();
+            await manager.update(order_entity_1.Order, order.order_id, {
+                draw_id: drawId,
+                win_amount: totalWin,
+                win_breakdown: winBreakdown,
+                status: newStatus,
+                settled_at: nowTs,
+                updated_at: nowTs,
+            });
+        }
+    });
+}
+function getNextDrawDatePanama(from) {
+    let base;
+    if (from) {
+        base = from;
+    }
+    else {
+        const now = new Date();
+        base = new Date(now.toLocaleString('en-US', { timeZone: 'America/Panama' }));
+    }
+    const day = base.getDay();
+    const daysToWed = ((3 - day + 7) % 7) || 7;
+    const daysToSun = ((0 - day + 7) % 7) || 7;
+    const days = Math.min(daysToWed, daysToSun);
+    const next = new Date(base);
+    next.setDate(next.getDate() + days);
+    next.setHours(15, 0, 0, 0);
+    return next;
+}
+function dateToDDMMYYYY(d) {
+    const dd = d.getDate();
+    const mm = d.getMonth() + 1;
+    const yy = d.getFullYear();
+    return `${String(dd).padStart(2, '0')}-${String(mm).padStart(2, '0')}-${yy}`;
+}
+function drawDateToDisplayString(val) {
+    if (val == null)
+        return null;
+    let yyyyMmDd;
+    if (typeof val === 'string') {
+        const s = val.trim().slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s))
+            return null;
+        yyyyMmDd = s;
+    }
+    else {
+        const d = new Date(val);
+        if (isNaN(d.getTime()))
+            return null;
+        yyyyMmDd = d.toISOString().slice(0, 10);
+    }
+    const [y, m, d] = [yyyyMmDd.slice(0, 4), yyyyMmDd.slice(5, 7), yyyyMmDd.slice(8, 10)];
+    return `${d}-${m}-${y}`;
+}
+function parseDDMMYYYY(s) {
+    const parts = String(s).trim().split(/[-/]/);
+    if (parts.length !== 3)
+        return null;
+    const d = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const y = parseInt(parts[2], 10);
+    if (isNaN(d) || isNaN(m) || isNaN(y) || m < 0 || m > 11)
+        return null;
+    const date = new Date(y, m, d);
+    if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d)
+        return null;
+    return date;
+}
+function parseYYYYMMDD(s) {
+    const m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m)
+        return null;
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10) - 1;
+    const d = parseInt(m[3], 10);
+    if (mo < 0 || mo > 11 || d < 1 || d > 31)
+        return null;
+    const date = new Date(Date.UTC(y, mo, d));
+    if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo || date.getUTCDate() !== d)
+        return null;
+    return date;
+}
+function dateToYYYYMMDD(d) {
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+let DrawController = DrawController_1 = class DrawController {
+    constructor(dataSource, drawDayService) {
+        this.dataSource = dataSource;
+        this.drawDayService = drawDayService;
+        this.logger = new common_1.Logger(DrawController_1.name);
+    }
+    async fetchFirebase() {
+        const url = 'https://loteria-panama.firebaseio.com/.json';
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error(`Firebase 请求失败: ${res.status}`);
+        }
+        const raw = (await res.json());
+        const get = (key) => {
+            const v = raw[key];
+            return v != null ? String(v).trim() : '';
+        };
+        const drawType = get('Tipo de Sorteo').toUpperCase();
+        const digits = (s) => s.replace(/\D/g, '');
+        const pFull = get('Primer Premio');
+        const sFull = get('Segundo Premio');
+        const tFull = get('Tercer Premio');
+        const pRaw = digits(pFull);
+        const sRaw = digits(sFull);
+        const tRaw = digits(tFull);
+        let primer;
+        let segundo;
+        let tercero;
+        if (drawType.includes('GORDITO')) {
+            primer = pRaw.length >= 4 ? pRaw.slice(-4) : pFull;
+            segundo = sRaw.length >= 2 ? sRaw.slice(-2) : sFull;
+            tercero = tRaw.length >= 2 ? tRaw.slice(-2) : tFull;
+        }
+        else {
+            primer = pFull;
+            segundo = sFull;
+            tercero = tFull;
+        }
+        const expectedDigits = drawType === 'GORDITO' ? { p: 4, s: 2, t: 2 } :
+            drawType === 'EXTRAORDINARIA' ? { p: 5, s: 5, t: 5 } :
+                { p: 4, s: 4, t: 4 };
+        return {
+            success: true,
+            data: {
+                drawType: get('Tipo de Sorteo'),
+                drawDate: get('Fecha del Sorteo'),
+                drawDateSource: 'firebase-reference',
+                drawHora: get('Hora del Sorteo'),
+                primer,
+                segundo,
+                tercero,
+                letras: get('Letras'),
+                expectedDigits,
+            },
+        };
+    }
+    async fetchLnb() {
+        try {
+            const url = 'https://lnb.gob.pa/';
+            const res = await fetch(url, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LotteryBot/1.0)' },
+            });
+            if (!res.ok)
+                return { success: false, error: `LNB 请求失败: ${res.status}` };
+            const html = await res.text();
+            const MONTHS = {
+                enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+                julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+            };
+            const dateRegex = /class="date"[\s\S]*?<div>(\d{1,2})<\/div>[\s\S]*?<div>([A-Za-záéíóúñ]+)<\/div>[\s\S]*?<div>(\d{4})<\/div>/gi;
+            const prizeRegex = /class="premio-number"[^>]*>\s*(\d+)\s*<\/div>/g;
+            const dateMatches = [...html.matchAll(dateRegex)];
+            const prizeMatches = [...html.matchAll(prizeRegex)];
+            if (dateMatches.length === 0 || prizeMatches.length === 0) {
+                this.logger.warn('LNB 未匹配到日期或号码');
+                return { success: false, error: 'LNB 页面未找到开奖数据（页面结构可能已变化）' };
+            }
+            const draws = dateMatches.map((dm, i) => {
+                const dateEnd = (dm.index ?? 0) + dm[0].length;
+                const nextDateStart = dateMatches[i + 1]?.index ?? html.length;
+                const prizesInBlock = prizeMatches.filter(pm => (pm.index ?? 0) >= dateEnd && (pm.index ?? 0) < nextDateStart);
+                const day = parseInt(dm[1], 10);
+                const month = MONTHS[dm[2].toLowerCase()] ?? 0;
+                const year = parseInt(dm[3], 10);
+                return {
+                    date: new Date(year, month - 1, day),
+                    primer: prizesInBlock[0]?.[1] || '',
+                    segundo: prizesInBlock[1]?.[1] || '',
+                    tercero: prizesInBlock[2]?.[1] || '',
+                };
+            });
+            draws.sort((a, b) => b.date.getTime() - a.date.getTime());
+            const latest = draws[0];
+            if (!latest.primer && !latest.segundo && !latest.tercero) {
+                return { success: false, error: 'LNB 最新一期号码未找到' };
+            }
+            const dateStr = `${String(latest.date.getDate()).padStart(2, '0')}-${String(latest.date.getMonth() + 1).padStart(2, '0')}-${latest.date.getFullYear()}`;
+            return { success: true, data: { primer: latest.primer, segundo: latest.segundo, tercero: latest.tercero, drawDate: dateStr, source: 'lnb.gob.pa' } };
+        }
+        catch (e) {
+            this.logger.error('fetchLnb error', e);
+            return { success: false, error: String(e?.message || e) };
+        }
+    }
+    async findPreviousDrawIdByPeriod(drawRepo, currentPeriodNo, lotteryType, shopId) {
+        if (currentPeriodNo == null || !isFinite(Number(currentPeriodNo)))
+            return null;
+        const lt = String(lotteryType || 'NACIONAL').toUpperCase();
+        const qb = drawRepo.createQueryBuilder('d')
+            .select('d.draw_id', 'draw_id')
+            .where('d.period_no < :pn', { pn: Number(currentPeriodNo) })
+            .andWhere('d.status = :st', { st: 'completed' });
+        if (shopId == null) {
+            qb.andWhere('d.shop_id IS NULL').andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' });
+        }
+        else {
+            qb.andWhere('d.shop_id = :sid', { sid: shopId }).andWhere('d.lottery_type = :lt', { lt });
+        }
+        qb.orderBy('d.period_no', 'DESC').limit(1);
+        const row = await qb.getRawOne();
+        return row?.draw_id != null ? Number(row.draw_id) : null;
+    }
+    async getLatestDraw() {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const draw = await (0, draw_queries_1.findNationalLatestCompletedUnarchivedDraw)(drawRepo);
+        if (!draw) {
+            return {
+                draw: null,
+                message: '暂无开奖记录',
+            };
+        }
+        let winning;
+        try {
+            winning = JSON.parse(draw.winning_numbers);
+        }
+        catch {
+            winning = { primer: draw.winning_numbers };
+        }
+        let drawDate = null;
+        if (draw.draw_date) {
+            const raw = draw.draw_date;
+            if (typeof raw === 'string') {
+                drawDate = raw.slice(0, 10);
+            }
+            else {
+                const d = new Date(raw);
+                const y = d.getFullYear();
+                const m = (d.getMonth() + 1).toString().padStart(2, '0');
+                const dd = d.getDate().toString().padStart(2, '0');
+                drawDate = `${y}-${m}-${dd}`;
+            }
+        }
+        const previousDrawId = await this.findPreviousDrawIdByPeriod(drawRepo, draw.period_no, 'NACIONAL', null);
+        return {
+            draw: {
+                drawId: draw.draw_id,
+                periodNo: draw.period_no ?? null,
+                previousDrawId,
+                primer: winning.primer || winning.primeras || '',
+                segundo: winning.segundo || winning.segundas || '',
+                tercero: winning.tercero || winning.terceras || winning.ultimas || '',
+                drawTime: draw.draw_time,
+                drawDate,
+                status: draw.status,
+            },
+        };
+    }
+    async getPendingDraw() {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const draw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        if (!draw) {
+            return { draw: null, message: '暂无待开奖期' };
+        }
+        const drawDateStr = drawDateToDisplayString(draw.draw_date);
+        const previousDrawId = await this.findPreviousDrawIdByPeriod(drawRepo, draw.period_no, 'NACIONAL', null);
+        return {
+            draw: {
+                drawId: draw.draw_id,
+                periodNo: draw.period_no ?? null,
+                previousDrawId,
+                drawTime: draw.draw_time,
+                drawDate: drawDateStr,
+                status: draw.status,
+                isManualOverride: draw.is_manual_override || false,
+            },
+        };
+    }
+    getNextDate() {
+        const next = getNextDrawDatePanama();
+        const y = next.getFullYear();
+        const m = String(next.getMonth() + 1).padStart(2, '0');
+        const d = String(next.getDate()).padStart(2, '0');
+        return { date: `${y}-${m}-${d}`, time: '15:00' };
+    }
+    async setDrawTime(dto) {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        let draw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        const updatePayload = {};
+        if (dto.drawTime != null && dto.drawTime !== '') {
+            updatePayload.draw_time = dto.drawTime;
+            if (typeof dto.drawTime === 'string' && dto.drawTime.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(dto.drawTime)) {
+                const dateOnly = dto.drawTime.slice(0, 10);
+                const parsed = parseYYYYMMDD(dateOnly);
+                if (parsed)
+                    updatePayload.draw_date = parsed;
+            }
+        }
+        if (dto.drawDate != null && dto.drawDate !== '') {
+            const parsed = parseYYYYMMDD(dto.drawDate) || parseDDMMYYYY(dto.drawDate);
+            if (parsed)
+                updatePayload.draw_date = parsed;
+        }
+        if (updatePayload.draw_date || updatePayload.draw_time) {
+            const dateForCheck = updatePayload.draw_date || null;
+            const timeForCheck = updatePayload.draw_time || '15:00:00';
+            if (dateForCheck) {
+                const dateStr = typeof dateForCheck === 'string'
+                    ? dateForCheck.slice(0, 10)
+                    : dateForCheck.toISOString().slice(0, 10);
+                const timePart = timeForCheck.includes('T') ? timeForCheck.slice(11, 16) : timeForCheck.slice(0, 5);
+                const [hh, mm] = timePart.split(':').map(Number);
+                const targetUtcMs = new Date(`${dateStr}T${String(hh).padStart(2, '0')}:${String(mm || 0).padStart(2, '0')}:00-05:00`).getTime();
+                if (!isNaN(targetUtcMs) && targetUtcMs <= Date.now()) {
+                    return { success: false, error: '开奖时间必须晚于当前巴拿马时间，请重新填写' };
+                }
+            }
+        }
+        if (draw) {
+            if (Object.keys(updatePayload).length > 0) {
+                updatePayload.is_manual_override = true;
+                await drawRepo.update(draw.draw_id, updatePayload);
+                if (updatePayload.draw_time)
+                    draw.draw_time = updatePayload.draw_time;
+                if (updatePayload.draw_date)
+                    draw.draw_date = updatePayload.draw_date;
+            }
+        }
+        else {
+            const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
+            draw = drawRepo.create({
+                draw_date: updatePayload.draw_date || new Date(),
+                draw_time: updatePayload.draw_time || '15:00:00',
+                status: 'pending',
+                winning_numbers: '',
+                is_manual_override: true,
+                lottery_type: 'NACIONAL',
+                shop_id: null,
+                period_no: periodNo,
+            });
+            await drawRepo.save(draw);
+        }
+        this.logger.log(`开奖时间设置: draw_time=${draw.draw_time}, draw_date=${draw.draw_date}, 期次: ${draw.draw_id} period_no=${draw.period_no}`);
+        return {
+            success: true,
+            drawId: draw.draw_id,
+            drawTime: draw.draw_time,
+            drawDate: draw.draw_date ? (typeof draw.draw_date === 'string' ? draw.draw_date : draw.draw_date.toISOString().slice(0, 10)) : null,
+        };
+    }
+    async manualDraw(dto) {
+        const primer = (dto.primer ?? dto.billete ?? '').toString().trim();
+        const segundo = (dto.segundo ?? dto.segundas ?? '').toString().trim();
+        const tercero = (dto.tercero ?? dto.terceras ?? '').toString().trim();
+        const digits = (s) => s.replace(/\D/g, '');
+        const winningNumbers = {
+            primer: digits(primer),
+            segundo: digits(segundo),
+            tercero: digits(tercero),
+        };
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        let draw = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        if (!draw) {
+            const lastCompleted = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
+            if (lastCompleted) {
+                const completedAt = new Date(lastCompleted.updated_at || lastCompleted.created_at);
+                const secondsAgo = (Date.now() - completedAt.getTime()) / 1000;
+                if (secondsAgo < 60) {
+                    return { success: false, error: '开奖已完成，请勿重复提交（60秒内）' };
+                }
+            }
+        }
+        const hasValidPending = draw != null && Number.isFinite(draw.draw_id);
+        if (hasValidPending) {
+            const updateFields = {
+                winning_numbers: JSON.stringify(winningNumbers),
+                status: 'completed',
+                draw_time: dto.drawTime || draw.draw_time,
+            };
+            if (dto.drawTime && typeof dto.drawTime === 'string' && dto.drawTime.includes('T') && /^\d{4}-\d{2}-\d{2}/.test(dto.drawTime)) {
+                if (!draw.draw_date) {
+                    const parsed = parseYYYYMMDD(dto.drawTime.slice(0, 10));
+                    if (parsed)
+                        updateFields.draw_date = parsed;
+                }
+            }
+            await drawRepo.update(draw.draw_id, updateFields);
+            if (updateFields.draw_date)
+                draw.draw_date = updateFields.draw_date;
+        }
+        else {
+            const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
+            draw = drawRepo.create({
+                draw_date: new Date(),
+                draw_time: dto.drawTime || new Date().toTimeString().split(' ')[0],
+                status: 'completed',
+                winning_numbers: JSON.stringify(winningNumbers),
+                lottery_type: 'NACIONAL',
+                shop_id: null,
+                period_no: periodNo,
+            });
+            await drawRepo.save(draw);
+        }
+        this.logger.log(`开奖完成: ${JSON.stringify(winningNumbers)}`);
+        const cancelResult = await this.dataSource.getRepository(order_entity_1.Order)
+            .createQueryBuilder()
+            .update(order_entity_1.Order)
+            .set({ status: -1, canceled_at: new Date(), updated_at: new Date() })
+            .where('draw_id = :drawId AND status = 0', { drawId: draw.draw_id })
+            .execute();
+        if (cancelResult.affected && cancelResult.affected > 0) {
+            this.logger.log(`开奖时取消未付款订单 ${cancelResult.affected} 条`);
+        }
+        await settleOrdersForDraw(this.dataSource, draw.draw_id, winningNumbers.primer, winningNumbers.segundo, winningNumbers.tercero);
+        await drawRepo
+            .createQueryBuilder()
+            .update(draw_entity_1.Draw)
+            .set({ status: 'canceled' })
+            .where('status = :s AND draw_id < :id', { s: 'pending', id: draw.draw_id })
+            .andWhere('(lottery_type = :lt OR lottery_type IS NULL)', { lt: 'NACIONAL' })
+            .andWhere('shop_id IS NULL')
+            .execute();
+        let nextDraw = null;
+        try {
+            const rawDate = String(draw.draw_date || '').slice(0, 10);
+            const fromDate = rawDate ? new Date(rawDate + 'T12:00:00') : undefined;
+            const nextDrawDate = getNextDrawDatePanama(fromDate);
+            const nextDateStr = `${nextDrawDate.getFullYear()}-${String(nextDrawDate.getMonth() + 1).padStart(2, '0')}-${String(nextDrawDate.getDate()).padStart(2, '0')}`;
+            const existing = await drawRepo.createQueryBuilder('d')
+                .where('d.status = :s', { s: 'pending' })
+                .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+                .andWhere('(d.shop_id IS NULL)')
+                .getOne();
+            if (!existing) {
+                const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
+                nextDraw = drawRepo.create({
+                    draw_date: nextDateStr,
+                    draw_time: '15:00:00',
+                    status: 'pending',
+                    winning_numbers: '',
+                    is_manual_override: false,
+                    lottery_type: 'NACIONAL',
+                    shop_id: null,
+                    period_no: periodNo,
+                });
+                await drawRepo.save(nextDraw);
+                this.logger.log(`开奖后自动创建下一期: draw_id=${nextDraw.draw_id}, draw_date=${nextDateStr}`);
+            }
+        }
+        catch (eNext) {
+            this.logger.warn('创建下一期失败: ' + (eNext instanceof Error ? eNext.message : String(eNext)));
+        }
+        return {
+            success: true,
+            drawId: draw.draw_id,
+            primer: winningNumbers.primer,
+            segundo: winningNumbers.segundo,
+            tercero: winningNumbers.tercero,
+        };
+    }
+    async resetDrawTime() {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const pending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        const lastCompleted = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
+        let nextDraw;
+        if (lastCompleted && lastCompleted.draw_date) {
+            const base = new Date(typeof lastCompleted.draw_date === 'string'
+                ? lastCompleted.draw_date + 'T12:00:00'
+                : lastCompleted.draw_date);
+            nextDraw = getNextDrawDatePanama(base);
+        }
+        else {
+            nextDraw = getNextDrawDatePanama();
+        }
+        const nextDateStr = `${nextDraw.getFullYear()}-${String(nextDraw.getMonth() + 1).padStart(2, '0')}-${String(nextDraw.getDate()).padStart(2, '0')}`;
+        const nextDateDisplay = drawDateToDisplayString(nextDateStr);
+        if (pending) {
+            await drawRepo.update(pending.draw_id, {
+                draw_date: nextDateStr,
+                draw_time: '15:00:00',
+                is_manual_override: false,
+            });
+            this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+            this.logger.log(`恢复默认开奖时间: draw_id=${pending.draw_id}, draw_date=${nextDateStr}`);
+            return { success: true, drawId: pending.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
+        }
+        else {
+            const periodNo = await (0, draw_period_no_1.getNextPeriodNoForScope)(drawRepo, { shopId: null, lotteryType: 'NACIONAL' });
+            const next = drawRepo.create({
+                draw_date: nextDateStr,
+                draw_time: '15:00:00',
+                status: 'pending',
+                winning_numbers: '',
+                is_manual_override: false,
+                lottery_type: 'NACIONAL',
+                shop_id: null,
+                period_no: periodNo,
+            });
+            await drawRepo.save(next);
+            this.drawDayService.setConfirmedDrawDay(nextDateDisplay, 900);
+            this.logger.log(`新建默认待开奖期: draw_id=${next.draw_id}, draw_date=${nextDateStr}`);
+            return { success: true, drawId: next.draw_id, drawDate: nextDateDisplay, drawTime: '15:00' };
+        }
+    }
+    async rollbackDraw() {
+        const drawRepo = this.dataSource.getRepository(draw_entity_1.Draw);
+        const completed = await (0, draw_queries_1.findNationalLastCompletedDraw)(drawRepo);
+        if (!completed) {
+            return { success: false, error: '没有可回滚的已完成开奖' };
+        }
+        const nextPending = await (0, draw_queries_1.findNationalPendingDraw)(drawRepo);
+        const shouldDeleteNext = nextPending && nextPending.draw_id !== completed.draw_id;
+        await this.dataSource.transaction(async (manager) => {
+            await manager
+                .createQueryBuilder()
+                .update(order_entity_1.Order)
+                .set({
+                status: 1,
+                win_amount: 0,
+                win_breakdown: null,
+                settled_at: null,
+                redeemed_at: null,
+                updated_at: new Date(),
+            })
+                .where('draw_id = :did AND status IN (1, 2, 3)', { did: completed.draw_id })
+                .execute();
+            await manager.update(draw_entity_1.Draw, completed.draw_id, {
+                status: 'pending',
+                winning_numbers: '',
+                archived_at: null,
+                main_shop_archived: false,
+            });
+            if (shouldDeleteNext) {
+                await manager.update(draw_entity_1.Draw, nextPending.draw_id, { status: 'canceled' });
+            }
+        });
+        this.logger.log(`回滚开奖: draw_id=${completed.draw_id}`);
+        return {
+            success: true,
+            drawId: completed.draw_id,
+            drawDate: completed.draw_date,
+            drawTime: completed.draw_time,
+        };
+    }
+};
+exports.DrawController = DrawController;
+__decorate([
+    (0, common_1.Get)('fetch-firebase'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "fetchFirebase", null);
+__decorate([
+    (0, common_1.Get)('fetch-lnb'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "fetchLnb", null);
+__decorate([
+    (0, common_1.Get)('latest'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "getLatestDraw", null);
+__decorate([
+    (0, common_1.Get)('pending'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "getPendingDraw", null);
+__decorate([
+    (0, common_1.Get)('next-date'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], DrawController.prototype, "getNextDate", null);
+__decorate([
+    (0, common_1.Post)('time'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "setDrawTime", null);
+__decorate([
+    (0, common_1.Post)('manual'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "manualDraw", null);
+__decorate([
+    (0, common_1.Post)('reset-time'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "resetDrawTime", null);
+__decorate([
+    (0, common_1.Post)('rollback'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], DrawController.prototype, "rollbackDraw", null);
+exports.DrawController = DrawController = DrawController_1 = __decorate([
+    (0, common_1.Controller)('draw'),
+    __metadata("design:paramtypes", [typeorm_1.DataSource,
+        draw_day_service_1.DrawDayService])
+], DrawController);
+let AdminController = AdminController_1 = class AdminController {
+    constructor(dataSource) {
+        this.dataSource = dataSource;
+        this.logger = new common_1.Logger(AdminController_1.name);
+    }
+    async cleanupNullDrawOrders() {
+        const orderRepo = this.dataSource.getRepository(order_entity_1.Order);
+        const result = await orderRepo
+            .createQueryBuilder()
+            .delete()
+            .from(order_entity_1.Order)
+            .where('draw_id IS NULL')
+            .execute();
+        const affected = result.affected ?? 0;
+        this.logger.warn(`cleanup-null-draw-orders: deleted ${affected} orders with draw_id IS NULL`);
+        return { success: true, deleted: affected };
+    }
+};
+exports.AdminController = AdminController;
+__decorate([
+    (0, common_1.Post)('cleanup-null-draw-orders'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "cleanupNullDrawOrders", null);
+exports.AdminController = AdminController = AdminController_1 = __decorate([
+    (0, common_1.Controller)('admin'),
+    (0, common_1.UseGuards)(admin_token_guard_1.AdminTokenGuard),
+    __metadata("design:paramtypes", [typeorm_1.DataSource])
+], AdminController);
+//# sourceMappingURL=draw.controller.js.map

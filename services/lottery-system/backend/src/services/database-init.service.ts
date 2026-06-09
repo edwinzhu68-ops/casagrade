@@ -1,0 +1,167 @@
+/**
+ * DatabaseInitService
+ *
+ * 生产环境 synchronize=false，TypeORM 的 @Index 装饰器不会自动建索引。
+ * 本服务在应用启动时用 CREATE INDEX IF NOT EXISTS 补建所有必要索引，
+ * 对 SQLite 和 PostgreSQL 均兼容（语法相同）。
+ */
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { Draw } from '../entities/draw.entity';
+import { backfillDrawPeriodNo } from '../utils/draw-period-no';
+
+@Injectable()
+export class DatabaseInitService implements OnModuleInit {
+  private readonly logger = new Logger(DatabaseInitService.name);
+
+  constructor(private readonly dataSource: DataSource) {}
+
+  async onModuleInit() {
+    await this.ensureTicaNicaColumns();
+    await this.ensureDrawPeriodNoColumn();
+    await this.bootstrapAdminAccount();
+
+    const indexes: { name: string; sql: string }[] = [
+      // ── orders ────────────────────────────────────────────────────────────
+      {
+        name: 'idx_orders_draw_status',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_orders_draw_status ON orders(draw_id, status)',
+      },
+      {
+        name: 'idx_orders_shop_draw',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_orders_shop_draw ON orders(shop_id, draw_id)',
+      },
+      {
+        name: 'idx_orders_shop_status',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_orders_shop_status ON orders(shop_id, status)',
+      },
+      // ── shops ─────────────────────────────────────────────────────────────
+      {
+        name: 'idx_shops_owner_id',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_shops_owner_id ON shops(owner_id)',
+      },
+      {
+        name: 'idx_shops_status',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_shops_status ON shops(status)',
+      },
+      // ── draws ─────────────────────────────────────────────────────────────
+      {
+        name: 'idx_draws_status',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_draws_status ON draws(status)',
+      },
+      {
+        name: 'idx_draws_status_id',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_draws_status_id ON draws(status, draw_id)',
+      },
+      {
+        name: 'idx_draws_shop_lottery_status',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_draws_shop_lottery_status ON draws(shop_id, lottery_type, status)',
+      },
+      // ── shop_bindings ─────────────────────────────────────────────────────
+      {
+        name: 'idx_bindings_main_status',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_bindings_main_status ON shop_bindings(main_shop_id, status)',
+      },
+      {
+        name: 'idx_bindings_sub_shop',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_bindings_sub_shop ON shop_bindings(sub_shop_id)',
+      },
+      // ── users ─────────────────────────────────────────────────────────────
+      {
+        name: 'idx_users_email',
+        sql: 'CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)',
+      },
+    ];
+
+    let created = 0;
+    for (const idx of indexes) {
+      try {
+        await this.dataSource.query(idx.sql);
+        created++;
+      } catch (e) {
+        this.logger.warn(`索引 ${idx.name} 创建失败（可能已存在）: ${(e as Error).message}`);
+      }
+    }
+    this.logger.log(`数据库索引初始化完成，共处理 ${created}/${indexes.length} 个索引`);
+  }
+
+  /**
+   * 生产环境 synchronize=false 时补列：TICA/NICA、订单 lottery_type、店铺停接开关
+   */
+  private async ensureTicaNicaColumns(): Promise<void> {
+    const dbType = (this.dataSource.options as { type?: string }).type || 'sqlite';
+    const boolDefault = dbType === 'postgres' ? 'true' : '1';
+    const boolDisabled = dbType === 'postgres' ? 'false' : '0';
+    const alters = [
+      `ALTER TABLE draws ADD COLUMN lottery_type varchar(20) DEFAULT 'NACIONAL'`,
+      `ALTER TABLE draws ADD COLUMN shop_id integer`,
+      `ALTER TABLE orders ADD COLUMN lottery_type varchar(20) DEFAULT 'NACIONAL'`,
+      `ALTER TABLE shops ADD COLUMN accepting_tica_orders boolean NOT NULL DEFAULT ${boolDefault}`,
+      `ALTER TABLE shops ADD COLUMN accepting_nica_orders boolean NOT NULL DEFAULT ${boolDefault}`,
+      `ALTER TABLE shops ADD COLUMN tica_enabled boolean NOT NULL DEFAULT ${boolDisabled}`,
+      `ALTER TABLE shops ADD COLUMN nica_enabled boolean NOT NULL DEFAULT ${boolDisabled}`,
+      // TICA 独立 Chance 赔率（与 NACIONAL 解耦；nullable，null 时 fallback 到 rate_chance_*）
+      `ALTER TABLE shops ADD COLUMN tica_chance_1 decimal(10,2)`,
+      `ALTER TABLE shops ADD COLUMN tica_chance_2 decimal(10,2)`,
+      `ALTER TABLE shops ADD COLUMN tica_chance_3 decimal(10,2)`,
+      // Lotería 当期开奖日期老板侧应急修正（官方改期但服务端未及时更新时使用）
+      `ALTER TABLE shops ADD COLUMN national_custom_draw_date varchar(12)`,
+      `ALTER TABLE shops ADD COLUMN national_custom_draw_id integer`,
+    ];
+    for (const sql of alters) {
+      try {
+        await this.dataSource.query(sql);
+      } catch {
+        /* 列已存在等 */
+      }
+    }
+    try {
+      await this.dataSource.query(
+        `UPDATE draws SET lottery_type = 'NACIONAL' WHERE lottery_type IS NULL`,
+      );
+    } catch {}
+    try {
+      await this.dataSource.query(
+        `UPDATE orders SET lottery_type = 'NACIONAL' WHERE lottery_type IS NULL`,
+      );
+    } catch {}
+  }
+
+  /**
+   * 启动时根据 ADMIN_ACCOUNT env 自动把该账号的 role 设为 'admin'。
+   * 让你（平台方）登录后即可操作 admin 接口。
+   * 未设 env 或找不到账号时静默跳过，不影响启动。
+   */
+  private async bootstrapAdminAccount(): Promise<void> {
+    const adminAccount = (process.env.ADMIN_ACCOUNT || '').trim();
+    if (!adminAccount) return;
+    try {
+      const result = await this.dataSource.query(
+        `UPDATE users SET role = 'admin' WHERE account_number = ? AND role != 'admin'`,
+        [adminAccount],
+      );
+      const affected = (result as any)?.affected ?? (Array.isArray(result) ? 0 : 0);
+      if (affected > 0) {
+        this.logger.log(`Admin bootstrap：账号 ${adminAccount} role 已设为 admin`);
+      } else {
+        this.logger.log(`Admin bootstrap：账号 ${adminAccount} 已是 admin 或不存在（跳过）`);
+      }
+    } catch (e) {
+      this.logger.warn(`Admin bootstrap 失败: ${(e as Error).message}`);
+    }
+  }
+
+  /** draws.period_no：各彩种/各店独立展示期号，与 draw_id 主键分离 */
+  private async ensureDrawPeriodNoColumn(): Promise<void> {
+    try {
+      await this.dataSource.query(`ALTER TABLE draws ADD COLUMN period_no integer`);
+    } catch {
+      /* 列已存在 */
+    }
+    try {
+      await backfillDrawPeriodNo(this.dataSource.getRepository(Draw), this.logger);
+    } catch (e) {
+      this.logger.warn(`period_no 回填跳过: ${(e as Error).message}`);
+    }
+  }
+}

@@ -1,0 +1,644 @@
+import { Controller, Get, Post, Patch, Delete, Query, Body, Param, Req, UseGuards, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Request } from 'express';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In, DataSource } from 'typeorm';
+import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Order } from '../../entities/order.entity';
+import { Shop } from '../../entities/shop.entity';
+import { User } from '../../entities/user.entity';
+import { Draw } from '../../entities/draw.entity';
+import { CardCode } from '../../entities/card-code.entity';
+import { ShopBinding } from '../../entities/shop-binding.entity';
+import { AdminTokenGuard } from '../../guards/admin-token.guard';
+
+/** 生成卡密：XXXX-XXXX-XXXX，去掉易混淆字符 */
+function generateCardCode(type: string): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const rand2 = () => Array.from({ length: 2 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const seg4  = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const prefix = type === 'yearly' ? 'YY' : type === 'half_yearly' ? 'HY' : 'MM';
+  // 格式：MM/YY + XX-XXXX-XXXX  共 14 字符（在 length:20 限制内）
+  return `${prefix}${rand2()}-${seg4()}-${seg4()}`;
+}
+
+@Controller('admin')
+@UseGuards(AdminTokenGuard)
+export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
+  constructor(
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
+    @InjectRepository(Shop)
+    private readonly shopRepo: Repository<Shop>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(Draw)
+    private readonly drawRepo: Repository<Draw>,
+    @InjectRepository(CardCode)
+    private readonly cardCodeRepo: Repository<CardCode>,
+    @InjectRepository(ShopBinding)
+    private readonly shopBindingRepo: Repository<ShopBinding>,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  /**
+   * 店铺对比：Top N 销售额 / 净利润
+   * GET /api/admin/shop-compare?from=YYYY-MM-DD&to=YYYY-MM-DD&top=10
+   */
+  @Get('shop-compare')
+  async shopCompare(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('top') top: string = '10',
+  ) {
+    const topN = Number(top) || 10;
+
+    const where: any = {};
+    if (from) {
+      where.created_at = where.created_at || {};
+      where.created_at.$gte = new Date(from);
+    }
+    if (to) {
+      where.created_at = where.created_at || {};
+      // 包含当天
+      const endDate = new Date(to);
+      endDate.setDate(endDate.getDate() + 1);
+      where.created_at.$lt = endDate;
+    }
+
+    // 简单方式：先取出所有已付款订单，再在内存中聚合
+    const qb = this.orderRepo.createQueryBuilder('order')
+      .where('order.status >= :status', { status: 1 });
+
+    if (from) {
+      qb.andWhere('order.paid_at >= :from', { from: new Date(from) });
+    }
+    if (to) {
+      const endDate = new Date(to);
+      endDate.setDate(endDate.getDate() + 1);
+      qb.andWhere('order.paid_at < :to', { to: endDate });
+    }
+
+    const orders = await qb.getMany();
+
+    const shopMap = new Map<number, { sales: number; payout: number }>();
+    for (const o of orders) {
+      if (!o.shop_id) continue;
+      if (!shopMap.has(o.shop_id)) {
+        shopMap.set(o.shop_id, { sales: 0, payout: 0 });
+      }
+      const entry = shopMap.get(o.shop_id)!;
+      entry.sales += Number(o.amount);
+      if (o.win_amount) {
+        entry.payout += Number(o.win_amount);
+      }
+    }
+
+    const shopIds = Array.from(shopMap.keys());
+    const shops = shopIds.length
+      ? await this.shopRepo.find({ where: { shop_id: In(shopIds) } })
+      : [];
+
+    const items = shops.map((s) => {
+      const agg = shopMap.get(s.shop_id) || { sales: 0, payout: 0 };
+      const totalSales = agg.sales;
+      const totalPayout = agg.payout;
+      const netProfit = totalSales - totalPayout;
+      return {
+        shopNumber: s.shop_number,
+        shopName: s.shop_name,
+        totalSales,
+        netProfit,
+      };
+    });
+
+    items.sort((a, b) => b.totalSales - a.totalSales);
+
+    return {
+      items: items.slice(0, topN),
+    };
+  }
+
+  /**
+   * GET /api/admin/shops - 返回全部店铺（管理员用）
+   */
+  @Get('shops')
+  async getAllShops() {
+    const shops = await this.shopRepo.find({ order: { shop_id: 'ASC' } });
+    const ownerIds = shops.map(s => s.owner_id).filter(Boolean);
+    const users = ownerIds.length
+      ? await this.userRepo.find({ where: { user_id: In(ownerIds) } })
+      : [];
+    const userMap = new Map(users.map(u => [u.user_id, u]));
+
+    // 所有已完成的期次（按 draw_id 升序），用于计算连续未下单期数
+    const completedDraws = await this.drawRepo.find({
+      where: { status: 'completed' },
+      order: { draw_id: 'ASC' },
+      select: ['draw_id'],
+    });
+    const completedDrawIds: number[] = completedDraws.map(d => d.draw_id);
+    const totalCompleted = completedDrawIds.length;
+
+    // 每个店铺最后一次有效订单的 draw_id（status 1/2/3）
+    const shopIds = shops.map(s => s.shop_id).filter(Boolean);
+    type LastOrderRow = { shop_id: number; last_draw_id: number };
+    let lastOrderMap = new Map<number, number>();
+    if (shopIds.length) {
+      const rows: LastOrderRow[] = await this.orderRepo
+        .createQueryBuilder('o')
+        .select('o.shop_id', 'shop_id')
+        .addSelect('MAX(o.draw_id)', 'last_draw_id')
+        .where('o.shop_id IN (:...ids)', { ids: shopIds })
+        .andWhere('o.status IN (:...statuses)', { statuses: [1, 2, 3] })
+        .groupBy('o.shop_id')
+        .getRawMany();
+      rows.forEach(r => lastOrderMap.set(Number(r.shop_id), Number(r.last_draw_id)));
+    }
+
+    // 查每个店铺作为大庄时绑定的小庄数量
+    const bindings = shopIds.length
+      ? await this.shopBindingRepo.find({ where: { main_shop_id: In(shopIds), status: 'active' } })
+      : [];
+    const subCountMap = new Map<number, number>();
+    for (const b of bindings) {
+      subCountMap.set(b.main_shop_id, (subCountMap.get(b.main_shop_id) || 0) + 1);
+    }
+
+    return {
+      shops: shops.map(s => {
+        const user = s.owner_id ? userMap.get(s.owner_id) : null;
+        const lastDrawId = lastOrderMap.get(s.shop_id);
+        const inactive_periods = lastDrawId != null
+          ? completedDrawIds.filter(id => id > lastDrawId).length
+          : totalCompleted;
+        return {
+          shop_id: s.shop_id,
+          shop_number: s.shop_number,
+          shop_name: s.shop_name,
+          shop_aliases: s.shop_aliases || [],
+          status: s.status,
+          commission_rate: s.commission_rate,
+          owner_id: s.owner_id,
+          account_number: user ? user.account_number : null,
+          registered_at: user ? user.created_at : null,
+          inactive_periods,
+          subscription_expires_at: (s as any).subscription_expires_at ?? null,
+          sub_shop_count: subCountMap.get(s.shop_id) || 0,
+        };
+      }),
+    };
+  }
+
+  /**
+   * GET /api/admin/current-period-stats - 总后台顶部统计
+   * 订单数/销售额统计当前 pending 期；店铺数固定统计上一期 completed 期。
+   * 店铺数只统计上一期有非取消订单的店铺；销售额只统计已付款/已开奖/已中奖订单。
+   */
+  @Get('current-period-stats')
+  async getCurrentPeriodStats() {
+    const summarize = async (drawId: number) => this.orderRepo.createQueryBuilder('o')
+      .select('COUNT(*)', 'total_orders')
+      .addSelect('COUNT(DISTINCT o.shop_id)', 'shop_count')
+      .addSelect('SUM(CASE WHEN o.status IN (1, 2, 3) THEN 1 ELSE 0 END)', 'paid_orders')
+      .addSelect('SUM(CASE WHEN o.status IN (1, 2, 3) THEN o.amount ELSE 0 END)', 'total_sales')
+      .where('o.draw_id = :drawId', { drawId })
+      .andWhere('o.status != :canceled', { canceled: -1 })
+      .andWhere('(o.lottery_type = :lt OR o.lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .getRawOne();
+
+    const currentDraw = await this.drawRepo.createQueryBuilder('d')
+      .where('LOWER(d.status) = :status', { status: 'pending' })
+      .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('d.shop_id IS NULL')
+      .orderBy('d.draw_id', 'DESC')
+      .getOne();
+
+    const previousDraw = await this.drawRepo.createQueryBuilder('d')
+      .where('LOWER(d.status) = :status', { status: 'completed' })
+      .andWhere('(d.lottery_type = :lt OR d.lottery_type IS NULL)', { lt: 'NACIONAL' })
+      .andWhere('d.shop_id IS NULL')
+      .orderBy('d.draw_id', 'DESC')
+      .getOne();
+
+    const currentRow = currentDraw ? await summarize(currentDraw.draw_id) : null;
+    const previousRow = previousDraw ? await summarize(previousDraw.draw_id) : null;
+
+    return {
+      success: true,
+      drawId: currentDraw?.draw_id ?? null,
+      drawSource: currentDraw ? 'pending' : null,
+      shopCountDrawId: previousDraw?.draw_id ?? null,
+      shopCountDrawSource: previousDraw ? 'latest-completed' : null,
+      shop_count: Number(previousRow?.shop_count || 0),
+      total_orders: Number(currentRow?.total_orders || 0),
+      paid_orders: Number(currentRow?.paid_orders || 0),
+      total_sales: Number(currentRow?.total_sales || 0),
+    };
+  }
+
+  /**
+   * DELETE /api/admin/accounts/:accountNumber - 删除账号及其店铺（店号释放回随机池）
+   */
+  @Delete('accounts/:accountNumber')
+  async deleteAccount(@Param('accountNumber') accountNumber: string, @Req() req?: any) {
+    const account = (accountNumber || '').trim();
+    if (!account) throw new BadRequestException('请提供账号');
+    const user = await this.userRepo.findOne({ where: { account_number: account } });
+    if (!user) throw new NotFoundException(`账号 ${account} 不存在`);
+    const shops = await this.shopRepo.find({ where: { owner_id: user.user_id } });
+    const shopNumbers = shops.map(s => s.shop_number);
+    let deletedOrders = 0;
+    let deletedDraws = 0;
+
+    // 事务化：所有 delete 必须全部成功或全部回滚，避免中途失败留下孤儿数据（如订单删了但店还在 / 店删了但 user 还在）
+    await this.dataSource.transaction(async (manager) => {
+      for (const shop of shops) {
+        // 级联清理：防止 shop_id 被复用后历史 orders/draws 变成新账号的数据
+        const o = await manager.delete(Order, { shop_id: shop.shop_id });
+        const d = await manager.delete(Draw, { shop_id: shop.shop_id }); // 仅删 TICA/NICA 店内彩期（NACIONAL 的 shop_id 为 NULL）
+        deletedOrders += o.affected || 0;
+        deletedDraws += d.affected || 0;
+        await manager.delete(ShopBinding, { main_shop_id: shop.shop_id });
+        await manager.delete(ShopBinding, { sub_shop_id: shop.shop_id });
+        await manager.delete(Shop, shop.shop_id);
+      }
+      await manager.delete(User, user.user_id);
+    });
+
+    // 审计日志（删账号是不可逆高敏感操作，必须留痕可追溯）
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+    this.logger.log(
+      `[审计] 删除账号 account=${account} user_id=${user.user_id} 释放店号=[${shopNumbers.join(',')}] ` +
+      `订单=${deletedOrders} 彩期=${deletedDraws} ip=${ip} time=${new Date().toISOString()}`,
+    );
+
+    return {
+      success: true,
+      message: `已删除账号 ${account}，释放店号：${shopNumbers.join(', ') || '无'}（清理订单 ${deletedOrders} 条，店内彩期 ${deletedDraws} 条）`,
+    };
+  }
+
+  /**
+   * PATCH /api/admin/shops/:shopId/status - 启用/停用店铺
+   */
+  @Patch('shops/:shopId/status')
+  async setShopStatus(
+    @Param('shopId') shopId: string,
+    @Body('status') status: string,
+  ) {
+    const shop = await this.shopRepo.findOne({ where: { shop_id: parseInt(shopId) } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+    if (status !== 'active' && status !== 'disabled') throw new BadRequestException('status 只能是 active 或 disabled');
+    await this.shopRepo.update(shop.shop_id, { status });
+    return { success: true, shop_id: shop.shop_id, status };
+  }
+
+  /**
+   * PATCH /api/admin/shops/:shopId/subscription - 手动设置店铺订阅到期日
+   * Body: { expires_at: "YYYY-MM-DD" | "YYYY-MM-DDTHH:mm:ssZ" | null }
+   */
+  @Patch('shops/:shopId/subscription')
+  async setShopSubscription(
+    @Param('shopId') shopId: string,
+    @Body('expires_at') expiresAt: string | null,
+    @Req() req: any,
+  ) {
+    const id = parseInt(shopId, 10);
+    if (isNaN(id)) throw new BadRequestException('无效的 shopId');
+    const shop = await this.shopRepo.findOne({ where: { shop_id: id } });
+    if (!shop) throw new NotFoundException('店铺不存在');
+
+    let newExpiry: Date | null = null;
+    if (expiresAt !== null && expiresAt !== undefined && expiresAt !== '') {
+      newExpiry = new Date(expiresAt);
+      if (isNaN(newExpiry.getTime())) throw new BadRequestException('日期格式无效，请用 YYYY-MM-DD');
+    }
+
+    const oldExpiry = (shop as any).subscription_expires_at
+      ? new Date((shop as any).subscription_expires_at).toISOString()
+      : null;
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+
+    await this.shopRepo.update(id, { subscription_expires_at: newExpiry } as any);
+
+    // 审计日志（改月费到期日属于高敏感操作，必须留痕可追溯）
+    this.logger.log(
+      `[审计] 修改店铺订阅到期日 shop_id=${id} shop_number=${shop.shop_number} ` +
+      `old=${oldExpiry} → new=${newExpiry ? newExpiry.toISOString() : null} ip=${ip} time=${new Date().toISOString()}`,
+    );
+
+    return {
+      success: true,
+      shop_id: id,
+      subscription_expires_at: newExpiry ? newExpiry.toISOString() : null,
+    };
+  }
+
+  /**
+   * POST /api/admin/reset-password - 重置商家密码
+   */
+  @Post('reset-password')
+  async resetPassword(
+    @Body('shopNumber') shopNumber: string,
+    @Body('newPassword') newPassword: string,
+    @Req() req?: any,
+  ) {
+    const sn = (shopNumber || '').trim();
+    const pwd = (newPassword || '').trim();
+    if (!sn) throw new BadRequestException('请提供店号');
+    if (!pwd || pwd.length < 4) throw new BadRequestException('新密码至少 4 位');
+
+    // 支持别名查找
+    let shop = await this.shopRepo.findOne({ where: { shop_number: sn } });
+    if (!shop) {
+      const all = await this.shopRepo.find();
+      shop = all.find(s => (s.shop_aliases || []).includes(sn)) ?? null;
+    }
+    if (!shop) throw new NotFoundException(`找不到店号 ${sn}`);
+    if (!shop.owner_id) throw new BadRequestException('该店铺没有关联账号');
+
+    const hash = await bcrypt.hash(pwd, 10);
+    await this.userRepo.update(shop.owner_id, { password_hash: hash });
+
+    // 审计日志（重置密码是高敏感操作，必须留痕可追溯）
+    const ip = (req?.headers?.['x-forwarded-for'] || req?.ip || '?').toString().split(',')[0].trim();
+    this.logger.log(
+      `[审计] 重置密码 shop_number=${sn} shop_id=${shop.shop_id} target_user_id=${shop.owner_id} ` +
+      `ip=${ip} time=${new Date().toISOString()}`,
+    );
+
+    return { success: true, message: `店号 ${sn} 密码已重置` };
+  }
+
+  /**
+   * POST /api/admin/generate-cards - 批量生成卡密
+   */
+  @Post('generate-cards')
+  async generateCards(
+    @Body('type') type: string,
+    @Body('count') count: number,
+    @Req() req: Request,
+  ) {
+    if (!['monthly', 'half_yearly', 'yearly'].includes(type)) throw new BadRequestException('type 只能是 monthly / half_yearly / yearly');
+    const n = Math.min(Math.max(parseInt(String(count)) || 1, 1), 50);
+    const codes: string[] = [];
+    for (let i = 0; i < n; i++) {
+      let code: string;
+      let attempts = 0;
+      do {
+        code = generateCardCode(type);
+        attempts++;
+      } while (attempts < 10 && await this.cardCodeRepo.findOne({ where: { code } }));
+      if (attempts >= 10) throw new BadRequestException('卡密生成碰撞过多，请重试');
+      const card = this.cardCodeRepo.create({ code, type, used_by_shop_id: null, used_at: null });
+      await this.cardCodeRepo.save(card);
+      codes.push(code);
+    }
+    // 审计日志
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '?';
+    this.logger.log(`[审计] 生成卡密 type=${type} count=${n} ip=${ip} time=${new Date().toISOString()}`);
+    return { success: true, codes, type, generated_at: new Date().toISOString() };
+  }
+
+  /**
+   * GET /api/admin/cards - 查看卡密列表
+   */
+  @Get('cards')
+  async listCards(@Query('type') type?: string) {
+    const where: any = {};
+    if (type) where.type = type;
+    const cards = await this.cardCodeRepo.find({ where, order: { created_at: 'DESC' } });
+    return {
+      cards: cards.map(c => ({
+        id: c.id,
+        code: c.code,
+        type: c.type,
+        used: !!c.used_at,
+        used_by_shop_id: c.used_by_shop_id,
+        used_at: c.used_at,
+        created_at: c.created_at,
+      })),
+    };
+  }
+
+  /**
+   * GET /api/admin/shops/:shopId/sub-shops - 获取某大庄的所有小庄列表
+   */
+  @Get('shops/:shopId/sub-shops')
+  async getSubShops(@Param('shopId') shopId: string) {
+    const id = parseInt(shopId, 10);
+    if (isNaN(id)) throw new BadRequestException('无效的 shopId');
+    const bindings = await this.shopBindingRepo.find({
+      where: { main_shop_id: id, status: 'active' },
+      order: { created_at: 'ASC' },
+    });
+    const subIds = bindings.map(b => b.sub_shop_id);
+    const shops = subIds.length ? await this.shopRepo.find({ where: { shop_id: In(subIds) } }) : [];
+    const shopMap = new Map(shops.map(s => [s.shop_id, s]));
+    return {
+      sub_shops: bindings.map(b => {
+        const s = shopMap.get(b.sub_shop_id);
+        return {
+          shop_id: b.sub_shop_id,
+          shop_number: s?.shop_number ?? '',
+          shop_name: s?.shop_name ?? '',
+          subscription_expires_at: (s as any)?.subscription_expires_at ?? null,
+          binding_id: b.binding_id,
+        };
+      }),
+    };
+  }
+
+  /**
+   * DELETE /api/admin/cards/:id - 作废卡密（只允许删除未使用的卡密）
+   */
+  @Delete('cards/:id')
+  async revokeCard(@Param('id') id: string, @Req() req: Request) {
+    const cardId = parseInt(id, 10);
+    if (isNaN(cardId)) throw new BadRequestException('无效的卡密ID');
+    const card = await this.cardCodeRepo.findOne({ where: { id: cardId } });
+    if (!card) throw new NotFoundException('卡密不存在');
+    await this.cardCodeRepo.delete(cardId);
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '?';
+    this.logger.log(`[审计] 作废卡密 id=${cardId} code=${card.code} ip=${ip} time=${new Date().toISOString()}`);
+    return { success: true, message: `卡密 ${card.code} 已作废` };
+  }
+
+  /**
+   * 分配店号给买家（卖店号时用）
+   * POST /api/admin/assign-shop
+   * Body: { shopNumber: "1" | "123" | "88888", accountNumber: "buyerAccount" }
+   * 店号 1-9 位数字（可从 1 开始任意分配）；若该店号已存在则报错不能绑
+   */
+  @Post('assign-shop')
+  async assignShop(
+    @Body('shopNumber') shopNumber: string,
+    @Body('accountNumber') accountNumber: string,
+  ) {
+    const sn = (shopNumber || '').trim();
+    const account = (accountNumber || '').trim();
+    if (!/^\d{1,9}$/.test(sn)) {
+      throw new BadRequestException('店号为 1-9 位数字');
+    }
+    if (!account) {
+      throw new BadRequestException('请提供买家账号 accountNumber');
+    }
+
+    const user = await this.userRepo.findOne({ where: { account_number: account } });
+    if (!user) {
+      throw new NotFoundException(`账号 ${account} 不存在，请让买家先注册`);
+    }
+
+    // 检查该号码是否已被其他店铺使用（主号或别名）
+    const existingByPrimary = await this.shopRepo.findOne({ where: { shop_number: sn } });
+    if (existingByPrimary) {
+      throw new BadRequestException(`店号 ${sn} 已存在，不能分配`);
+    }
+    const allShops = await this.shopRepo.find();
+    const existingByAlias = allShops.find(s => (s.shop_aliases || []).includes(sn));
+    if (existingByAlias) {
+      throw new BadRequestException(`店号 ${sn} 已被其他店铺用作别名，不能分配`);
+    }
+
+    // 找该用户现有店铺
+    const userShop = await this.shopRepo.findOne({ where: { owner_id: user.user_id } });
+    if (userShop) {
+      // 已有店铺：新号升为主号，旧主号降为别名
+      const aliases = userShop.shop_aliases || [];
+      const timestamps: Record<string, string> = userShop.shop_alias_timestamps || {};
+      if (!aliases.includes(userShop.shop_number)) {
+        aliases.push(userShop.shop_number);
+        timestamps[userShop.shop_number] = new Date().toISOString();
+      }
+      await this.shopRepo.update(userShop.shop_id, { shop_number: sn, shop_aliases: aliases, shop_alias_timestamps: timestamps });
+      return {
+        success: true,
+        message: `已将店号 ${sn} 设为主号，旧号 ${userShop.shop_number} 保留为别名（1个月后自动删除）`,
+        shop_id: userShop.shop_id,
+        shop_number: sn,
+        shop_aliases: aliases,
+        owner_id: userShop.owner_id,
+      };
+    }
+
+    // 没有店铺：新建
+    const shop = this.shopRepo.create({
+      shop_number: sn,
+      owner_id: user.user_id,
+      shop_name: `店铺${sn}`,
+      status: 'active',
+      commission_rate: 0.1,
+    });
+    await this.shopRepo.save(shop);
+    return {
+      success: true,
+      message: `已创建店号 ${sn} 并绑定到账号 ${account}`,
+      shop_id: shop.shop_id,
+      shop_number: shop.shop_number,
+      shop_aliases: [],
+      owner_id: shop.owner_id,
+    };
+  }
+
+  /**
+   * 系统健康检查
+   * GET /api/admin/health
+   */
+  @Get('health')
+  async health() {
+    try {
+      await this.orderRepo.query('SELECT 1');
+      return {
+        db: 'ok',
+        queue: 'unknown', // 目前暂未接入队列
+      };
+    } catch (e) {
+      return {
+        db: 'error',
+        queue: 'unknown',
+      };
+    }
+  }
+
+  /**
+   * 历史期次总订单数和销售额（全部店铺）
+   * GET /api/admin/draw-history?limit=
+   * 仅统计已完成且已归档的期次，数据永久保留
+   */
+  @Get('draw-history')
+  async drawHistory(@Query('limit') limit: string) {
+    const take = Number(limit) || 50;
+
+    const { Not, IsNull } = await import('typeorm');
+    const completedDraws = await this.drawRepo.find({
+      where: { status: In(['completed', 'COMPLETED']), archived_at: Not(IsNull()) },
+      order: { draw_id: 'DESC' },
+      take,
+    });
+
+    if (!completedDraws.length) {
+      return { history: [] };
+    }
+
+    const history = await Promise.all(
+      completedDraws.map(async (draw) => {
+        const orders = await this.orderRepo.find({
+          where: { draw_id: draw.draw_id },
+        });
+
+        const paidOrders = orders.filter((o) =>
+          [1, 2, 3].includes(Number((o as any).status)),
+        );
+
+        const totalSales = paidOrders.reduce(
+          (sum, o) => sum + Number((o as any).amount || 0),
+          0,
+        );
+        const totalPayout = paidOrders.reduce(
+          (sum, o) => sum + Number((o as any).win_amount || 0),
+          0,
+        );
+
+        return {
+          draw_id: draw.draw_id,
+          draw_date: (draw as any).draw_date,
+          order_count: paidOrders.length,
+          total_sales: Math.round(totalSales * 100) / 100,
+          total_payout: Math.round(totalPayout * 100) / 100,
+          net_profit: Math.round((totalSales - totalPayout) * 100) / 100,
+        };
+      }),
+    );
+
+    return { history };
+  }
+
+  /**
+   * GET /api/admin/logs - 获取错误日志（最近 100 行）
+   * GET /api/admin/logs?lines=50 - 指定行数
+   */
+  @Get('logs')
+  async getLogs(@Query('lines') lines: string = '100') {
+    const logDir = path.join(__dirname, '..', '..', 'logs');
+    const today = new Date().toISOString().split('T')[0];
+    const logFile = path.join(logDir, `error-${today}.log`);
+    
+    let content = '';
+    try {
+      if (fs.existsSync(logFile)) {
+        const fileContent = fs.readFileSync(logFile, 'utf-8');
+        const allLines = fileContent.split('\n');
+        const maxLines = Math.min(parseInt(lines, 10) || 100, 500);
+        content = allLines.slice(-maxLines).join('\n');
+      }
+    } catch (e) {
+      return { success: false, error: '读取日志失败: ' + (e as Error).message };
+    }
+    
+    return { success: true, logs: content, date: today };
+  }
+}
